@@ -7,13 +7,13 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "base/base_include.h"
-#include "os/os_include.h"
+#include <base/base_include.h>
+#include <os/os_include.h>
 
-#include "base/base_include.c"
-#include "os/os_include.c"
+#include "lexer.h"
 
-#define RAS_MAP_FILE_SIZE_MAX 8192
+#include <base/base_include.c>
+#include <os/os_include.c>
 
 void
 arguments_shift(int *argument_count, char ***argument_vector)
@@ -37,25 +37,25 @@ main(int argument_count, char **argument_vector)
 	if (argument_count < 2)
 	{
 		usage_print();
-		exit(1);
-	} else {
-		const char *file_in_path = argument_vector[0];
-		int file_in_descriptor = open(file_in_path, O_RDONLY);
-		assert_always_m(file_in_descriptor > 0 && "failed to find input file");
-
-		stat file_in_statistics;
-		assert_always_m(fstat(file_in_descriptor, &file_in_statistics) > 0 && "failed to call fstat on input file");
-
-		char *contents = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
-		assert_always_m(contents != MAP_FAILED && "failed to mmap file contents");
-
-		arguments_shift(&argument_count, &argument_vector);
-
-		// const char *file_path_out = argument_vector[0];
-		// printf("file path out: %s\n", file_path_out);
-		// int file_out_descriptor = open(file_path_out, O_CREAT|O_WRONLY|O_TRUNC, 0644);
-		// assert_always_m(file_out_descriptor > 0, "failed to create file output");
+		assert_always_m(0);
 	}
+
+	const char *file_in_path = argument_vector[0];
+	int file_in_descriptor = open(file_in_path, O_RDONLY);
+	assert_always_m(file_in_descriptor > 0 && "failed to find input file");
+
+	struct stat file_in_statistics;
+	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) > 0 && "failed to call fstat on input file");
+
+	char *contents = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
+	assert_always_m(contents != MAP_FAILED && "failed to mmap file contents");
+
+	arguments_shift(&argument_count, &argument_vector);
+
+	// const char *file_path_out = argument_vector[0];
+	// printf("file path out: %s\n", file_path_out);
+	// int file_out_descriptor = open(file_path_out, O_CREAT|O_WRONLY|O_TRUNC, 0644);
+	// assert_always_m(file_out_descriptor > 0, "failed to create file output");
 
 	return 0;
 }

@@ -142,25 +142,31 @@ struct Token_Array
 	Token_Kind *tokens;
 	U32         count;
 
-	U32	    row_index_current;
-	U32         column_index_current;
+	U32	    row_index;
+	U32         column_index;
 
 	Lexer_Error_Kind error;
 };
 
 internal B32
+LE_U8_identifier_start_is(U8 character)
+{
+	B32 result = U8_ascii_letter_is(character) || character == '_';
+	return result;
+}
+
+internal B32
 LE_U8_identifier_is(U8 character)
 {
-	B32 identifier_is = character_letter_ascii_is(character) || character_digit_is(character) || character = '_';
-	return identifier_is;
+	B32 result = U8_ascii_letter_is(character) || character == '_' || U8_ascii_digit_is(character) ;
+	return result;
 }
 
 internal B32
 LE_U8_number_character_is(U8 character)
 {
-	B32 digit_is = U8_ascii_digit_is(character);
-
-	return digit_is
+	B32 result = U8_ascii_digit_is(character);
+	return result;
 }
 
 internal U8 *
@@ -169,9 +175,24 @@ LE_String8_get(String8 *string, U64 index)
 	U8 *next = 0;
 	if (index < string->count)
 	{
-		next = string[index + 1];
+		next = &string->data[index + 1];
 	}
 	return next;
+}
+
+internal void
+LE_advance(U64 *index, U32 *column_index)
+{
+	*index        += 1;
+	*column_index += 1;
+}
+
+internal void
+LE_advance_newline(U64 *index, U32 *column_index, U32 *row_index)
+{
+	*index        += 1;
+	*row_index    += 1;
+	*column_index  = 1;
 }
 
 internal Token_Array
@@ -201,8 +222,8 @@ tokenize(String8 *input, Arena *arena)
 		// NOTE: should maintain the logical order of Token_Kind enumeration.
 		switch (input_data[index])
 		{
-		case ' ' : { index += 1; } break;
-		case '\t': { index += 1; } break;
+		case ' ' : { LE_advance(&index, &column_index); } break;
+		case '\t': { LE_advance(&index, &column_index); } break;
 
 		// NOTE: no multi-line comment support (yet).
 		case '#':
@@ -210,7 +231,7 @@ tokenize(String8 *input, Arena *arena)
 			B32 break_should = 0;
 			for (;;)
 			{
-				index += 1;
+				LE_advance(&index, &column_index);
 
 				break_should = input_data[index] != '\n' || index >= input_count;
 				if (break_should) { break; }
@@ -218,28 +239,29 @@ tokenize(String8 *input, Arena *arena)
 
 		} break;
 
-		case '.' : { token_kind = Token_Kind__Dot;               index += 1; } break;
-		case ',' : { token_kind = Token_Kind__Comma;             index += 1; } break;
-		case ':' : { token_kind = Token_Kind__Colon;             index += 1; } break;
+		case '.' : { token_kind = Token_Kind__Dot;               LE_advance(&index, &column_index); } break;
+		case ',' : { token_kind = Token_Kind__Comma;             LE_advance(&index, &column_index); } break;
+		case ':' : { token_kind = Token_Kind__Colon;             LE_advance(&index, &column_index); } break;
 
-		case '(' : { token_kind = Token_Kind__Left_Parenthesis;  index += 1; } break;
-		case ')' : { token_kind = Token_Kind__Right_Parenthesis; index += 1; } break;
+		case '(' : { token_kind = Token_Kind__Left_Parenthesis;  LE_advance(&index, &column_index); } break;
+		case ')' : { token_kind = Token_Kind__Right_Parenthesis; LE_advance(&index, &column_index); } break;
 
-		case '+' : { token_kind = Token_Kind__Plus;              index += 1; } break;
-		case '-' : { token_kind = Token_Kind__Minus;             index += 1; } break;
-		case '*' : { token_kind = Token_Kind__Star;              index += 1; } break;
-		case '/' : { token_kind = Token_Kind__Slash;             index += 1; } break;
+		case '+' : { token_kind = Token_Kind__Plus;              LE_advance(&index, &column_index); } break;
+		case '-' : { token_kind = Token_Kind__Minus;             LE_advance(&index, &column_index); } break;
+		case '*' : { token_kind = Token_Kind__Star;              LE_advance(&index, &column_index); } break;
+		case '/' : { token_kind = Token_Kind__Slash;             LE_advance(&index, &column_index); } break;
 
-		case '%' : { token_kind = Token_Kind__Percentage;        index += 1; } break;
-		case '\n': { token_kind = Token_Kind__Newline;           index += 1; } break;
+		case '%' : { token_kind = Token_Kind__Percentage;        LE_advance(&index, &column_index); } break;
+
+		case '\n': { token_kind = Token_Kind__Newline;           LE_advance_newline(&index, &column_index, &row_index); } break;
 
 		case '>':
 		{
-			index += 1;
-			U8 *next = LE_String8_get(index);
+			LE_advance(&index, &column_index);
+			U8 *next = LE_String8_get(input, index);
 			if (next && *next == '>')
 			{
-				index += 1;
+				LE_advance(&index, &column_index);
 				token_kind = Token_Kind__Shift_Right;
 			}
 			else
@@ -249,11 +271,11 @@ tokenize(String8 *input, Arena *arena)
 		} break;
 		case '<':
 		{
-			index += 1;
-			U8 *next = LE_String8_get(index);
+			LE_advance(&index, &column_index);
+			U8 *next = LE_String8_get(input, index);
 			if (next && *next == '<')
 			{
-				index += 1;
+				LE_advance(&index, &column_index);
 				token_kind = Token_Kind__Shift_Left;
 			}
 			else
@@ -274,13 +296,16 @@ tokenize(String8 *input, Arena *arena)
 			B32 break_should       = 0;
 			for (;;)
 			{
-				index += 1;
+				LE_advance(&index, &column_index);
 				U8  character = input_data[index];
-				B32 backslash_is = character == '\\';
 
 				if (escaping_started)
 				{
 					escaping_started = 0;
+				}
+				else if (character == '\\')
+				{
+					escaping_started = 1;
 				}
 				else if (character == character_quote)
 				{
@@ -291,7 +316,7 @@ tokenize(String8 *input, Arena *arena)
 					error = Lexer_Error_Kind__String_Multiline_Unsupported;
 				}
 
-				break_should = quote_ending_found || error || index >= index_count;
+				break_should = quote_ending_found || error || index >= input_count;
 				if (break_should) { break; }
 
 			}
@@ -300,7 +325,7 @@ tokenize(String8 *input, Arena *arena)
 			{
 				token_kind = Token_Kind__String_Literal;
 			}
-			else if (character_quote = '\'')
+			else if (character_quote == '\'')
 			{
 				token_kind = Token_Kind__Char_Literal;
 			}
@@ -312,10 +337,10 @@ tokenize(String8 *input, Arena *arena)
 		} break;
 		default:
 		{
-			if (LE_U8_indentifier_is(input_data[index]))
+			if (LE_U8_identifier_start_is(input_data[index]))
 			{
 				B32 break_should = 0;
-				index += 1;
+				LE_advance(&index, &column_index);
 				for (;;)
 				{
 					B32 identifier_is = LE_U8_identifier_is(input_data[index]);
@@ -323,7 +348,7 @@ tokenize(String8 *input, Arena *arena)
 					{
 					}
 
-					index += 1;
+					LE_advance(&index, &column_index);
 					break_should = !identifier_is || index >= input_count;
 					if (break_should)
 					{
@@ -333,14 +358,14 @@ tokenize(String8 *input, Arena *arena)
 			}
 
 			// TODO: support float (hex float?), literal hex, literal octal, literal binary.
-			if (U8_ascii_digit_is(input_data[index])
+			if (U8_ascii_digit_is(input_data[index]))
 			{
-				index += 1;
+				LE_advance(&index, &column_index);
 				for (;;)
 				{
-					if (U8_ascii_digit_is(input_data[index])
+					if (U8_ascii_digit_is(input_data[index]))
 					{
-						index += 1;
+						LE_advance(&index, &column_index);
 					}
 					else
 					{
@@ -362,21 +387,21 @@ tokenize(String8 *input, Arena *arena)
 			token_index += 1;
 		}
 
-		B32 break_should = error || index >= index_count;
+		B32 break_should = error || index >= input_count;
 		if (break_should) { break; }
 	}
 
 	Token_Array token_array =
 	{
-		.positions            = positions,
-		.sizes                = sizes,
-		.tokens               = tokens,
-		.count                = token_index,
+		.positions    = positions,
+		.sizes        = sizes,
+		.tokens       = tokens,
+		.count        = token_index,
 
-		.row_index_current    = row_index_current,
-		.column_index_current = column_index_current,
+		.row_index    = row_index,
+		.column_index = column_index,
 
-		.error                = error
+		.error        = error
 	};
 
 	return token_array;

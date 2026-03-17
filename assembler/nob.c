@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	nob_cmd_append(&cmd, "cc",
 			"-std=c11", "-g",
 			"-Wall", "-Wextra", "-Wpedantic",
-			"-Wno-initializer-overrides",
+			"-Wno-override-init",
 			"-Wno-unused-function",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",
