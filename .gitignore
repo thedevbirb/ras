@@ -1,7 +1,11 @@
+build/
 plan/
 
 *.pdf
 *.md
+*.out
+*.old
+nob
 
 !README.md
 !diary.md
