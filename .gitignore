@@ -1,0 +1,6 @@
+plan/
+
+*.pdf
+*.md
+
+!README.md
