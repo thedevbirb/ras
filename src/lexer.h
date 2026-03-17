@@ -122,18 +122,28 @@ typedef enum Lexing_Error_Kind
 }
 Lexer_Error_Kind;
 
+typedef struct Lexer_Error Lexer_Error;
+struct Lexer_Error
+{
+	Lexer_Error_Kind kind;
+
+	U32 row_index;
+	U32 column_index;
+};
+
+// TODO: migrate to AoS instead?
 typedef struct Token_Array Token_Array;
 struct Token_Array
 {
-	U32        *positions;
+	U64        *positions;
 	U32        *sizes;
+	U32        *rows;
 	Token_Kind *tokens;
-	U32         count;
 
+	U32         count;
 	U32	    row_index;
 	U32         column_index;
-
-	Lexer_Error_Kind error;
+	Lexer_Error error;
 };
 
 #endif // LEXER_H

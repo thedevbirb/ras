@@ -55,12 +55,14 @@ LE_tokenize(String8 *input, Arena *arena)
 	U8 *input_data  = input->data;
 	U64 input_count = input->count;
 
-	Lexer_Error_Kind error = 0;
+	Lexer_Error error = {0};
 
 	// We overastimate using the file size. Consider doing at the start of the program and not here.
-	U32 *positions = Arena_push_array_m(arena, U32, input_count);
+	U64 *positions = Arena_push_array_m(arena, U64, input_count);
 	U32 *sizes     = Arena_push_array_m(arena, U32, input_count);
+	U32 *rows      = Arena_push_array_m(arena, U32, input_count);
 	U32 *tokens    = Arena_push_array_m(arena, Token_Kind, input_count);
+
 
 	Token_Kind token_kind = Token_Kind__None;
 
@@ -166,10 +168,15 @@ LE_tokenize(String8 *input, Arena *arena)
 				}
 				else if (character == '\n')
 				{
-					error = Lexer_Error_Kind__String_Multiline_Unsupported;
+					error = (Lexer_Error)
+					{
+						.kind         = Lexer_Error_Kind__String_Multiline_Unsupported,
+						.row_index    = row_index,
+						.column_index = column_index,
+					};
 				}
 
-				break_should = quote_ending_found || error || index >= input_count;
+				break_should = quote_ending_found || error.kind || index >= input_count;
 				if (break_should)
 				{
 					break;
@@ -234,13 +241,14 @@ LE_tokenize(String8 *input, Arena *arena)
 		{
 			// Update phase
 			positions[token_index] = index_before;
-			tokens   [token_index] = token_kind;
-			sizes    [token_index] = index - index_before;
+			tokens[token_index]    = token_kind;
+			sizes[token_index]     = (U32)(index - index_before);
+			rows[token_index]      = row_index;
 
 			token_index += 1;
 		}
 
-		B32 break_should = error || index >= input_count;
+		B32 break_should = error.kind || index >= input_count;
 		if (break_should)
 		{
 			break;
@@ -251,12 +259,12 @@ LE_tokenize(String8 *input, Arena *arena)
 	{
 		.positions    = positions,
 		.sizes        = sizes,
+		.rows         = rows,
 		.tokens       = tokens,
-		.count        = token_index,
 
+		.count        = token_index,
 		.row_index    = row_index,
 		.column_index = column_index,
-
 		.error        = error
 	};
 

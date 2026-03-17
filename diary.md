@@ -30,3 +30,10 @@ parsing.
 I feel like all of this is worth the effort. I'm so happy in caring so much about this, and while I
 don't know yet it works well, I'd never be satisfied with it unless I wouldn't have crafted it line
 by line with all the energy it required.
+
+implementation notes:
+
+it is useful that the lexer already returns a mapping of where every line stars, because in this way
+we can easily create diagnostics.
+in a similar fashion, it is useful to keep also comments as part of the lexing.
+in general should it be there an associations between tokens and lines?

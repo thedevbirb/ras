@@ -39,7 +39,7 @@ main(int argument_count, char **argument_vector)
 	if (argument_count < 2)
 	{
 		usage_print();
-		assert_always_m(0);
+		exit(1);
 	}
 
 	const char *file_in_path = argument_vector[0];
@@ -58,6 +58,17 @@ main(int argument_count, char **argument_vector)
 
 	Arena *arena = Arena_alloc_m();
 	Token_Array token_array = LE_tokenize(&input, arena);
+
+	Lexer_Error error = token_array.error;
+	if (error.kind)
+	{
+		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, error.row_index + 1, error.column_index + 1);
+		if (error.kind == Lexer_Error_Kind__String_Multiline_Unsupported)
+		{
+			fprintf(stderr, "unsupported multine comment\n");
+		}
+		// fprintf(stderr, "%5d | %s\n");
+	}
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);
