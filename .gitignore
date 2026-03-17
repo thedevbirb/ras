@@ -4,3 +4,4 @@ plan/
 *.md
 
 !README.md
+!diary.md

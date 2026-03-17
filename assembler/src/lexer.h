@@ -122,18 +122,6 @@ typedef enum Lexing_Error_Kind
 }
 Lexer_Error_Kind;
 
-typedef enum Escaping_Stage
-{
-	Escaping_Stage__None = 0,
-	Escaping_Stage__Backslash,
-	Escaping_Stage__Hex,
-	Escaping_Stage__Hex_First_Digit,
-	Escaping_Stage__Octal,
-	Escaping_Stage__Octal_First_Digit,
-	Escaping_Stage__Octal_Second_Digit
-}
-Escaping_Stage;
-
 typedef struct Token_Array Token_Array;
 struct Token_Array
 {
@@ -384,8 +372,9 @@ LE_tokenize(String8 *input, Arena *arena)
 		{
 			// Update phase
 			positions[token_index] = index_before;
-			tokens[token_index] = token_kind;
-			sizes[token_index] = index - index_before;
+			tokens   [token_index] = token_kind;
+			sizes    [token_index] = index - index_before;
+
 			token_index += 1;
 		}
 
@@ -411,16 +400,6 @@ LE_tokenize(String8 *input, Arena *arena)
 
 	return token_array;
 }
-
-// If a dot is found, peek the next character and check if it's a letter, if not we haven't found a valid identifier
-//
-// If a `"` is found, then read any character (?) until a matching `"`. Should it support escaping?
-//
-// If it is a digit, then should peek the next for checking whether it's another digit, 'x' or 'b', before truncating
-// the digit.
-//
-// this is hard!
-
 
 #endif // LEXER_H
 
