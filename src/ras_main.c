@@ -15,6 +15,8 @@
 #include <base/base_include.c>
 #include <os/os_include.c>
 
+#include "lexer.c"
+
 void
 arguments_shift(int *argument_count, char ***argument_vector)
 {
