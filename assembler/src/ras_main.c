@@ -45,12 +45,17 @@ main(int argument_count, char **argument_vector)
 	assert_always_m(file_in_descriptor > 0 && "failed to find input file");
 
 	struct stat file_in_statistics;
-	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) > 0 && "failed to call fstat on input file");
+	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
 
-	char *contents = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
-	assert_always_m(contents != MAP_FAILED && "failed to mmap file contents");
+	U8 *data = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
+	assert_always_m(data != MAP_FAILED && "failed to mmap file contents");
 
 	arguments_shift(&argument_count, &argument_vector);
+
+	String8 input = { .data = data, .count = file_in_statistics.st_size };
+
+	Arena *arena = Arena_alloc_m();
+	Token_Array token_array = LE_tokenize(&input, arena);
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);

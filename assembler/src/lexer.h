@@ -196,7 +196,7 @@ LE_advance_newline(U64 *index, U32 *column_index, U32 *row_index)
 }
 
 internal Token_Array
-tokenize(String8 *input, Arena *arena)
+LE_tokenize(String8 *input, Arena *arena)
 {
 	U32 row_index    = 0;
 	U32 column_index = 0;
@@ -233,8 +233,11 @@ tokenize(String8 *input, Arena *arena)
 			{
 				LE_advance(&index, &column_index);
 
-				break_should = input_data[index] != '\n' || index >= input_count;
-				if (break_should) { break; }
+				break_should = input_data[index] == '\n' || index >= input_count;
+				if (break_should)
+				{
+					break;
+				}
 			}
 
 		} break;
@@ -317,7 +320,10 @@ tokenize(String8 *input, Arena *arena)
 				}
 
 				break_should = quote_ending_found || error || index >= input_count;
-				if (break_should) { break; }
+				if (break_should)
+				{
+					break;
+				}
 
 			}
 
@@ -340,16 +346,12 @@ tokenize(String8 *input, Arena *arena)
 			if (LE_U8_identifier_start_is(input_data[index]))
 			{
 				B32 break_should = 0;
-				LE_advance(&index, &column_index);
 				for (;;)
 				{
-					B32 identifier_is = LE_U8_identifier_is(input_data[index]);
-					if (identifier_is)
-					{
-					}
-
 					LE_advance(&index, &column_index);
-					break_should = !identifier_is || index >= input_count;
+					B32 invalid = !LE_U8_identifier_is(input_data[index]);
+
+					break_should = invalid || index >= input_count;
 					if (break_should)
 					{
 						break;
@@ -360,14 +362,14 @@ tokenize(String8 *input, Arena *arena)
 			// TODO: support float (hex float?), literal hex, literal octal, literal binary.
 			if (U8_ascii_digit_is(input_data[index]))
 			{
-				LE_advance(&index, &column_index);
+				B32 break_should = 0;
 				for (;;)
 				{
-					if (U8_ascii_digit_is(input_data[index]))
-					{
-						LE_advance(&index, &column_index);
-					}
-					else
+					LE_advance(&index, &column_index);
+					B32 invalid = !U8_ascii_digit_is(input_data[index]);
+
+					break_should = invalid || index >= input_count;
+					if (break_should)
 					{
 						break;
 					}
@@ -388,7 +390,10 @@ tokenize(String8 *input, Arena *arena)
 		}
 
 		B32 break_should = error || index >= input_count;
-		if (break_should) { break; }
+		if (break_should)
+		{
+			break;
+		}
 	}
 
 	Token_Array token_array =
