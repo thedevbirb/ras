@@ -3,7 +3,7 @@
 .start:
 	addi x1, x0, 42
 
-" this is a multine with a proble
+" This is a string with a multine problem
 
 "
 

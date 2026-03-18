@@ -131,10 +131,12 @@ struct Lexer_Error
 	U32 column_index;
 };
 
-// TODO: migrate to AoS instead?
+// I should not lose information here and have as much as I can.
+
 typedef struct Token_Array Token_Array;
 struct Token_Array
 {
+	// TODO: migrate to AoS instead?
 	// Token-index fields.
 	U64        *positions;
 	U32        *sizes;

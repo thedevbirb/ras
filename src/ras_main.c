@@ -11,6 +11,7 @@
 #include <os/os_include.h>
 
 #include "lexer.h"
+#include "parser.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>

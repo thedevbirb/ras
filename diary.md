@@ -39,3 +39,9 @@ in a similar fashion, it is useful to keep also comments as part of the lexing.
 in general should it be there an associations between tokens and lines?
 
 maybe on error finish to read the line?
+
+
+# Parser
+
+It is very challenging how to model the data accordigly, trying to forecast how you will need it.
+Implementation its expensive, so you have to design carefully considering what you want out of it.
