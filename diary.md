@@ -40,6 +40,15 @@ in general should it be there an associations between tokens and lines?
 
 maybe on error finish to read the line?
 
+lesson: it is so important to save all the intermediate computation that you can. For example in the
+lexing stage you want to save every single possible piece of information regarding a token, as much
+as you can. it makes everything else easier to build on top. Everything that you don't keep is lost,
+although it has been already read and computed, which is a waste.
+
+I didnt' realize how effective is centralizing all state in a cursor fat struct.
+
+It's crazy how you don't even think about lifetimes and memory management with arenas.
+
 
 # Parser
 

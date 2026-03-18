@@ -74,7 +74,6 @@ typedef enum Token_Kind
 {
 	Token_Kind__None = 0,
 
-	Token_Kind__Dot,
 	Token_Kind__Comma,
 	Token_Kind__Colon,
 
@@ -99,6 +98,9 @@ typedef enum Token_Kind
 	Token_Kind__Shift_Left,
 	Token_Kind__Shift_Right,
 
+	Token_Kind__Label,
+	Token_Kind__Directive,
+
 	Token_Kind__Char_Literal,
 	Token_Kind__String_Literal,
 
@@ -119,6 +121,7 @@ typedef enum Lexing_Error_Kind
 	Lexer_Error_Kind__Character_Literal_Empty,
 	Lexer_Error_Kind__Character_Literal_Multiple,
 	Lexer_Error_Kind__Character_Unexpected,
+	Lexer_Error_Kind__Label_Directive_Invalid,
 	Lexer_Error_Kind__COUNT,
 }
 Lexer_Error_Kind;
@@ -129,6 +132,7 @@ global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] = {
 	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = "multiline character literals are not supported",
 	[Lexer_Error_Kind__Character_Literal_Empty]                 = "empty character literal",
 	[Lexer_Error_Kind__Character_Literal_Multiple]              = "character literal contains multiple characters",
+	[Lexer_Error_Kind__Label_Directive_Invalid]                 = "invalid label or directive",
 	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
 };
 
