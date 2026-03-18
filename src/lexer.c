@@ -38,11 +38,13 @@ LE_advance(U64 *index, U32 *column_index)
 }
 
 internal void
-LE_advance_newline(U64 *index, U32 *column_index, U32 *row_index)
+LE_advance_newline(U64 *index, U32 *column_index, U32 *row_index, U64 *line_start_indexes)
 {
 	*index        += 1;
 	*row_index    += 1;
 	*column_index  = 1;
+
+	line_start_indexes[*row_index] = *index;
 }
 
 internal Token_Array
@@ -58,10 +60,11 @@ LE_tokenize(String8 *input, Arena *arena)
 	Lexer_Error error = {0};
 
 	// We overastimate using the file size. Consider doing at the start of the program and not here.
-	U64 *positions = Arena_push_array_m(arena, U64, input_count);
-	U32 *sizes     = Arena_push_array_m(arena, U32, input_count);
-	U32 *rows      = Arena_push_array_m(arena, U32, input_count);
-	U32 *tokens    = Arena_push_array_m(arena, Token_Kind, input_count);
+	U64 *positions          = Arena_push_array_m(arena, U64, input_count);
+	U64 *line_start_indexes = Arena_push_array_m(arena, U64, input_count);
+	U32 *sizes              = Arena_push_array_m(arena, U32, input_count);
+	U32 *rows               = Arena_push_array_m(arena, U32, input_count);
+	U32 *tokens             = Arena_push_array_m(arena, Token_Kind, input_count);
 
 
 	Token_Kind token_kind = Token_Kind__None;
@@ -108,7 +111,7 @@ LE_tokenize(String8 *input, Arena *arena)
 
 		case '%' : { token_kind = Token_Kind__Percentage;        LE_advance(&index, &column_index); } break;
 
-		case '\n': { token_kind = Token_Kind__Newline;           LE_advance_newline(&index, &column_index, &row_index); } break;
+		case '\n': { token_kind = Token_Kind__Newline;           LE_advance_newline(&index, &column_index, &row_index, line_start_indexes); } break;
 
 		case '>':
 		{
@@ -262,10 +265,9 @@ LE_tokenize(String8 *input, Arena *arena)
 		.rows         = rows,
 		.tokens       = tokens,
 
-		.count        = token_index,
-		.row_index    = row_index,
-		.column_index = column_index,
-		.error        = error
+		.line_start_indexes = line_start_indexes,
+		.token_count        = token_index,
+		.error              = error
 	};
 
 	return token_array;

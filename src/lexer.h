@@ -135,14 +135,14 @@ struct Lexer_Error
 typedef struct Token_Array Token_Array;
 struct Token_Array
 {
+	// Token-index fields.
 	U64        *positions;
 	U32        *sizes;
 	U32        *rows;
 	Token_Kind *tokens;
 
-	U32         count;
-	U32	    row_index;
-	U32         column_index;
+	U64	   *line_start_indexes;
+	U32         token_count;
 	Lexer_Error error;
 };
 

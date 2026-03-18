@@ -62,12 +62,40 @@ main(int argument_count, char **argument_vector)
 	Lexer_Error error = token_array.error;
 	if (error.kind)
 	{
-		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, error.row_index + 1, error.column_index + 1);
+		U32 line   = error.row_index + 1;
+		U32 column = error.column_index + 1;
+		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column);
 		if (error.kind == Lexer_Error_Kind__String_Multiline_Unsupported)
 		{
 			fprintf(stderr, "unsupported multine comment\n");
 		}
-		// fprintf(stderr, "%5d | %s\n");
+		fprintf(stderr, "%5d | ", line);
+		U64 index = token_array.line_start_indexes[error.row_index];
+		for (;;)
+		{
+			if (input.data[index] == '\n')
+			{
+				fputc('\n', stderr);
+				break;
+			}
+
+			fputc(input.data[index], stderr);
+			index += 1;
+		}
+
+		fprintf(stderr, "      | ");
+		index = 0;
+		for (;;)
+		{
+			if (index == error.column_index - 1)
+			{
+				fprintf(stderr, "\x1B[1;31m^\x1B[0m\n");
+				break;
+			}
+
+			fputc(' ', stderr);
+			index += 1;
+		}
 	}
 
 	// const char *file_path_out = argument_vector[0];

@@ -37,3 +37,5 @@ it is useful that the lexer already returns a mapping of where every line stars,
 we can easily create diagnostics.
 in a similar fashion, it is useful to keep also comments as part of the lexing.
 in general should it be there an associations between tokens and lines?
+
+maybe on error finish to read the line?
