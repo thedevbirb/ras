@@ -49,6 +49,7 @@ main(int argument_count, char **argument_vector)
 
 	struct stat file_in_statistics;
 	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
+	assert_always_m((S64)file_in_statistics.st_size < (S64)(GiB(4) - 1) && "input file cannot be larger then 4 GiB");
 
 	U8 *data = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
 	assert_always_m(data != MAP_FAILED && "failed to mmap file contents");
@@ -64,12 +65,9 @@ main(int argument_count, char **argument_vector)
 	if (error.kind)
 	{
 		U32 line   = error.row_index + 1;
-		U32 column = error.column_index + 1;
-		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column);
-		if (error.kind == Lexer_Error_Kind__String_Multiline_Unsupported)
-		{
-			fprintf(stderr, "unsupported multine comment\n");
-		}
+		U32 column_begin = error.column_begin_index + 1;
+		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
+		fprintf(stderr, "%s\n", lexer_error_kind_messages[error.kind]);
 		fprintf(stderr, "%5d | ", line);
 		U64 index = token_array.line_start_indexes[error.row_index];
 		for (;;)
@@ -88,9 +86,25 @@ main(int argument_count, char **argument_vector)
 		index = 0;
 		for (;;)
 		{
-			if (index == error.column_index - 1)
+			if (index == error.column_begin_index)
 			{
-				fprintf(stderr, "\x1B[1;31m^\x1B[0m\n");
+				fprintf(stderr, "\x1B[1;31m^");
+				U32 tilde_index = 0;
+				// There is already the caret, otherwise we output an extra tilde.
+				U32 tilde_count = error.column_end_index - error.column_begin_index;
+				for (;;)
+				{
+					if (tilde_index < tilde_count)
+					{
+						fputc('~', stderr);
+						tilde_index += 1;
+					}
+					else
+					{
+						break;
+					}
+				}
+				fprintf(stderr, "\x1B[0m\n");
 				break;
 			}
 

@@ -20,7 +20,7 @@ LE_U8_number_character_is(U8 character)
 }
 
 internal U8 *
-LE_String8_get(String8 *string, U64 index)
+LE_String8_get(String8 *string, U32 index)
 {
 	U8 *next = 0;
 	if (index < string->count)
@@ -31,18 +31,18 @@ LE_String8_get(String8 *string, U64 index)
 }
 
 internal void
-LE_advance(U64 *index, U32 *column_index)
+LE_advance(U32 *index, U32 *column_index)
 {
 	*index        += 1;
 	*column_index += 1;
 }
 
 internal void
-LE_advance_newline(U64 *index, U32 *column_index, U32 *row_index, U64 *line_start_indexes)
+LE_advance_newline(U32 *index, U32 *column_index, U32 *row_index, U32 *line_start_indexes)
 {
 	*index        += 1;
 	*row_index    += 1;
-	*column_index  = 1;
+	*column_index  = 0;
 
 	line_start_indexes[*row_index] = *index;
 }
@@ -55,24 +55,21 @@ LE_tokenize(String8 *input, Arena *arena)
 	U32 token_index  = 0;
 
 	U8 *input_data  = input->data;
-	U64 input_count = input->count;
+	U32 input_count = U32_cast_safe(input->count);
 
 	Lexer_Error error = {0};
 
-	// We overastimate using the file size. Consider doing at the start of the program and not here.
-	U64 *positions          = Arena_push_array_m(arena, U64, input_count);
-	U64 *line_start_indexes = Arena_push_array_m(arena, U64, input_count);
-	U32 *sizes              = Arena_push_array_m(arena, U32, input_count);
-	U32 *rows               = Arena_push_array_m(arena, U32, input_count);
-	U32 *tokens             = Arena_push_array_m(arena, Token_Kind, input_count);
+	// We overestimate using the file size. Consider doing at the start of the program and not here.
+	Token *tokens             = Arena_push_array_m(arena, Token, input_count);
+	U32   *line_start_indexes = Arena_push_array_m(arena, U32, input_count);
 
 
 	Token_Kind token_kind = Token_Kind__None;
 
-	U64 index = 0;
+	U32 index = 0;
 	for (;;)
 	{
-		U64 index_before = index;
+		U32 index_before = index;
 
 		// NOTE: should maintain the logical order of Token_Kind enumeration.
 		switch (input_data[index])
@@ -143,6 +140,66 @@ LE_tokenize(String8 *input, Arena *arena)
 		} break;
 
 		case '\'':
+		{
+			// We only check for ending quotes: handling of bytes values and parsing of
+			// escapes is done at a later stage.
+			U8  escaping_started   = 0;
+			U8  quote_ending_found = 0;
+			B32 break_should       = 0;
+			for (;;)
+			{
+				LE_advance(&index, &column_index);
+				U8  character = input_data[index];
+
+				if (escaping_started)
+				{
+					escaping_started = 0;
+				}
+				else if (character == '\\')
+				{
+					escaping_started = 1;
+				}
+				else if (character == '\'')
+				{
+					quote_ending_found = 1;
+				}
+				else if (character == '\n')
+				{
+					error = (Lexer_Error)
+					{
+						.kind               = Lexer_Error_Kind__Character_Literal_Multiline_Unsupported,
+						.row_index          = row_index,
+						.column_begin_index = column_index - (index - index_before),
+						.column_end_index   = column_index,
+					};
+				}
+
+				B32 char_invalid = quote_ending_found && index != index_before + 2;
+				if (quote_ending_found && char_invalid)
+				{
+					Lexer_Error_Kind kind =
+						index - index_before == 1 ?
+						Lexer_Error_Kind__Character_Literal_Empty :
+						Lexer_Error_Kind__Character_Literal_Multiple;
+					error = (Lexer_Error)
+					{
+						.kind         = kind,
+						.row_index    = row_index,
+						.column_begin_index = column_index - (index - index_before),
+						.column_end_index   = column_index,
+					};
+				}
+
+				break_should = quote_ending_found || error.kind || index >= input_count;
+				if (break_should)
+				{
+					break;
+				}
+
+			}
+
+			token_kind = Token_Kind__Char_Literal;
+		} break;
 		case '\"':
 		{
 			U8  character_quote = input_data[index];
@@ -175,7 +232,8 @@ LE_tokenize(String8 *input, Arena *arena)
 					{
 						.kind         = Lexer_Error_Kind__String_Multiline_Unsupported,
 						.row_index    = row_index,
-						.column_index = column_index,
+						.column_begin_index = column_index - (index - index_before),
+						.column_end_index   = column_index,
 					};
 				}
 
@@ -187,18 +245,7 @@ LE_tokenize(String8 *input, Arena *arena)
 
 			}
 
-			if (character_quote == '\"')
-			{
-				token_kind = Token_Kind__String_Literal;
-			}
-			else if (character_quote == '\'')
-			{
-				token_kind = Token_Kind__Char_Literal;
-			}
-			else
-			{
-				assert_always_m(0 && "unreachable");
-			}
+			token_kind = Token_Kind__String_Literal;
 
 		} break;
 		default:
@@ -218,9 +265,8 @@ LE_tokenize(String8 *input, Arena *arena)
 					}
 				}
 			}
-
 			// TODO: support float (hex float?), literal hex, literal octal, literal binary.
-			if (U8_ascii_digit_is(input_data[index]))
+			else if (U8_ascii_digit_is(input_data[index]))
 			{
 				B32 break_should = 0;
 				for (;;)
@@ -235,18 +281,35 @@ LE_tokenize(String8 *input, Arena *arena)
 					}
 				}
 			}
+			else
+			{
+				error = (Lexer_Error)
+				{
+					.kind               = Lexer_Error_Kind__Character_Unexpected,
+					.row_index          = row_index,
+					.column_begin_index = column_index - (index - index_before),
+					.column_end_index   = column_index,
+				};
+			}
+
+
 		} break;
 		}
 
-		assert_always_m(index_before < index && "infinite loop edge case");
+		B32 loop_infinite_avoided = (index_before < index) || error.kind;
+		assert_always_m(loop_infinite_avoided && "infinite loop edge case");
 
 		if (token_kind != 0)
 		{
 			// Update phase
-			positions[token_index] = index_before;
-			tokens[token_index]    = token_kind;
-			sizes[token_index]     = (U32)(index - index_before);
-			rows[token_index]      = row_index;
+			tokens[token_index] = (Token)
+			{
+				.index        = index_before,
+				.row_index    = row_index,
+				.column_index = column_index,
+				.size         = (U32)(index - index_before),
+				.kind         = token_kind,
+			};
 
 			token_index += 1;
 		}
@@ -260,14 +323,10 @@ LE_tokenize(String8 *input, Arena *arena)
 
 	Token_Array token_array =
 	{
-		.positions    = positions,
-		.sizes        = sizes,
-		.rows         = rows,
-		.tokens       = tokens,
-
+		.tokens             = tokens,
 		.line_start_indexes = line_start_indexes,
 		.token_count        = token_index,
-		.error              = error
+		.error              = error,
 	};
 
 	return token_array;

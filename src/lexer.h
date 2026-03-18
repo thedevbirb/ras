@@ -115,12 +115,22 @@ typedef enum Lexing_Error_Kind
 {
 	Lexer_Error_Kind__None,
 	Lexer_Error_Kind__String_Multiline_Unsupported,
-
+	Lexer_Error_Kind__Character_Literal_Multiline_Unsupported,
+	Lexer_Error_Kind__Character_Literal_Empty,
+	Lexer_Error_Kind__Character_Literal_Multiple,
+	Lexer_Error_Kind__Character_Unexpected,
 	Lexer_Error_Kind__COUNT,
-
-
 }
 Lexer_Error_Kind;
+
+global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] = {
+	[Lexer_Error_Kind__None]                                    = "",
+	[Lexer_Error_Kind__String_Multiline_Unsupported]            = "multiline strings are not supported",
+	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = "multiline character literals are not supported",
+	[Lexer_Error_Kind__Character_Literal_Empty]                 = "empty character literal",
+	[Lexer_Error_Kind__Character_Literal_Multiple]              = "character literal contains multiple characters",
+	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
+};
 
 typedef struct Lexer_Error Lexer_Error;
 struct Lexer_Error
@@ -128,22 +138,26 @@ struct Lexer_Error
 	Lexer_Error_Kind kind;
 
 	U32 row_index;
-	U32 column_index;
+	U32 column_begin_index;
+	U32 column_end_index;
 };
 
-// I should not lose information here and have as much as I can.
+typedef struct Token Token;
+struct Token
+{
+	U32        index;
+	U32        row_index;
+	U32        column_index;
+	U32        size;
+	Token_Kind kind;
+};
+// assert_static_m(sizeof(struct Token) == 20, size_of_Token);
 
 typedef struct Token_Array Token_Array;
 struct Token_Array
 {
-	// TODO: migrate to AoS instead?
-	// Token-index fields.
-	U64        *positions;
-	U32        *sizes;
-	U32        *rows;
-	Token_Kind *tokens;
-
-	U64	   *line_start_indexes;
+	Token      *tokens;
+	U32        *line_start_indexes;
 	U32         token_count;
 	Lexer_Error error;
 };
