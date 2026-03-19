@@ -1,9 +1,8 @@
 # ciao pronto
 
-.section pronto
+.section .text
 
-.start:
-	addi x1, x0, 42
+addi x1, x0, 42
 
 "This is a string"
 

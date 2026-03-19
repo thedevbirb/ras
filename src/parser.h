@@ -259,10 +259,15 @@ PA_parse(String8 *input, Token_Array *token_array, Object_File_Section *sections
 					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Invalid, &cursor);
 				}
 			} break;
-			default: { assert_always_m(0 && "unhandled directive"); } break;
-			}
+			default:
+			{
+				ELF64_Section section_kind = ELF64_Section_from_Directive_Kind(directive_kind);
+				assert_always_m(section_kind && "unhandled directive");
 
-			// Token_Cursor_advance(&cursor);
+				section = sections[section_kind];
+				Token_Cursor_advance(&cursor);
+			} break;
+			}
 		} break;
 		default:
 		{
