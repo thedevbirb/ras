@@ -3,14 +3,17 @@
 
 typedef enum Directive_Kind
 {
-    Directive_Kind__None,
-    Directive_Kind__Text,
-    Directive_Kind__Data,
-    Directive_Kind__Globl,
-    Directive_Kind__Word,
-    Directive_Kind__Ascii,
-    Directive_Kind__Asciz,
-    Directive_Kind__COUNT,
+	Directive_Kind__None,
+	Directive_Kind__Section,
+	Directive_Kind__Text,
+	Directive_Kind__Data,
+	Directive_Kind__Read_Only_Data,
+	Directive_Kind__BSS,
+	Directive_Kind__Globl,
+	Directive_Kind__Word,
+	Directive_Kind__Ascii,
+	Directive_Kind__Asciz,
+	Directive_Kind__COUNT,
 }
 Directive_Kind;
 

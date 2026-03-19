@@ -82,10 +82,11 @@ global const U64 ELF64_Section_alignments[ELF64_Section__COUNT] =
 	[ELF64_Section__Symbols_Table]     = 8,
 	[ELF64_Section__String_Table]      = 1,
 	[ELF64_Section__Section_Names]     = 1,
-	[ELF64_Section__RISCV_Attributes]  = 1,
+	[ELF64_Section__RISCV_Attributes]  = 1
 };
 
-typedef struct Object_File_Section Object_File_Section
+typedef struct Object_File_Section Object_File_Section;
+struct Object_File_Section
 {
 	String8       *buffer;
 	ELF64_Section  section;
@@ -107,17 +108,19 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 			break;
 		}
 
-		U8 *buffer = 0;
-		B32 section_empty = ELF64_Section__Null || index == ELF_Section_BSS;
+		U8 *data = 0;
+		B32 section_empty = ELF64_Section__Null || index == ELF64_Section__BSS;
 		if (!section_empty)
 		{
-			buffer = Array_push_array_m(arena, U8, input_size);
+			data = Arena_push_array_m(arena, U8, input_size);
 		}
 
-		section = sections[index];
-		section.buffer = buffer;
-		section.section = index;
-		section.alignment = ELF64_Section_alignments[index];
+		Object_File_Section section = sections[index];
+
+		section.buffer->data     = data;
+		section.buffer->count    = input_size;
+		section.section          = index;
+		section.alignment        = ELF64_Section_alignments[index];
 
 		index += 1;
 	}
@@ -157,7 +160,7 @@ Object_File_Section_align(Object_File_Section *section, U8 power_two)
 			break;
 		}
 
-		section->buffer[offset] = 0;
+		section->buffer->data[section->offset] = 0;
 		section->offset += 1;
 		index += 1;
 	}
