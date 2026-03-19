@@ -38,7 +38,7 @@ ELF64_Section;
 
 
 
-global const char *ELF64_Section_strings[ELF64_Section__Count] =
+global const char *ELF64_Section_strings[ELF64_Section__COUNT] =
 {
 	[ELF64_Section__Null]             = "",
 	[ELF64_Section__Text]             = ".text",
@@ -70,16 +70,16 @@ ELF64_Section_Header_Type ELF64_Section_Header_Type_from_ELF64_Section[ELF64_Sec
 };
 
 // Default value for section alignments.
-global const U64 ELF64_Section_alignments[ELF64_Section__Count] =
+global const U64 ELF64_Section_alignments[ELF64_Section__COUNT] =
 {
 	[ELF64_Section__Null]              = 0,
-	[ELF64_Section__Text]              = 4, // Instructions are 32-bit
+	[ELF64_Section__Text]              = 4,
 	[ELF64_Section__Data]              = 8,
 	[ELF64_Section__BSS]               = 8,
 	[ELF64_Section__Read_Only_Data]    = 8,
-	[ELF64_Section__Relocations_Text]  = 8,  /* sizeof(Elf64_Rela) fields are 64-bit   */
+	[ELF64_Section__Relocations_Text]  = 8,
 	[ELF64_Section__Relocations_Data]  = 8,
-	[ELF64_Section__Symbols_Table]     = 8,  /* sizeof(Elf64_Sym) fields are 64-bit    */
+	[ELF64_Section__Symbols_Table]     = 8,
 	[ELF64_Section__String_Table]      = 1,
 	[ELF64_Section__Section_Names]     = 1,
 	[ELF64_Section__RISCV_Attributes]  = 1,
@@ -93,26 +93,35 @@ typedef struct Object_File_Section Object_File_Section
 	U8	       alignment;
 };
 
-internal Object_File_Section
-Object_File_Section_new(String *buffer, ELF64_Section section)
+internal Object_File_Section *
+Object_File_Section_create_all(Arena *arena, U32 input_size)
 {
-	Object_File_Section file_section = {0};
-	os_memory_zero(buffer->input, buffer->count);
-	file_section.section = section;
-	file_section.alignment = ELF64_Section_alignments[section];
+	Object_File_Section *sections = Arena_push_array_m(arena, Object_File_Section, ELF64_Section__COUNT);
 
-	return file_section;
-}
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= ELF64_Section__COUNT;
+		if (break_should)
+		{
+			break;
+		}
 
-internal Object_File_Section
-Object_File_Section_new_empty(ELF64_Section section)
-{
-	assert_always_m(section == ELF64_Section_Null || section == ELF_Section_BSS && "only null and bss section can be empty");
-	Object_File_Section file_section = {0};
-	file_section.section = section;
-	file_section.alignment = ELF64_Section_alignments[section];
+		U8 *buffer = 0;
+		B32 section_empty = ELF64_Section__Null || index == ELF_Section_BSS;
+		if (!section_empty)
+		{
+			buffer = Array_push_array_m(arena, U8, input_size);
+		}
 
-	return file_section;
+		section = sections[index];
+		section.buffer = buffer;
+		section.section = index;
+		section.alignment = ELF64_Section_alignments[index];
+
+		index += 1;
+	}
+	return sections;
 }
 
 internal void

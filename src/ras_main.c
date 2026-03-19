@@ -12,6 +12,7 @@
 
 #include "lexer.h"
 #include "parser.h"
+#include "section.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
@@ -49,16 +50,24 @@ main(int argument_count, char **argument_vector)
 
 	struct stat file_in_statistics;
 	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
-	assert_always_m((S64)file_in_statistics.st_size < (S64)(GiB(4) - 1) && "input file cannot be larger then 4 GiB");
+	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
+	U32 file_in_size = U32_cast_safe((U64)file_in_statistics.st_size); // 4 GiB max size
 
-	U8 *data = mmap(NULL, file_in_statistics.st_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
-	assert_always_m(data != MAP_FAILED && "failed to mmap file contents");
+	Arena *arena = Arena_alloc_m();
+
+	// Ensure same lifetime between arena and file contents.
+	U8 *data_mmap = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
+	assert_always_m(data_mmap != MAP_FAILED && "failed to mmap file contents");
+	U8 *data = Arena_push_array_m(arena, U8, file_in_size);
+	os_memory_copy(data, data_mmap, file_in_size);
+	munmap(data_mmap, file_in_size);
+
+	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
 	arguments_shift(&argument_count, &argument_vector);
 
-	String8 input = { .data = data, .count = file_in_statistics.st_size };
+	String8 input = { .data = data, .count = file_in_size };
 
-	Arena *arena = Arena_alloc_m();
 	Token_Array token_array = LE_tokenize(&input, arena);
 
 	Lexer_Error lexer_error = token_array.error;
