@@ -62,6 +62,15 @@ transforming the data in the most effective way to reach our goal: producing an 
 A good approach to find out what should be the right output, is thinking in terms of the next step
 after parsing, and thinking what is a well-defined input you'd like to have for that stage.
 
+when parsing directive arguments what can be done immediately is written in the section, otherwise I
+keep a fixup list, where the size is known and its computation is deferred.
+
+it makes sense in the parser to do some object file writing already because some information is just
+there already and you see it.
+
+TODO: start creating object file section structs, with an arena allocated buffer and location
+counter.
+
 
 # Appendix
 

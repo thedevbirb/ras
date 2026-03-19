@@ -1,21 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-// typedef enum Element_Kind
-// {
-//
-// }
-// Element_Kind;
-//
-// typedef enum Opcode Opcode
-// {
-// 	Opcode__Add,
-// 	Opcode__Sub,
-// 	// etc.
-// 	Opcode__COUNT,
-// }
-// Opcode;
-//
 typedef enum Directive_Kind
 {
     Directive_Kind__None,
@@ -31,13 +16,16 @@ Directive_Kind;
 
 global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 {
-	[Directive_Kind__None]  = "",
-	[Directive_Kind__Text]  = ".text",
-	[Directive_Kind__Data]  = ".data",
-	[Directive_Kind__Globl] = ".globl",
-	[Directive_Kind__Word]  = ".word",
-	[Directive_Kind__Ascii] = ".ascii",
-	[Directive_Kind__Asciz] = ".asciz",
+	[Directive_Kind__None]            = "",
+	[Directive_Kind__Section]         = ".section",
+	[Directive_Kind__Text]            = ".text",
+	[Directive_Kind__Data]            = ".data",
+	[Directive_Kind__Read_Only_Data]  = ".rodata",
+	[Directive_Kind__BSS]             = ".bss",
+	[Directive_Kind__Globl]           = ".globl",
+	[Directive_Kind__Word]            = ".word",
+	[Directive_Kind__Ascii]           = ".ascii",
+	[Directive_Kind__Asciz]           = ".asciz",
 };
 
 // typedef enum Directive_Argument_Kind Directive_Argument_Kind
@@ -111,6 +99,20 @@ struct Parser_Error
 	U32 column_begin_index;
 	U32 column_end_index;
 };
+
+internal Parser_Error
+Parser_Error_new(Parser_Error_Kind kind, Token_Cursor *cursor)
+{
+	Parser_Error error =
+	{
+		.kind               = kind,
+		.row_index          = cursor->current.row_index,
+		.column_begin_index = cursor->current.column_index,
+		.column_end_index   = cursor->current.size - 1,
+	};
+
+	return error;
+}
 
 internal Directive_Kind
 Directive_Kind__from_String8(String8 string)
@@ -193,13 +195,7 @@ PA_parse(String8 *input, Token_Array *token_array, Arena *arena)
 			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
 			if (!directive_kind)
 			{
-				error = (Parser_Error)
-				{
-					.kind               = Parser_Error_Kind__Directive_Unknown,
-					.row_index          = cursor.current.row_index,
-					.column_begin_index = cursor.current.column_index,
-					.column_end_index   = cursor.current.size - 1
-				};
+				error = Parser_Error_new(Parser_Error_Kind__Directive_Unknown, &cursor);
 			}
 
 			Token_Cursor_advance(&cursor);
