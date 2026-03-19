@@ -137,6 +137,7 @@ LE_tokenize(String8 *input, Arena *arena)
 			break;
 		}
 
+		// Snapshot indexes before processing a token to determine its size.
 		cursor.index_before = cursor.index;
 		cursor.column_index_before = cursor.column_index;
 
@@ -171,7 +172,6 @@ LE_tokenize(String8 *input, Arena *arena)
 		} break;
 
 		case ',' : { token_kind = Token_Kind__Comma;             Lexer_Cursor_advance(&cursor); } break;
-		case ':' : { token_kind = Token_Kind__Colon;             Lexer_Cursor_advance(&cursor); } break;
 
 		case '(' : { token_kind = Token_Kind__Left_Parenthesis;  Lexer_Cursor_advance(&cursor); } break;
 		case ')' : { token_kind = Token_Kind__Right_Parenthesis; Lexer_Cursor_advance(&cursor); } break;
@@ -327,7 +327,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					quote_ending_found = 1;
 				}
 				else if (character == '\n')
-				{
+				{	// NOTE: it may make sense to introduce a flag that changes this behaviour.
 					error = Lexer_Error_new(Lexer_Error_Kind__String_Multiline_Unsupported, &cursor);
 				}
 			}
@@ -369,6 +369,7 @@ LE_tokenize(String8 *input, Arena *arena)
 			}
 			else
 			{
+				// NOTE: decide on whether erroring after a while bunch on invalid tokens are read.
 				error = Lexer_Error_new(Lexer_Error_Kind__Character_Unexpected, &cursor);
 			}
 

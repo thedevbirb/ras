@@ -75,7 +75,6 @@ typedef enum Token_Kind
 	Token_Kind__None = 0,
 
 	Token_Kind__Comma,
-	Token_Kind__Colon,
 
 	Token_Kind__Left_Parenthesis,
 	Token_Kind__Right_Parenthesis,
