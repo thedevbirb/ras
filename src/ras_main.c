@@ -61,15 +61,15 @@ main(int argument_count, char **argument_vector)
 	Arena *arena = Arena_alloc_m();
 	Token_Array token_array = LE_tokenize(&input, arena);
 
-	Lexer_Error error = token_array.error;
-	if (error.kind)
+	Lexer_Error lexer_error = token_array.error;
+	if (lexer_error.kind)
 	{
-		U32 line   = error.row_index + 1;
-		U32 column_begin = error.column_begin_index + 1;
+		U32 line   = lexer_error.row_index + 1;
+		U32 column_begin = lexer_error.column_begin_index + 1;
 		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
-		fprintf(stderr, "%s\n", lexer_error_kind_messages[error.kind]);
+		fprintf(stderr, "%s\n", lexer_error_kind_messages[lexer_error.kind]);
 		fprintf(stderr, "%5d | ", line);
-		U64 index = token_array.line_start_indexes[error.row_index];
+		U64 index = token_array.line_start_indexes[lexer_error.row_index];
 		for (;;)
 		{
 			if (input.data[index] == '\n')
@@ -86,12 +86,66 @@ main(int argument_count, char **argument_vector)
 		index = 0;
 		for (;;)
 		{
-			if (index == error.column_begin_index)
+			if (index == lexer_error.column_begin_index)
 			{
 				fprintf(stderr, "\x1B[1;31m^");
 				U32 tilde_index = 0;
 				// There is already the caret, otherwise we output an extra tilde.
-				U32 tilde_count = error.column_end_index - error.column_begin_index;
+				U32 tilde_count = lexer_error.column_end_index - lexer_error.column_begin_index;
+				for (;;)
+				{
+					if (tilde_index < tilde_count)
+					{
+						fputc('~', stderr);
+						tilde_index += 1;
+					}
+					else
+					{
+						break;
+					}
+				}
+				fprintf(stderr, "\x1B[0m\n");
+				break;
+			}
+
+			fputc(' ', stderr);
+			index += 1;
+		}
+	}
+
+
+	Parser_Result parser_result = PA_parse(&input, &token_array, arena);
+	Parser_Error parser_error = parser_result.error;
+	if (parser_error.kind)
+	{
+		U32 line   = parser_error.row_index + 1;
+		U32 column_begin = parser_error.column_begin_index + 1;
+		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
+		fprintf(stderr, "%s\n", Parser_Error_Kind_messages[parser_error.kind]);
+		fprintf(stderr, "%5d | ", line);
+		U64 index = token_array.line_start_indexes[parser_error.row_index];
+		for (;;)
+		{
+			if (input.data[index] == '\n')
+			{
+				fputc('\n', stderr);
+				break;
+			}
+
+			fputc(input.data[index], stderr);
+			index += 1;
+		}
+
+		fprintf(stderr, "      | ");
+		index = 0;
+		for (;;)
+		{
+			if (index == parser_error.column_begin_index)
+			{
+				fprintf(stderr, "\x1B[1;31m^");
+				U32 tilde_index = 0;
+				// There is already the caret, otherwise we output an extra tilde.
+				U32 tilde_count = parser_error.column_end_index - parser_error.column_begin_index;
 				for (;;)
 				{
 					if (tilde_index < tilde_count)

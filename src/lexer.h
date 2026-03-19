@@ -125,7 +125,8 @@ typedef enum Lexing_Error_Kind
 }
 Lexer_Error_Kind;
 
-global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] = {
+global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
+{
 	[Lexer_Error_Kind__None]                                    = "",
 	[Lexer_Error_Kind__String_Multiline_Unsupported]            = "multiline strings are not supported",
 	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = "multiline character literals are not supported",

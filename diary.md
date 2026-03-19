@@ -54,3 +54,26 @@ It's crazy how you don't even think about lifetimes and memory management with a
 
 It is very challenging how to model the data accordigly, trying to forecast how you will need it.
 Implementation its expensive, so you have to design carefully considering what you want out of it.
+
+Not trivial to understand what is the right output of the parsing phase. Again, it's important to
+not get too carried away with finding the right semantics that fit our mental model but rather
+transforming the data in the most effective way to reach our goal: producing an object file.
+
+A good approach to find out what should be the right output, is thinking in terms of the next step
+after parsing, and thinking what is a well-defined input you'd like to have for that stage.
+
+
+# Appendix
+
+## After parsing
+
+After parsing, we need to build the object file contents, which is divded in sections that for
+example, distinguish between code text and data.
+
+The location counter is an integer that represents the current byte offset within the current
+section. It starts at zero for each section and increases as the pass processes entries, adding
+their size. For example, if `.word 42` is found, it advances the `.data` section by 4 bytes, since
+a word is by definition 4 bytes.
+
+A symbol is a name-to-value binding. In the simplest and most common case, the value is the location
+counter at the point where the symbol was defined, paired with which section it belongs to.

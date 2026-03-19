@@ -233,6 +233,7 @@ LE_tokenize(String8 *input, Arena *arena)
 			if (character_last == ':')
 			{
 				token_kind = Token_Kind__Label;
+				Lexer_Cursor_advance(&cursor);
 			}
 			else if (character_last == ' ' || character_last == '\n' || cursor.end_of_file_reached)
 			{
@@ -387,7 +388,7 @@ LE_tokenize(String8 *input, Arena *arena)
 			{
 				.index        = cursor.index_before,
 				.row_index    = cursor.row_index,
-				.column_index = cursor.column_index,
+				.column_index = cursor.column_index_before,
 				.size         = (U32)(cursor.index - cursor.index_before),
 				.kind         = token_kind,
 			};
