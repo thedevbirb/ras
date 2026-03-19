@@ -161,7 +161,7 @@ typedef struct Token_Array Token_Array;
 struct Token_Array
 {
 	Token      *tokens;
-	U32        *line_start_indexes;
+	U32        *line_start_indexes; // FIX: missing count for this?
 	U32         token_count;
 	Lexer_Error error;
 };

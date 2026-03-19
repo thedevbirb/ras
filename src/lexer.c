@@ -351,6 +351,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					Lexer_Cursor_advance(&cursor);
 					invalid = !LE_U8_identifier_is(cursor.character);
 				}
+				token_kind = Token_Kind__Identifier;
 			}
 			// TODO: support float (hex float?), literal hex, literal octal, literal binary.
 			else if (U8_ascii_digit_is(cursor.character))
@@ -367,6 +368,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					Lexer_Cursor_advance(&cursor);
 					invalid = !U8_ascii_digit_is(cursor.character);
 				}
+				token_kind = Token_Kind__Number_Literal;
 			}
 			else
 			{
@@ -393,6 +395,7 @@ LE_tokenize(String8 *input, Arena *arena)
 				.kind         = token_kind,
 			};
 
+			token_kind   = 0;
 			token_index += 1;
 		}
 	}

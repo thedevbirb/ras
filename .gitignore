@@ -7,5 +7,7 @@ plan/
 *.old
 nob
 
+core
+
 !README.md
 !diary.md

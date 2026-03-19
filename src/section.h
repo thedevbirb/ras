@@ -16,15 +16,13 @@ typedef enum ELF64_Section_Header_Type
 }
 ELF64_Section_Header_Type;
 
-
-
 typedef enum ELF64_Section
 {
 	ELF64_Section__Null = 0,
 	ELF64_Section__Text,
 	ELF64_Section__Data,
-	ELF64_Section__BSS,
 	ELF64_Section__Read_Only_Data,
+	ELF64_Section__BSS,
 	ELF64_Section__Relocations_Text,
 	ELF64_Section__Relocations_Data,
 	ELF64_Section__Symbols_Table,
@@ -36,15 +34,13 @@ typedef enum ELF64_Section
 }
 ELF64_Section;
 
-
-
 global const char *ELF64_Section_strings[ELF64_Section__COUNT] =
 {
 	[ELF64_Section__Null]             = "",
 	[ELF64_Section__Text]             = ".text",
 	[ELF64_Section__Data]             = ".data",
-	[ELF64_Section__BSS]              = ".bss",
 	[ELF64_Section__Read_Only_Data]   = ".rodata",
+	[ELF64_Section__BSS]              = ".bss",
 	[ELF64_Section__Relocations_Text] = ".rela.text",
 	[ELF64_Section__Relocations_Data] = ".rela.data",
 	[ELF64_Section__Symbols_Table]    = ".symtab",
@@ -59,8 +55,8 @@ ELF64_Section_Header_Type ELF64_Section_Header_Type_from_ELF64_Section[ELF64_Sec
 	[ELF64_Section__Null]              = ELF64_Section_Header_Type__Null,
 	[ELF64_Section__Text]              = ELF64_Section_Header_Type__Program_Bits,
 	[ELF64_Section__Data]              = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__BSS]               = ELF64_Section_Header_Type__No_Bits,
 	[ELF64_Section__Read_Only_Data]    = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__BSS]               = ELF64_Section_Header_Type__No_Bits,
 	[ELF64_Section__Relocations_Text]  = ELF64_Section_Header_Type__Relocations,
 	[ELF64_Section__Relocations_Data]  = ELF64_Section_Header_Type__Relocations,
 	[ELF64_Section__Symbols_Table]     = ELF64_Section_Header_Type__Symbols_Table,
@@ -75,8 +71,8 @@ global const U64 ELF64_Section_alignments[ELF64_Section__COUNT] =
 	[ELF64_Section__Null]              = 0,
 	[ELF64_Section__Text]              = 4,
 	[ELF64_Section__Data]              = 8,
-	[ELF64_Section__BSS]               = 8,
 	[ELF64_Section__Read_Only_Data]    = 8,
+	[ELF64_Section__BSS]               = 8,
 	[ELF64_Section__Relocations_Text]  = 8,
 	[ELF64_Section__Relocations_Data]  = 8,
 	[ELF64_Section__Symbols_Table]     = 8,
@@ -88,7 +84,7 @@ global const U64 ELF64_Section_alignments[ELF64_Section__COUNT] =
 typedef struct Object_File_Section Object_File_Section;
 struct Object_File_Section
 {
-	String8       *buffer;
+	String8        buffer;
 	ELF64_Section  section;
 	U32            offset; // Also known as "location counter", but it's just a byte offset.
 	U8	       alignment;
@@ -115,12 +111,12 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 			data = Arena_push_array_m(arena, U8, input_size);
 		}
 
-		Object_File_Section section = sections[index];
+		Object_File_Section *section = &sections[index];
 
-		section.buffer->data     = data;
-		section.buffer->count    = input_size;
-		section.section          = index;
-		section.alignment        = ELF64_Section_alignments[index];
+		section->buffer.data     = data;
+		section->buffer.count    = input_size;
+		section->section         = index;
+		section->alignment       = ELF64_Section_alignments[index];
 
 		index += 1;
 	}
@@ -160,7 +156,7 @@ Object_File_Section_align(Object_File_Section *section, U8 power_two)
 			break;
 		}
 
-		section->buffer->data[section->offset] = 0;
+		section->buffer.data[section->offset] = 0;
 		section->offset += 1;
 		index += 1;
 	}

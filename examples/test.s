@@ -1,6 +1,6 @@
 # ciao pronto
 
-.pronto
+.section pronto
 
 .start:
 	addi x1, x0, 42

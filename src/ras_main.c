@@ -11,8 +11,8 @@
 #include <os/os_include.h>
 
 #include "lexer.h"
-#include "parser.h"
 #include "section.h"
+#include "parser.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
@@ -123,7 +123,7 @@ main(int argument_count, char **argument_vector)
 	}
 
 
-	Parser_Result parser_result = PA_parse(&input, &token_array, arena);
+	Parser_Result parser_result = PA_parse(&input, &token_array, sections, arena);
 	Parser_Error parser_error = parser_result.error;
 	if (parser_error.kind)
 	{

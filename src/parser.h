@@ -78,10 +78,24 @@ Token_Cursor_advance(Token_Cursor *cursor)
 	return;
 }
 
+internal Token *
+Token_Cursor_peek_next(Token_Cursor *cursor)
+{
+	Token *next = 0;
+	if (cursor->index + 1 < cursor->token_array->token_count)
+	{
+		next = &cursor->token_array->tokens[cursor->index + 1];
+	}
+
+	return next;
+}
+
 typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
 	Parser_Error_Kind__Directive_Unknown,
+	Parser_Error_Kind__Directive_Section_Argument_Missing,
+	Parser_Error_Kind__Directive_Section_Argument_Invalid,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -89,8 +103,10 @@ Parser_Error_Kind;
 
 global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 {
-	[Parser_Error_Kind__None]              = "",
-	[Parser_Error_Kind__Directive_Unknown] = "Unknown directive found"
+	[Parser_Error_Kind__None]                               = "",
+	[Parser_Error_Kind__Directive_Unknown]                  = "unknown directive found",
+	[Parser_Error_Kind__Directive_Section_Argument_Missing] = "section directive is missing the argument",
+	[Parser_Error_Kind__Directive_Section_Argument_Invalid] = "section directive argument is invalid",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -111,8 +127,10 @@ Parser_Error_new(Parser_Error_Kind kind, Token_Cursor *cursor)
 		.kind               = kind,
 		.row_index          = cursor->current.row_index,
 		.column_begin_index = cursor->current.column_index,
-		.column_end_index   = cursor->current.size - 1,
+		.column_end_index   = cursor->current.column_index + cursor->current.size - 1,
 	};
+
+	assert_always_m(error.column_begin_index <= error.column_end_index && "index bug");
 
 	return error;
 }
@@ -168,12 +186,33 @@ struct Parser_Result
 	Parser_Error error;
 };
 
+internal ELF64_Section
+ELF64_Section_from_Directive_Kind(Directive_Kind kind)
+{
+	ELF64_Section section = ELF64_Section__Null;
+
+	switch (kind)
+	{
+	case ELF64_Section__Text:           { section = ELF64_Section__Text;           } break;
+	case ELF64_Section__Data:           { section = ELF64_Section__Data;           } break;
+	case ELF64_Section__Read_Only_Data: { section = ELF64_Section__Read_Only_Data; } break;
+	case ELF64_Section__BSS:            { section = ELF64_Section__BSS;            } break;
+	default: {} break;
+	}
+
+	return section;
+}
+
+
 internal Parser_Result
-PA_parse(String8 *input, Token_Array *token_array, Arena *arena)
+PA_parse(String8 *input, Token_Array *token_array, Object_File_Section *sections, Arena *arena)
 {
 	Token_Cursor cursor = Token_Cursor_new(token_array);
 	Parser_Error error  = {0};
 	Parser_Result result = {0};
+
+	// By default, the section is `.text`.
+	Object_File_Section section = sections[ELF64_Section__Text];
 
 	for (;;)
 	{
@@ -196,12 +235,34 @@ PA_parse(String8 *input, Token_Array *token_array, Arena *arena)
 				.count = (U64)cursor.current.size
 			};
 			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
-			if (!directive_kind)
+
+			switch (directive_kind)
+			{
+			case Directive_Kind__None:
 			{
 				error = Parser_Error_new(Parser_Error_Kind__Directive_Unknown, &cursor);
+			} break;
+			case Directive_Kind__Section:
+			{
+				Token *token_next = Token_Cursor_peek_next(&cursor);
+				if (!token_next || token_next->kind == Token_Kind__Newline)
+				{
+					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Missing, &cursor);
+				}
+				else if (token_next->kind == Token_Kind__Directive)
+				{
+					Token_Cursor_advance(&cursor);
+				}
+				else
+				{
+					Token_Cursor_advance(&cursor);
+					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Invalid, &cursor);
+				}
+			} break;
+			default: { assert_always_m(0 && "unhandled directive"); } break;
 			}
 
-			Token_Cursor_advance(&cursor);
+			// Token_Cursor_advance(&cursor);
 		} break;
 		default:
 		{
