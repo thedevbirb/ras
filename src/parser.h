@@ -13,6 +13,7 @@ typedef enum Directive_Kind
 	Directive_Kind__Word,
 	Directive_Kind__Ascii,
 	Directive_Kind__Asciz,
+	Directive_Kind__Align,
 	Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -28,6 +29,7 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Globl]           = ".globl",
 	[Directive_Kind__Word]            = ".word",
 	[Directive_Kind__Ascii]           = ".ascii",
+	[Directive_Kind__Align]           = ".align",
 	[Directive_Kind__Asciz]           = ".asciz",
 };
 
@@ -96,6 +98,8 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Directive_Unknown,
 	Parser_Error_Kind__Directive_Section_Argument_Missing,
 	Parser_Error_Kind__Directive_Section_Argument_Invalid,
+	Parser_Error_Kind__Directive_Align_Argument_Missing,
+	Parser_Error_Kind__Directive_Align_Argument_Invalid,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -107,6 +111,8 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Directive_Unknown]                  = "unknown directive found",
 	[Parser_Error_Kind__Directive_Section_Argument_Missing] = "section directive is missing the argument",
 	[Parser_Error_Kind__Directive_Section_Argument_Invalid] = "section directive argument is invalid",
+	[Parser_Error_Kind__Directive_Align_Argument_Missing] = "align directive is missing the argument",
+	[Parser_Error_Kind__Directive_Align_Argument_Invalid] = "align directive argument is not a number literal",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -257,6 +263,26 @@ PA_parse(String8 *input, Token_Array *token_array, Object_File_Section *sections
 				{
 					Token_Cursor_advance(&cursor);
 					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Invalid, &cursor);
+				}
+			} break;
+			case Directive_Kind__Align:
+			{
+				Token *token_next = Token_Cursor_peek_next(&cursor);
+				if (!token_next || token_next->kind == Token_Kind__Newline)
+				{
+					error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Missing, &cursor);
+				}
+				// Actually, here I should grab all the tokens until newline, and try to parse the
+				// expression.
+				else if (token_next->kind == Token_Kind__Number_Literal)
+				{
+					// TODO: parse the number
+					Token_Cursor_advance(&cursor);
+				}
+				else
+				{
+					Token_Cursor_advance(&cursor);
+					error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Invalid, &cursor);
 				}
 			} break;
 			default:

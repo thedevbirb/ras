@@ -172,16 +172,15 @@ LE_tokenize(String8 *input, Arena *arena)
 		} break;
 
 		case ',' : { token_kind = Token_Kind__Comma;             Lexer_Cursor_advance(&cursor); } break;
-
 		case '(' : { token_kind = Token_Kind__Left_Parenthesis;  Lexer_Cursor_advance(&cursor); } break;
 		case ')' : { token_kind = Token_Kind__Right_Parenthesis; Lexer_Cursor_advance(&cursor); } break;
-
 		case '+' : { token_kind = Token_Kind__Plus;              Lexer_Cursor_advance(&cursor); } break;
 		case '-' : { token_kind = Token_Kind__Minus;             Lexer_Cursor_advance(&cursor); } break;
 		case '*' : { token_kind = Token_Kind__Star;              Lexer_Cursor_advance(&cursor); } break;
 		case '/' : { token_kind = Token_Kind__Slash;             Lexer_Cursor_advance(&cursor); } break;
-
 		case '%' : { token_kind = Token_Kind__Percentage;        Lexer_Cursor_advance(&cursor); } break;
+		case '~' : { token_kind = Token_Kind__Tilde;             Lexer_Cursor_advance(&cursor); } break;
+		case '^' : { token_kind = Token_Kind__Caret;             Lexer_Cursor_advance(&cursor); } break;
 
 		case '\n': { token_kind = Token_Kind__Newline;           Lexer_Cursor_advance_newline(&cursor); } break;
 
@@ -194,9 +193,14 @@ LE_tokenize(String8 *input, Arena *arena)
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Shift_Right;
 			}
+			else if (next && *next == '=')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Greater_Equal;
+			}
 			else
 			{
-				token_kind = Token_Kind__Major;
+				token_kind = Token_Kind__Greater_Than;
 			}
 		} break;
 		case '<':
@@ -208,9 +212,73 @@ LE_tokenize(String8 *input, Arena *arena)
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Shift_Left;
 			}
+			else if (next && *next == '=')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Less_Equal;
+			}
 			else
 			{
-				token_kind = Token_Kind__Minor;
+				token_kind = Token_Kind__Less_Than;
+			}
+		} break;
+
+		case '=':
+		{
+			Lexer_Cursor_advance(&cursor);
+			U8 *next = Lexer_Cursor_peek_next(&cursor);
+			if (next && *next == '=')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Equal;
+			}
+			else
+			{
+				token_kind = Token_Kind__Assign;
+			}
+		} break;
+
+		case '!':
+		{
+			Lexer_Cursor_advance(&cursor);
+			U8 *next = Lexer_Cursor_peek_next(&cursor);
+			if (next && *next == '=')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Equal_Not;
+			}
+			else
+			{
+				token_kind = Token_Kind__Bang;
+			}
+		} break;
+
+		case '|':
+		{
+			Lexer_Cursor_advance(&cursor);
+			U8 *next = Lexer_Cursor_peek_next(&cursor);
+			if (next && *next == '|')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Logical_Or;
+			}
+			else
+			{
+				token_kind = Token_Kind__Pipe;
+			}
+		} break;
+		case '&':
+		{
+			Lexer_Cursor_advance(&cursor);
+			U8 *next = Lexer_Cursor_peek_next(&cursor);
+			if (next && *next == '&')
+			{
+				Lexer_Cursor_advance(&cursor);
+				token_kind = Token_Kind__Logical_And;
+			}
+			else
+			{
+				token_kind = Token_Kind__Ampersand;
 			}
 		} break;
 

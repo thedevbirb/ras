@@ -83,19 +83,30 @@ typedef enum Token_Kind
 	Token_Kind__Minus,
 	Token_Kind__Star,
 	Token_Kind__Slash,
-
-	Token_Kind__Pipe,
-	Token_Kind__Ampersand,
+	Token_Kind__Percentage,
 	Token_Kind__Tilde,
 	Token_Kind__Caret,
 
-	Token_Kind__Percentage,
 	Token_Kind__Newline,
 
-	Token_Kind__Major,
-	Token_Kind__Minor,
-	Token_Kind__Shift_Left,
 	Token_Kind__Shift_Right,
+	Token_Kind__Greater_Equal,
+	Token_Kind__Greater_Than,
+
+	Token_Kind__Shift_Left,
+	Token_Kind__Less_Equal,
+	Token_Kind__Less_Than,
+
+	Token_Kind__Equal,  // '=='
+	Token_Kind__Assign, // '='
+
+	Token_Kind__Equal_Not,
+	Token_Kind__Bang,
+
+	Token_Kind__Logical_Or,
+	Token_Kind__Pipe,
+	Token_Kind__Logical_And,
+	Token_Kind__Ampersand,
 
 	Token_Kind__Label,
 	Token_Kind__Directive,

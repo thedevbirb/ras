@@ -68,8 +68,13 @@ keep a fixup list, where the size is known and its computation is deferred.
 it makes sense in the parser to do some object file writing already because some information is just
 there already and you see it.
 
-TODO: start creating object file section structs, with an arena allocated buffer and location
-counter.
+Creating an expression parser is its own adventure. I had to generate the grammar because that is
+out of scope for this project and it's already a well defined problem. I hope the generated grammar
+is correct tho. Won't be too hard to tweak it if the setting of the code is right.
+
+# Random
+
+I should try to write neovim snippets.
 
 
 # Appendix
