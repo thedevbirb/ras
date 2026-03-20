@@ -178,7 +178,6 @@ LE_tokenize(String8 *input, Arena *arena)
 		case '-' : { token_kind = Token_Kind__Minus;             Lexer_Cursor_advance(&cursor); } break;
 		case '*' : { token_kind = Token_Kind__Star;              Lexer_Cursor_advance(&cursor); } break;
 		case '/' : { token_kind = Token_Kind__Slash;             Lexer_Cursor_advance(&cursor); } break;
-		case '%' : { token_kind = Token_Kind__Percentage;        Lexer_Cursor_advance(&cursor); } break;
 		case '~' : { token_kind = Token_Kind__Tilde;             Lexer_Cursor_advance(&cursor); } break;
 		case '^' : { token_kind = Token_Kind__Caret;             Lexer_Cursor_advance(&cursor); } break;
 
@@ -279,6 +278,20 @@ LE_tokenize(String8 *input, Arena *arena)
 			else
 			{
 				token_kind = Token_Kind__Ampersand;
+			}
+		} break;
+
+		case '%':
+		{
+			Lexer_Cursor_advance(&cursor);
+			U8 *next = Lexer_Cursor_peek_next(&cursor);
+			if (next && U8_ascii_letter_is(*next))
+			{
+				token_kind = Token_Kind__Relocation_Prefix;
+			}
+			else
+			{
+				token_kind = Token_Kind__Percentage;
 			}
 		} break;
 

@@ -83,7 +83,6 @@ typedef enum Token_Kind
 	Token_Kind__Minus,
 	Token_Kind__Star,
 	Token_Kind__Slash,
-	Token_Kind__Percentage,
 	Token_Kind__Tilde,
 	Token_Kind__Caret,
 
@@ -107,6 +106,9 @@ typedef enum Token_Kind
 	Token_Kind__Pipe,
 	Token_Kind__Logical_And,
 	Token_Kind__Ampersand,
+
+	Token_Kind__Relocation_Prefix, // %
+	Token_Kind__Percentage,
 
 	Token_Kind__Label,
 	Token_Kind__Directive,
