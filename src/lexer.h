@@ -162,6 +162,7 @@ struct Lexer_Error
 typedef struct Token Token;
 struct Token
 {
+	U64        numerical_value; // No float support yet.
 	U32        index;
 	U32        row_index;
 	U32        column_index;

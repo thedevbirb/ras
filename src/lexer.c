@@ -76,6 +76,7 @@ Lexer_Cursor_advance(Lexer_Cursor *cursor)
 	{
 		cursor->character = cursor->text[cursor->index];
 	}
+	return;
 }
 
 internal void
@@ -91,6 +92,7 @@ Lexer_Cursor_advance_newline(Lexer_Cursor *cursor)
 		cursor->character = cursor->text[cursor->index];
 		cursor->line_start_indexes[cursor->row_index] = cursor->index;
 	}
+	return;
 }
 
 internal U8 *
@@ -129,6 +131,7 @@ LE_tokenize(String8 *input, Arena *arena)
 	U32 token_index = 0;
 
 	Token_Kind token_kind = Token_Kind__None;
+	U64 numerical_value = 0;
 	for (;;)
 	{
 		B32 break_should = error.kind || cursor.end_of_file_reached;
@@ -434,22 +437,124 @@ LE_tokenize(String8 *input, Arena *arena)
 				}
 				token_kind = Token_Kind__Identifier;
 			}
-			// TODO: support float (hex float?), literal hex, literal octal, literal binary.
+			// TODO: support float (hex float?)
 			else if (U8_ascii_digit_is(cursor.character))
 			{
-				B32 break_should = 0;
-				B32 invalid = 0;
-				for (;;)
+				U8 digit = cursor.character;
+				Lexer_Cursor_peek_next(&cursor);
+				U8 *next = cursor.character;
+
+				if (digit == '0' && next && *next == 'x')
 				{
-					break_should = invalid || cursor.end_of_file_reached;
-					if (break_should)
+					// Go past '0x' prefix.
+					Lexer_Cursor_advance(cursor);
+					Lexer_Cursor_advance(cursor);
+
+					U8 value = 0;
+					U64 result = 0;
+					for (;;)
 					{
-						break;
+						if (cursor->end_of_file_reached || value >= 16)
+						{
+							break;
+						}
+						value = hex_table[cursor.character];
+						result = result * 16 + value;
+						Lexer_Cursor_advance(cursor);
 					}
-					Lexer_Cursor_advance(&cursor);
-					invalid = !U8_ascii_digit_is(cursor.character);
+
+					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					if (!valid)
+					{
+						*error = Lexer_Error_Kind_Numeric_Hex_Literal_Invalid;
+					}
+					else
+					{
+						token_kind = Token_Kind__Number_Hex_Literal;
+						numerical_value = result;
+					}
 				}
-				token_kind = Token_Kind__Number_Literal;
+				else if (digit == '0' && next && *next == 'b')
+				{
+					// Go past '0b' prefix.
+					Lexer_Cursor_advance(cursor);
+					Lexer_Cursor_advance(cursor);
+
+					U8 value = 0;
+					U64 result = 0;
+					for (;;)
+					{
+						if (cursor->end_of_file_reached || value >= 2)
+						{
+							break;
+						}
+						value = (U8)(cursor->character - '0');
+						result = result * 2 + value;
+						Lexer_Cursor_advance(cursor);
+					}
+
+					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					if (!valid)
+					{
+						*error = Lexer_Error_Kind_Numeric_Binary_Literal_Invalid;
+					}
+					else
+					{
+						token_kind = Token_Kind__Number_Binary_Literal;
+						numerical_value = result;
+					}
+				}
+				else if (digit == '0' && next && U8_ascii_digit_is(*next))
+				{	// Octal
+					Lexer_Cursor_advance(cursor);
+					U64 result = 0;
+					for (;;)
+					{
+						U8 value = (U8)(cursor->character - '0');
+						if (cursor->end_of_file_reached || value >= 8)
+						{
+							break;
+						}
+						result = result * 8 + value;
+						Lexer_Cursor_advance(cursor);
+					}
+
+					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					if (!valid)
+					{
+						*error = Lexer_Error_Kind_Numeric_Octal_Literal_Invalid;
+					}
+					else
+					{
+						token_kind = Token_Kind__Number_Literal;
+						numerical_value = result;
+					}
+				}
+				else
+				{	// Base 10 number
+					U64 result = 0;
+					for (;;)
+					{
+						U8 value = (U8)(cursor->character - '0');
+						if (cursor->end_of_file_reached || value >= 10)
+						{
+							break;
+						}
+						result = result * 10 + value;
+						Lexer_Cursor_advance(cursor);
+					}
+
+					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					if (!valid)
+					{
+						*error = Lexer_Error_Kind_Numeric_Literal_Invalid;
+					}
+					else
+					{
+						token_kind = Token_Kind__Number_Literal;
+						numerical_value = result;
+					}
+				}
 			}
 			else
 			{
@@ -469,15 +574,17 @@ LE_tokenize(String8 *input, Arena *arena)
 			// Update phase
 			tokens[token_index] = (Token)
 			{
-				.index        = cursor.index_before,
-				.row_index    = cursor.row_index,
-				.column_index = cursor.column_index_before,
-				.size         = (U32)(cursor.index - cursor.index_before),
-				.kind         = token_kind,
+				.numerical_value = numerical_value,
+				.index           = cursor.index_before,
+				.row_index       = cursor.row_index,
+				.column_index    = cursor.column_index_before,
+				.size            = (U32)(cursor.index - cursor.index_before),
+				.kind            = token_kind,
 			};
 
-			token_kind   = 0;
-			token_index += 1;
+			token_kind        = 0;
+			numerical_value   = 0;
+			token_index      += 1;
 		}
 	}
 
