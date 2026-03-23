@@ -1,5 +1,8 @@
 # ciao pronto
 
+0b00101
+0x1234g
+
 .section .text
 
 addi x1, x0, 42

@@ -68,10 +68,11 @@ Token_Cursor_new(Token_Array *token_array)
 	return cursor;
 }
 
+// It is a no-op if the end has been reached already.
 internal void
 Token_Cursor_advance(Token_Cursor *cursor)
 {
-	cursor->index += 1;
+	cursor->index += !cursor->end_reached;
 	cursor->end_reached = cursor->index >= cursor->token_array->token_count;
 	if (!cursor->end_reached)
 	{
@@ -111,8 +112,8 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Directive_Unknown]                  = "unknown directive found",
 	[Parser_Error_Kind__Directive_Section_Argument_Missing] = "section directive is missing the argument",
 	[Parser_Error_Kind__Directive_Section_Argument_Invalid] = "section directive argument is invalid",
-	[Parser_Error_Kind__Directive_Align_Argument_Missing] = "align directive is missing the argument",
-	[Parser_Error_Kind__Directive_Align_Argument_Invalid] = "align directive argument is not a number literal",
+	[Parser_Error_Kind__Directive_Align_Argument_Missing]   = "align directive is missing the argument",
+	[Parser_Error_Kind__Directive_Align_Argument_Invalid]   = "align directive argument is not a number literal",
 };
 
 typedef struct Parser_Error Parser_Error;

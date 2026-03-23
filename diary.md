@@ -49,6 +49,8 @@ I didnt' realize how effective is centralizing all state in a cursor fat struct.
 
 It's crazy how you don't even think about lifetimes and memory management with arenas.
 
+The first 80% takes 20% of the time, but tiny details take a good amount of time.
+
 
 # Parser
 
@@ -71,6 +73,18 @@ there already and you see it.
 Creating an expression parser is its own adventure. I had to generate the grammar because that is
 out of scope for this project and it's already a well defined problem. I hope the generated grammar
 is correct tho. Won't be too hard to tweak it if the setting of the code is right.
+
+Finding good pattern that leverage clearly documented no-ops can make your life a lot easier and
+reduce a lot the number of codepaths. Examples:
+
+- Advancing a cursor is a no-op if the underlying data stream has ended
+- Error setters functions are a no-op if an error has already been set.
+
+Another interesting example is not caring about whether an error is found and continue with the
+codeflow (when possible) but still note the error. The idea is not do any "if error" logic until
+absolutely necessary. It depends a lot on the context, but sometimes it's not a big deal if a
+certain action is done on invalid input, the most important part is mark the error so that then you
+stop. This reduces a LOT the number of branching you do.
 
 # Random
 
