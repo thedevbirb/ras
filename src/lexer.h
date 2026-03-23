@@ -149,6 +149,10 @@ global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = "multiline character literals are not supported",
 	[Lexer_Error_Kind__Character_Literal_Empty]                 = "empty character literal",
 	[Lexer_Error_Kind__Character_Literal_Multiple]              = "character literal contains multiple characters",
+	[Lexer_Error_Kind__Numeric_Literal_Invalid]                 = "numerical literal is invalid",
+	[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid]             = "numerical hex literal is invalid",
+	[Lexer_Error_Kind__Numeric_Octal_Literal_Invalid]           = "numerical octal literal is invalid",
+	[Lexer_Error_Kind__Numeric_Binary_Literal_Invalid]          = "numerical binary literal is invalid",
 	[Lexer_Error_Kind__Label_Directive_Invalid]                 = "invalid label or directive",
 	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
 };

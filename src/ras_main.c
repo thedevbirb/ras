@@ -123,6 +123,8 @@ main(int argument_count, char **argument_vector)
 			fputc(' ', stderr);
 			index += 1;
 		}
+
+		exit(1);
 	}
 
 
