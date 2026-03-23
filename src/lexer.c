@@ -335,9 +335,11 @@ LE_tokenize(String8 *input, Arena *arena)
 			// We only check for ending quotes: handling of bytes values and parsing of
 			// escapes is done at a later stage.
 			U8 escaping_started   = 0;
+			U8 escaped            = 0;
 			U8 quote_ending_found = 0;
 			B32 break_should      = 0;
-			// NOTE: This could be simplified with a peek_next_n method.
+			B32 value             = 0;
+
 			for (;;)
 			{
 				Lexer_Cursor_advance(&cursor);
@@ -352,10 +354,16 @@ LE_tokenize(String8 *input, Arena *arena)
 				if (escaping_started)
 				{
 					escaping_started = 0;
+					value = escape_table[character];
+					if (value == escape_value_invalid)
+					{
+						error = Lexer_Error_new(Lexer_Error_Kind__Character_Literal_Escape_Invalid, &cursor);
+					}
 				}
 				else if (character == '\\')
 				{
 					escaping_started = 1;
+					escaped = 1;
 				}
 				else if (character == '\'')
 				{
@@ -365,24 +373,29 @@ LE_tokenize(String8 *input, Arena *arena)
 				{
 					error = Lexer_Error_new(Lexer_Error_Kind__Character_Literal_Multiline_Unsupported, &cursor);
 				}
-
-				B32 char_invalid = quote_ending_found && cursor.index != cursor.index_before + 2;
-				if (quote_ending_found && char_invalid)
+				else
 				{
-					Lexer_Error_Kind kind =
-						cursor.index - cursor.index_before == 1 ?
-						Lexer_Error_Kind__Character_Literal_Empty :
-						Lexer_Error_Kind__Character_Literal_Multiple;
-					error = Lexer_Error_new(kind, &cursor);
+					value = cursor.character;
 				}
 			}
 
+			U32 characters_read_expected = 3 + escaped;
+			U32 characters_read = cursor.index - cursor.index_before;
+
+			if (characters_read_expected != characters_read)
+			{
+				error = Lexer_Error_new(Lexer_Error_Kind__Character_Literal_Multiple, &cursor);
+			}
+			if (!quote_ending_found && cursor.end_of_file_reached)
+			{
+				error = Lexer_Error_new(Lexer_Error_Kind__Character_Literal_Unterminated, &cursor);
+			}
+
 			token_kind = Token_Kind__Char_Literal;
+			numerical_value = value;
 		} break;
 		case '\"':
 		{
-			U8 character_quote = cursor.character;
-
 			// We only check for ending quotes: handling of bytes values and parsing of
 			// escapes is done at a later stage.
 			U8 escaping_started   = 0;
@@ -407,7 +420,7 @@ LE_tokenize(String8 *input, Arena *arena)
 				{
 					escaping_started = 1;
 				}
-				else if (character == character_quote)
+				else if (character == '\"')
 				{
 					quote_ending_found = 1;
 				}
@@ -415,6 +428,11 @@ LE_tokenize(String8 *input, Arena *arena)
 				{	// NOTE: it may make sense to introduce a flag that changes this behaviour.
 					error = Lexer_Error_new(Lexer_Error_Kind__String_Multiline_Unsupported, &cursor);
 				}
+			}
+
+			if (!quote_ending_found && cursor.end_of_file_reached)
+			{
+				error = Lexer_Error_new(Lexer_Error_Kind__String_Literal_Unterminated, &cursor);
 			}
 
 			token_kind = Token_Kind__String_Literal;
@@ -463,10 +481,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Hex_Literal_Invalid, &cursor);
 					}
-					else
-					{
-						numerical_value = result;
-					}
+					numerical_value = result;
 				}
 				else if (digit == '0' && next && *next == 'b')
 				{
@@ -488,10 +503,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Binary_Literal_Invalid, &cursor);
 					}
-					else
-					{
-						numerical_value = result;
-					}
+					numerical_value = result;
 				}
 				else if (digit == '0' && next && U8_ascii_digit_is(*next))
 				{	// Octal
@@ -513,10 +525,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Octal_Literal_Invalid, &cursor);
 					}
-					else
-					{
-						numerical_value = result;
-					}
+					numerical_value = result;
 				}
 				else
 				{	// Base 10 number
@@ -537,16 +546,10 @@ LE_tokenize(String8 *input, Arena *arena)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Literal_Invalid, &cursor);
 					}
-					else
-					{
-						numerical_value = result;
-					}
+					numerical_value = result;
 				}
 
-				if (!error.kind)
-				{
-					token_kind = Token_Kind__Number_Literal;
-				}
+				token_kind = Token_Kind__Number_Literal;
 			}
 			else
 			{
@@ -561,7 +564,7 @@ LE_tokenize(String8 *input, Arena *arena)
 		B32 loop_infinite_avoided = cursor.index_before < cursor.index || error.kind;
 		assert_always_m(loop_infinite_avoided && "infinite loop edge case");
 
-		if (token_kind != 0)
+		if (token_kind && !error.kind)
 		{
 			// Update phase
 			tokens[token_index] = (Token)

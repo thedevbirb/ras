@@ -69,12 +69,37 @@ Initialize_numeric_suffix_table(void)
     return;
 }
 
+global U8 escape_value_invalid = 0xFF;
+global U8 escape_table[256];
+
+internal void
+Initialize_escape_table(void)
+{
+	os_memory_set((void *)escape_table, escape_value_invalid, sizeof(escape_table));
+
+	escape_table['a']  = 0x07;  // bell
+	escape_table['b']  = 0x08;  // backspace
+	escape_table['t']  = 0x09;  // tab
+	escape_table['n']  = 0x0A;  // newline
+	escape_table['v']  = 0x0B;  // vertical tab
+	escape_table['f']  = 0x0C;  // form feed
+	escape_table['r']  = 0x0D;  // carriage return
+	escape_table['e']  = 0x1B;  // escape
+	escape_table['\\'] = 0x5C;  // backslash
+	escape_table['\''] = 0x27;  // single quote
+	escape_table['"']  = 0x22;  // double quote
+	escape_table['0']  = 0x00;  // null
+
+	return;
+}
+
 
 internal void
 Initialize(void)
 {
 	Initialize_hex_table();
 	Initialize_numeric_suffix_table();
+	Initialize_escape_table();
 	return;
 }
 
