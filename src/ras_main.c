@@ -10,6 +10,7 @@
 #include <base/base_include.h>
 #include <os/os_include.h>
 
+#include "initialize.h"
 #include "lexer.h"
 #include "section.h"
 #include "parser.h"
@@ -37,6 +38,8 @@ usage_print()
 int
 main(int argument_count, char **argument_vector)
 {
+	Initialize();
+
 	arguments_shift(&argument_count, &argument_vector);
 	if (argument_count < 2)
 	{
