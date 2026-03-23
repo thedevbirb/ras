@@ -441,92 +441,88 @@ LE_tokenize(String8 *input, Arena *arena)
 			else if (U8_ascii_digit_is(cursor.character))
 			{
 				U8 digit = cursor.character;
-				Lexer_Cursor_peek_next(&cursor);
-				U8 *next = cursor.character;
+				U8 *next = Lexer_Cursor_peek_next(&cursor);
 
 				if (digit == '0' && next && *next == 'x')
 				{
 					// Go past '0x' prefix.
-					Lexer_Cursor_advance(cursor);
-					Lexer_Cursor_advance(cursor);
+					Lexer_Cursor_advance(&cursor);
+					Lexer_Cursor_advance(&cursor);
 
 					U8 value = 0;
 					U64 result = 0;
 					for (;;)
 					{
-						if (cursor->end_of_file_reached || value >= 16)
+						if (cursor.end_of_file_reached || value >= 16)
 						{
 							break;
 						}
 						value = hex_table[cursor.character];
 						result = result * 16 + value;
-						Lexer_Cursor_advance(cursor);
+						Lexer_Cursor_advance(&cursor);
 					}
 
-					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					B32 valid = cursor.end_of_file_reached || numeric_suffix_table[cursor.character];
 					if (!valid)
 					{
-						*error = Lexer_Error_Kind_Numeric_Hex_Literal_Invalid;
+						error.kind = Lexer_Error_Kind__Numeric_Hex_Literal_Invalid;
 					}
 					else
 					{
-						token_kind = Token_Kind__Number_Hex_Literal;
 						numerical_value = result;
 					}
 				}
 				else if (digit == '0' && next && *next == 'b')
 				{
 					// Go past '0b' prefix.
-					Lexer_Cursor_advance(cursor);
-					Lexer_Cursor_advance(cursor);
+					Lexer_Cursor_advance(&cursor);
+					Lexer_Cursor_advance(&cursor);
 
 					U8 value = 0;
 					U64 result = 0;
 					for (;;)
 					{
-						if (cursor->end_of_file_reached || value >= 2)
+						if (cursor.end_of_file_reached || value >= 2)
 						{
 							break;
 						}
-						value = (U8)(cursor->character - '0');
+						value = (U8)(cursor.character - '0');
 						result = result * 2 + value;
-						Lexer_Cursor_advance(cursor);
+						Lexer_Cursor_advance(&cursor);
 					}
 
-					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					B32 valid = cursor.end_of_file_reached || numeric_suffix_table[cursor.character];
 					if (!valid)
 					{
-						*error = Lexer_Error_Kind_Numeric_Binary_Literal_Invalid;
+						error.kind = Lexer_Error_Kind__Numeric_Binary_Literal_Invalid;
 					}
 					else
 					{
-						token_kind = Token_Kind__Number_Binary_Literal;
 						numerical_value = result;
 					}
 				}
 				else if (digit == '0' && next && U8_ascii_digit_is(*next))
 				{	// Octal
-					Lexer_Cursor_advance(cursor);
+					Lexer_Cursor_advance(&cursor);
 					U64 result = 0;
 					for (;;)
 					{
-						U8 value = (U8)(cursor->character - '0');
-						if (cursor->end_of_file_reached || value >= 8)
+						U8 value = (U8)(cursor.character - '0');
+						if (cursor.end_of_file_reached || value >= 8)
 						{
 							break;
 						}
 						result = result * 8 + value;
-						Lexer_Cursor_advance(cursor);
+						Lexer_Cursor_advance(&cursor);
 					}
 
-					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					B32 valid = cursor.end_of_file_reached || numeric_suffix_table[cursor.character];
 					if (!valid)
 					{
-						*error = Lexer_Error_Kind_Numeric_Octal_Literal_Invalid;
+						error.kind = Lexer_Error_Kind__Numeric_Octal_Literal_Invalid;
 					}
 					else
 					{
-						token_kind = Token_Kind__Number_Literal;
 						numerical_value = result;
 					}
 				}
@@ -535,25 +531,29 @@ LE_tokenize(String8 *input, Arena *arena)
 					U64 result = 0;
 					for (;;)
 					{
-						U8 value = (U8)(cursor->character - '0');
-						if (cursor->end_of_file_reached || value >= 10)
+						U8 value = (U8)(cursor.character - '0');
+						if (cursor.end_of_file_reached || value >= 10)
 						{
 							break;
 						}
 						result = result * 10 + value;
-						Lexer_Cursor_advance(cursor);
+						Lexer_Cursor_advance(&cursor);
 					}
 
-					B32 valid = cursor->end_of_file_reached || numeric_suffix_table[cursor->character];
+					B32 valid = cursor.end_of_file_reached || numeric_suffix_table[cursor.character];
 					if (!valid)
 					{
-						*error = Lexer_Error_Kind_Numeric_Literal_Invalid;
+						error.kind = Lexer_Error_Kind__Numeric_Literal_Invalid;
 					}
 					else
 					{
-						token_kind = Token_Kind__Number_Literal;
 						numerical_value = result;
 					}
+				}
+
+				if (!error.kind)
+				{
+					token_kind = Token_Kind__Number_Literal;
 				}
 			}
 			else

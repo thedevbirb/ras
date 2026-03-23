@@ -1,12 +1,12 @@
 #ifndef INITIALIZE_H
 #define INITIALIZE_H
 
-global const U8 hex_table[256];
+global U8 hex_table[256];
 
 internal void
 Initialize_hex_table(void)
 {
-    os_memory_set(hex_table, 0xFF, sizeof(hex_table));
+    os_memory_set((void *)hex_table, 0xFF, sizeof(hex_table));
 
     hex_table['0'] = 0x00;
     hex_table['1'] = 0x01;
@@ -38,36 +38,36 @@ Initialize_hex_table(void)
 // List of characters that can appear after a number in a lexically valid program.
 //
 // NOTE: Float literals are not supported.
-global const U8 numeric_suffix_table[256];
+global U8 numeric_suffix_table[256];
 
 internal void
 Initialize_numeric_suffix_table(void)
 {
-    os_memory_zero(numeric_suffix_table, 0, sizeof(numeric_suffix_table));
+    os_memory_zero(numeric_suffix_table, sizeof(numeric_suffix_table));
 
-    numeric_suffix_table['(']  = 1,
-    numeric_suffix_table[')']  = 1,
-    numeric_suffix_table[',']  = 1,
-    numeric_suffix_table['#']  = 1, // Comments.
-    numeric_suffix_table['+']  = 1,
-    numeric_suffix_table['-']  = 1,
-    numeric_suffix_table['*']  = 1,
-    numeric_suffix_table['/']  = 1,
-    numeric_suffix_table['^']  = 1,
-    numeric_suffix_table['<']  = 1,
-    numeric_suffix_table['>']  = 1,
-    numeric_suffix_table['=']  = 1,
-    numeric_suffix_table['!']  = 1,
-    numeric_suffix_table['|']  = 1,
-    numeric_suffix_table['&']  = 1,
-    numeric_suffix_table['%']  = 1,
-    numeric_suffix_table['\n'] = 1,
-    numeric_suffix_table['\r'] = 1,
-    numeric_suffix_table[' ']  = 1,
-    numeric_suffix_table['\t'] = 1,
+    numeric_suffix_table['(']  = 1;
+    numeric_suffix_table[')']  = 1;
+    numeric_suffix_table[';']  = 1,
+    numeric_suffix_table['#']  = 1; // Comments.
+    numeric_suffix_table['+']  = 1;
+    numeric_suffix_table['-']  = 1;
+    numeric_suffix_table['*']  = 1;
+    numeric_suffix_table['/']  = 1;
+    numeric_suffix_table['^']  = 1;
+    numeric_suffix_table['<']  = 1;
+    numeric_suffix_table['>']  = 1;
+    numeric_suffix_table['=']  = 1;
+    numeric_suffix_table['!']  = 1;
+    numeric_suffix_table['|']  = 1;
+    numeric_suffix_table['&']  = 1;
+    numeric_suffix_table['%']  = 1;
+    numeric_suffix_table['\n'] = 1;
+    numeric_suffix_table['\r'] = 1;
+    numeric_suffix_table[' ']  = 1;
+    numeric_suffix_table['\t'] = 1;
 
     return;
-};
+}
 
 
 internal void
