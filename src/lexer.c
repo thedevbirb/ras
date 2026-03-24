@@ -21,17 +21,6 @@ LE_U8_number_character_is(U8 character)
 	return result;
 }
 
-internal U8 *
-LE_String8_get(String8 *string, U32 index)
-{
-	U8 *next = 0;
-	if (index < string->count)
-	{
-		next = &string->data[index];
-	}
-	return next;
-}
-
 typedef struct Lexer_Cursor Lexer_Cursor;
 struct Lexer_Cursor
 {
@@ -44,24 +33,28 @@ struct Lexer_Cursor
 	U32  column_index_before;
 	U32  row_index;
 	B32  end_reached;
-	U8   character;
+	U8   current;
 };
 
 internal Lexer_Cursor
-Lexer_Cursor_new(Arena *arena, String8 *input)
+Lexer_Cursor_new(Arena *arena, Input *input)
 {
 	U8 *text  = input->data;
 	U32 text_size = U32_cast_safe(input->count);
+	B32 end_reached = 0 >= text_size;
 
-	Lexer_Cursor cursor = {0};
-	cursor.text = text;
-	cursor.text_size = text_size;
-	cursor.line_start_indexes = Arena_push_array_m(arena, U32, text_size);
-	cursor.end_reached = 0 >= text_size;
-
-	if (!cursor.end_reached)
+	Lexer_Cursor cursor =
 	{
-		cursor.character = text[0];
+		.text = text,
+		.text_size = text_size,
+		.line_start_indexes = Arena_push_array_m(arena, U32, text_size),
+		.end_reached = end_reached,
+	};
+
+
+	if (!end_reached)
+	{
+		cursor.current = text[0];
 	}
 
 	return cursor;
@@ -71,42 +64,43 @@ Lexer_Cursor_new(Arena *arena, String8 *input)
 internal void
 Lexer_Cursor_advance(Lexer_Cursor *cursor)
 {
-	cursor->index += cursor->end_reached;
-	cursor->column_index += 1;
-	cursor->end_reached = cursor->index >= cursor->text_size;
+	cursor->index        += !cursor->end_reached;
+	cursor->column_index += !cursor->end_reached;
+	cursor->current       = cursor->text[cursor->index - cursor->end_reached];
+	cursor->end_reached   = cursor->text_size == 0 || cursor->index + 1 == cursor->text_size;
 
-	if (!cursor->end_reached)
-	{
-		cursor->character = cursor->text[cursor->index];
-	}
+	// An index pointing out of bounds is of no-one's help.
+	assert_always_m(cursor->index < cursor->text_size);
+
 	return;
 }
 
+// It is a no-op if the end has been reached already.
 internal void
 Lexer_Cursor_advance_newline(Lexer_Cursor *cursor)
 {
-	cursor->index += 1;
-	cursor->row_index += 1;
-	cursor->column_index = 0;
-	cursor->end_reached = cursor->index >= cursor->text_size;
+	assert_always_m(cursor->text_size > 0 && "cannot have read newline in zero-sized input");
 
-	if (!cursor->end_reached)
-	{
-		cursor->character = cursor->text[cursor->index];
-		cursor->line_start_indexes[cursor->row_index] = cursor->index;
-	}
+	cursor->end_reached  = cursor->index + 1 == cursor->text_size;
+	cursor->index       += !cursor->end_reached;
+	cursor->row_index   += !cursor->end_reached;
+	cursor->column_index = ~(cursor->end_reached - 1) & cursor->column_index;
+	cursor->current      = cursor->text[cursor->index];
+
+	cursor->line_start_indexes[cursor->row_index] = cursor->index;
+
+	// An index pointing out of bounds is of no-one's help.
+	assert_always_m(cursor->index < cursor->text_size);
+
 	return;
 }
 
 internal U8 *
 Lexer_Cursor_peek_next(Lexer_Cursor *cursor)
 {
-	U8 *next = 0;
-	if (cursor->index + 1 < cursor->text_size)
-	{
-		next = &cursor->text[cursor->index + 1];
-	}
-	return next;
+	// See invariants; we overallocate and assume ZII. As such the returned pointer is always valid.
+	U8 *result = &cursor->text[cursor->index + 1];
+	return result;
 }
 
 internal Lexer_Error
@@ -124,7 +118,7 @@ Lexer_Error_new(Lexer_Error_Kind kind, Lexer_Cursor *cursor)
 }
 
 internal Token_Array
-LE_tokenize(String8 *input, Arena *arena)
+LE_tokenize(Input *input, Arena *arena)
 {
 	Lexer_Error error   = {0};
 	Lexer_Cursor cursor = Lexer_Cursor_new(arena, input);
@@ -148,7 +142,7 @@ LE_tokenize(String8 *input, Arena *arena)
 		cursor.column_index_before = cursor.column_index;
 
 		// NOTE: should maintain the logical order of Token_Kind enumeration.
-		switch (cursor.character)
+		switch (cursor.current)
 		{
 		case ' ' : { Lexer_Cursor_advance(&cursor); } break;
 		case '\t': { Lexer_Cursor_advance(&cursor); } break;
@@ -162,7 +156,7 @@ LE_tokenize(String8 *input, Arena *arena)
 				Lexer_Cursor_advance(&cursor);
 
 				// We don't want to count extra newline tokens because of comments.
-				B32 newline_reached = cursor.character == '\n';
+				B32 newline_reached = cursor.current == '\n';
 				if (newline_reached)
 				{
 					Lexer_Cursor_advance_newline(&cursor);
@@ -191,138 +185,120 @@ LE_tokenize(String8 *input, Arena *arena)
 
 		case '>':
 		{
-			Lexer_Cursor_advance(&cursor);
+			token_kind = Token_Kind__Greater_Than;
 			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '>')
+			if (*next == '>')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Shift_Right;
 			}
-			else if (next && *next == '=')
+			else if (*next == '=')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Greater_Equal;
-			}
-			else
-			{
-				token_kind = Token_Kind__Greater_Than;
 			}
 		} break;
 		case '<':
 		{
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '<')
+			U8 next = cursor.current;
+			if (next == '<')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Shift_Left;
 			}
-			else if (next && *next == '=')
+			else if (next == '=')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Less_Equal;
-			}
-			else
-			{
-				token_kind = Token_Kind__Less_Than;
 			}
 		} break;
 
 		case '=':
 		{
+			token_kind = Token_Kind__Assign;
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '=')
+			U8 next = cursor.current;
+			if (next == '=')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Equal;
-			}
-			else
-			{
-				token_kind = Token_Kind__Assign;
 			}
 		} break;
 
 		case '!':
 		{
+			token_kind = Token_Kind__Bang;
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '=')
+			U8 next = cursor.current;
+			if (next == '=')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Equal_Not;
-			}
-			else
-			{
-				token_kind = Token_Kind__Bang;
 			}
 		} break;
 
 		case '|':
 		{
+			token_kind = Token_Kind__Pipe;
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '|')
+			U8 next = cursor.current;
+			if (next == '|')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Logical_Or;
 			}
-			else
-			{
-				token_kind = Token_Kind__Pipe;
-			}
 		} break;
 		case '&':
 		{
+			token_kind = Token_Kind__Ampersand;
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && *next == '&')
+			U8 next = cursor.current;
+			if (next == '&')
 			{
 				Lexer_Cursor_advance(&cursor);
 				token_kind = Token_Kind__Logical_And;
-			}
-			else
-			{
-				token_kind = Token_Kind__Ampersand;
 			}
 		} break;
 
 		case '%':
 		{
+			token_kind = Token_Kind__Percentage;
 			Lexer_Cursor_advance(&cursor);
-			U8 *next = Lexer_Cursor_peek_next(&cursor);
-			if (next && U8_ascii_letter_is(*next))
+			U8 next = cursor.current;
+			if (U8_ascii_letter_is(next))
 			{
 				token_kind = Token_Kind__Relocation_Prefix;
-			}
-			else
-			{
-				token_kind = Token_Kind__Percentage;
 			}
 		} break;
 
 		case '.':
-		{	// This could be either a label or a directive.
-			B32 invalid = 0;
-			U8 character_last = '.';
+		{	// This could be either a location counter, a label or a directive.
+			U8 character_last_valid = '.';
+			U8 character_invalid = 0;
+
 			for (;;)
 			{
-				B32 break_should = invalid || cursor.end_reached;
+				B32 break_should = character_invalid || cursor.end_reached;
 				if (break_should)
 				{
 					break;
 				}
+				character_last_valid = cursor.current;
 				Lexer_Cursor_advance(&cursor);
-				character_last = cursor.character;
-				invalid = !LE_U8_identifier_is(character_last);
+				character_invalid = cursor.current & (LE_U8_identifier_is(cursor.current) - 1);
 			}
 
-			if (character_last == ':')
+			if (character_last_valid == '.')
+			{
+				token_kind = Token_Kind__Dot;
+			}
+			else if (character_invalid == ':')
 			{
 				token_kind = Token_Kind__Label;
 				Lexer_Cursor_advance(&cursor);
 			}
-			else if (character_last == ' ' || character_last == '\n' || cursor.end_reached)
+			else if (LE_U8_identifier_is(character_last_valid))
 			{
 				token_kind = Token_Kind__Directive;
 			}
@@ -330,7 +306,6 @@ LE_tokenize(String8 *input, Arena *arena)
 			{
 				error = Lexer_Error_new(Lexer_Error_Kind__Label_Directive_Invalid, &cursor);
 			}
-
 		} break;
 
 		case '\'':
@@ -352,7 +327,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					break;
 				}
 
-				U8 character = cursor.character;
+				U8 character = cursor.current;
 
 				if (escaping_started)
 				{
@@ -378,7 +353,7 @@ LE_tokenize(String8 *input, Arena *arena)
 				}
 				else
 				{
-					value = cursor.character;
+					value = cursor.current;
 				}
 			}
 
@@ -413,7 +388,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					break;
 				}
 
-				U8 character = cursor.character;
+				U8 character = cursor.current;
 
 				if (escaping_started)
 				{
@@ -442,7 +417,7 @@ LE_tokenize(String8 *input, Arena *arena)
 		} break;
 		default:
 		{
-			if (LE_U8_identifier_start_is(cursor.character))
+			if (LE_U8_identifier_start_is(cursor.current))
 			{
 				B32 break_should = 0;
 				B32 invalid = 0;
@@ -454,14 +429,14 @@ LE_tokenize(String8 *input, Arena *arena)
 						break;
 					}
 					Lexer_Cursor_advance(&cursor);
-					invalid = !LE_U8_identifier_is(cursor.character);
+					invalid = !LE_U8_identifier_is(cursor.current);
 				}
 				token_kind = Token_Kind__Identifier;
 			}
 			// TODO: support float (hex float?)
-			else if (U8_ascii_digit_is(cursor.character))
+			else if (U8_ascii_digit_is(cursor.current))
 			{
-				U8 digit = cursor.character;
+				U8 digit = cursor.current;
 				U8 *next = Lexer_Cursor_peek_next(&cursor);
 
 				if (digit == '0' && next && *next == 'x')
@@ -471,7 +446,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					for (;;)
 					{
 						Lexer_Cursor_advance(&cursor);
-						U8 value = hex_table[cursor.character];
+						U8 value = hex_table[cursor.current];
 						if (cursor.end_reached || value >= 16)
 						{
 							break;
@@ -479,7 +454,7 @@ LE_tokenize(String8 *input, Arena *arena)
 						result = result * 16 + value;
 					}
 
-					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.character];
+					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.current];
 					if (!valid)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Hex_Literal_Invalid, &cursor);
@@ -493,7 +468,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					for (;;)
 					{
 						Lexer_Cursor_advance(&cursor);
-						U8 value = (U8)(cursor.character - '0');
+						U8 value = (U8)(cursor.current - '0');
 						if (cursor.end_reached || value >= 2)
 						{
 							break;
@@ -501,7 +476,7 @@ LE_tokenize(String8 *input, Arena *arena)
 						result = result * 2 + value;
 					}
 
-					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.character];
+					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.current];
 					if (!valid)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Binary_Literal_Invalid, &cursor);
@@ -515,7 +490,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					for (;;)
 					{
 						Lexer_Cursor_advance(&cursor);
-						U8 value = (U8)(cursor.character - '0');
+						U8 value = (U8)(cursor.current - '0');
 						if (cursor.end_reached || value >= 8)
 						{
 							break;
@@ -523,7 +498,7 @@ LE_tokenize(String8 *input, Arena *arena)
 						result = result * 8 + value;
 					}
 
-					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.character];
+					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.current];
 					if (!valid)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Octal_Literal_Invalid, &cursor);
@@ -535,7 +510,7 @@ LE_tokenize(String8 *input, Arena *arena)
 					U64 result = 0;
 					for (;;)
 					{
-						U8 value = (U8)(cursor.character - '0');
+						U8 value = (U8)(cursor.current - '0');
 						if (cursor.end_reached || value >= 10)
 						{
 							break;
@@ -544,7 +519,7 @@ LE_tokenize(String8 *input, Arena *arena)
 						Lexer_Cursor_advance(&cursor);
 					}
 
-					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.character];
+					B32 valid = cursor.end_reached || numeric_suffix_table[cursor.current];
 					if (!valid)
 					{
 						error = Lexer_Error_new(Lexer_Error_Kind__Numeric_Literal_Invalid, &cursor);

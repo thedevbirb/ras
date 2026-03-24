@@ -51,6 +51,12 @@ It's crazy how you don't even think about lifetimes and memory management with a
 
 The first 80% takes 20% of the time, but tiny details take a good amount of time.
 
+ZII is awesome.
+
+I'm starting to get a feeling on when branching is a code smell or not. Intuitively, branching
+should be done when the shape of your data is different, _or_ when you decide how to exit a loop.
+This makes so much sense in a data-oriented-design programming.
+
 
 # Parser
 

@@ -20,6 +20,9 @@
 
 #include "lexer.c"
 
+// Two's complement.
+assert_static_m(-1 == ~0, two_complement);
+
 void
 arguments_shift(int *argument_count, char ***argument_vector)
 {
@@ -61,15 +64,13 @@ main(int argument_count, char **argument_vector)
 	// Ensure same lifetime between arena and file contents.
 	U8 *data_mmap = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
 	assert_always_m(data_mmap != MAP_FAILED && "failed to mmap file contents");
-	U8 *data = Arena_push_array_m(arena, U8, file_in_size);
-	os_memory_copy(data, data_mmap, file_in_size);
+	Input input = Input_new(file_in_size, arena);
+	os_memory_copy(input.data, data_mmap, file_in_size);
 	munmap(data_mmap, file_in_size);
 
 	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
 	arguments_shift(&argument_count, &argument_vector);
-
-	String8 input = { .data = data, .count = file_in_size };
 
 	Token_Array token_array = LE_tokenize(&input, arena);
 

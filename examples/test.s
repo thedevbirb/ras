@@ -1,7 +1,7 @@
 # ciao pronto
 
 0b00101
-0x1234g
+0x1234
 
 .section .text
 

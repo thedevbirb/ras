@@ -212,7 +212,7 @@ ELF64_Section_from_Directive_Kind(Directive_Kind kind)
 
 
 internal Parser_Result
-PA_parse(String8 *input, Token_Array *token_array, Object_File_Section *sections, Arena *arena)
+PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, Arena *arena)
 {
 	Token_Cursor cursor = Token_Cursor_new(token_array);
 	Parser_Error error  = {0};
