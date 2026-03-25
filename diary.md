@@ -94,6 +94,10 @@ stop. This reduces a LOT the number of branching you do.
 
 Proper ELF format is tough, ngl.
 
+Again, centralizing state with a fat struct makes code simpler. There is an argument to be said
+about writing functions that take the minimal amount of arguments, but that doesn't come for free:
+it often comes with more types and code.
+
 # Random
 
 I should try to write neovim snippets.

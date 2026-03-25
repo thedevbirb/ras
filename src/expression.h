@@ -1,63 +1,25 @@
 #ifndef EXPRESSION_H
 #define EXPRESSION_H
 
-// After the cursor processes an item, it ALWAYS advances.
+// After the parser processes an item, it ALWAYS advances.
 
 // TODO: validate relocation names.
 global char const *relocation_names[] =
 {
-	"hi", "lo", "pcrel_hi", "pcrel_lo", "got_pcrel_hi",
-	"tprel_hi", "tprel_lo", "tprel_add",
-	"tls_ie_pcrel_hi", "tls_gd_pcrel_hi", NULL,
+	"hi",
+	"lo",
+	"pcrel_hi",
+	"pcrel_lo",
+	"got_pcrel_hi",
+
+	"tprel_hi",
+	"tprel_lo",
+	"tprel_add",
+
+	"tls_ie_pcrel_hi",
+	"tls_gd_pcrel_hi",
+	NULL,
 };
-
-typedef enum Expression_Error_Kind
-{
-	Expression_Error_Kind__None,
-	Expression_Error_Kind__Unexpected_Token,
-	Expression_Error_Kind__Unexpected_End,
-	Expression_Error_Kind__Expected_Right_Parenthesis,
-	Expression_Error_Kind__Relocation_Syntax_Invalid,
-	Expression_Error_Kind__Expected_Relocation_Left_Parenthesis,
-	Expression_Error_Kind__Expected_Relocation_Right_Parenthesis,
-	Expression_Error_Kind__COUNT,
-}
-Expression_Error_Kind;
-
-global const char *Expression_Error_Kind_messages[Expression_Error_Kind__COUNT] =
-{
-	[Expression_Error_Kind__None]                                  = "",
-	[Expression_Error_Kind__Unexpected_Token]                      = "unexpected token in expression",
-	[Expression_Error_Kind__Unexpected_End]                        = "unexpected end of tokens in expression",
-	[Expression_Error_Kind__Expected_Right_Parenthesis]            = "expected ')' to close parenthesized expression",
-	[Expression_Error_Kind__Relocation_Syntax_Invalid]             = "invalid relocation syntax, expected %<relocation>(<expression>)",
-};
-
-typedef struct Expression_Error Expression_Error;
-struct Expression_Error
-{
-	Expression_Error_Kind kind;
-	U32 row_index;
-	U32 column_begin_index;
-	U32 column_end_index;
-};
-
-internal Expression_Error
-Expression_Error_new(Expression_Error_Kind kind, Token token)
-{
-	assert_always_m(kind);
-	assert_always_m(token.kind);
-
-	Expression_Error error =
-	{
-		.kind               = kind,
-		.row_index          = token.row_index,
-		.column_begin_index = token.column_index,
-		.column_end_index   = token.column_index + token.size - 1,
-	};
-
-	return error;
-}
 
 typedef enum Expression_Kind
 {
@@ -219,136 +181,101 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
 	return result;
 }
 
-typedef struct Expression_Parser Expression_Parser;
-struct Expression_Parser
-{
-	Token_Cursor     *cursor;
-	Arena            *arena;
-	Symbol_Table     *table;
-	Expression_Error *error;
-}
-Expression_Parser;
-
-internal void
-Expression_Parser_expect(Expression_Parser *parser, B32 condition, Expression_Error_Kind error_kind)
-{
-
-}
-
-internal void
-EX_expect(B32 condition, Expression_Error *error, Expression_Error_Kind error_kind, Token_Cursor *cursor)
-{
-	if (condition && !error->kind)
-	{
-		*error = Expression_Error_new(error_kind, cursor->current);
-	}
-	return;
-}
-
-internal void
-EX_expect_token(Token_Kind token_kind, Expression_Error *error, Expression_Error_Kind error_kind, Token_Cursor *cursor)
-{
-	EX_expect(cursor->current.kind == token_kind);
-	return;
-}
-
-
 // Forward declaration for mutual recursion.
 internal Expression_Node *
-EX_parse_expression(Token_Cursor *cursor, Binding_Power binding_power_minimum,
-                    Arena *arena, Expression_Error *error);
+Parser_parse_expression(Parser *parser, Binding_Power binding_power_minimum);
 
 
 // Null denotation: handles prefix positions (atoms, unary operators,
 // parenthesized groups, relocations). The token has already been consumed
-// from the cursor before this call.
+// from the parser before this call.
 internal Expression_Node *
-EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *error)
+Parser_parse_null_denotation(Parser *parser)
 {
 	Expression_Node *node = 0;
-	Token token = cursor->current;
+	Token token = parser->token_current;
 
 	switch (token)
 	{
 	case Token_Kind__Number_Literal:
 	{
-		node                      = Arena_push_struct_m(arena, Expression_Node);
+		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind                = Expression_Kind__Number_Literal;
 		node->value.integer_value = token.numerical_value;
 
-		Token_Cursor_advance(&cursor);
+		Parser_advance(&parser);
 	} break;
 
 	case Token_Kind__Char_Literal:
 	{
-		node                      = Arena_push_struct_m(arena, Expression_Node);
+		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind                = Expression_Kind__Char_Literal;
 		node->value.integer_value = token.numerical_value;
 
-		Token_Cursor_advance(&cursor);
+		Parser_advance(&parser);
 	} break;
 
 	case Token_Kind__Dot:
 	{
-		node                      = Arena_push_struct_m(arena, Expression_Node);
+		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind                = Expression_Kind__Current_Address;
 
-		Token_Cursor_advance(&cursor);
+		Parser_advance(&parser);
 	} break;
 
 	case Token_Kind__Identifier:
 	{
-		node                     = Arena_push_struct_m(arena, Expression_Node);
+		node                     = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind               = Expression_Kind__Identifier;
 		node->value.source.index = token.index;
 		node->value.source.size  = token.size;
 
-		Token_Cursor_advance(&cursor);
+		Parser_advance(&parser);
 	} break;
 
 	case Token_Kind__Minus:
 	case Token_Kind__Tilde:
 	case Token_Kind__Bang:
 	{
-		Expression_Node *operand = EX_parse_expression(cursor, Binding_Power__Unary, arena, error);
-		node       = Arena_push_struct_m(arena, Expression_Node);
+		Expression_Node *operand = Parser_parse_expression(parser, Binding_Power__Unary);
+		node       = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
 		node->left = operand;
-		Token_Cursor_advance(&cursor);
+		Parser_advance(&parser);
 	} break;
 
 	case Token_Kind__Relocation_Prefix:
 	{	// %reloc(expression)
-		Token_Cursor_advance(&cursor);
-		EX_expect_token(Token_Kind__Identifier, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
-		Token relocation_name = cursor->current;
+		Parser_advance(&parser);
+		Parser_expect_token(parser, Token_Kind__Identifier, Expression_Error_Kind__Relocation_Syntax_Invalid);
+		Token relocation_name = parser->token_current;
 
-		Token_Cursor_advance(cursor);
-		EX_expect_token(Token_Kind__Left_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Expression_Error_Kind__Relocation_Syntax_Invalid);
 
-		Token_Cursor_advance(cursor);
-		Expression_Node *inner = EX_parse_expression(cursor, Binding_Power__None, arena, error);
+		Parser_advance(parser);
+		Expression_Node *inner = Parser_parse_expression(parser, Binding_Power__None);
 
-		Token_Cursor_advance(cursor);
-		EX_expect_token(Token_Kind__Right_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Expression_Error_Kind__Relocation_Syntax_Invalid);
 
-		node                     = Arena_push_struct_m(arena, Expression_Node);
+		node                     = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind               = Expression_Kind__Relocation;
 		node->left               = inner;
 		node->value.source.index = relocation_name.index;
 		node->value.source.size  = relocation_name.size;
 
-		Token_Cursor_advance(cursor);
+		Parser_advance(parser);
 
 	} break;
 
 	case Token_Kind__Left_Parenthesis:
 	{
-		Token_Cursor_advance(cursor);
-		Expression_Node *inner = EX_parse_expression(cursor, Binding_Power__None, arena, error);
+		Parser_advance(parser);
+		Expression_Node *inner = Parser_parse_expression(parser, Binding_Power__None);
 
-		EX_expect_token(Token_Kind__Identifier, error, Expression_Error_Kind__Expected_Right_Parenthesis, cursor);
-		Token_Cursor_advance(cursor);
+		Parser_expect_token(parser, Token_Kind__Identifier, Expression_Error_Kind__Expected_Right_Parenthesis);
+		Parser_advance(parser);
 
 		node = inner;
 	} break;
@@ -367,25 +294,25 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
-EX_parse_expression(Token_Cursor *cursor, Binding_Power binding_power_minimum,
-                    Arena *arena, Expression_Error *error, Expression_Flags flags)
+Parser_parse_expression(Parser *parser, Binding_Power binding_power_minimum)
 {
 	Expression_Node *left = 0;
-	EX_expect(!cursor->end_reached, error, Expression_Error_Kind__Unexpected_End, cursor);
+	Parser_expect(parser, !parser->end_reached, Expression_Error_Kind__Unexpected_End);
 
-	left = EX_parse_null_denotation(cursor, arena, error);
+	left = Parser_parse_null_denotation(parser, parser->arena, error);
 	for (;;)
 	{
-		Token_Kind operator_kind = cursor->current.kind;
+		Token_Kind operator_kind = parser->token_current.kind;
 		Binding_Power next_power = Binding_Power_from_Token_Kind(operator_kind);
-		B32 break_should = next_power <= binding_power_minimum && !cursor->end_reached && !error.kind;
+
+		B32 break_should = next_power <= binding_power_minimum && !parser->end_reached && !parser->error.kind;
 		if (break_should)
 		{
 			break;
 		}
 
-		Expression_Node *right = EX_parse_expression(cursor, next_power, arena, error);
-		Expression_Node *node = Arena_push_struct_m(arena, Expression_Node);
+		Expression_Node *right = Parser_parse_expression(parser, next_power);
+		Expression_Node *node = Arena_push_struct_m(parser->arena, Expression_Node);
 		node->kind  = Expression_Kind_from_binary_Token_Kind(operator_kind);
 		node->left  = left;
 		node->right = right;
@@ -396,12 +323,12 @@ EX_parse_expression(Token_Cursor *cursor, Binding_Power binding_power_minimum,
 }
 
 
-// Entry point. Parses an expression starting at the current cursor position.
-// Advances the cursor past consumed tokens. On error, error->kind is nonzero.
+// Entry point. Parses an expression starting at the token_current parser position.
+// Advances the parser past consumed tokens. On error, error->kind is nonzero.
 internal Expression_Node *
-EX_parse(Token_Cursor *cursor, Arena *arena, Expression_Error *error)
+EX_parse(Parser *parser, parser->arena *parser->arena, Expression_Error *error)
 {
-	Expression_Node *node = EX_parse_expression(cursor, Binding_Power__None, arena, error);
+	Expression_Node *node = Parser_parse_expression(parser, Binding_Power__None, parser->arena, error);
 	return node;
 }
 

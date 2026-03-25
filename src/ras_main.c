@@ -73,7 +73,11 @@ main(int argument_count, char **argument_vector)
 	os_memory_copy(input.data, data_mmap, file_in_size);
 	munmap(data_mmap, file_in_size);
 
-	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
+	Symbols_Table symbols_table = {0};
+	Symbols_Table_initialize(&symbols_table, arena);
+	Object_File_Section *sections             = Object_File_Section_create_all(arena, file_in_size);
+	Object_File_Section *section_text         = &sections[ELF64_Section__Text];
+	Object_File_Section *section_string_table = &sections[ELF64_Section__String_Table];
 
 	arguments_shift(&argument_count, &argument_vector);
 
@@ -133,9 +137,25 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
+	Parser parser =
+	{
+		.arena         = arena,
+		.input         = &input,
+		.tokens        = token_array.tokens,
+		.symbols_table = &symbols_table,
 
-	Parser_Result parser_result = PA_parse(&input, &token_array, sections, arena);
-	Parser_Error parser_error = parser_result.error;
+		.sections             = sections,
+		.section_current      = section_text,
+		.section_string_table = section_string_table,
+
+		.token_current = token_array.tokens[0],
+		.token_count   = token_array.token_count,
+		.token_index   = 0,
+		.end_reached   = 0 >= token_array.token_count
+	};
+
+	Parser_parse(&parser);
+	Parser_Error parser_error = parser.error;
 	if (parser_error.kind)
 	{
 		U32 line   = parser_error.row_index + 1;
