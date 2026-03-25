@@ -77,6 +77,7 @@ typedef enum Directive_Kind
 	Directive_Kind__Ascii,
 	Directive_Kind__Asciz,
 	Directive_Kind__Align,
+	Directive_Kind__Equality,
 	Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -93,6 +94,7 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Word]            = ".word",
 	[Directive_Kind__Ascii]           = ".ascii",
 	[Directive_Kind__Align]           = ".align",
+	[Directive_Kind__Equality]        = ".equ",
 	[Directive_Kind__Asciz]           = ".asciz",
 };
 

@@ -22,6 +22,7 @@
 #include <os/os_include.c>
 
 #include "lexer.c"
+#include "parser.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
