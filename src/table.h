@@ -12,8 +12,8 @@ struct Symbol_Entry
 	B32 used;
 };
 
-typedef struct Symbol_Hashmap Symbol_Hashmap;
-struct Symbol_Hashmap
+typedef struct Symbol_Table Symbol_Table;
+struct Symbol_Table
 {
 	Symbol_Entry *entries;
 
@@ -27,13 +27,13 @@ struct Symbol_Hashmap
 // API
 
 internal void
-Symbol_Hashmap_initialize(Symbol_Hashmap *map, Arena *arena);
+Symbol_Table_initialize(Symbol_Table *map, Arena *arena);
 
 internal Symbol_Entry *
-Symbol_Hashmap_get(Symbol_Hashmap *map, String8 key);
+Symbol_Table_get(Symbol_Table *map, String8 key);
 
 internal B32
-Symbol_Hashmap_put(Symbol_Hashmap *map, String8 key, ELF64_Symbol value);
+Symbol_Table_put(Symbol_Table *map, String8 key, ELF64_Symbol value);
 
 #endif // SYMBOL_HASHMAP_H
 
@@ -43,7 +43,7 @@ Symbol_Hashmap_put(Symbol_Hashmap *map, String8 key, ELF64_Symbol value);
 // Hash (FNV-1a)
 
 internal U32
-Symbol_Hashmap_hash(String8 key)
+Symbol_Table_hash(String8 key)
 {
 	U32 hash = 2166136261u;
 
@@ -60,7 +60,7 @@ Symbol_Hashmap_hash(String8 key)
 // Init
 
 void
-Symbol_Hashmap_initialize(Symbol_Hashmap *map, Arena *arena)
+Symbol_Table_initialize(Symbol_Table *map, Arena *arena)
 {
 	map->arena    = arena;
 	map->capacity = SYMBOL_HASHMAP_INITIAL_CAP;
@@ -84,11 +84,11 @@ Symbol_Hashmap_initialize(Symbol_Hashmap *map, Arena *arena)
 //
 
 internal B32
-Symbol_Hashmap_find_slot(Symbol_Hashmap *map, String8 key, U32 *slot_out)
+Symbol_Table_find_slot(Symbol_Table *map, String8 key, U32 *slot_out)
 {
 	assert_always_m(map->capacity && "uninitialized map");
 
-	U32 hash  = Symbol_Hashmap_hash(key);
+	U32 hash  = Symbol_Table_hash(key);
 	U32 index = hash & (map->capacity - 1);
 
 	B32 key_found = 0;
@@ -124,7 +124,7 @@ Symbol_Hashmap_find_slot(Symbol_Hashmap *map, String8 key, U32 *slot_out)
 //
 
 internal void
-Symbol_Hashmap_grow(Symbol_Hashmap *map)
+Symbol_Table_grow(Symbol_Table *map)
 {
 	U32 capacity_new = map->capacity * 2;
 
@@ -151,7 +151,7 @@ Symbol_Hashmap_grow(Symbol_Hashmap *map)
 		Symbol_Entry *entry = &entries_old[index];
 		if (entry->used)
 		{
-			Symbol_Hashmap_put(map, entry->key, entry->value);
+			Symbol_Table_put(map, entry->key, entry->value);
 		}
 		index += 1;
 	}
@@ -163,18 +163,18 @@ Symbol_Hashmap_grow(Symbol_Hashmap *map)
 
 // Return true if a value has been updated.
 B32
-Symbol_Hashmap_put(Symbol_Hashmap *map, String8 key, ELF64_Symbol value)
+Symbol_Table_put(Symbol_Table *map, String8 key, ELF64_Symbol value)
 {
 	assert_always_m(map->entries && "uninitialized hashmap");
 
 	// Grow if load factor exceeded
 	if ((map->count * 100) >= (map->capacity * SYMBOL_HASHMAP_LOAD_MAX))
 	{
-		Symbol_Hashmap_grow(map);
+		Symbol_Table_grow(map);
 	}
 
 	U32 slot = 0;
-	B32 found = Symbol_Hashmap_find_slot(map, key, &slot);
+	B32 found = Symbol_Table_find_slot(map, key, &slot);
 
 	Symbol_Entry *entry = &map->entries[slot];
 
@@ -192,14 +192,14 @@ Symbol_Hashmap_put(Symbol_Hashmap *map, String8 key, ELF64_Symbol value)
 // Get
 
 Symbol_Entry *
-Symbol_Hashmap_get(Symbol_Hashmap *map, String8 key)
+Symbol_Table_get(Symbol_Table *map, String8 key)
 {
 	Symbol_Entry *result = 0;
 
 	if (map->entries)
 	{
 		U32 slot = 0;
-		B32 found = Symbol_Hashmap_find_slot(map, key, &slot);
+		B32 found = Symbol_Table_find_slot(map, key, &slot);
 
 		if (found)
 		{

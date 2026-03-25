@@ -71,6 +71,10 @@ struct Parser_Error
 internal Parser_Error
 Parser_Error_new(Parser_Error_Kind kind, Token_Cursor *cursor);
 
+// Expect the provided condition to hold, setting the error if undefined.
+internal void
+PA_expect(B32 condition, Parser_Error *error, Parser_Error_Kind error_kind, Token_Cursor *cursor);
+
 internal Directive_Kind
 Directive_Kind__from_String8(String8 string);
 

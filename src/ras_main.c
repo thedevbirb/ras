@@ -63,6 +63,7 @@ main(int argument_count, char **argument_vector)
 	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
 	U32 file_in_size = U32_cast_safe((U64)file_in_statistics.st_size); // 4 GiB max size
 
+	// TODO: specify a reserve and commit size as a function of the input size.
 	Arena *arena = Arena_alloc_m();
 
 	// Ensure same lifetime between arena and file contents.

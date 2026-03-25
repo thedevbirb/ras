@@ -43,7 +43,7 @@ struct Expression_Error
 };
 
 internal Expression_Error
-Expression_Error_from_Token(Expression_Error_Kind kind, Token token)
+Expression_Error_new(Expression_Error_Kind kind, Token token)
 {
 	assert_always_m(kind);
 	assert_always_m(token.kind);
@@ -219,13 +219,37 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
 	return result;
 }
 
-internal void
-EX_expect_token(Token_Cursor *cursor, Token_Kind token_kind, Expression_Error *error, Expression_Error_Kind error_kind)
+typedef struct Expression_Parser Expression_Parser;
+struct Expression_Parser
 {
-	if (cursor->current.kind != token_kind && !(*error.kind))
+	Token_Cursor     *cursor;
+	Arena            *arena;
+	Symbol_Table     *table;
+	Expression_Error *error;
+}
+Expression_Parser;
+
+internal void
+Expression_Parser_expect(Expression_Parser *parser, B32 condition, Expression_Error_Kind error_kind)
+{
+
+}
+
+internal void
+EX_expect(B32 condition, Expression_Error *error, Expression_Error_Kind error_kind, Token_Cursor *cursor)
+{
+	if (condition && !error->kind)
 	{
-		*error = Expression_Error_from_Token(error_kind, cursor->current);
+		*error = Expression_Error_new(error_kind, cursor->current);
 	}
+	return;
+}
+
+internal void
+EX_expect_token(Token_Kind token_kind, Expression_Error *error, Expression_Error_Kind error_kind, Token_Cursor *cursor)
+{
+	EX_expect(cursor->current.kind == token_kind);
+	return;
 }
 
 
@@ -296,17 +320,17 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 	case Token_Kind__Relocation_Prefix:
 	{	// %reloc(expression)
 		Token_Cursor_advance(&cursor);
-		EX_expect_token(cursor, Token_Kind__Identifier, error, Expression_Error_Kind__Relocation_Syntax_Invalid);
+		EX_expect_token(Token_Kind__Identifier, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
 		Token relocation_name = cursor->current;
 
 		Token_Cursor_advance(cursor);
-		EX_expect_token(cursor, Token_Kind__Left_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid);
+		EX_expect_token(Token_Kind__Left_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
 
 		Token_Cursor_advance(cursor);
 		Expression_Node *inner = EX_parse_expression(cursor, Binding_Power__None, arena, error);
 
 		Token_Cursor_advance(cursor);
-		EX_expect_token(cursor, Token_Kind__Right_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid);
+		EX_expect_token(Token_Kind__Right_Parenthesis, error, Expression_Error_Kind__Relocation_Syntax_Invalid, cursor);
 
 		node                     = Arena_push_struct_m(arena, Expression_Node);
 		node->kind               = Expression_Kind__Relocation;
@@ -323,7 +347,7 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 		Token_Cursor_advance(cursor);
 		Expression_Node *inner = EX_parse_expression(cursor, Binding_Power__None, arena, error);
 
-		EX_expect_token(cursor, Token_Kind__Identifier, error, Expression_Error_Kind__Expected_Right_Parenthesis);
+		EX_expect_token(Token_Kind__Identifier, error, Expression_Error_Kind__Expected_Right_Parenthesis, cursor);
 		Token_Cursor_advance(cursor);
 
 		node = inner;
@@ -331,7 +355,7 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 
 	default:
 	{
-		*error = Expression_Error_from_Token(Expression_Error_Kind__Unexpected_Token, token);
+		*error = Expression_Error_new(Expression_Error_Kind__Unexpected_Token, token);
 	} break;
 	}
 
@@ -344,13 +368,10 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 // All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
 EX_parse_expression(Token_Cursor *cursor, Binding_Power binding_power_minimum,
-                    Arena *arena, Expression_Error *error)
+                    Arena *arena, Expression_Error *error, Expression_Flags flags)
 {
 	Expression_Node *left = 0;
-	if (cursor->end_reached)
-	{
-		*error = (Expression_Error){ .kind = Expression_Error_Kind__Unexpected_End };
-	}
+	EX_expect(!cursor->end_reached, error, Expression_Error_Kind__Unexpected_End, cursor);
 
 	left = EX_parse_null_denotation(cursor, arena, error);
 	for (;;)

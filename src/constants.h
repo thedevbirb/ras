@@ -194,6 +194,16 @@ global const U8 ELF64_Section_alignments[ELF64_Section__COUNT] =
 	[ELF64_Section__RISCV_Attributes]  = 1
 };
 
+//////////////////////////////////////////////
+// Expression
+
+typedef enum Expression_Flags
+{
+	Expression_Flags__Deferred  = 0,
+	Expression_Flags__Immediate = 1,
+}
+Expression_Flags;
+
 
 #endif // CONSTANTS_H
 

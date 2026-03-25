@@ -57,6 +57,16 @@ Parser_Error_new(Parser_Error_Kind kind, Token_Cursor *cursor)
 	return error;
 }
 
+internal void
+PA_expect(B32 condition, Parser_Error *error, Parser_Error_Kind error_kind, Token_Cursor *cursor)
+{
+	if (!condition && !(error->kind))
+	{
+		*error = Parser_Error_new(error_kind, cursor);
+	}
+	return;
+}
+
 internal Directive_Kind
 Directive_Kind__from_String8(String8 string)
 {
@@ -110,8 +120,8 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 	Parser_Error error  = {0};
 	Parser_Result result = {0};
 
-	Symbol_Hashmap symbol_hashmap = {0};
-	Symbol_Hashmap_initialize(&symbol_hashmap, arena);
+	Symbol_Table symbol_hashmap = {0};
+	Symbol_Table_initialize(&symbol_hashmap, arena);
 
 	// By default, the section is `.text`.
 	Object_File_Section section = sections[ELF64_Section__Text];
@@ -142,12 +152,8 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 				.value = section.offset,
 				.section_index = section.section_index
 			};
-			B32 overridden = Symbol_Hashmap_put(&symbol_hashmap, key, symbol);
-			if (overridden)
-			{
-				error = Parser_Error_new(Parser_Error_Kind__Label_Duplicate, &cursor);
-			}
-
+			B32 overridden = Symbol_Table_put(&symbol_hashmap, key, symbol);
+			PA_expect(!overridden, &error, Parser_Error_Kind__Label_Duplicate, &cursor);
 			Token_Cursor_advance(&cursor);
 		} break;
 		case Token_Kind__Directive:
@@ -169,32 +175,28 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 				ELF64_Section section_index = ELF64_Section_from_Directive_Kind[directive_kind];
 				section = sections[section_index];
 
-				if (!section_index)
-				{
-					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Invalid, &cursor);
-				}
-
+				PA_expect(section_index != 0, &error, Parser_Error_Kind__Label_Duplicate, &cursor);
 				Token_Cursor_advance(&cursor);
 			} break;
 			case Directive_Kind__Align:
 			{
-				Token *token_next = Token_Cursor_peek_next(&cursor);
-				if (!token_next || token_next->kind == Token_Kind__Newline)
-				{
-					error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Missing, &cursor);
-				}
-				// Actually, here I should grab all the tokens until newline, and try to parse the
-				// expression.
-				else if (token_next->kind == Token_Kind__Number_Literal)
-				{
-					// TODO: parse the number
-					Token_Cursor_advance(&cursor);
-				}
-				else
-				{
-					Token_Cursor_advance(&cursor);
-					error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Invalid, &cursor);
-				}
+				// Token_Cursor_advance(&cursor);
+				// if (!token_next || token_next->kind == Token_Kind__Newline)
+				// {
+				// 	error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Missing, &cursor);
+				// }
+				// // Actually, here I should grab all the tokens until newline, and try to parse the
+				// // expression.
+				// else if (token_next->kind == Token_Kind__Number_Literal)
+				// {
+				// 	// TODO: parse the number
+				// 	Token_Cursor_advance(&cursor);
+				// }
+				// else
+				// {
+				// 	Token_Cursor_advance(&cursor);
+				// 	error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Invalid, &cursor);
+				// }
 			} break;
 			default:
 			{
