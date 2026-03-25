@@ -2,90 +2,17 @@
 #define SECTION_H
 
 // A data structure modelling an object file section, in memory.
-
-typedef enum ELF64_Section_Header_Type
-{
-	ELF64_Section_Header_Type__Null             = 0,
-	ELF64_Section_Header_Type__Program_Bits     = 1,
-	ELF64_Section_Header_Type__Symbols_Table    = 2,
-	ELF64_Section_Header_Type__String_Table     = 3,
-	ELF64_Section_Header_Type__Relocations      = 4,
-	ELF64_Section_Header_Type__Note             = 7,
-	ELF64_Section_Header_Type__No_Bits          = 8,
-	ELF64_Section_Header_Type__RISCV_Attributes = 0x70000003
-}
-ELF64_Section_Header_Type;
-
-typedef enum ELF64_Section
-{
-	ELF64_Section__Null = 0,
-	ELF64_Section__Text,
-	ELF64_Section__Data,
-	ELF64_Section__Read_Only_Data,
-	ELF64_Section__BSS,
-	ELF64_Section__Relocations_Text,
-	ELF64_Section__Relocations_Data,
-	ELF64_Section__Symbols_Table,
-	ELF64_Section__String_Table,
-	ELF64_Section__Section_Names,
-	ELF64_Section__RISCV_Attributes,
-	// ELF64_Section__Note_GNU_Stack,
-	ELF64_Section__COUNT,
-}
-ELF64_Section;
-
-global const char *ELF64_Section_strings[ELF64_Section__COUNT] =
-{
-	[ELF64_Section__Null]             = "",
-	[ELF64_Section__Text]             = ".text",
-	[ELF64_Section__Data]             = ".data",
-	[ELF64_Section__Read_Only_Data]   = ".rodata",
-	[ELF64_Section__BSS]              = ".bss",
-	[ELF64_Section__Relocations_Text] = ".rela.text",
-	[ELF64_Section__Relocations_Data] = ".rela.data",
-	[ELF64_Section__Symbols_Table]    = ".symtab",
-	[ELF64_Section__String_Table]     = ".strtab",
-	[ELF64_Section__Section_Names]    = ".shstrtab",
-	[ELF64_Section__RISCV_Attributes] = ".riscv.attributes",
-	// [ELF64_Section__Note_GNU_Stack = ".note.GNU-stack",
-};
-
-ELF64_Section_Header_Type ELF64_Section_Header_Type_from_ELF64_Section[ELF64_Section__COUNT] =
-{
-	[ELF64_Section__Null]              = ELF64_Section_Header_Type__Null,
-	[ELF64_Section__Text]              = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__Data]              = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__Read_Only_Data]    = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__BSS]               = ELF64_Section_Header_Type__No_Bits,
-	[ELF64_Section__Relocations_Text]  = ELF64_Section_Header_Type__Relocations,
-	[ELF64_Section__Relocations_Data]  = ELF64_Section_Header_Type__Relocations,
-	[ELF64_Section__Symbols_Table]     = ELF64_Section_Header_Type__Symbols_Table,
-	[ELF64_Section__String_Table]      = ELF64_Section_Header_Type__String_Table,
-	[ELF64_Section__Section_Names]     = ELF64_Section_Header_Type__String_Table,
-	[ELF64_Section__RISCV_Attributes]  = ELF64_Section_Header_Type__RISCV_Attributes,
-};
-
-// Default value for section alignments.
-global const U64 ELF64_Section_alignments[ELF64_Section__COUNT] =
-{
-	[ELF64_Section__Null]              = 0,
-	[ELF64_Section__Text]              = 4,
-	[ELF64_Section__Data]              = 8,
-	[ELF64_Section__Read_Only_Data]    = 8,
-	[ELF64_Section__BSS]               = 8,
-	[ELF64_Section__Relocations_Text]  = 8,
-	[ELF64_Section__Relocations_Data]  = 8,
-	[ELF64_Section__Symbols_Table]     = 8,
-	[ELF64_Section__String_Table]      = 1,
-	[ELF64_Section__Section_Names]     = 1,
-	[ELF64_Section__RISCV_Attributes]  = 1
-};
+//
+// Helpful references:
+//
+// 1. https://refspecs.linuxfoundation.org/elf/elf.pdf
+// 2. https://sourceware.org/git/?p=glibc.git;a=blob;f=elf/elf.h
 
 typedef struct Object_File_Section Object_File_Section;
 struct Object_File_Section
 {
 	String8        buffer;
-	ELF64_Section  section;
+	ELF64_Section  section_index;
 	U32            offset; // Also known as "location counter", but it's just a byte offset.
 	U8	       alignment;
 };
@@ -105,7 +32,7 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 		}
 
 		U8 *data = 0;
-		B32 section_empty = ELF64_Section__Null || index == ELF64_Section__BSS;
+		B32 section_empty = ELF64_Section__None || index == ELF64_Section__BSS;
 		if (!section_empty)
 		{
 			data = Arena_push_array_m(arena, U8, input_size);
@@ -115,7 +42,7 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 
 		section->buffer.data     = data;
 		section->buffer.count    = input_size;
-		section->section         = index;
+		section->section_index   = index;
 		section->alignment       = ELF64_Section_alignments[index];
 
 		index += 1;
@@ -124,11 +51,12 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 }
 
 internal void
-Object_File_Section_align(Object_File_Section *section, U8 power_two)
+Object_File_Section_align(Object_File_Section *section, U8 alignment)
 {
-	assert_always_m(power_two <= 7 && "unexpectedly large alignment > 128");
-	U32 alignment = 1 << power_two;
-	U32 mask      = alignment - 1;
+	U32 mask         = alignment - 1;
+	B32 power_two_is = (alignment & (mask)) == 0 && alignment != 0;
+	assert_always_m(power_two_is && "cannot align on non power of two");
+
 	U32 offset_alignment_distance = section->offset & mask;
 	// We mask again to handle the case where distance is zero, without branches.
 	U32 padding = (alignment - offset_alignment_distance) & mask;
@@ -164,5 +92,148 @@ Object_File_Section_align(Object_File_Section *section, U8 power_two)
 	section->alignment = max_m(section->alignment, alignment);
 	return;
 }
+
+// Write and align, returning the offset where data has been written.
+U32
+Object_File_Section_write(Object_File_Section *section, U8 *data, U64 count)
+{
+	U32 offset_old = section->offset;
+	U32 offset_new = offset_old + count + 1;
+	assert_always_m(offset_new < section->buffer.count && "filled object file section");
+	os_memory_copy(section->buffer.data + section->offset, data, count);
+	// Extra space for null-termination.
+	section->offset = offset_new;
+	Object_File_Section_align(section, section->alignment);
+
+	return offset_old;
+}
+
+
+// Symbol Type
+//
+// Lower 4 bits of st_info. Tells the linker and debugger
+// what kind of entity the symbol represents.
+typedef enum Symbol_Type
+{
+	// No type specified. Default for labels without a .type directive.
+	Symbol_Type__None     = 0,
+
+	// Data object (variable, array, etc). Set by: .type name, @object
+	Symbol_Type__Object   = 1,
+
+	// Function entry point. Set by: .type name, @function
+	Symbol_Type__Function = 2,
+
+	// Section symbol. One per section, generated by the assembler.
+	// Used as relocation targets. st_name = 0, st_value = 0.
+	Symbol_Type__Section  = 3,
+
+	// Source file name. Conventionally the first local symbol.
+	// st_shndx = SHN_ABS.
+	Symbol_Type__File     = 4,
+}
+Symbol_Type;
+
+// ELF64 Symbol Binding
+//
+// Upper 4 bits of st_info. Controls visibility to the linker.
+typedef enum Symbol_Binding
+{
+	// Not visible outside the object file.
+	Symbol_Binding__Local  = 0,
+
+	// Visible to all object files being combined by the linker.
+	// Set by: .globl name
+	Symbol_Binding__Global = 1,
+
+	// Like global, but can be overridden by a global definition
+	// in another object file. Set by: .weak name
+	Symbol_Binding__Weak   = 2,
+}
+Symbol_Binding;
+
+// ELF64 Symbol Visibility
+//
+// Lower 2 bits of st_other. Further constrains visibility
+// beyond what binding specifies. Mainly relevant for shared libraries.
+typedef enum Symbol_Visibility
+{
+	// Default visibility rules (determined by binding).
+	Symbol_Visibility__Default   = 0,
+
+	// Processor-specific hidden class.
+	Symbol_Visibility__Internal  = 1,
+
+	// Not visible outside the shared library.
+	Symbol_Visibility__Hidden    = 2,
+
+	// Visible but not preemptible by another definition.
+	Symbol_Visibility__Protected = 3,
+}
+Symbol_Visibility;
+
+// Special section indices for st_shndx.
+typedef enum Symbol_Section_Index
+{
+	// Symbol is undefined / external. Linker must resolve it.
+	Symbol_Section_Index__Undefined = 0,
+
+	// Absolute value, not relative to any section. Used for .equ constants.
+	Symbol_Section_Index__Absolute  = 0xFFF1,
+
+	// Common symbol. Linker allocates space. Used for uninitialized globals.
+	Symbol_Section_Index__Common    = 0xFFF2,
+}
+Symbol_Section_Index;
+
+// Symbol table (.symtab) content invariants:
+//
+// Entry 0: all zeros (null symbol).
+// All STB_LOCAL entries before all STB_GLOBAL/STB_WEAK entries.
+// One STT_SECTION entry per section, with st_name = 0, st_value = 0, st_shndx = that section's index. These are local.
+// STT_FILE entry (if present): st_shndx = SHN_ABS, st_info = ELF64_ST_INFO(STB_LOCAL, STT_FILE).
+// Undefined/external symbols: st_shndx = SHN_UNDEF, st_value = 0.
+// Absolute symbols (.equ): st_shndx = SHN_ABS.
+// Each entry's st_name is a valid offset into .strtab pointing to a null-terminated string.
+//
+// When I find a symbol or label I have to both put the value inside the string table, avoiding duplicates and in the
+// symbol table.
+
+#define ELF64_Symbol_info_m(bind, type)  (((bind) << 4) | ((type) & 0xf))
+#define ELF64_Symbol_bind_m(info)        ((info) >> 4)
+#define ELF64_Symbol_type_m(info)        ((info) & 0xf)
+
+// ELF64 Symbol Table Entry
+//
+// 24 bytes, no padding. Represents a named entity in the object file.
+typedef struct ELF64_Symbol ELF64_Symbol;
+struct ELF64_Symbol
+{
+	// Offset into .strtab where this symbol's name begins.
+	// 0 means the empty string (e.g. section symbols).
+	U32 string_table_offset;
+
+	// Packed field: upper 4 bits = Symbol_Binding, lower 4 bits = Symbol_Type.
+	// Use ELF64_Symbol_info_m / _bind_m / _type_m macros to pack/unpack.
+	U8  type_binding_info;
+
+	// Lower 2 bits = Symbol_Visibility. Almost always 0 (Default).
+	U8  visibility;
+
+	// Index into the section header table identifying which section
+	// this symbol belongs to. Special values: SHN_UNDEF (0),
+	// SHN_ABS (0xFFF1), SHN_COMMON (0xFFF2).
+	U16 section_index;
+
+	// For labels: offset within the section (section-relative address).
+	// For .equ: the constant value.
+	// For undefined symbols: 0.
+	U64 value;
+
+	// Size of the symbol in bytes. 0 if unknown or not applicable.
+	// Set by: .size name, expression
+	U64 size;
+};
+assert_static_m(sizeof(ELF64_Symbol) == 24, elf64_symbol_size);
 
 #endif // SECTION_H

@@ -1,43 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-typedef enum Directive_Kind
-{
-	Directive_Kind__None,
-	Directive_Kind__Section,
-	Directive_Kind__Text,
-	Directive_Kind__Data,
-	Directive_Kind__Read_Only_Data,
-	Directive_Kind__BSS,
-	Directive_Kind__Globl,
-	Directive_Kind__Word,
-	Directive_Kind__Ascii,
-	Directive_Kind__Asciz,
-	Directive_Kind__Align,
-	Directive_Kind__COUNT,
-}
-Directive_Kind;
-
-global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
-{
-	[Directive_Kind__None]            = "",
-	[Directive_Kind__Section]         = ".section",
-	[Directive_Kind__Text]            = ".text",
-	[Directive_Kind__Data]            = ".data",
-	[Directive_Kind__Read_Only_Data]  = ".rodata",
-	[Directive_Kind__BSS]             = ".bss",
-	[Directive_Kind__Globl]           = ".globl",
-	[Directive_Kind__Word]            = ".word",
-	[Directive_Kind__Ascii]           = ".ascii",
-	[Directive_Kind__Align]           = ".align",
-	[Directive_Kind__Asciz]           = ".asciz",
-};
-
-// typedef enum Directive_Argument_Kind Directive_Argument_Kind
-// {
-// }
-// Directive_Argument_Kind;
-
 typedef struct InputSlice InputSlice;
 struct InputSlice
 {
@@ -48,22 +11,23 @@ struct InputSlice
 typedef struct Token_Cursor Token_Cursor;
 struct Token_Cursor
 {
-	Token_Array *token_array;
-	Token current;
-	U32 index;
-	B32 end_reached;
+	Input	     *input;
+	Token_Array  *token_array;
+	Token         current;
+	U32           index;
+	B32           end_reached;
 };
 
 internal Token_Cursor
-Token_Cursor_new(Token_Array *token_array)
+Token_Cursor_new(Input *input, Token_Array *token_array)
 {
-	Token_Cursor cursor = {0};
-	cursor.token_array = token_array;
-	cursor.end_reached = 0 >= token_array->token_count;
-	if (!cursor.end_reached)
+	Token_Cursor cursor =
 	{
-		cursor.current = token_array->tokens[0];
-	}
+		.input       = input,
+		.token_array = token_array,
+		.end_reached = 0 >= token_array->token_count,
+		.current     = token_array->tokens[0],
+	};
 
 	return cursor;
 }
@@ -72,35 +36,41 @@ Token_Cursor_new(Token_Array *token_array)
 internal void
 Token_Cursor_advance(Token_Cursor *cursor)
 {
-	cursor->index += !cursor->end_reached;
-	cursor->end_reached = cursor->index >= cursor->token_array->token_count;
-	if (!cursor->end_reached)
-	{
-		cursor->current = cursor->token_array->tokens[cursor->index];
-	}
+	cursor->end_reached = cursor->index + 1 == cursor->token_array->token_count;
+	cursor->index      += !cursor->end_reached;
+	cursor->current     = cursor->token_array->tokens[cursor->index];
+
 	return;
 }
 
 internal Token *
 Token_Cursor_peek_next(Token_Cursor *cursor)
 {
-	Token *next = 0;
-	if (cursor->index + 1 < cursor->token_array->token_count)
-	{
-		next = &cursor->token_array->tokens[cursor->index + 1];
-	}
-
+	Token *next = &cursor->token_array->tokens[cursor->index + 1];
 	return next;
+}
+
+internal String8
+Token_Cursor_substring(Token_Cursor *cursor)
+{
+	String8 string =
+	{
+		.data  = cursor->input->data + cursor->current.index,
+		.count = (U64)cursor->current.size,
+	};
+	return string;
 }
 
 typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
+	Parser_Error_Kind__Line_Invalid,
 	Parser_Error_Kind__Directive_Unknown,
 	Parser_Error_Kind__Directive_Section_Argument_Missing,
 	Parser_Error_Kind__Directive_Section_Argument_Invalid,
 	Parser_Error_Kind__Directive_Align_Argument_Missing,
 	Parser_Error_Kind__Directive_Align_Argument_Invalid,
+	Parser_Error_Kind__Label_Duplicate,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -109,11 +79,13 @@ Parser_Error_Kind;
 global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 {
 	[Parser_Error_Kind__None]                               = "",
+	[Parser_Error_Kind__Line_Invalid]                       = "line can only start with a directive, label or instruction",
 	[Parser_Error_Kind__Directive_Unknown]                  = "unknown directive found",
 	[Parser_Error_Kind__Directive_Section_Argument_Missing] = "section directive is missing the argument",
 	[Parser_Error_Kind__Directive_Section_Argument_Invalid] = "section directive argument is invalid",
 	[Parser_Error_Kind__Directive_Align_Argument_Missing]   = "align directive is missing the argument",
 	[Parser_Error_Kind__Directive_Align_Argument_Invalid]   = "align directive argument is not a number literal",
+	[Parser_Error_Kind__Label_Duplicate]                    = "duplicate label found",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -193,33 +165,20 @@ struct Parser_Result
 	Parser_Error error;
 };
 
-internal ELF64_Section
-ELF64_Section_from_Directive_Kind(Directive_Kind kind)
-{
-	ELF64_Section section = ELF64_Section__Null;
-
-	switch (kind)
-	{
-	case ELF64_Section__Text:           { section = ELF64_Section__Text;           } break;
-	case ELF64_Section__Data:           { section = ELF64_Section__Data;           } break;
-	case ELF64_Section__Read_Only_Data: { section = ELF64_Section__Read_Only_Data; } break;
-	case ELF64_Section__BSS:            { section = ELF64_Section__BSS;            } break;
-	default: {} break;
-	}
-
-	return section;
-}
-
-
+// TODO: how am I transforming output after this stage?
 internal Parser_Result
 PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, Arena *arena)
 {
-	Token_Cursor cursor = Token_Cursor_new(token_array);
+	Token_Cursor cursor = Token_Cursor_new(input, token_array);
 	Parser_Error error  = {0};
 	Parser_Result result = {0};
 
+	Symbol_Hashmap symbol_hashmap = {0};
+	Symbol_Hashmap_initialize(&symbol_hashmap, arena);
+
 	// By default, the section is `.text`.
 	Object_File_Section section = sections[ELF64_Section__Text];
+	Object_File_Section section_string_table = sections[ELF64_Section__String_Table];
 
 	for (;;)
 	{
@@ -234,13 +193,29 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 		switch (cursor.current.kind)
 		{
 		case Token_Kind__Newline: { Token_Cursor_advance(&cursor); } break;
+		case Token_Kind__Label:
+		{
+			String8 key = Token_Cursor_substring(&cursor);
+			key.count -= key.count > 0; // Remove the colon.
+
+			U32 offset = Object_File_Section_write(&section_string_table, key.data, key.count);
+			ELF64_Symbol symbol =
+			{
+				.string_table_offset = offset,
+				.value = section.offset,
+				.section_index = section.section_index
+			};
+			B32 overridden = Symbol_Hashmap_put(&symbol_hashmap, key, symbol);
+			if (overridden)
+			{
+				error = Parser_Error_new(Parser_Error_Kind__Label_Duplicate, &cursor);
+			}
+
+			Token_Cursor_advance(&cursor);
+		} break;
 		case Token_Kind__Directive:
 		{
-			String8 substring =
-			{
-				.data  = input->data + cursor.current.index,
-				.count = (U64)cursor.current.size
-			};
+			String8 substring = Token_Cursor_substring(&cursor);
 			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
 
 			switch (directive_kind)
@@ -251,20 +226,18 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 			} break;
 			case Directive_Kind__Section:
 			{
-				Token *token_next = Token_Cursor_peek_next(&cursor);
-				if (!token_next || token_next->kind == Token_Kind__Newline)
+				Token_Cursor_advance(&cursor);
+				String8 substring = Token_Cursor_substring(&cursor);
+				Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
+				ELF64_Section section_index = ELF64_Section_from_Directive_Kind[directive_kind];
+				section = sections[section_index];
+
+				if (!section_index)
 				{
-					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Missing, &cursor);
-				}
-				else if (token_next->kind == Token_Kind__Directive)
-				{
-					Token_Cursor_advance(&cursor);
-				}
-				else
-				{
-					Token_Cursor_advance(&cursor);
 					error = Parser_Error_new(Parser_Error_Kind__Directive_Section_Argument_Invalid, &cursor);
 				}
+
+				Token_Cursor_advance(&cursor);
 			} break;
 			case Directive_Kind__Align:
 			{
@@ -288,7 +261,7 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 			} break;
 			default:
 			{
-				ELF64_Section section_kind = ELF64_Section_from_Directive_Kind(directive_kind);
+				ELF64_Section section_kind = ELF64_Section_from_Directive_Kind[directive_kind];
 				assert_always_m(section_kind && "unhandled directive");
 
 				section = sections[section_kind];
@@ -298,7 +271,7 @@ PA_parse(Input *input, Token_Array *token_array, Object_File_Section *sections, 
 		} break;
 		default:
 		{
-			assert_always_m(0 && "unexpected token received");
+			error = Parser_Error_new(Parser_Error_Kind__Line_Invalid, &cursor);
 		} break;
 		}
 

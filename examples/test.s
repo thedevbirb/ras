@@ -1,13 +1,10 @@
 # ciao pronto
 
-0b00101
-0x1234
-
 .section .text
 
-addi x1, x0, 42
+.my_label:
 
-"This is a string"
+addi x1, x0, 42
 
 .test:
 	addi x2, x1, 24

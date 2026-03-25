@@ -11,8 +11,11 @@
 #include <os/os_include.h>
 
 #include "initialize.h"
+#include "constants.h"
 #include "lexer.h"
 #include "section.h"
+#define HASHMAP_IMPLEMENTATION
+#include "table.h"
 #include "parser.h"
 
 #include <base/base_include.c>

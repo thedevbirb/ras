@@ -264,6 +264,14 @@ EX_parse_null_denotation(Token_Cursor *cursor, Arena *arena, Expression_Error *e
 		Token_Cursor_advance(&cursor);
 	} break;
 
+	case Token_Kind__Dot:
+	{
+		node                      = Arena_push_struct_m(arena, Expression_Node);
+		node->kind                = Expression_Kind__Current_Address;
+
+		Token_Cursor_advance(&cursor);
+	} break;
+
 	case Token_Kind__Identifier:
 	{
 		node                     = Arena_push_struct_m(arena, Expression_Node);

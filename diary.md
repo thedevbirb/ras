@@ -92,6 +92,8 @@ absolutely necessary. It depends a lot on the context, but sometimes it's not a 
 certain action is done on invalid input, the most important part is mark the error so that then you
 stop. This reduces a LOT the number of branching you do.
 
+Proper ELF format is tough, ngl.
+
 # Random
 
 I should try to write neovim snippets.

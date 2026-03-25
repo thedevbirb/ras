@@ -124,7 +124,8 @@ LE_tokenize(Input *input, Arena *arena)
 	Lexer_Cursor cursor = Lexer_Cursor_new(arena, input);
 
 	// We overestimate using the file size. Consider doing at the start of the program and not here.
-	Token *tokens   = Arena_push_array_m(arena, Token, cursor.text_size);
+	// Also here +1 to avoid index out of bounds, assuming ZII
+	Token *tokens   = Arena_push_array_m(arena, Token, cursor.text_size + 1);
 	U32 token_index = 0;
 
 	Token_Kind token_kind = Token_Kind__None;
@@ -560,6 +561,8 @@ LE_tokenize(Input *input, Arena *arena)
 			token_index      += 1;
 		}
 	}
+
+	assert_always_m(token_index < cursor.text_size && "too many tokens");
 
 	Token_Array token_array =
 	{
