@@ -22,7 +22,9 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Unexpected_End,
 	Parser_Error_Kind__Expression_Parenthesis_Right_Expected,
 	Parser_Error_Kind__Expression_Parenthesis_Left_Expected,
+	Parser_Error_Kind__Expression_Identifier_Undefined,
 	Parser_Error_Kind__Expression_Relocation_Syntax_Invalid,
+	Parser_Error_Kind__Expression_Kind_Unknown,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -42,7 +44,9 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Unexpected_End]             = "unexpected end of tokens in expression",
 	[Parser_Error_Kind__Expression_Parenthesis_Right_Expected] = "expected ')' to close parenthesized expression",
 	[Parser_Error_Kind__Expression_Parenthesis_Left_Expected]  = "expected '(' to open parenthesized expression",
+	[Parser_Error_Kind__Expression_Identifier_Undefined]       = "undefined identifier are not allowed in this expression",
 	[Parser_Error_Kind__Expression_Relocation_Syntax_Invalid]  = "invalid relocation syntax, expected %<relocation>(<expression>)",
+	[Parser_Error_Kind__Expression_Kind_Unknown]               = "unknown expression kind",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -94,6 +98,9 @@ Parser_Error_new(Parser_Error_Kind kind, Parser *parser);
 // Expect the provided condition to hold, setting the error if undefined.
 internal void
 Parser_expect(Parser *parser, B32 condition, Parser_Error_Kind error_kind);
+
+internal void
+Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind error_kind);
 
 internal Directive_Kind
 Directive_Kind__from_String8(String8 string);

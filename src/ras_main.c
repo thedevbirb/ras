@@ -17,12 +17,14 @@
 #define HASHMAP_IMPLEMENTATION
 #include "table.h"
 #include "parser.h"
+#include "expression.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
 
 #include "lexer.c"
 #include "parser.c"
+#include "expression.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);

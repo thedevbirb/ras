@@ -72,16 +72,11 @@ struct Expression_Node
 {
 	Expression_Node *left;
 	Expression_Node *right;
+
+	U64 integer_value;
+	U32 token_index;
+
 	Expression_Kind  kind;
-	union
-	{
-		U64 integer_value;
-		struct
-		{
-			U32 index;
-			U32 size;
-		} source;
-	} value;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.
@@ -181,155 +176,25 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
 	return result;
 }
 
-// Forward declaration for mutual recursion.
+// Core Pratt parser loop. Parses an expression where all binary operators
+// must have binding power strictly greater than binding_power_minimum.
+// All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
-Parser_parse_expression(Parser *parser, Binding_Power binding_power_minimum);
-
+Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
 
 // Null denotation: handles prefix positions (atoms, unary operators,
 // parenthesized groups, relocations). The token has already been consumed
 // from the parser before this call.
 internal Expression_Node *
-Parser_parse_null_denotation(Parser *parser)
-{
-	Expression_Node *node = 0;
-	Token token = parser->token_current;
-
-	switch (token)
-	{
-	case Token_Kind__Number_Literal:
-	{
-		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind                = Expression_Kind__Number_Literal;
-		node->value.integer_value = token.numerical_value;
-
-		Parser_advance(&parser);
-	} break;
-
-	case Token_Kind__Char_Literal:
-	{
-		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind                = Expression_Kind__Char_Literal;
-		node->value.integer_value = token.numerical_value;
-
-		Parser_advance(&parser);
-	} break;
-
-	case Token_Kind__Dot:
-	{
-		node                      = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind                = Expression_Kind__Current_Address;
-
-		Parser_advance(&parser);
-	} break;
-
-	case Token_Kind__Identifier:
-	{
-		node                     = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind               = Expression_Kind__Identifier;
-		node->value.source.index = token.index;
-		node->value.source.size  = token.size;
-
-		Parser_advance(&parser);
-	} break;
-
-	case Token_Kind__Minus:
-	case Token_Kind__Tilde:
-	case Token_Kind__Bang:
-	{
-		Expression_Node *operand = Parser_parse_expression(parser, Binding_Power__Unary);
-		node       = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
-		node->left = operand;
-		Parser_advance(&parser);
-	} break;
-
-	case Token_Kind__Relocation_Prefix:
-	{	// %reloc(expression)
-		Parser_advance(&parser);
-		Parser_expect_token(parser, Token_Kind__Identifier, Expression_Error_Kind__Relocation_Syntax_Invalid);
-		Token relocation_name = parser->token_current;
-
-		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Expression_Error_Kind__Relocation_Syntax_Invalid);
-
-		Parser_advance(parser);
-		Expression_Node *inner = Parser_parse_expression(parser, Binding_Power__None);
-
-		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Expression_Error_Kind__Relocation_Syntax_Invalid);
-
-		node                     = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind               = Expression_Kind__Relocation;
-		node->left               = inner;
-		node->value.source.index = relocation_name.index;
-		node->value.source.size  = relocation_name.size;
-
-		Parser_advance(parser);
-
-	} break;
-
-	case Token_Kind__Left_Parenthesis:
-	{
-		Parser_advance(parser);
-		Expression_Node *inner = Parser_parse_expression(parser, Binding_Power__None);
-
-		Parser_expect_token(parser, Token_Kind__Identifier, Expression_Error_Kind__Expected_Right_Parenthesis);
-		Parser_advance(parser);
-
-		node = inner;
-	} break;
-
-	default:
-	{
-		*error = Expression_Error_new(Expression_Error_Kind__Unexpected_Token, token);
-	} break;
-	}
-
-	return node;
-}
-
-
-// Core Pratt parser loop. Parses an expression where all binary operators
-// must have binding power strictly greater than binding_power_minimum.
-// All operators are left-associative (the <= comparison ensures this).
-internal Expression_Node *
-Parser_parse_expression(Parser *parser, Binding_Power binding_power_minimum)
-{
-	Expression_Node *left = 0;
-	Parser_expect(parser, !parser->end_reached, Expression_Error_Kind__Unexpected_End);
-
-	left = Parser_parse_null_denotation(parser, parser->arena, error);
-	for (;;)
-	{
-		Token_Kind operator_kind = parser->token_current.kind;
-		Binding_Power next_power = Binding_Power_from_Token_Kind(operator_kind);
-
-		B32 break_should = next_power <= binding_power_minimum && !parser->end_reached && !parser->error.kind;
-		if (break_should)
-		{
-			break;
-		}
-
-		Expression_Node *right = Parser_parse_expression(parser, next_power);
-		Expression_Node *node = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind  = Expression_Kind_from_binary_Token_Kind(operator_kind);
-		node->left  = left;
-		node->right = right;
-		left = node;
-	}
-
-	return left;
-}
+Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
 
 
 // Entry point. Parses an expression starting at the token_current parser position.
 // Advances the parser past consumed tokens. On error, error->kind is nonzero.
-internal Expression_Node *
-EX_parse(Parser *parser, parser->arena *parser->arena, Expression_Error *error)
-{
-	Expression_Node *node = Parser_parse_expression(parser, Binding_Power__None, parser->arena, error);
-	return node;
-}
+Expression_Node *
+Parser_expression_parse(Parser *parser, Expression_Flags flags);
+
+U64
+Parser_expression_evaluate(Parser *parser, Expression_Node *node);
 
 #endif // EXPRESSION_H

@@ -54,6 +54,14 @@ Parser_expect(Parser *parser, B32 condition, Parser_Error_Kind error_kind)
 	return;
 }
 
+internal void
+Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind error_kind)
+{
+	B32 condition = parser->token_current.kind = token_kind;
+	Parser_expect(parser, condition, error_kind);
+	return;
+}
+
 // TODO: how am I transforming output after this stage?
 internal void
 Parser_parse(Parser *parser)
@@ -112,23 +120,10 @@ Parser_parse(Parser *parser)
 			} break;
 			case Directive_Kind__Align:
 			{
-				// Parser_advance(parser);
-				// if (!token_next || token_next->kind == Token_Kind__Newline)
-				// {
-				// 	error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Missing, parser);
-				// }
-				// // Actually, here I should grab all the tokens until newline, and try to parse the
-				// // expression.
-				// else if (token_next->kind == Token_Kind__Number_Literal)
-				// {
-				// 	// TODO: parse the number
-				// 	Parser_advance(parser);
-				// }
-				// else
-				// {
-				// 	Parser_advance(parser);
-				// 	error = Parser_Error_new(Parser_Error_Kind__Directive_Align_Argument_Invalid, parser);
-				// }
+				Parser_advance(parser);
+				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
+				U64 result = Parser_expression_evaluate(parser, expression);
+				Object_File_Section_align(parser->section_current, result);
 			} break;
 			default:
 			{
