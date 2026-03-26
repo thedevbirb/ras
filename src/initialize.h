@@ -65,6 +65,7 @@ Initialize_numeric_suffix_table(void)
     numeric_suffix_table['\r'] = 1;
     numeric_suffix_table[' ']  = 1;
     numeric_suffix_table['\t'] = 1;
+    numeric_suffix_table[',']  = 1;
 
     return;
 }

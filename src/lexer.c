@@ -297,7 +297,6 @@ LE_tokenize(Input *input, Arena *arena)
 			else if (character_invalid == ':')
 			{
 				token_kind = Token_Kind__Label;
-				Lexer_Cursor_advance(&cursor);
 			}
 			else if (LE_U8_identifier_is(character_last_valid))
 			{
@@ -307,6 +306,17 @@ LE_tokenize(Input *input, Arena *arena)
 			{
 				error = Lexer_Error_new(Lexer_Error_Kind__Label_Directive_Invalid, &cursor);
 			}
+		} break;
+		case ':':
+		{
+			// We check the previous. This is to avoid including the colon into the label token.
+			U32 token_index_previous = token_index - (token_index > 0);
+			Token token_previous = tokens[token_index_previous];
+			if (token_previous.kind != Token_Kind__Label)
+			{
+				error = Lexer_Error_new(Lexer_Error_Kind__Character_Unexpected, &cursor);
+			}
+			Lexer_Cursor_advance(&cursor);
 		} break;
 
 		case '\'':

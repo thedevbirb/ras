@@ -12,11 +12,15 @@ typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
 	Parser_Error_Kind__Line_Invalid,
+	Parser_Error_Kind__Identifier_Expected,
+	Parser_Error_Kind__Comma_Expected,
 	Parser_Error_Kind__Directive_Unknown,
 	Parser_Error_Kind__Directive_Section_Argument_Missing,
 	Parser_Error_Kind__Directive_Section_Argument_Invalid,
 	Parser_Error_Kind__Directive_Align_Argument_Missing,
 	Parser_Error_Kind__Directive_Align_Argument_Invalid,
+	Parser_Error_Kind__Directive_Data_Invalid,
+	Parser_Error_Kind__Directive_Data_Value_Size_Invalid,
 	Parser_Error_Kind__Label_Duplicate,
 	Parser_Error_Kind__Expression_Unexpected_Token,
 	Parser_Error_Kind__Expression_Unexpected_End,
@@ -25,6 +29,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Identifier_Undefined,
 	Parser_Error_Kind__Expression_Relocation_Syntax_Invalid,
 	Parser_Error_Kind__Expression_Kind_Unknown,
+	Parser_Error_Kind__Expression_Recursion_Max,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -34,11 +39,15 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 {
 	[Parser_Error_Kind__None]                                  = "",
 	[Parser_Error_Kind__Line_Invalid]                          = "line can only start with a directive, label or instruction",
+	[Parser_Error_Kind__Identifier_Expected]                   = "expected identifier",
+	[Parser_Error_Kind__Comma_Expected]                        = "comma expected",
 	[Parser_Error_Kind__Directive_Unknown]                     = "unknown directive found",
 	[Parser_Error_Kind__Directive_Section_Argument_Missing]    = "section directive is missing the argument",
 	[Parser_Error_Kind__Directive_Section_Argument_Invalid]    = "section directive argument is invalid",
 	[Parser_Error_Kind__Directive_Align_Argument_Missing]      = "align directive is missing the argument",
 	[Parser_Error_Kind__Directive_Align_Argument_Invalid]      = "align directive argument is not a number literal",
+	[Parser_Error_Kind__Directive_Data_Invalid]                = "invalid data directive syntax",
+	[Parser_Error_Kind__Directive_Data_Value_Size_Invalid]     = "directive data expression value doesn't fit",
 	[Parser_Error_Kind__Label_Duplicate]                       = "duplicate label found",
 	[Parser_Error_Kind__Expression_Unexpected_Token]           = "unexpected token in expression",
 	[Parser_Error_Kind__Expression_Unexpected_End]             = "unexpected end of tokens in expression",
@@ -47,6 +56,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Identifier_Undefined]       = "undefined identifier are not allowed in this expression",
 	[Parser_Error_Kind__Expression_Relocation_Syntax_Invalid]  = "invalid relocation syntax, expected %<relocation>(<expression>)",
 	[Parser_Error_Kind__Expression_Kind_Unknown]               = "unknown expression kind",
+	[Parser_Error_Kind__Expression_Recursion_Max]              = "max recursion reached for expression: " stringify_m(expression_recursion_max)
 };
 
 typedef struct Parser_Error Parser_Error;

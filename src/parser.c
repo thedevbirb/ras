@@ -66,6 +66,7 @@ Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind err
 internal void
 Parser_parse(Parser *parser)
 {
+	U8 data_directive_size = 0;
 	for (;;)
 	{
 		B32 break_should = parser->end_reached || parser->error.kind;
@@ -82,8 +83,6 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Label:
 		{
 			String8 key = Parser_token_string(parser);
-			key.count -= key.count > 0; // Remove the colon.
-
 			U32 offset = Object_File_Section_write(parser->section_string_table, key.data, key.count);
 			ELF64_Symbol symbol =
 			{
@@ -106,6 +105,44 @@ Parser_parse(Parser *parser)
 			{
 				Parser_error_set(parser, Parser_Error_Kind__Directive_Unknown);
 			} break;
+			case Directive_Kind__Word_Double: { data_directive_size += 1; } // fallthrough
+			case Directive_Kind__Word:        { data_directive_size += 1; } // fallthrough
+			case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
+			case Directive_Kind__Byte:
+			{
+				data_directive_size += 1;
+
+				// Format: .byte <expr_1> , ..., <expr_n>
+				for (;;)
+				{
+					Parser_advance(parser);
+					Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
+					U64 value = Parser_expression_evaluate(parser, expression);
+
+					U64 bit_size   = 8 << data_directive_size - 1;
+					B32 size_valid = value >> bit_size == 0;
+					Parser_expect(parser, size_valid, Parser_Error_Kind__Directive_Data_Value_Size_Invalid);
+
+					U8 data[8] = {0};
+					os_memory_copy(data, &value, 8);
+
+					// Little-endian here plays well with data_directive_size.
+					Object_File_Section_write(parser->section_current, data, data_directive_size);
+
+					B32 token_newline = parser->token_current.kind == Token_Kind__Newline;
+					B32 token_comma   = parser->token_current.kind == Token_Kind__Comma;
+
+					Parser_expect(parser, token_comma || token_newline, Parser_Error_Kind__Directive_Data_Invalid);
+
+					B32 break_should = parser->error.kind || parser->end_reached || token_newline;
+					if (break_should)
+					{
+						break;
+					}
+				}
+
+				data_directive_size = 0;
+			} break;
 			case Directive_Kind__Section:
 			{
 				Parser_advance(parser);
@@ -115,7 +152,7 @@ Parser_parse(Parser *parser)
 				ELF64_Section section_index   = ELF64_Section_from_Directive_Kind[directive_kind];
 				parser->section_current       = &parser->sections[section_index];
 
-				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Label_Duplicate);
+				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
 				Parser_advance(parser);
 			} break;
 			case Directive_Kind__Align:
@@ -124,6 +161,30 @@ Parser_parse(Parser *parser)
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
 				U64 result = Parser_expression_evaluate(parser, expression);
 				Object_File_Section_align(parser->section_current, result);
+			} break;
+			case Directive_Kind__Equality:
+			{
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
+				String8 key = Parser_token_string(parser);
+
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+				Parser_advance(parser);
+				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
+				U64 result = Parser_expression_evaluate(parser, expression);
+
+				U32 offset = Object_File_Section_write(parser->section_string_table, key.data, key.count);
+				ELF64_Symbol symbol =
+				{
+					.string_table_offset = offset,
+					.value = result,
+					.section_index = parser->section_current->section_index,
+				};
+				Symbols_Table_put(parser->symbols_table, key, symbol);
+
+				// TODO: Do I have to write in some section? Data?
 			} break;
 			default:
 			{

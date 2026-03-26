@@ -98,6 +98,17 @@ Again, centralizing state with a fat struct makes code simpler. There is an argu
 about writing functions that take the minimal amount of arguments, but that doesn't come for free:
 it often comes with more types and code.
 
+I didn't expect that I'd find a use-case for a try-catch-finally in this codebase. I strongly
+believe it is a 99% poor error handling, but I may have found a good 1%: given that when you
+encounter an error when parsing you can do a long jump, the rest of the code can be strongly
+simplified without trying to either do if-err checks or make a lot of code no-op in certain
+conditions.
+As such, the toolbox can be:
+- assert invariants
+- return errors and its intermediate state when you can recover it right after function call, or
+  close to it
+- snapshot progress and longjmp to known point
+
 # Random
 
 I should try to write neovim snippets.

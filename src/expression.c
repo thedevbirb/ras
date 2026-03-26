@@ -34,6 +34,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	case Token_Kind__Identifier:
 	{
 		String8 key = Parser_token_string(parser);
+		// FIX: there is always the problem of the colon after label.
 		Symbol_Entry *symbol = Symbols_Table_get(parser->symbols_table, key);
 
 		if (symbol)
@@ -114,15 +115,20 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	return node;
 }
 
-
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
+//
+// TODO: add max recursion level of 8.
 internal Expression_Node *
 Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags)
 {
+	local_persist recursion_level = 0;
+	recursion_level += 1;
+
 	Expression_Node *left = 0;
 	Parser_expect(parser, !parser->end_reached, Parser_Error_Kind__Expression_Unexpected_End);
+	Parser_expect(parser, recursion_level <= 8, Parser_Error_Kind__Expression_Recursion_Max);
 
 	left = Parser_parse_null_denotation(parser, flags);
 	for (;;)
@@ -130,12 +136,14 @@ Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Ex
 		Token_Kind operator_kind = parser->token_current.kind;
 		Binding_Power next_power = Binding_Power_from_Token_Kind(operator_kind);
 
-		B32 break_should = next_power <= binding_power_minimum && !parser->end_reached && !parser->error.kind;
+		B32 break_should = next_power <= binding_power_minimum || parser->end_reached || parser->error.kind;
 		if (break_should)
 		{
 			break;
 		}
 
+		// Important to advance _after_ we have the right binding power otherwise we might tokens subsequent to
+		// the expression, like commas.
 		Parser_advance(parser);
 
 		Expression_Node *right = Parser__expression_parse(parser, next_power, flags);
@@ -148,6 +156,7 @@ Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Ex
 		left = node;
 	}
 
+	recursion_level -= 1;
 	return left;
 }
 
@@ -161,6 +170,7 @@ Parser_expression_parse(Parser *parser, Expression_Flags flags)
 	return node;
 }
 
+// It is a no-op if the parser has an error already.
 U64
 Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 {
@@ -169,10 +179,12 @@ Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 	assert_always_m(node->kind && "cannot evaluate unknown expression kind");
 
 	U64 value = 0;
+	Expression_Kind kind = node->kind & ~((parser->error.kind == 0) - 1);
 
-	switch (node->kind)
+	switch (kind)
 	{
-	case Expression_Kind__None:            {  assert_always_m(0 && "unreachable");          } break;
+	case Expression_Kind__None:            {} break;
+
 	case Expression_Kind__Number_Literal:  {  value             =  node->integer_value;     } break;
 	case Expression_Kind__Char_Literal:    {  value             =  node->integer_value;     } break;
 	case Expression_Kind__Identifier:      {  assert_always_m(0 && "todo");                 } break;
