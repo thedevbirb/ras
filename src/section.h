@@ -54,8 +54,8 @@ internal void
 Object_File_Section_align(Object_File_Section *section, U8 alignment)
 {
 	U32 mask         = alignment - 1;
-	B32 power_two_is = (alignment & (mask)) == 0 && alignment != 0;
-	assert_always_m(power_two_is && "alignment must be a power of two, or zero (no-op)");
+	B32 power_two_or_zero_is = (alignment & (mask)) == 0 || alignment == 0;
+	assert_always_m(power_two_or_zero_is && "alignment must be a power of two, or zero (no-op)");
 
 	U32 offset_alignment_distance = section->offset & mask;
 	// We mask again to handle the case where distance is zero, without branches.
@@ -74,6 +74,8 @@ Object_File_Section_align(Object_File_Section *section, U8 alignment)
 	// offset                                         = 0b0001_0000 (16)
 	// offset_alignment_distance                      = 0b0001_0000 & 0b0000_0111 = 0b0000_0000 (0)
 	// padding                                        = (0b0000_1000 - 0b0000_0000) & 0b0000_0111 = 0b0000_0000 (0)
+
+	padding = padding & ((alignment == 0) - 1);
 
 	os_memory_zero(section->buffer.data, padding);
 	section->offset += padding;
