@@ -109,6 +109,15 @@ As such, the toolbox can be:
   close to it
 - snapshot progress and longjmp to known point
 
+While I dislike early returns, for the parser logic a long jump would be nice. When an error occurs,
+jump at the end of parsing function. This reduces the amount of if-err checking and no-ops to be
+implemented. However, I'm still not sure about it.
+
+I have to say assembly syntax if full of exceptions and not very regular, a lot of things depend on
+context, which I don't like.
+
+TODO: numeric labels can be redefined.
+
 # Random
 
 I should try to write neovim snippets.
