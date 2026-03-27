@@ -1,6 +1,8 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+// Implement more dynamic arrays.
+
 // @section EBNF grammar for RV64I assembly (ISO 14977)
 //
 // (* Notation:                                                *)
@@ -137,16 +139,6 @@ global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
 };
 
-typedef struct Lexer_Error Lexer_Error;
-struct Lexer_Error
-{
-	Lexer_Error_Kind kind;
-
-	U32 row_index;
-	U32 column_begin_index;
-	U32 column_end_index;
-};
-
 typedef struct Token Token;
 struct Token
 {
@@ -158,6 +150,17 @@ struct Token
 	Token_Kind kind;
 };
 // assert_static_m(sizeof(struct Token) == 20, size_of_Token);
+//
+typedef struct Lexer_Error Lexer_Error;
+struct Lexer_Error
+{
+	Lexer_Error_Kind kind;
+
+	U32 row_index;
+	U32 column_begin_index;
+	U32 column_end_index;
+};
+
 
 typedef struct Token_Array Token_Array;
 struct Token_Array
@@ -167,6 +170,51 @@ struct Token_Array
 	U32         token_count;
 	Lexer_Error error;
 };
+
+typedef struct Lexer Lexer;
+struct Lexer
+{
+	U8  *text;
+	U32 *line_start_indexes;
+	Arena *arena;
+
+	Lexer_Error error;
+	U32  text_size;
+	U32  index;
+	U32  index_before;
+	U32  column_index;
+	U32  column_index_before;
+	U32  row_index;
+	B32  end_reached;
+	U8   current;
+};
+
+Lexer
+Lexer_new(Input *input, Arena *arena);
+
+// It is a no-op if the end has been reached already.
+internal void
+Lexer_advance(Lexer *lexer);
+
+
+// It is a no-op if the end has been reached already.
+internal void
+Lexer_advance_newline(Lexer *lexer);
+
+internal U8 *
+Lexer_peek_next(Lexer *lexer);
+
+internal String8
+Lexer_string(Lexer *lexer);
+
+internal void
+Lexer_error_set(Lexer *lexer, Lexer_Error_Kind kind);
+
+internal void
+Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind);
+
+internal Token_Array
+Lexer_tokenize(Lexer *lexer);
 
 #endif // LEXER_H
 

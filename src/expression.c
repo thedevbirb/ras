@@ -123,7 +123,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 internal Expression_Node *
 Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags)
 {
-	local_persist recursion_level = 0;
+	local_persist U8 recursion_level = 0;
 	recursion_level += 1;
 
 	Expression_Node *left = 0;

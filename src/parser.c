@@ -119,7 +119,7 @@ Parser_parse(Parser *parser)
 					Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
 					U64 value = Parser_expression_evaluate(parser, expression);
 
-					U64 bit_size   = 8 << data_directive_size - 1;
+					U64 bit_size   = 8 << (data_directive_size - 1);
 					B32 size_valid = value >> bit_size == 0;
 					Parser_expect(parser, size_valid, Parser_Error_Kind__Directive_Data_Value_Size_Invalid);
 

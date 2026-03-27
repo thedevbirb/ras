@@ -83,7 +83,8 @@ main(int argument_count, char **argument_vector)
 
 	arguments_shift(&argument_count, &argument_vector);
 
-	Token_Array token_array = LE_tokenize(&input, arena);
+	Lexer lexer = Lexer_new(&input, arena);
+	Token_Array token_array = Lexer_tokenize(&lexer);
 
 	Lexer_Error lexer_error = token_array.error;
 	if (lexer_error.kind)
