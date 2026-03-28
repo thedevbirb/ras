@@ -227,4 +227,7 @@ struct ELF64_Symbol
 };
 assert_static_m(sizeof(ELF64_Symbol) == 24, elf64_symbol_size);
 
+hashmap_declare_m(Symbols_Table, Symbol_Entry, ELF64_Symbol);
+hashmap_implement_m(Symbols_Table, Symbol_Entry, ELF64_Symbol);
+
 #endif // SECTION_H

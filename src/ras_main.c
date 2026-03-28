@@ -14,19 +14,19 @@
 
 #include "initialize.h"
 #include "constants.h"
+#include "hashmap.h"
+#include "list.h"
+
 #include "lexer.h"
 #include "section.h"
-#define HASHMAP_IMPLEMENTATION
-#include "table.h"
-#include "parser.h"
 #include "expression.h"
+#include "parser.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
 
 #include "lexer.c"
 #include "parser.c"
-#include "expression.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
@@ -79,6 +79,9 @@ main(int argument_count, char **argument_vector)
 
 	Symbols_Table symbols_table = {0};
 	Symbols_Table_initialize(&symbols_table, arena);
+	Expression_Unevaluated_List expression_unevaluated_list = {0};
+	Expression_Unevaluated_List_initialize(&expression_unevaluated_list, arena);
+
 	Object_File_Section *sections             = Object_File_Section_create_all(arena, file_in_size);
 	Object_File_Section *section_text         = &sections[ELF64_Section__Text];
 	Object_File_Section *section_string_table = &sections[ELF64_Section__String_Table];
@@ -144,10 +147,12 @@ main(int argument_count, char **argument_vector)
 
 	Parser parser =
 	{
-		.arena         = arena,
-		.input         = &input,
-		.tokens        = token_array.tokens,
-		.symbols_table = &symbols_table,
+		.arena  = arena,
+		.input  = &input,
+		.tokens = token_array.tokens,
+
+		.symbols_table                = &symbols_table,
+		.expression_unevaluated_list = &expression_unevaluated_list,
 
 		.sections             = sections,
 		.section_current      = section_text,

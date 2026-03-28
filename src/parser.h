@@ -1,13 +1,6 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-typedef struct InputSlice InputSlice;
-struct InputSlice
-{
-	U32 index_begin;
-	U32 index_end;
-};
-
 typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
@@ -76,10 +69,12 @@ struct Parser_Error
 typedef struct Parser Parser;
 struct Parser
 {
-	Arena         *arena;
-	Input	      *input;
-	Token	      *tokens;
-	Symbols_Table *symbols_table;
+	Arena *arena;
+	Input *input;
+	Token *tokens;
+
+	Symbols_Table                *symbols_table;
+	Expression_Unevaluated_List  *expression_unevaluated_list;
 
 	Object_File_Section *sections;
 	Object_File_Section *section_current;
@@ -125,8 +120,30 @@ struct Parser_Result
 	Parser_Error error;
 };
 
+
+// Core Pratt parser loop. Parses an expression where all binary operators
+// must have binding power strictly greater than binding_power_minimum.
+// All operators are left-associative (the <= comparison ensures this).
+internal Expression_Node *
+Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
+
+// Null denotation: handles prefix positions (atoms, unary operators,
+// parenthesized groups, relocations). The token has already been consumed
+// from the parser before this call.
+internal Expression_Node *
+Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
+
+
+// Entry point. Parses an expression starting at the token_current parser position.
+// Advances the parser past consumed tokens. On error, error->kind is nonzero.
+Expression_Node *
+Parser_expression_parse(Parser *parser, Expression_Flags flags);
+
+U64
+Parser_expression_evaluate(Parser *parser, Expression_Node *node);
+
 // TODO: how am I transforming output after this stage?
-internal void
+void
 Parser_parse(Parser *parser);
 
 typedef struct Fixup Fixup;

@@ -176,25 +176,16 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
 	return result;
 }
 
-// Core Pratt parser loop. Parses an expression where all binary operators
-// must have binding power strictly greater than binding_power_minimum.
-// All operators are left-associative (the <= comparison ensures this).
-internal Expression_Node *
-Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
 
-// Null denotation: handles prefix positions (atoms, unary operators,
-// parenthesized groups, relocations). The token has already been consumed
-// from the parser before this call.
-internal Expression_Node *
-Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
+typedef struct Expression_Unevaluated Expression_Unevaluated;
+struct Expression_Unevaluated
+{
+	Expression_Node *expression;
+	U32 section_index;
+	U32 section_offset;
+};
 
-
-// Entry point. Parses an expression starting at the token_current parser position.
-// Advances the parser past consumed tokens. On error, error->kind is nonzero.
-Expression_Node *
-Parser_expression_parse(Parser *parser, Expression_Flags flags);
-
-U64
-Parser_expression_evaluate(Parser *parser, Expression_Node *node);
+list_declare_m(Expression_Unevaluated);
+list_implement_m(Expression_Unevaluated);
 
 #endif // EXPRESSION_H
