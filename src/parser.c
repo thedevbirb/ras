@@ -1,3 +1,26 @@
+internal U32
+hash_FNV_1a(String8 string)
+{
+	U32 hash = 2166136261u;
+
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= string.count;
+		if (break_should)
+		{
+			break;
+		}
+
+		hash ^= (U8)string.data[index];
+		hash *= 16777619u;
+
+		index += 1;
+	}
+
+	return hash;
+}
+
 // It is a no-op if the end has been reached already.
 internal void
 Parser_advance(Parser *parser)
@@ -60,6 +83,15 @@ Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind err
 	B32 condition = parser->token_current.kind = token_kind;
 	Parser_expect(parser, condition, error_kind);
 	return;
+}
+
+internal U8
+Parser_expect_register(Parser *parser)
+{
+	String8 string = Parser_token_string(parser);
+	U8 register_value = register_lookup(string);
+	Parser_expect(parser, register_value != register_invalid, Parser_Error_Kind__Register_Invalid);
+	return register_value;
 }
 
 // TODO: how am I transforming output after this stage?
@@ -160,7 +192,8 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
 				U64 result = Parser_expression_evaluate(parser, expression);
-				Object_File_Section_align(parser->section_current, result);
+				U64 power_two = 1 << result;
+				Object_File_Section_align(parser->section_current, power_two);
 			} break;
 			case Directive_Kind__Equality:
 			{
@@ -183,8 +216,6 @@ Parser_parse(Parser *parser)
 					.section_index = parser->section_current->section_index,
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
-
-				// TODO: Do I have to write in some section? Data?
 			} break;
 			default:
 			{
@@ -193,6 +224,45 @@ Parser_parse(Parser *parser)
 
 				parser->section_current = &parser->sections[section_kind];
 				Parser_advance(parser);
+			} break;
+			}
+		} break;
+		case Token_Kind__Identifier:
+		{
+			// This must be an instruction.
+			//
+			// We assume worst size instruction expansion for simplicity.
+			String8 instruction = Parser_token_string(parser);
+			U32 instruction_hash = hash_FNV_1a(instruction);
+
+			switch (instruction_hash)
+			{
+			case HASH_addi:
+			{
+				// try to parse it and write it immediately
+				Parser_advance(parser);
+				U8 register_destination = Parser_expect_register(parser);
+
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+				Parser_advance(parser);
+				U8 register_source = Parser_expect_register(parser);
+
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+				// This should be an expression instead.
+				Parser_advance(parser);
+				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Parser_expect_token(parser, Token_Kind__Number_Literal, Parser_Error_Kind__Immediate_Invalid);
+				U32 immediate = parser->token_current.numerical_value;
+
+				Parser_advance(parser);
+			} break;
+			default:
+			{
+				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
 			} break;
 			}
 		} break;

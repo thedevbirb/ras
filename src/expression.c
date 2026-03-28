@@ -118,8 +118,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
-//
-// TODO: add max recursion level of 8.
 internal Expression_Node *
 Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags)
 {
@@ -149,9 +147,9 @@ Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Ex
 		Expression_Node *right = Parser__expression_parse(parser, next_power, flags);
 		Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
 
-		node->kind  = Expression_Kind_from_binary_Token_Kind(operator_kind);
-		node->left  = left;
-		node->right = right;
+		node->kind     = Expression_Kind_from_binary_Token_Kind(operator_kind);
+		node->left     = left;
+		node->right    = right;
 
 		left = node;
 	}

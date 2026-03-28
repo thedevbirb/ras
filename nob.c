@@ -22,9 +22,9 @@
 #include "nob.h"
 
 // Some folder paths that we use throughout the build process.
-#define BUILD_FOLDER   "build/"
-#define SRC_FOLDER     "src/"
-#define INCLUDE_FOLDER "thirdparty/"
+#define BUILD_FOLDER       "build/"
+#define SRC_FOLDER         "src/"
+#define INCLUDE_FOLDER     "thirdparty/"
 
 int main(int argc, char **argv)
 {
@@ -50,9 +50,11 @@ int main(int argc, char **argv)
 	// Link Cocoa (AppKit + Foundation), CoreGraphics, and QuartzCore (CALayer).
 	nob_cmd_append(&cmd, "cc",
 			"-std=c11", "-g",
+			"-w",
 			"-Wall", "-Wextra", "-Wpedantic",
 			"-Wno-override-init",
 			"-Wno-unused-function",
+			"-I.",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",
 			"-o", BUILD_FOLDER"ras",

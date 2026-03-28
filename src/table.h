@@ -100,7 +100,7 @@ Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out)
 		B32 empty = !entry->used;
 		key_found = !empty &&
 		            entry->key.count == key.count &&
-		            os_memory_match(entry->key.data, key.data, key.count);
+		            os_memory_match(entry->key.data, key.data, key.count) == 0;
 
 		B32 break_should = empty || key_found;
 		if (break_should)

@@ -30,6 +30,8 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Relocation_Syntax_Invalid,
 	Parser_Error_Kind__Expression_Kind_Unknown,
 	Parser_Error_Kind__Expression_Recursion_Max,
+	Parser_Error_Kind__Register_Invalid,
+	Parser_Error_Kind__Immediate_Invalid,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -56,7 +58,9 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Identifier_Undefined]       = "undefined identifier are not allowed in this expression",
 	[Parser_Error_Kind__Expression_Relocation_Syntax_Invalid]  = "invalid relocation syntax, expected %<relocation>(<expression>)",
 	[Parser_Error_Kind__Expression_Kind_Unknown]               = "unknown expression kind",
-	[Parser_Error_Kind__Expression_Recursion_Max]              = "max recursion reached for expression: " stringify_m(expression_recursion_max)
+	[Parser_Error_Kind__Expression_Recursion_Max]              = "max recursion reached for expression: " stringify_m(expression_recursion_max),
+	[Parser_Error_Kind__Register_Invalid]                      = "register invalid",
+	[Parser_Error_Kind__Immediate_Invalid]                     = "immediate invalid",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -124,6 +128,14 @@ struct Parser_Result
 // TODO: how am I transforming output after this stage?
 internal void
 Parser_parse(Parser *parser);
+
+typedef struct Fixup Fixup;
+struct Fixup
+{
+	U32 section_index;
+	U32 section_offset;
+	Instruction_Kind instruction_kind;
+};
 
 #endif // PARSER_H
 

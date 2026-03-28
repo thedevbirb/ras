@@ -122,6 +122,9 @@ TODO: numeric labels can be redefined.
 
 I should try to write neovim snippets.
 
+In general assemblers don't follow a standard. So some stuff is a bit unique or up to the assembly
+implementation. I'm trying to follow a bit gas for some compatibility, but some stuff is just funky.
+
 
 # Appendix
 

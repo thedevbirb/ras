@@ -10,6 +10,8 @@
 #include <base/base_include.h>
 #include <os/os_include.h>
 
+#include <generated/instruction_hashes.h>
+
 #include "initialize.h"
 #include "constants.h"
 #include "lexer.h"
