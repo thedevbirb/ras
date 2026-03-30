@@ -227,7 +227,170 @@ struct ELF64_Symbol
 };
 assert_static_m(sizeof(ELF64_Symbol) == 24, elf64_symbol_size);
 
-hashmap_declare_m(Symbols_Table, Symbol_Entry, ELF64_Symbol);
-hashmap_implement_m(Symbols_Table, Symbol_Entry, ELF64_Symbol);
+// The symbols table and the string table are coupled, meaning there should be a one to one correspondence between the
+// two. This in-memory representation encodes both, by giving a key-value map which records order of insertion and
+// tracks the growing size as null-terminated strings to compute ELF64 symbols string table offset.
+//
+// At a later stage, this can be used to write in both section to produce the ELF file.
+typedef struct Symbols_Table_Entry Symbols_Table_Entry;
+struct Symbols_Table_Entry
+{
+	String8      key;
+	ELF64_Symbol value;
+	B32          used;
+};
+
+typedef struct Symbols_Table Symbols_Table;
+struct Symbols_Table
+{
+	Arena   *arena;
+	Symbols_Table_Entry *entries;
+	U32     *slots;
+
+	U32 string_table_section_size;
+	U32 capacity;
+	U32 count;
+};
+
+internal void
+Symbols_Table_initialize(Symbols_Table *map, Arena *arena)
+{
+	map->arena    = arena;
+	map->capacity = HASHMAP_INITIAL_CAP;
+	map->count    = 0;
+	map->entries  = Arena_push_array_m(arena, Symbols_Table_Entry, map->capacity);
+	map->slots    = Arena_push_array_m(arena, U32, map->capacity);
+	os_memory_zero(map->entries, sizeof(Symbols_Table_Entry) * map->capacity);
+}
+
+internal B32
+Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out)
+{
+	assert_always_m(map->capacity && "uninitialized map");
+
+	U32 hash  = Hashmap_hash(key);
+	U32 index = hash & (map->capacity - 1);
+	B32 key_found = 0;
+
+	for (;;)
+	{
+		Symbols_Table_Entry *entry = &map->entries[index];
+
+		B32 empty = !entry->used;
+		key_found = !empty &&
+		            entry->key.count == key.count &&
+		            os_memory_match(entry->key.data, key.data, key.count) == 0;
+
+		B32 break_should = empty || key_found;
+		if (break_should)
+		{
+			*slot_out = index;
+			break;
+		}
+
+		index = (index + 1) & (map->capacity - 1);
+	}
+
+	return key_found;
+}
+
+internal void
+Symbols_Table_grow(Symbols_Table *map)
+{
+	U32 capacity_new = map->capacity * 2;
+
+	// We perform a copy of just the metadata and the pointers, not the heap allocated data.
+	Symbols_Table map_old;
+	os_memory_copy(&map_old, map, sizeof(Symbols_Table));
+
+	Symbols_Table_Entry *entries_new = Arena_push_array_m(map->arena, Symbols_Table_Entry, capacity_new);
+	U32 *slots_new = Arena_push_array_m(map->arena, U32, capacity_new);
+
+	map->entries   = entries_new;
+	map->slots     = slots_new;
+	map->capacity  = capacity_new;
+	map->count     = 0;
+
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= map_old.capacity;
+		if (break_should) { break; }
+
+		// Re-insert in order of insertion.
+		U32 slot_old = map_old.slots[index];
+		Symbols_Table_Entry *entry_old = &map_old.entries[slot_old];
+		if (entry_old->used)
+		{
+			// Find a new slot, and put it there.
+			U32 slot = 0;
+			B32 found = Symbols_Table_find_slot(map, entry_old->key, slot);
+			assert_always_m(!found && "map contains duplicates");
+
+			Symbols_Table_Entry *entry = &map->entries[slot];
+			entry->key   = entry_old->key;
+			entry->value = entry_old->value;
+			entry->used  = 1;
+
+			map->slots[map->count] = slot;
+			map->count  += 1;
+		}
+		index += 1;
+	}
+
+	return;
+}
+
+internal Vec2_U32 // Slot, found
+Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
+{
+	assert_always_m(map->entries && "uninitialized hashmap");
+
+	if ((map->count * 100) >= (map->capacity * HASHMAP_LOAD_MAX))
+	{
+		Symbols_Table_grow(map);
+	}
+
+	U32 slot  = 0;
+	U32 found = (U32)Symbols_Table_find_slot(map, key, &slot);
+
+	value.string_table_offset = map->string_table_section_size;
+
+	Symbols_Table_Entry *entry = &map->entries[slot];
+	entry->key   = key;
+	entry->value = value;
+	entry->used  = 1;
+
+	if (!found)
+	{
+		map->slots[map->count] = slot;
+		map->count  += 1;
+		map->string_table_section_size = key.count + 1; // null-termination
+	}
+
+	Vec2_U32 slot_and_found = {slot, found};
+
+	return slot_and_found;
+}
+
+internal Symbols_Table_Entry *
+Symbols_Table_get(Symbols_Table *map, String8 key)
+{
+	Symbols_Table_Entry *result = 0;
+
+	if (map->entries)
+	{
+		U32 slot  = 0;
+		B32 found = Symbols_Table_find_slot(map, key, &slot);
+
+		if (found)
+		{
+			result = &map->entries[slot];
+		}
+	}
+
+	return result;
+}
+
 
 #endif // SECTION_H

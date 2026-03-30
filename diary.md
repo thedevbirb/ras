@@ -116,7 +116,11 @@ implemented. However, I'm still not sure about it.
 I have to say assembly syntax if full of exceptions and not very regular, a lot of things depend on
 context, which I don't like.
 
-TODO: numeric labels can be redefined.
+The amount of different directives out there and how differently they behave is quite astonishing.
+
+I've found super effective to implement growable arrays that have no reallocations cost by letting
+them have a dedicated arena with a large virtual size, small reserved size, and no grow options.
+Super cool!
 
 # Random
 

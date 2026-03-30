@@ -70,10 +70,13 @@ Expression_Kind;
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
-	Expression_Node *left;
-	Expression_Node *right;
+	U32 index;
+	U32 index_left;
+	U32 index_right;
 
 	U64 integer_value;
+
+	// TODO: I don't know if this makes sense.
 	U32 token_index;
 
 	Expression_Kind  kind;
@@ -187,5 +190,36 @@ struct Expression_Unevaluated
 
 list_declare_m(Expression_Unevaluated);
 list_implement_m(Expression_Unevaluated);
+
+// Assumption: the underlying arena is used only for storing expressions.
+typedef struct Expressions Expressions;
+struct Expressions
+{
+	Arena *arena;
+	Expression_Node *data;
+	U32 count;
+};
+
+void
+Expressions_initialize(Expressions *expressions, Arena *arena)
+{
+	*expressions = (Expressions)
+	{
+		.arena = arena,
+		.data  = (Expression_Node *)(Arena_push_zero_m(arena)),
+		.count = 0,
+	};
+	return;
+}
+
+Expression_Node *
+Expressions_push_empty(Expressions *expressions)
+{
+	Expression_Node *node = Arena_push_struct_m(expressions->arena, Expression_Node);
+	node->index           = expressions->count;
+	expressions->count   += 1;
+
+	return node;
+}
 
 #endif // EXPRESSION_H

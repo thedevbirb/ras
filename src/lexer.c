@@ -1,7 +1,5 @@
 // After the lexer processes an item, it ALWAYS advances.
 
-// TODO: handle local numeric labels.
-
 internal B32
 LE_U8_identifier_start_is(U8 character)
 {

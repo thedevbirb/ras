@@ -70,6 +70,16 @@ main(int argument_count, char **argument_vector)
 	// TODO: specify a reserve and commit size as a function of the input size.
 	Arena *arena = Arena_alloc_m();
 
+	// Growable collections with dedicated arenas that don't pay reallocation costs.
+
+	Arena *arena_statements = Arena_alloc_m(.commit_size = file_in_size * 8);
+	Statements statements;
+	Statements_initialize(&statements, arena_statements);
+
+	Arena *arena_expressions = Arena_alloc_m(.commit_size = file_in_size);
+	Expressions expressions;
+	Expressions_initialize(&expressions, arena_expressions);
+
 	// Ensure same lifetime between arena and file contents.
 	U8 *data_mmap = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
 	assert_always_m(data_mmap != MAP_FAILED && "failed to mmap file contents");
@@ -147,11 +157,13 @@ main(int argument_count, char **argument_vector)
 
 	Parser parser =
 	{
-		.arena  = arena,
-		.input  = &input,
-		.tokens = token_array.tokens,
+		.arena         = arena,
+		.input         = &input,
+		.tokens        = token_array.tokens,
+		.statements    = &statements,
+		.symbols_table = &symbols_table,
+		.expressions   = &expressions,
 
-		.symbols_table                = &symbols_table,
 		.expression_unevaluated_list = &expression_unevaluated_list,
 
 		.sections             = sections,

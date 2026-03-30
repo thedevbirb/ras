@@ -21,6 +21,8 @@ Hashmap_hash(String8 key)
 	return hash;
 }
 
+// NOTE: this generic stuff is actually not used.
+
 ////////////////////////////////
 // Generic Hashmap Declaration
 //

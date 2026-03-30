@@ -21,6 +21,26 @@ hash_FNV_1a(String8 string)
 	return hash;
 }
 
+
+// Assumption: the provided arena is used ONLY for this.
+internal void
+Statements_initialize(Statements *statements, Arena *arena)
+{
+	statements->arena = arena;
+	statements->count = 0;
+	return;
+}
+
+internal void
+Statements_push(Statements *statements, Statement statement)
+{
+	Statement *buffer = Arena_push_struct_m(statements->arena, Statement);
+	*buffer = statement;
+
+	statements->count += 1;
+	return;
+}
+
 // It is a no-op if the end has been reached already.
 internal void
 Parser_advance(Parser *parser)
@@ -97,7 +117,8 @@ Parser_expect_register(Parser *parser)
 internal Expression_Node *
 Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 {
-	Expression_Node *node = Arena_push_struct_m(parser->arena, Expression_Node);
+	// Expression_Node *node = Arena_push_struct_m(parser->arena, Expression_Node);
+	Expression_Node *node  = Expressions_push_empty(parser->expressions);
 	node->token_index     = parser->token_index;
 	Token token           = parser->token_current;
 
@@ -129,30 +150,22 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 
 	case Token_Kind__Identifier:
 	{
+		node->kind = Expression_Kind__Identifier;
+
 		String8 key = Parser_token_string(parser);
-		// FIX: there is always the problem of the colon after label.
-		Symbol_Entry *symbol = Symbols_Table_get(parser->symbols_table, key);
+		Symbols_Table_Entry *symbol = Symbols_Table_get(parser->symbols_table, key);
 
-		if (symbol)
+		Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
+
+		if (!symbol)
 		{
-			node->kind = Expression_Kind__Number_Literal;
-			node->integer_value = symbol->value.value;
-		}
-		else
-		{
-			Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 
-			node->kind = Expression_Kind__Identifier;
-
-			U32 offset = Object_File_Section_write(parser->section_string_table, key.data, key.count);
 			ELF64_Symbol symbol =
 			{
-				.string_table_offset = offset,
-				.value = 0,
 				.section_index = parser->section_current->section_index,
 			};
-			B32 overridden = Symbols_Table_put(parser->symbols_table, key, symbol);
-			assert_always_m(!overridden);
+			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
+			assert_always_m(!slot_and_found.y);
 		}
 
 		Parser_advance(parser);
@@ -164,7 +177,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	{
 		Expression_Node *operand = Parser__expression_parse(parser, Binding_Power__Unary, flags);
 		node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
-		node->left = operand;
+		node->index_left = operand->index;
 
 		Parser_advance(parser);
 	} break;
@@ -183,9 +196,10 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
-		node                     = Arena_push_struct_m(parser->arena, Expression_Node);
-		node->kind               = Expression_Kind__Relocation;
-		node->left               = inner;
+		// node                     = Arena_push_struct_m(parser->arena, Expression_Node);
+		node             = Expressions_push_empty(parser->expressions);
+		node->kind       = Expression_Kind__Relocation;
+		node->index_left = inner->index;
 
 		Parser_advance(parser);
 
@@ -241,11 +255,12 @@ Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Ex
 		Parser_advance(parser);
 
 		Expression_Node *right = Parser__expression_parse(parser, next_power, flags);
-		Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
+		// Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
+		Expression_Node *node  = Expressions_push_empty(parser->expressions);
 
-		node->kind     = Expression_Kind_from_binary_Token_Kind(operator_kind);
-		node->left     = left;
-		node->right    = right;
+		node->kind        = Expression_Kind_from_binary_Token_Kind(operator_kind);
+		node->index_left  = left->index;
+		node->index_right = right->index;
 
 		left = node;
 	}
@@ -287,23 +302,28 @@ Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 
 	case Expression_Kind__Negate:
 	{
-		U64 left = Parser_expression_evaluate(parser, node->left);
+		Expression_Node *node_left = &parser->expressions->data[node->index_left];
+		U64 left = Parser_expression_evaluate(parser, node_left);
 		value = ~(left - 1);
 	} break;
 	case Expression_Kind__Bitwise_Not:
 	{
-		U64 left = Parser_expression_evaluate(parser, node->left);
+		Expression_Node *node_left = &parser->expressions->data[node->index_left];
+		U64 left = Parser_expression_evaluate(parser, node_left);
 		value = ~left;
 	} break;
 	case Expression_Kind__Logical_Not:
 	{
-		U64 left = Parser_expression_evaluate(parser, node->left);
+		Expression_Node *node_left = &parser->expressions->data[node->index_left];
+		U64 left = Parser_expression_evaluate(parser, node_left);
 		value = !left;
 	} break;
 	default:
 	{
-		U64 right = Parser_expression_evaluate(parser, node->right);
-		U64 left  = Parser_expression_evaluate(parser, node->left);
+		Expression_Node *node_right = &parser->expressions->data[node->index_right];
+		U64 right = Parser_expression_evaluate(parser, node_right);
+		Expression_Node *node_left = &parser->expressions->data[node->index_left];
+		U64 left = Parser_expression_evaluate(parser, node_left);
 		switch (node->kind)
 		{
 		case Expression_Kind__Add:           { value = left +  right; } break;
@@ -336,6 +356,153 @@ Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 	return value;
 }
 
+internal void
+Parser_instruction_I_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	U8 register_destination = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_2 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
+internal void
+Parser_Instruction_R_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	U8 register_destination = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_2 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
+internal void
+Parser_instruction_S_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_2 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
+internal void
+Parser_instruction_B_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_2 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
+internal void
+Parser_instruction_U_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
+internal void
+Parser_instruction_J_parse(Parser *parser)
+{
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Unevaluated expression_unevaluated =
+	{
+		.expression = expression,
+		.section_index = parser->section_current->section_index,
+		.section_offset = parser->section_current->offset,
+	};
+	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+
+	Parser_advance(parser);
+}
+
 // TODO: how am I transforming output after this stage?
 void
 Parser_parse(Parser *parser)
@@ -349,7 +516,7 @@ Parser_parse(Parser *parser)
 			break;
 		}
 
-		U32 index_before = parser->token_index;
+		parser->token_index_before = parser->token_index;
 
 		switch (parser->token_current.kind)
 		{
@@ -357,21 +524,36 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Label:
 		{
 			String8 key = Parser_token_string(parser);
-			U32 offset = Object_File_Section_write(parser->section_string_table, key.data, key.count);
 			ELF64_Symbol symbol =
 			{
-				.string_table_offset = offset,
 				.value = parser->section_current->offset,
 				.section_index = parser->section_current->section_index,
 			};
-			B32 overridden = Symbols_Table_put(parser->symbols_table, key, symbol);
-			Parser_expect(parser, !overridden, Parser_Error_Kind__Label_Duplicate);
+			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
+			Parser_expect(parser, !slot_and_found.y, Parser_Error_Kind__Label_Duplicate);
+
+			Statement statement =
+			{
+				.label_symbol_slot = slot_and_found.x,
+				.token_index_begin = parser->token_index_before,
+				.token_index_end   = parser->token_index,
+				.section_index     = parser->section_current->section_index,
+				.kind              = Statement_Kind__Label,
+			};
+			Statements_push(parser->statements, statement);
+
 			Parser_advance(parser);
 		} break;
 		case Token_Kind__Directive:
 		{
 			String8 substring = Parser_token_string(parser);
 			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
+
+			Statement statement =
+			{
+				.kind = Statement_Kind__Directive,
+				.directive_kind = directive_kind
+			};
 
 			switch (directive_kind)
 			{
@@ -386,22 +568,18 @@ Parser_parse(Parser *parser)
 			{
 				data_directive_size += 1;
 
+				// TODO: expand max number of expressions;
+				U32 *expressions_indexes = Arena_push_array_m(parser->arena, U32, 16);
+				U32 expressions_count = 0;
+
 				// Format: .byte <expr_1> , ..., <expr_n>
 				for (;;)
 				{
 					Parser_advance(parser);
 					Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
-					U64 value = Parser_expression_evaluate(parser, expression);
-
-					U64 bit_size   = 8 << (data_directive_size - 1);
-					B32 size_valid = value >> bit_size == 0;
-					Parser_expect(parser, size_valid, Parser_Error_Kind__Directive_Data_Value_Size_Invalid);
-
-					U8 data[8] = {0};
-					os_memory_copy(data, &value, 8);
-
-					// Little-endian here plays well with data_directive_size.
-					Object_File_Section_write(parser->section_current, data, data_directive_size);
+					expressions_indexes[expressions_count] = expression->index;
+					expressions_count += 1;
+					assert_always_m(expressions_count < 16);
 
 					B32 token_newline = parser->token_current.kind == Token_Kind__Newline;
 					B32 token_comma   = parser->token_current.kind == Token_Kind__Comma;
@@ -414,6 +592,9 @@ Parser_parse(Parser *parser)
 						break;
 					}
 				}
+				statement.expressions_indexes = expressions_indexes;
+				statement.expressions_count   = expressions_count;
+				statement.size                = data_directive_size * expressions_count;
 
 				data_directive_size = 0;
 			} break;
@@ -435,7 +616,10 @@ Parser_parse(Parser *parser)
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
 				U64 result = Parser_expression_evaluate(parser, expression);
 				U64 power_two = 1 << result;
-				Object_File_Section_align(parser->section_current, power_two);
+
+				statement.expressions_indexes = &expression->index;
+				statement.expressions_count = 1;
+				statement.size = power_two;
 			} break;
 			case Directive_Kind__Equality:
 			{
@@ -447,17 +631,16 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
-				U64 result = Parser_expression_evaluate(parser, expression);
+				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
-				U32 offset = Object_File_Section_write(parser->section_string_table, key.data, key.count);
 				ELF64_Symbol symbol =
 				{
-					.string_table_offset = offset,
-					.value = result,
 					.section_index = parser->section_current->section_index,
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
+
+				statement.expressions_indexes = &expression->index;
+				statement.expressions_count   = 1;
 			} break;
 			default:
 			{
@@ -468,6 +651,13 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 			} break;
 			}
+
+			statement.token_index_begin  = parser->token_index_before;
+			statement.token_index_end    = parser->token_index - 1;
+			statement.section_index      = parser->section_current->section_index;
+
+			Statements_push(parser->statements, statement);
+
 		} break;
 		case Token_Kind__Identifier:
 		{
@@ -477,39 +667,64 @@ Parser_parse(Parser *parser)
 			String8 instruction = Parser_token_string(parser);
 			U32 instruction_hash = hash_FNV_1a(instruction);
 
+			// TODO: actually, group by opcode as in the spec.
+
 			switch (instruction_hash)
 			{
-			case HASH_addi:
-			{
-				// try to parse it and write it immediately
-				Parser_advance(parser);
-				U8 register_destination = Parser_expect_register(parser);
-
-				Parser_advance(parser);
-				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-				Parser_advance(parser);
-				U8 register_source = Parser_expect_register(parser);
-
-				Parser_advance(parser);
-				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-				Expression_Unevaluated expression_unevaluated =
-				{
-					.expression = expression,
-					.section_index = parser->section_current->section_index,
-					.section_offset = parser->section_current->offset,
-				};
-				Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
-
-				Parser_advance(parser);
-			} break;
-			default:
-			{
-				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
-			} break;
+			// case HASH_add:  {} // fallthrough
+			// case HASH_sub:  {} // fallthrough
+			// case HASH_sll:  {} // fallthrough
+			// case HASH_slt:  {} // fallthrough
+			// case HASH_sltu: {} // fallthrough
+			// case HASH_xor:  {} // fallthrough
+			// case HASH_srl:  {} // fallthrough
+			// case HASH_sra:  {} // fallthrough
+			// case HASH_or:   {} // fallthrough
+			// case HASH_and:
+			// {
+			// 	Parser_Instruction_R_parse(parser);
+			// } break;
+			//
+			// case HASH_jalr: {} // fallthrough
+			// case HASH_addi: {} // fallthrough
+			// case HASH_slti: {} // fallthrough
+			// case HASH_sltu: {} // fallthrough
+			// case HASH_xori: {} // fallthrough
+			// case HASH_ori:  {} // fallthrough
+			// case HASH_andi: {} // fallthrough
+			// case HASH_slli: {} // fallthrough
+			// case HASH_slri: {} // fallthrough
+			// case HASH_srai:
+			// {
+			// 	Parser_instruction_I_parse(parser);
+			// } break;
+			//
+			// case HASH_beq:  {} // fallthrough
+			// case HASH_bne:  {} // fallthrough
+			// case HASH_blt:  {} // fallthrough
+			// case HASH_bge:  {} // fallthrough
+			// case HASH_bltu: {} // fallthrough
+			// case HASH_bgeu:
+			// {
+			// 	Parser_instruction_B_parse(parser);
+			// } break;
+			//
+			// case HASH_lui:   {} // fallthrough
+			// case HASH_auipc:
+			// {
+			// 	Parser_instruction_U_parse(parser);
+			// } break;
+			//
+			// case HASH_jal:
+			// {
+			// 	Parser_instruction_J_parse(parser);
+			// } break;
+			//
+			//
+			// default:
+			// {
+			// 	Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
+			// } break;
 			}
 		} break;
 		default:
@@ -518,7 +733,7 @@ Parser_parse(Parser *parser)
 		} break;
 		}
 
-		B32 loop_infinite_avoided = parser->token_index > index_before || parser->error.kind;
+		B32 loop_infinite_avoided = parser->token_index > parser->token_index_before || parser->error.kind;
 		assert_always_m(loop_infinite_avoided && "infinite loop in parser");
 	}
 

@@ -265,6 +265,15 @@ typedef enum Expression_Flags
 }
 Expression_Flags;
 
+typedef U8 Instruction_Format;
+#define Instruction_Format__None 0 << 0
+#define Instruction_Format__R    1 << 0
+#define Instruction_Format__I    1 << 1
+#define Instruction_Format__S    1 << 2
+#define Instruction_Format__B    1 << 3
+#define Instruction_Format__U    1 << 4
+#define Instruction_Format__J    1 << 5
+
 typedef enum Instruction_Kind
 {
 	Instruction_Kind__None = 0,
