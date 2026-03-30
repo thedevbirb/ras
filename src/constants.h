@@ -260,8 +260,8 @@ global const U8 ELF64_Section_alignments[ELF64_Section__COUNT] =
 
 typedef enum Expression_Flags
 {
-	Expression_Flags__Deferred  = 0,
-	Expression_Flags__Immediate = 1,
+	Expression_Flags__Deferred  = 1 << 0,
+	Expression_Flags__Immediate = 1 << 1,
 }
 Expression_Flags;
 

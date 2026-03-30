@@ -25,6 +25,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Recursion_Max,
 	Parser_Error_Kind__Register_Invalid,
 	Parser_Error_Kind__Immediate_Invalid,
+	Parser_Error_Kind__Instruction_Unknown,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -54,6 +55,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Recursion_Max]              = "max recursion reached for expression: " stringify_m(expression_recursion_max),
 	[Parser_Error_Kind__Register_Invalid]                      = "register invalid",
 	[Parser_Error_Kind__Immediate_Invalid]                     = "immediate invalid",
+	[Parser_Error_Kind__Instruction_Unknown]                   = "instruction unknown",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -83,6 +85,7 @@ typedef struct Statement Statement;
 struct Statement
 {
 	// The list of parsed expressions that occurred in this statement.
+	// If its an instruction, once evaluated it would yield its immediate.
 	U32 *expressions_indexes;
 
 	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
@@ -91,6 +94,7 @@ struct Statement
 	U32 expressions_count;
 	// The list of tokens that make the statement.
 	U32 token_index_begin;
+	// Excluded, so that end minus begin returns the token count.
 	U32 token_index_end;
 
 	Instruction_Kind instruction_kind;
@@ -130,7 +134,8 @@ internal void
 Statements_initialize(Statements *statements, Arena *arena);
 
 
-internal void
+// Return the pointer to the arena-allocated statement
+internal Statement *
 Statements_push(Statements *statements, Statement statement);
 
 typedef struct Parser Parser;

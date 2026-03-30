@@ -31,14 +31,14 @@ Statements_initialize(Statements *statements, Arena *arena)
 	return;
 }
 
-internal void
+internal Statement *
 Statements_push(Statements *statements, Statement statement)
 {
 	Statement *buffer = Arena_push_struct_m(statements->arena, Statement);
 	*buffer = statement;
 
 	statements->count += 1;
-	return;
+	return buffer;
 }
 
 // It is a no-op if the end has been reached already.
@@ -356,36 +356,27 @@ Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 	return value;
 }
 
-internal void
-Parser_instruction_I_parse(Parser *parser)
+// Create a barebone, incomplete statement for an instruction.
+internal Statement *
+Parser_statement_instruction_create(Parser *parser)
 {
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
 
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
+	Statement statement =
 	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
+		.token_index_begin = parser->token_index_before,
+		.token_index_end = parser->token_index,
 
-	Parser_advance(parser);
+		.size = 4, // TODO: make this a global?
+		.section_index = parser->section_current->section_index,
+		.kind = Statement_Kind__Instruction,
+	};
+
+	Statement *pointer = Statements_push(parser->statements, statement);
+	return pointer;
 }
 
 internal void
-Parser_Instruction_R_parse(Parser *parser)
+Parser_instruction_I_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
 	U8 register_destination = Parser_expect_register(parser);
@@ -400,23 +391,51 @@ Parser_Instruction_R_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-
-	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
-	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
 
 	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = &expression->index;
+	statement->expressions_count    = 1;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__R;
+	statement->register_destination = register_destination;
+	statement->register_source_1    = register_source_1;
 }
 
 internal void
-Parser_instruction_S_parse(Parser *parser)
+Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
+{
+	Parser_advance(parser);
+	U8 register_destination = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_2 = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__R;
+	statement->register_destination = register_destination;
+	statement->register_source_1    = register_source_1;
+	statement->register_source_2    = register_source_2;
+}
+
+internal void
+Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
 	U8 register_source_1 = Parser_expect_register(parser);
@@ -432,19 +451,21 @@ Parser_instruction_S_parse(Parser *parser)
 
 	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
-	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
 
 	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = &expression->index;
+	statement->expressions_count    = 1;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__S;
+	statement->register_source_1    = register_source_1;
+	statement->register_source_2    = register_source_2;
 }
 
 internal void
-Parser_instruction_B_parse(Parser *parser)
+Parser_instruction_B_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
 	U8 register_source_1 = Parser_expect_register(parser);
@@ -460,47 +481,49 @@ Parser_instruction_B_parse(Parser *parser)
 
 	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
-	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
 
 	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = &expression->index;
+	statement->expressions_count    = 1;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__B;
+	statement->register_source_1    = register_source_1;
+	statement->register_source_2    = register_source_2;
 }
 
 internal void
-Parser_instruction_U_parse(Parser *parser)
+Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
-	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
 
 	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = &expression->index;
+	statement->expressions_count    = 1;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__U;
 }
 
 internal void
-Parser_instruction_J_parse(Parser *parser)
+Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
-	Expression_Unevaluated expression_unevaluated =
-	{
-		.expression = expression,
-		.section_index = parser->section_current->section_index,
-		.section_offset = parser->section_current->offset,
-	};
-	Expression_Unevaluated_List_push(parser->expression_unevaluated_list, expression_unevaluated);
 
 	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = &expression->index;
+	statement->expressions_count    = 1;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__J;
 }
 
 // TODO: how am I transforming output after this stage?
@@ -532,6 +555,7 @@ Parser_parse(Parser *parser)
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
 			Parser_expect(parser, !slot_and_found.y, Parser_Error_Kind__Label_Duplicate);
 
+			Parser_advance(parser);
 			Statement statement =
 			{
 				.label_symbol_slot = slot_and_found.x,
@@ -541,8 +565,6 @@ Parser_parse(Parser *parser)
 				.kind              = Statement_Kind__Label,
 			};
 			Statements_push(parser->statements, statement);
-
-			Parser_advance(parser);
 		} break;
 		case Token_Kind__Directive:
 		{
@@ -667,66 +689,68 @@ Parser_parse(Parser *parser)
 			String8 instruction = Parser_token_string(parser);
 			U32 instruction_hash = hash_FNV_1a(instruction);
 
-			// TODO: actually, group by opcode as in the spec.
 
 			switch (instruction_hash)
 			{
-			// case HASH_add:  {} // fallthrough
-			// case HASH_sub:  {} // fallthrough
-			// case HASH_sll:  {} // fallthrough
-			// case HASH_slt:  {} // fallthrough
-			// case HASH_sltu: {} // fallthrough
-			// case HASH_xor:  {} // fallthrough
-			// case HASH_srl:  {} // fallthrough
-			// case HASH_sra:  {} // fallthrough
-			// case HASH_or:   {} // fallthrough
-			// case HASH_and:
-			// {
-			// 	Parser_Instruction_R_parse(parser);
-			// } break;
-			//
-			// case HASH_jalr: {} // fallthrough
-			// case HASH_addi: {} // fallthrough
-			// case HASH_slti: {} // fallthrough
-			// case HASH_sltu: {} // fallthrough
-			// case HASH_xori: {} // fallthrough
-			// case HASH_ori:  {} // fallthrough
-			// case HASH_andi: {} // fallthrough
-			// case HASH_slli: {} // fallthrough
-			// case HASH_slri: {} // fallthrough
-			// case HASH_srai:
-			// {
-			// 	Parser_instruction_I_parse(parser);
-			// } break;
-			//
-			// case HASH_beq:  {} // fallthrough
-			// case HASH_bne:  {} // fallthrough
-			// case HASH_blt:  {} // fallthrough
-			// case HASH_bge:  {} // fallthrough
-			// case HASH_bltu: {} // fallthrough
-			// case HASH_bgeu:
-			// {
-			// 	Parser_instruction_B_parse(parser);
-			// } break;
-			//
-			// case HASH_lui:   {} // fallthrough
-			// case HASH_auipc:
-			// {
-			// 	Parser_instruction_U_parse(parser);
-			// } break;
-			//
-			// case HASH_jal:
-			// {
-			// 	Parser_instruction_J_parse(parser);
-			// } break;
-			//
-			//
-			// default:
-			// {
-			// 	Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
-			// } break;
+			// U-type
+			case HASH_lui:   { Parser_instruction_U_parse(parser, Instruction_Kind__LUI);   } break;
+			case HASH_auipc: { Parser_instruction_U_parse(parser, Instruction_Kind__AUIPC); } break;
+
+			// J-type
+			case HASH_jal:   { Parser_instruction_J_parse(parser, Instruction_Kind__JAL);   } break;
+
+			// I-type (JALR)
+			case HASH_jalr:  { Parser_instruction_I_parse(parser, Instruction_Kind__JALR);  } break;
+
+			// B-type
+			case HASH_beq:   { Parser_instruction_B_parse(parser, Instruction_Kind__BEQ);   } break;
+			case HASH_bne:   { Parser_instruction_B_parse(parser, Instruction_Kind__BNE);   } break;
+			case HASH_blt:   { Parser_instruction_B_parse(parser, Instruction_Kind__BLT);   } break;
+			case HASH_bge:   { Parser_instruction_B_parse(parser, Instruction_Kind__BGE);   } break;
+			case HASH_bltu:  { Parser_instruction_B_parse(parser, Instruction_Kind__BLTU);  } break;
+			case HASH_bgeu:  { Parser_instruction_B_parse(parser, Instruction_Kind__BGEU);  } break;
+
+			// I-type (loads)
+			case HASH_lb:    { Parser_instruction_I_parse(parser, Instruction_Kind__LB);    } break;
+			case HASH_lh:    { Parser_instruction_I_parse(parser, Instruction_Kind__LH);    } break;
+			case HASH_lw:    { Parser_instruction_I_parse(parser, Instruction_Kind__LW);    } break;
+			case HASH_lbu:   { Parser_instruction_I_parse(parser, Instruction_Kind__LBU);   } break;
+			case HASH_lhu:   { Parser_instruction_I_parse(parser, Instruction_Kind__LHU);   } break;
+
+			// S-type
+			case HASH_sb:    { Parser_instruction_S_parse(parser, Instruction_Kind__SB);    } break;
+			case HASH_sh:    { Parser_instruction_S_parse(parser, Instruction_Kind__SH);    } break;
+			case HASH_sw:    { Parser_instruction_S_parse(parser, Instruction_Kind__SW);    } break;
+
+			// I-type (arithmetic)
+			case HASH_addi:  { Parser_instruction_I_parse(parser, Instruction_Kind__ADDI);  } break;
+			case HASH_slti:  { Parser_instruction_I_parse(parser, Instruction_Kind__SLTI);  } break;
+			case HASH_sltiu: { Parser_instruction_I_parse(parser, Instruction_Kind__SLTIU); } break;
+			case HASH_xori:  { Parser_instruction_I_parse(parser, Instruction_Kind__XORI);  } break;
+			case HASH_ori:   { Parser_instruction_I_parse(parser, Instruction_Kind__ORI);   } break;
+			case HASH_andi:  { Parser_instruction_I_parse(parser, Instruction_Kind__ANDI);  } break;
+			case HASH_slli:  { Parser_instruction_I_parse(parser, Instruction_Kind__SLLI);  } break;
+			case HASH_srli:  { Parser_instruction_I_parse(parser, Instruction_Kind__SRLI);  } break;
+			case HASH_srai:  { Parser_instruction_I_parse(parser, Instruction_Kind__SRAI);  } break;
+
+			// R-type
+			case HASH_add:   { Parser_instruction_R_parse(parser, Instruction_Kind__ADD);   } break;
+			case HASH_sub:   { Parser_instruction_R_parse(parser, Instruction_Kind__SUB);   } break;
+			case HASH_sll:   { Parser_instruction_R_parse(parser, Instruction_Kind__SLL);   } break;
+			case HASH_slt:   { Parser_instruction_R_parse(parser, Instruction_Kind__SLT);   } break;
+			case HASH_sltu:  { Parser_instruction_R_parse(parser, Instruction_Kind__SLTU);  } break;
+			case HASH_xor:   { Parser_instruction_R_parse(parser, Instruction_Kind__XOR);   } break;
+			case HASH_srl:   { Parser_instruction_R_parse(parser, Instruction_Kind__SRL);   } break;
+			case HASH_sra:   { Parser_instruction_R_parse(parser, Instruction_Kind__SRA);   } break;
+			case HASH_or:    { Parser_instruction_R_parse(parser, Instruction_Kind__OR);    } break;
+			case HASH_and:   { Parser_instruction_R_parse(parser, Instruction_Kind__AND);   } break;
+
+			default:
+			{
+				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
+			} break;
 			}
-		} break;
+		}
 		default:
 		{
 			Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
