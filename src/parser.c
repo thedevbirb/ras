@@ -526,6 +526,79 @@ Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
 	statement->instruction_format   = Instruction_Format__J;
 }
 
+// Returns the size of the literal string, as if were a byte slice, escaping characters.
+// Assumes a string with valid escape sequences.
+//
+// Example: String8.data = [",\,n,h,e,l,l,o,\,n,"] -> 7
+internal U32
+String8_byte_size_escaped(String8 string)
+{
+	U32 size = 0;
+	U32 index = 1;
+	U32 count = string.count - 1; // No trailing ".
+	for (;;)
+	{
+		B32 break_should = index >= string.count;
+		if (break_should)
+		{
+			break;
+		}
+
+		size += 1;
+
+		U8 character = string.data[index];
+		if (character == '\\')
+		{
+			index += 1;
+			U8 character_escaped = string.data[index];
+			B32 hex_prefix   = character_escaped == 'x';
+			B32 octal_prefix = 0 <= character_escaped - '0' && character_escaped - '0' < 8;
+
+				if (hex_prefix)
+				{
+					// E.g. \x1a
+					//       ^--- cursor is here
+					// We know from lexing the first one is guaranteed to be valid
+					index += 2;
+					// E.g. \x1a
+					//         ^--- cursor is here
+					U8 character = string.data[index];
+					if (hex_table[character] != hex_table_sentinel_invalid)
+					{
+						index += 1;
+					}
+				}
+				else if (octal_prefix)
+				{
+					// E.g. \377
+					//       ^--- cursor is here
+					index += 1;
+					U8 character = string.data[index];
+					if (character - '0' < 8)
+					{
+						index += 1;
+					}
+
+					character = string.data[index];
+					if (character - '0' < 8)
+					{
+						index += 1;
+					}
+				}
+				else
+				{
+					index += 2;
+				}
+		}
+		else
+		{
+			index += 1;
+		}
+	}
+
+	return size;
+}
+
 // TODO: how am I transforming output after this stage?
 void
 Parser_parse(Parser *parser)
@@ -620,6 +693,79 @@ Parser_parse(Parser *parser)
 
 				data_directive_size = 0;
 			} break;
+			case Directive_Kind__Ascii:
+			{
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__String_Literal, Parser_Error_Kind__String_Literal_Expected);
+				String8 ascii_text = Parser_token_string(parser);
+
+				// We cannot emit bytes in the section yet, but we have to count the size of it.
+				// NOTE: from lexing stage, we already know the string is well-formed.
+				U32 size = 0;
+				U32 index = 1;
+				for (;;)
+				{
+					B32 break_should = index >= ascii_text.count;
+					if (break_should)
+					{
+						break;
+					}
+
+					size += 1;
+
+					U8 character = ascii_text.data[index];
+					if (character == '\\')
+					{
+						index += 1;
+						U8 character_escaped = ascii_text.data[index];
+						B32 hex_prefix   = character_escaped == 'x';
+						B32 octal_prefix = 0 <= character_escaped - '0' && character_escaped - '0' < 8;
+
+						if (hex_prefix)
+						{
+							// E.g. \x1a
+							//       ^--- cursor is here
+							// We know from lexing the first one is guaranteed to be valid
+							index += 2;
+							// E.g. \x1a
+							//         ^--- cursor is here
+							U8 character = ascii_text.data[index];
+							if (hex_table[character] != hex_table_sentinel_invalid)
+							{
+								index += 1;
+							}
+						}
+						else if (octal_prefix)
+						{
+							// E.g. \377
+							//       ^--- cursor is here
+							index += 1;
+							U8 character = ascii_text.data[index];
+							if (character - '0' < 8)
+							{
+								index += 1;
+							}
+
+							character = ascii_text.data[index];
+							if (character - '0' < 8)
+							{
+								index += 1;
+							}
+						}
+						else
+						{
+							index += 2;
+						}
+					}
+					else
+					{
+						index += 1;
+					}
+				}
+
+			} break;
+			case Directive_Kind__String: {} // fallthrough
+			case Directive_Kind__Asciz: {} // fallthrough
 			case Directive_Kind__Section:
 			{
 				Parser_advance(parser);
@@ -643,6 +789,7 @@ Parser_parse(Parser *parser)
 				statement.expressions_count = 1;
 				statement.size = power_two;
 			} break;
+			case Directive_Kind__Set: {} // fallthrough
 			case Directive_Kind__Equality:
 			{
 				Parser_advance(parser);

@@ -122,6 +122,11 @@ I've found super effective to implement growable arrays that have no reallocatio
 them have a dedicated arena with a large virtual size, small reserved size, and no grow options.
 Super cool!
 
+Next big challenge is going to be relaxation and evaluation of expressions taking into account
+possible undefined symbols, and relocation entries.
+
+Now a sufficiently varied input file uncovers holes in both lexer and parser.
+
 # Random
 
 I should try to write neovim snippets.

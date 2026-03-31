@@ -26,6 +26,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Register_Invalid,
 	Parser_Error_Kind__Immediate_Invalid,
 	Parser_Error_Kind__Instruction_Unknown,
+	Parser_Error_Kind__String_Literal_Expected,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -56,6 +57,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Register_Invalid]                      = "register invalid",
 	[Parser_Error_Kind__Immediate_Invalid]                     = "immediate invalid",
 	[Parser_Error_Kind__Instruction_Unknown]                   = "instruction unknown",
+	[Parser_Error_Kind__String_Literal_Expected]               = "string literal expected",
 };
 
 typedef struct Parser_Error Parser_Error;

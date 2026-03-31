@@ -2,11 +2,12 @@
 #define INITIALIZE_H
 
 global U8 hex_table[256];
+global U8 hex_table_sentinel_invalid = 0xFF;
 
 internal void
 Initialize_hex_table(void)
 {
-    os_memory_set((void *)hex_table, 0xFF, sizeof(hex_table));
+    os_memory_set((void *)hex_table, hex_table_sentinel_invalid, sizeof(hex_table));
 
     hex_table['0'] = 0x00;
     hex_table['1'] = 0x01;
@@ -93,7 +94,6 @@ Initialize_escape_table(void)
 
 	return;
 }
-
 
 internal void
 Initialize(void)

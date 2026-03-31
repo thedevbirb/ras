@@ -3,6 +3,26 @@
 
 #define expression_recursion_max 8
 
+global const U8 escape_valid_table[256] =
+{
+	['a']  = 1,  // bell
+	['b']  = 1,  // backspace
+	['t']  = 1,  // tab
+	['n']  = 1,  // newline
+	['v']  = 1,  // vertical tab
+	['f']  = 1,  // form feed
+	['r']  = 1,  // carriage return
+	['e']  = 1,  // escape
+	['\\'] = 1,  // backslash
+	['\''] = 1,  // single quote
+	['"']  = 1,  // double quote
+	['0']  = 1,  // null or octal begin
+	['1']  = 1,  // octal begin
+	['2']  = 1,  // octal begin
+	['3']  = 1,  // octal begin
+	['x']  = 1,  // hex begin
+};
+
 //////////////////////////////////////////
 // Tokens
 
@@ -84,8 +104,10 @@ typedef enum Directive_Kind
 	Directive_Kind__Word_Double,
 	Directive_Kind__Ascii,
 	Directive_Kind__Asciz,
+	Directive_Kind__String,
 	Directive_Kind__Align,
 	Directive_Kind__Equality,
+	Directive_Kind__Set,
 	Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -105,8 +127,10 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Word_Double]     = ".dword",
 	[Directive_Kind__Ascii]           = ".ascii",
 	[Directive_Kind__Asciz]           = ".asciz",
+	[Directive_Kind__String]          = ".string",
 	[Directive_Kind__Align]           = ".align",
 	[Directive_Kind__Equality]        = ".equ",
+	[Directive_Kind__Set]             = ".set",
 };
 
 // TODO: probably can change with just memcmp

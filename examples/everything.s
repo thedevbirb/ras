@@ -21,14 +21,15 @@ helper:
 
 .section .rodata
 msg:
+    .ascii "\x1B[1mNice escape\x1B[0m"
     .string "hello\n"
-    .asciz "world"
+    .asciz "world \033"
 
 .section .data
 .align 3
 table:
     .word msg, _start
-    .dword 0xDEAD_BEEF
+    .dword 0xDEADBEEF
     .skip 16
     .zero 8
 
