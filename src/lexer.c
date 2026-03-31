@@ -478,6 +478,8 @@ Lexer_tokenize(Lexer *lexer)
 				U8 digit = lexer->current;
 				U8 *next = Lexer_peek_next(lexer);
 
+				token_kind = Token_Kind__Number_Literal;
+
 				if (digit == '0' && next && *next == 'x')
 				{
 					Lexer_advance(lexer);
@@ -546,6 +548,7 @@ Lexer_tokenize(Lexer *lexer)
 							break;
 						}
 						result = result * 10 + value;
+						numerical_value = result;
 						Lexer_advance(lexer);
 					}
 
@@ -562,18 +565,15 @@ Lexer_tokenize(Lexer *lexer)
 					}
 					else if (lexer->current == 'b')
 					{
-						token_kind = Token_Kind__Label_Numeric_Reference_Backwards;
+						token_kind = Token_Kind__Label_Numeric_Reference_Backward;
 						Lexer_advance(lexer);
 					}
 					else
 					{
 						B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
 						Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Literal_Invalid);
-						numerical_value = result;
 					}
 				}
-
-				token_kind = Token_Kind__Number_Literal;
 			}
 			else
 			{

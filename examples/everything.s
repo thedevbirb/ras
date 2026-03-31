@@ -13,7 +13,7 @@ _start:
     beqz a0, 1f
     j _start
 1:
-    addi a0, a0, +'A'
+    addi a0, a0, 'A'
 helper:
     .byte 0b1010, 0x2F, 077, 42
     .half . - _start

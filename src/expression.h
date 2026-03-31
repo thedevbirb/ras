@@ -29,6 +29,8 @@ typedef enum Expression_Kind
 	Expression_Kind__Number_Literal,
 	Expression_Kind__Char_Literal,
 	Expression_Kind__Identifier,
+	Expression_Kind__Label_Numeric_Reference_Forward,
+	Expression_Kind__Label_Numeric_Reference_Backward,
 	Expression_Kind__Current_Address,   // .
 	Expression_Kind__Relocation,        // %hi(expr), %lo(expr), etc.
 

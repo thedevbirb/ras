@@ -70,7 +70,7 @@ typedef enum Token_Kind
 	Token_Kind__Label,
 	Token_Kind__Label_Numeric,                     // e.g. 1:
 	Token_Kind__Label_Numeric_Reference_Forward,   // e.g. 1f
-	Token_Kind__Label_Numeric_Reference_Backwards, // e.g. 1b
+	Token_Kind__Label_Numeric_Reference_Backward, // e.g. 1b
 	Token_Kind__Directive,
 
 	Token_Kind__Char_Literal,
@@ -97,7 +97,9 @@ typedef enum Directive_Kind
 	Directive_Kind__Data,
 	Directive_Kind__Read_Only_Data,
 	Directive_Kind__BSS,
+	Directive_Kind__Local,
 	Directive_Kind__Globl,
+	Directive_Kind__Global,
 	Directive_Kind__Byte,
 	Directive_Kind__Word_Half,
 	Directive_Kind__Word,
@@ -108,6 +110,9 @@ typedef enum Directive_Kind
 	Directive_Kind__Align,
 	Directive_Kind__Equality,
 	Directive_Kind__Set,
+	Directive_Kind__Skip,
+	Directive_Kind__Zero,
+	Directive_Kind__Common,
 	Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -120,7 +125,9 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Data]            = ".data",
 	[Directive_Kind__Read_Only_Data]  = ".rodata",
 	[Directive_Kind__BSS]             = ".bss",
+	[Directive_Kind__Local]           = ".local",
 	[Directive_Kind__Globl]           = ".globl",
+	[Directive_Kind__Global]          = ".global",
 	[Directive_Kind__Byte]            = ".byte",
 	[Directive_Kind__Word_Half]       = ".half",
 	[Directive_Kind__Word]            = ".word",
@@ -131,6 +138,9 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Align]           = ".align",
 	[Directive_Kind__Equality]        = ".equ",
 	[Directive_Kind__Set]             = ".set",
+	[Directive_Kind__Skip]            = ".skip",
+	[Directive_Kind__Zero]            = ".zero",
+	[Directive_Kind__Common]          = ".comm",
 };
 
 // TODO: probably can change with just memcmp
@@ -290,13 +300,15 @@ typedef enum Expression_Flags
 Expression_Flags;
 
 typedef U8 Instruction_Format;
-#define Instruction_Format__None 0 << 0
-#define Instruction_Format__R    1 << 0
-#define Instruction_Format__I    1 << 1
-#define Instruction_Format__S    1 << 2
-#define Instruction_Format__B    1 << 3
-#define Instruction_Format__U    1 << 4
-#define Instruction_Format__J    1 << 5
+#define Instruction_Format__None       0 << 0
+#define Instruction_Format__R          1 << 0
+#define Instruction_Format__I          1 << 1
+#define Instruction_Format__S          1 << 2
+#define Instruction_Format__B          1 << 3
+#define Instruction_Format__U          1 << 4
+#define Instruction_Format__J	       1 << 5
+// TODO: I don't know whether this is the right place.
+#define Instruction_Format__Expandable 1 << 6
 
 typedef enum Instruction_Kind
 {
@@ -362,6 +374,35 @@ typedef enum Instruction_Kind
 	Instruction_Kind__SLLW,
 	Instruction_Kind__SRLW,
 	Instruction_Kind__SRAW,
+
+	// Pseudo-instructions
+	Instruction_Kind__NOP,
+	Instruction_Kind__RET,
+	Instruction_Kind__MV,
+	Instruction_Kind__NOT,
+	Instruction_Kind__NEG,
+	Instruction_Kind__NEGW,
+	Instruction_Kind__SEXT_W,
+	Instruction_Kind__SEQZ,
+	Instruction_Kind__SNEZ,
+	Instruction_Kind__SLTZ,
+	Instruction_Kind__SGTZ,
+	Instruction_Kind__BEQZ,
+	Instruction_Kind__BNEZ,
+	Instruction_Kind__BLEZ,
+	Instruction_Kind__BGEZ,
+	Instruction_Kind__BLTZ,
+	Instruction_Kind__BGTZ,
+	Instruction_Kind__BGT,
+	Instruction_Kind__BLE,
+	Instruction_Kind__BGTU,
+	Instruction_Kind__BLEU,
+	Instruction_Kind__J,
+	Instruction_Kind__CALL,
+	Instruction_Kind__TAIL,
+	Instruction_Kind__JR,
+	Instruction_Kind__LI,
+	Instruction_Kind__LA,
 
 	// SYSTEM
 	Instruction_Kind__ECALL,

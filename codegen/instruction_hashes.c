@@ -59,6 +59,10 @@ const char *Instruction_Kind_strings[] =
 
 	"ecall","ebreak","fence","fence.i",
 
+	// Pseudo instructions
+	"nop","ret","mv","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",
+	"bgez","bltz","bgtz","bgt","ble","bgtu","bleu","j","call","tail","jr","li","la",
+
 	"csrrw","csrrs","csrrc","csrrwi","csrrsi","csrrci",
 
 	// M
@@ -71,18 +75,6 @@ const char *Instruction_Kind_strings[] =
 
 	"lr.d","sc.d","amoswap.d","amoadd.d","amoxor.d","amoand.d","amoor.d",
 	"amomin.d","amomax.d","amominu.d","amomaxu.d",
-
-	// Pseudo instructions
-	"nop",
-	"li","mv","not","neg","negw","sext.w",
-
-	"seqz","snez","sltz","sgtz",
-
-	"beqz","bnez","blez","bgez","bltz","bgtz",
-
-	"j","jr","ret","call","tail",
-
-	"la",
 };
 
 ////////////////////////////////

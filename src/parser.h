@@ -14,6 +14,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Directive_Align_Argument_Invalid,
 	Parser_Error_Kind__Directive_Data_Invalid,
 	Parser_Error_Kind__Directive_Data_Value_Size_Invalid,
+	Parser_Error_Kind__Directive_Argument_Invalid,
 	Parser_Error_Kind__Label_Duplicate,
 	Parser_Error_Kind__Expression_Unexpected_Token,
 	Parser_Error_Kind__Expression_Unexpected_End,
@@ -27,6 +28,8 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Immediate_Invalid,
 	Parser_Error_Kind__Instruction_Unknown,
 	Parser_Error_Kind__String_Literal_Expected,
+	Parser_Error_Kind__Symbol_Demoted,
+	Parser_Error_Kind__Symbol_Duplicate,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -45,6 +48,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Directive_Align_Argument_Invalid]      = "align directive argument is not a number literal",
 	[Parser_Error_Kind__Directive_Data_Invalid]                = "invalid data directive syntax",
 	[Parser_Error_Kind__Directive_Data_Value_Size_Invalid]     = "directive data expression value doesn't fit",
+	[Parser_Error_Kind__Directive_Argument_Invalid]            = "directive argument invalid",
 	[Parser_Error_Kind__Label_Duplicate]                       = "duplicate label found",
 	[Parser_Error_Kind__Expression_Unexpected_Token]           = "unexpected token in expression",
 	[Parser_Error_Kind__Expression_Unexpected_End]             = "unexpected end of tokens in expression",
@@ -58,6 +62,8 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Immediate_Invalid]                     = "immediate invalid",
 	[Parser_Error_Kind__Instruction_Unknown]                   = "instruction unknown",
 	[Parser_Error_Kind__String_Literal_Expected]               = "string literal expected",
+	[Parser_Error_Kind__Symbol_Demoted]                        = "demoted symbol from global/weak to local",
+	[Parser_Error_Kind__Symbol_Duplicate]                      = "duplicated symbol",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -77,6 +83,7 @@ enum
 	Statement_Kind__Instruction,
 	Statement_Kind__Directive,
 	Statement_Kind__Label,
+	Statement_Kind__Label_Numeric,
 };
 
 // TODO: revisit padding.
@@ -212,8 +219,14 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
 
 // Entry point. Parses an expression starting at the token_current parser position.
 // Advances the parser past consumed tokens. On error, error->kind is nonzero.
+//
+// Moves the cursor further until a non-valid token for an expression is met.
 Expression_Node *
 Parser_expression_parse(Parser *parser, Expression_Flags flags);
+
+// Create an expression consisting of an immediate value.
+Expression_Node *
+Parser_expression_immediate_create(Parser *parser, U64 immediate);
 
 U64
 Parser_expression_evaluate(Parser *parser, Expression_Node *node);

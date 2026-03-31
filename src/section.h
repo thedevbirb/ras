@@ -194,11 +194,13 @@ Symbol_Section_Index;
 #define ELF64_Symbol_bind_m(info)        ((info) >> 4)
 #define ELF64_Symbol_type_m(info)        ((info) & 0xf)
 
-// ELF64 Symbol Table Entry
+#define section_index_common 0xFFF2
+
+// Symbol Table Entry.
 //
-// 24 bytes, no padding. Represents a named entity in the object file.
-typedef struct ELF64_Symbol ELF64_Symbol;
-struct ELF64_Symbol
+// It is a ELF64-compliant entry except for the extra fields, meaning that it can be casted safely.
+typedef struct Symbol Symbol;
+struct Symbol
 {
 	// Offset into .strtab where this symbol's name begins.
 	// 0 means the empty string (e.g. section symbols).
@@ -224,8 +226,11 @@ struct ELF64_Symbol
 	// Size of the symbol in bytes. 0 if unknown or not applicable.
 	// Set by: .size name, expression
 	U64 size;
+
+	// EXTRA fields
+
+	B32 label_defined;
 };
-assert_static_m(sizeof(ELF64_Symbol) == 24, elf64_symbol_size);
 
 // The symbols table and the string table are coupled, meaning there should be a one to one correspondence between the
 // two. This in-memory representation encodes both, by giving a key-value map which records order of insertion and
@@ -235,9 +240,9 @@ assert_static_m(sizeof(ELF64_Symbol) == 24, elf64_symbol_size);
 typedef struct Symbols_Table_Entry Symbols_Table_Entry;
 struct Symbols_Table_Entry
 {
-	String8      key;
-	ELF64_Symbol value;
-	B32          used;
+	String8 key;
+	Symbol  value;
+	B32     used;
 };
 
 typedef struct Symbols_Table Symbols_Table;
@@ -342,7 +347,7 @@ Symbols_Table_grow(Symbols_Table *map)
 }
 
 internal Vec2_U32 // Slot, found
-Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
+Symbols_Table_put(Symbols_Table *map, String8 key, Symbol value)
 {
 	assert_always_m(map->entries && "uninitialized hashmap");
 
@@ -372,6 +377,8 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 
 	return slot_and_found;
 }
+
+// TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
 
 internal Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key)

@@ -127,6 +127,10 @@ possible undefined symbols, and relocation entries.
 
 Now a sufficiently varied input file uncovers holes in both lexer and parser.
 
+Again, so many times preserving ALL information created during transformations saves my butt so many
+times. It's already computed, not saving it is a waste and most of the times is not that memory
+heavy, yet it makes extending the software so much easier.
+
 # Random
 
 I should try to write neovim snippets.
