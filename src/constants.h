@@ -636,7 +636,7 @@ register_lookup(String8 string)
 	{
 		result = os_memory_match(string.data, (unsigned char *)register_map[index].name, string.count);
 		found = result == 0;
-		B32 break_should = index >= register_map_size || found;
+		B32 break_should = index >= (S8)register_map_size || found;
 		if (break_should)
 		{
 			break;

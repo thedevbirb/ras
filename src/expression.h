@@ -188,9 +188,6 @@ struct Expression_Unevaluated
 	U32 section_offset;
 };
 
-list_declare_m(Expression_Unevaluated);
-list_implement_m(Expression_Unevaluated);
-
 // Assumption: the underlying arena is used only for storing expressions.
 typedef struct Expressions Expressions;
 struct Expressions

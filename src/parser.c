@@ -684,11 +684,8 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Identifier:
 		{
 			// This must be an instruction.
-			//
-			// We assume worst size instruction expansion for simplicity.
 			String8 instruction = Parser_token_string(parser);
 			U32 instruction_hash = hash_FNV_1a(instruction);
-
 
 			switch (instruction_hash)
 			{
@@ -750,7 +747,7 @@ Parser_parse(Parser *parser)
 				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
 			} break;
 			}
-		}
+		} break;
 		default:
 		{
 			Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);

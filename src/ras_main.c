@@ -89,8 +89,6 @@ main(int argument_count, char **argument_vector)
 
 	Symbols_Table symbols_table = {0};
 	Symbols_Table_initialize(&symbols_table, arena);
-	Expression_Unevaluated_List expression_unevaluated_list = {0};
-	Expression_Unevaluated_List_initialize(&expression_unevaluated_list, arena);
 
 	Object_File_Section *sections             = Object_File_Section_create_all(arena, file_in_size);
 	Object_File_Section *section_text         = &sections[ELF64_Section__Text];
@@ -164,8 +162,6 @@ main(int argument_count, char **argument_vector)
 		.symbols_table = &symbols_table,
 		.expressions   = &expressions,
 
-		.expression_unevaluated_list = &expression_unevaluated_list,
-
 		.sections             = sections,
 		.section_current      = section_text,
 		.section_string_table = section_string_table,
@@ -185,7 +181,9 @@ main(int argument_count, char **argument_vector)
 		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
 		fprintf(stderr, "%s\n", Parser_Error_Kind_messages[parser_error.kind]);
 		fprintf(stderr, "%5d | ", line);
+
 		U64 index = token_array.line_start_indexes[parser_error.row_index];
+
 		for (;;)
 		{
 			if (input.data[index] == '\n')
@@ -193,13 +191,20 @@ main(int argument_count, char **argument_vector)
 				fputc('\n', stderr);
 				break;
 			}
-
-			fputc(input.data[index], stderr);
+			else if (input.data[index] == '\t')
+			{
+				fputc(' ', stderr);
+			}
+			else
+			{
+				fputc(input.data[index], stderr);
+			}
 			index += 1;
 		}
 
 		fprintf(stderr, "      | ");
 		index = 0;
+
 		for (;;)
 		{
 			if (index == parser_error.column_begin_index)

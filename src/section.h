@@ -324,7 +324,7 @@ Symbols_Table_grow(Symbols_Table *map)
 		{
 			// Find a new slot, and put it there.
 			U32 slot = 0;
-			B32 found = Symbols_Table_find_slot(map, entry_old->key, slot);
+			B32 found = Symbols_Table_find_slot(map, entry_old->key, &slot);
 			assert_always_m(!found && "map contains duplicates");
 
 			Symbols_Table_Entry *entry = &map->entries[slot];
@@ -368,7 +368,7 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 		map->string_table_section_size = key.count + 1; // null-termination
 	}
 
-	Vec2_U32 slot_and_found = {slot, found};
+	Vec2_U32 slot_and_found = { .x = slot, .y = found};
 
 	return slot_and_found;
 }

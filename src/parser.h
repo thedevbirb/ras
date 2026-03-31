@@ -148,8 +148,6 @@ struct Parser
 	Expressions *expressions;
 	Symbols_Table *symbols_table;
 
-	Expression_Unevaluated_List  *expression_unevaluated_list;
-
 	Object_File_Section *sections;
 	Object_File_Section *section_current;
 	Object_File_Section *section_string_table;

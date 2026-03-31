@@ -75,7 +75,10 @@ Lexer_advance_newline(Lexer *lexer)
 	lexer->column_index = ~(lexer->end_reached - 1) & lexer->column_index;
 	lexer->current      = lexer->text[lexer->index];
 
-	lexer->line_start_indexes[lexer->row_index] = lexer->index;
+	if (!lexer->end_reached)
+	{
+		lexer->line_start_indexes[lexer->row_index] = lexer->index;
+	}
 
 	// An index pointing out of bounds is of no-one's help.
 	assert_always_m(lexer->index < lexer->text_size);
@@ -87,7 +90,7 @@ internal U8 *
 Lexer_peek_next(Lexer *lexer)
 {
 	// See invariants; we overallocate and assume ZII. As such the returned pointer is always valid.
-	U8 result = &lexer->text[lexer->index + 1];
+	U8 *result = &lexer->text[lexer->index + 1];
 	return result;
 }
 
