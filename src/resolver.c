@@ -20,34 +20,31 @@ Resolver_token_string_from_index(Resolver *resolver, U32 token_index)
 	return string;
 }
 
-Expression_Evaluation
+void
 Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 {
 
 	assert_always_m(node && "cannot evaluate null expression");
 	assert_always_m(node->kind && "cannot evaluate unknown expression kind");
 
-	U64 value      = 0;
-	B32 unresolved = 0;
-	Expression_Kind kind = node->kind & ~((resolver->error.kind == 0) - 1);
+	Expression_Kind kind = node->kind;
 
 	switch (kind)
 	{
 	case Expression_Kind__None:            {} break;
-
-	case Expression_Kind__Number_Literal:  {  value =  node->integer_value; } break;
-	case Expression_Kind__Char_Literal:    {  value =  node->integer_value; } break;
+	case Expression_Kind__Number_Literal:  {} break;
+	case Expression_Kind__Char_Literal:    {} break;
 	case Expression_Kind__Identifier:
 	{
 		String8 key = Resolver_token_string_from_index(resolver, node->token_index);
 		Symbols_Table_Entry *entry = Symbols_Table_get(resolver->symbols_table, key);
 		if (entry && entry->value.section_index)
 		{
-			value = entry->value.value;
+			node->integer_value = entry->value.value;
 		}
 		else
 		{
-			unresolved = 1;
+			node->unresolved = 1;
 		}
 
 	} break;
@@ -61,57 +58,60 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	case Expression_Kind__Negate:
 	{
 		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
-		Expression_Evaluation evaluation = Resolver_expression_evaluate(resolver, node_left);
-		unresolved = evaluation.unresolved;
-		value = (unresolved - 1) & ~(evaluation.value - 1);
+		Resolver_expression_evaluate(resolver, node_left);
+
+		node->unresolved = node_left->unresolved;
+		node->integer_value = (node_left->unresolved - 1) & ~(node_left->integer_value - 1);
 	} break;
 	case Expression_Kind__Bitwise_Not:
 	{
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
-		Expression_Evaluation evaluation = Resolver_expression_evaluate(resolver, node_left);
-		unresolved = evaluation.unresolved;
-		value = (unresolved - 1) & ~evaluation.value;
+		Resolver_expression_evaluate(resolver, node_left);
+		node->unresolved = node_left->unresolved;
+		node->integer_value = (node_left->unresolved - 1) & ~node_left->integer_value;
 	} break;
 	case Expression_Kind__Logical_Not:
 	{
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
-		Expression_Evaluation evaluation = Resolver_expression_evaluate(resolver, node_left);
-		unresolved = evaluation.unresolved;
-		value = (unresolved - 1) & !evaluation.value;
+		Resolver_expression_evaluate(resolver, node_left);
+		node->unresolved = node_left->unresolved;
+		node->integer_value = (node_left->unresolved - 1) & !node_left->integer_value;
 	} break;
 	default:
 	{
 		Expression_Node *node_right = &resolver->expressions->data[node->index_right];
-		Expression_Evaluation right = Resolver_expression_evaluate(resolver, node_right);
+		Resolver_expression_evaluate(resolver, node_right);
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
-		Expression_Evaluation left = Resolver_expression_evaluate(resolver, node_left);
+		Resolver_expression_evaluate(resolver, node_left);
 
-		unresolved = right.unresolved || left.unresolved;
-		if (!unresolved)
+		node->unresolved = node_right->unresolved || node_left->unresolved;
+		if (!node->unresolved)
 		{
+			U64 left_value  = node_left->integer_value;
+			U64 right_value = node_right->integer_value;
 			switch (node->kind)
 			{
-			case Expression_Kind__Add:           { value = left.value +  right.value; } break;
-			case Expression_Kind__Subtract:      { value = left.value -  right.value; } break;
-			case Expression_Kind__Multiply:      { value = left.value *  right.value; } break;
-			case Expression_Kind__Divide:        { value = left.value /  right.value; } break;
-			case Expression_Kind__Modulo:        { value = left.value %  right.value; } break;
+			case Expression_Kind__Add:           { node->integer_value = left_value +  right_value; } break;
+			case Expression_Kind__Subtract:      { node->integer_value = left_value -  right_value; } break;
+			case Expression_Kind__Multiply:      { node->integer_value = left_value *  right_value; } break;
+			case Expression_Kind__Divide:        { node->integer_value = left_value /  right_value; } break;
+			case Expression_Kind__Modulo:        { node->integer_value = left_value %  right_value; } break;
 
-			case Expression_Kind__Bitwise_Or:    { value = left.value |  right.value; } break;
-			case Expression_Kind__Bitwise_Xor:   { value = left.value ^  right.value; } break;
-			case Expression_Kind__Bitwise_And:   { value = left.value &  right.value; } break;
-			case Expression_Kind__Shift_Left:    { value = left.value << right.value; } break;
-			case Expression_Kind__Shift_Right:   { value = left.value >> right.value; } break;
+			case Expression_Kind__Bitwise_Or:    { node->integer_value = left_value |  right_value; } break;
+			case Expression_Kind__Bitwise_Xor:   { node->integer_value = left_value ^  right_value; } break;
+			case Expression_Kind__Bitwise_And:   { node->integer_value = left_value &  right_value; } break;
+			case Expression_Kind__Shift_Left:    { node->integer_value = left_value << right_value; } break;
+			case Expression_Kind__Shift_Right:   { node->integer_value = left_value >> right_value; } break;
 
-			case Expression_Kind__Equal:         { value = left.value == right.value; } break;
-			case Expression_Kind__Not_Equal:     { value = left.value != right.value; } break;
-			case Expression_Kind__Less_Than:     { value = left.value <  right.value; } break;
-			case Expression_Kind__Less_Equal:    { value = left.value <= right.value; } break;
-			case Expression_Kind__Greater_Than:  { value = left.value >  right.value; } break;
-			case Expression_Kind__Greater_Equal: { value = left.value >= right.value; } break;
+			case Expression_Kind__Equal:         { node->integer_value = left_value == right_value; } break;
+			case Expression_Kind__Not_Equal:     { node->integer_value = left_value != right_value; } break;
+			case Expression_Kind__Less_Than:     { node->integer_value = left_value <  right_value; } break;
+			case Expression_Kind__Less_Equal:    { node->integer_value = left_value <= right_value; } break;
+			case Expression_Kind__Greater_Than:  { node->integer_value = left_value >  right_value; } break;
+			case Expression_Kind__Greater_Equal: { node->integer_value = left_value >= right_value; } break;
 
-			case Expression_Kind__Logical_And:   { value = left.value && right.value; } break;
-			case Expression_Kind__Logical_Or:    { value = left.value || right.value; } break;
+			case Expression_Kind__Logical_And:   { node->integer_value = left_value && right_value; } break;
+			case Expression_Kind__Logical_Or:    { node->integer_value = left_value || right_value; } break;
 
 			default: { Resolver_error_set(resolver, Resolver_Error_Kind__Expression_Kind_Unknown); } break;
 			}
@@ -119,9 +119,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	}
 
-	Expression_Evaluation evaluation = { .value = value, .unresolved = unresolved };
-
-	return evaluation;
+	return;
 }
 
 
@@ -180,18 +178,21 @@ Resolver_relax_pass(Resolver *resolver)
 
 			U32 expression_index             = statement->expressions_indexes[0];
 			Expression_Node *expression      = &resolver->expressions->data[expression_index];
-			Expression_Evaluation evaluation = Resolver_expression_evaluate(resolver, expression);
+			Resolver_expression_evaluate(resolver, expression);
 
-			S64 immediate = (S64)evaluation.value;
+			S64 immediate = (S64)expression->integer_value;
 
 			size_new = 24; // Worst-case for rv32 is 8.
-			if (!evaluation.unresolved && -2048 <= immediate && immediate <= 2047)
+			if (!expression->unresolved)
 			{
-				size_new = 4;
-			}
-			else if (!evaluation.unresolved && -2147483648LL <= immediate && immediate <= 2147483647LL)
-			{
-				size_new = 8;
+				if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
+				{
+					size_new = 4;
+				}
+				else if (-(1LL << 31) <= immediate && immediate <= (1LL << 31) -1)
+				{
+					size_new = 8;
+				}
 			}
 		} break;
 		case Instruction_Kind__J:
@@ -212,11 +213,12 @@ Resolver_relax_pass(Resolver *resolver)
 
 			U32 expression_index         = statement->expressions_indexes[0];
 			Expression_Node *expression  = &resolver->expressions->data[expression_index];
-			Expression_Evaluation offset = Resolver_expression_evaluate(resolver, expression);
-			S64 delta                    = (S64)offset.value - statement->section_offset;
+
+			Resolver_expression_evaluate(resolver, expression);
+			S64 delta = (S64)expression->integer_value - statement->section_offset;
 
 			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
-			if (offset.unresolved || !range_in)
+			if (expression->unresolved || !range_in)
 			{
 				size_new = 8;
 			}
@@ -234,21 +236,22 @@ Resolver_relax_pass(Resolver *resolver)
 			// If the target is out of range, invert and jump:
 			//   bxx_inv rs1, rs2, +8; jal zero, offset -> 8 bytes  (if jal range suffices)
 			//   bxx_inv rs1, rs2, +12; auipc + jalr    -> 12 bytes (if beyond jal range too)
-			U32 expression_index                  = statement->expressions_indexes[0];
-			Expression_Node *expression           = &resolver->expressions->data[expression_index];
-			Expression_Evaluation evaluation      = Resolver_expression_evaluate(resolver, expression);
+			U32 expression_index        = statement->expressions_indexes[0];
+			Expression_Node *expression = &resolver->expressions->data[expression_index];
+			Resolver_expression_evaluate(resolver, expression);
 
 			size_new = 12;
-			S64 delta = (S64)evaluation.value - (S64)statement->section_offset;
-			B32 range_in_small  = !evaluation.unresolved && -(1 << 12) <= delta && delta <= (1 << 12) - 1;
-			B32 range_in_medium = !evaluation.unresolved && -(1 << 20) <= delta && delta <= (1 << 20) - 1;
-			if (range_in_small)
+			if (!expression->unresolved)
 			{
-				size_new = 4;
-			}
-			else if (range_in_medium)
-			{
-				size_new = 8;
+				S64 delta = (S64)expression->integer_value - (S64)statement->section_offset;
+				if (-(1 << 12) <= delta && delta <= (1 << 12) - 1)
+				{
+					size_new = 4;
+				}
+				else if (-(1 << 20) <= delta && delta <= (1 << 20) - 1)
+				{
+					size_new = 8;
+				}
 			}
 		} break;
 		default: {} break;
@@ -258,13 +261,13 @@ Resolver_relax_pass(Resolver *resolver)
 		{
 			// .align computes padding based on current offset.
 			// Padding = bytes needed to reach next alignment boundary.
-			U32 expression_index             = statement->expressions_indexes[0];
-			Expression_Node *expression      = &resolver->expressions->data[expression_index];
-			Expression_Evaluation evaluation = Resolver_expression_evaluate(resolver, expression);
+			U32 expression_index        = statement->expressions_indexes[0];
+			Expression_Node *expression = &resolver->expressions->data[expression_index];
+			Resolver_expression_evaluate(resolver, expression);
 
-			if (!evaluation.unresolved)
+			if (expression->unresolved)
 			{
-				U32 alignment = 1u << (U32)evaluation.value;
+				U32 alignment = 1u << (U32)expression->integer_value;
 				U32 offset    = statement->section_offset;
 				U32 remainder = offset & (alignment - 1);
 				size_new = remainder == 0 ? 0 : alignment - remainder;

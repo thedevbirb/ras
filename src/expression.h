@@ -79,6 +79,8 @@ struct Expression_Node
 	U64 integer_value;
 	// Useful for later finding symbols etc.
 	U32 token_index;
+	// Whether evaluation lead to unresolved symbols.
+	B32 unresolved;
 
 	Expression_Kind  kind;
 };
