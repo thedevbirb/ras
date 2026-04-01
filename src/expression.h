@@ -180,15 +180,6 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
 	return result;
 }
 
-
-typedef struct Expression_Unevaluated Expression_Unevaluated;
-struct Expression_Unevaluated
-{
-	Expression_Node *expression;
-	U32 section_index;
-	U32 section_offset;
-};
-
 // Assumption: the underlying arena is used only for storing expressions.
 typedef struct Expressions Expressions;
 struct Expressions
