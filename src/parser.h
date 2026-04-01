@@ -226,20 +226,8 @@ Parser_expression_parse(Parser *parser, Expression_Flags flags);
 Expression_Node *
 Parser_expression_immediate_create(Parser *parser, U64 immediate);
 
-U64
-Parser_expression_evaluate(Parser *parser, Expression_Node *node);
-
-// TODO: how am I transforming output after this stage?
 void
 Parser_parse(Parser *parser);
-
-typedef struct Fixup Fixup;
-struct Fixup
-{
-	U32 section_index;
-	U32 section_offset;
-	Instruction_Kind instruction_kind;
-};
 
 #endif // PARSER_H
 

@@ -194,11 +194,12 @@ Symbol_Section_Index;
 #define ELF64_Symbol_bind_m(info)        ((info) >> 4)
 #define ELF64_Symbol_type_m(info)        ((info) & 0xf)
 
-#define section_index_common 0xFFF2
+#define section_index_common   0xFFF2
+#define section_index_absolute 0xFFF1
 
 // Symbol Table Entry.
 //
-// It is a ELF64-compliant entry except for the extra fields, meaning that it can be casted safely.
+// It is a ELF64-compliant entry
 typedef struct Symbol Symbol;
 struct Symbol
 {
@@ -226,11 +227,8 @@ struct Symbol
 	// Size of the symbol in bytes. 0 if unknown or not applicable.
 	// Set by: .size name, expression
 	U64 size;
-
-	// EXTRA fields
-
-	B32 label_defined;
 };
+assert_static_m(sizeof(Symbol) == 24, sizeof_Symbol);
 
 // The symbols table and the string table are coupled, meaning there should be a one to one correspondence between the
 // two. This in-memory representation encodes both, by giving a key-value map which records order of insertion and
