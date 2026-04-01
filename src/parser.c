@@ -33,7 +33,7 @@ String8_byte_size_escaped(String8 string)
 	U32 count = string.count - 2; // No ".
 	for (;;)
 	{
-		B32 break_should = index >= string.count;
+		B32 break_should = index >= count;
 		if (break_should)
 		{
 			break;
@@ -98,8 +98,12 @@ String8_byte_size_escaped(String8 string)
 internal void
 Statements_initialize(Statements *statements, Arena *arena)
 {
-	statements->arena = arena;
-	statements->count = 0;
+	*statements = (Statements)
+	{
+		.arena = arena,
+		.data  = (Statement *)(Arena_push_zero_m(arena)),
+		.count = 0,
+	};
 	return;
 }
 
@@ -138,6 +142,18 @@ Parser_token_string(Parser *parser)
 	{
 		.data  = parser->input->data + parser->token_current.index,
 		.count = (U64)parser->token_current.size,
+	};
+	return string;
+}
+
+internal String8
+Parser_token_string_from_index(Parser *parser, U32 token_index)
+{
+	Token token = parser->tokens[token_index];
+	String8 string =
+	{
+		.data  = parser->input->data + token.index,
+		.count = (U64)token.size,
 	};
 	return string;
 }
@@ -191,8 +207,8 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 {
 	// Expression_Node *node = Arena_push_struct_m(parser->arena, Expression_Node);
 	Expression_Node *node  = Expressions_push_empty(parser->expressions);
-	node->token_index     = parser->token_index;
-	Token token           = parser->token_current;
+	node->token_index      = parser->token_index;
+	Token token            = parser->token_current;
 
 	switch (token.kind)
 	{
@@ -373,7 +389,6 @@ Parser_expression_immediate_create(Parser *parser, U64 immediate)
 	return node;
 }
 
-// It is a no-op if the parser has an error already.
 U64
 Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 {
@@ -390,7 +405,21 @@ Parser_expression_evaluate(Parser *parser, Expression_Node *node)
 
 	case Expression_Kind__Number_Literal:  {  value             =  node->integer_value;     } break;
 	case Expression_Kind__Char_Literal:    {  value             =  node->integer_value;     } break;
-	case Expression_Kind__Identifier:      {  assert_always_m(0 && "todo");                 } break;
+	case Expression_Kind__Identifier:
+	{
+		String8 key = Parser_token_string_from_index(parser, node->token_index);
+		Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
+		if (entry)
+		{
+			value = entry->value.value;
+		}
+		else
+		{
+			// emmo?
+		}
+
+	} break;
+	// This below is also hard!
 	case Expression_Kind__Current_Address: {  value             =  node->integer_value;     } break;
 	case Expression_Kind__Relocation:      {  assert_always_m(0 && "todo");                 } break;
 
@@ -607,6 +636,12 @@ internal void
 Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
+	U8 register_destination = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
 	Statement *statement = Parser_statement_instruction_create(parser);
@@ -615,6 +650,7 @@ Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
 	statement->expressions_count    = 1;
 	statement->instruction_kind     = instruction_kind;
 	statement->instruction_format   = Instruction_Format__J;
+	statement->register_destination = register_destination;
 }
 
 // nop -> addi x0, x0, 0
@@ -1640,4 +1676,118 @@ Parser_parse(Parser *parser)
 	}
 
 	return;
+}
+
+internal void
+Parser_offsets_recompute(Parser *parser)
+{
+	U32 section_offsets[ELF64_Section__COUNT] = {0};
+
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= parser->statements->count;
+		if (break_should)
+		{
+			break;
+		}
+		Statement statement      = parser->statements->data[index];
+		U32 *section_offset      = &section_offsets[statement.section_index];
+		statement.section_offset = *section_offset;
+
+		if (statement.kind == Statement_Kind__Label)
+		{
+			Symbols_Table_Entry *entry = &parser->symbols_table->entries[statement.label_symbol_slot];
+			entry->value.value = statement.section_offset;
+		}
+
+		*section_offset += statement.size;
+		index += 1;
+	}
+}
+
+internal B32
+Parser_relax_pass(Parser *parser)
+{
+	B32 changed = 0;
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= parser->statements->count;
+		if (break_should)
+		{
+			break;
+		}
+
+		Statement *statement = &parser->statements->data[index];
+
+		U32 size_old = statement->size;
+		U32 size_new = size_old;
+
+		switch (statement->instruction_kind)
+		{
+		case Instruction_Kind__LI:
+		{
+			// If the immediate fits in 12 bits, sign-extended, a single addi suffices.
+			// Otherwise, we need a lui + addi, for 8 bytes total.
+
+			U32 expression_index        = statement->expressions_indexes[0];
+			Expression_Node *expression = &parser->expressions->data[expression_index];
+			S64 immediate               = (S64)Parser_expression_evaluate(parser, expression);
+
+			B32 range_in = -2048 <= immediate && immediate <= 2047;
+			if (!range_in)
+			{
+				size_new = 8;
+			}
+		} break;
+		case Instruction_Kind__CALL:
+		{
+			// jal has a 21-bit signed offset range. If the target is not within that range, than we need an
+			// auipc + jalr, for 8 bytes total.
+
+			U32 expression_index        = statement->expressions_indexes[0];
+			Expression_Node *expression = &parser->expressions->data[expression_index];
+			S64 target_offset           = (S64)Parser_expression_evaluate(parser, expression);
+			S64 delta                   = target_offset - statement->section_offset;
+
+			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
+			if (!range_in)
+			{
+				size_new = 8;
+			}
+		} break;
+		default: {} break;
+		}
+
+		if (size_new > size_old)
+		{
+			statement->size = size_new;
+			changed = 1;
+		}
+
+		index += 1;
+	}
+
+	return changed;
+}
+
+internal U32
+Parser_relax(Parser *parser)
+{
+	U32 pass_count = 0;
+	for (;;)
+	{
+		Parser_offsets_recompute(parser);
+		pass_count += 1;
+		B32 changed = Parser_relax_pass(parser);
+
+		if (!changed)
+		{
+			break;
+		}
+	}
+
+	Parser_offsets_recompute(parser);
+	return pass_count;
 }

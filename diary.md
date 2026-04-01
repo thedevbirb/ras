@@ -131,6 +131,12 @@ Again, so many times preserving ALL information created during transformations s
 times. It's already computed, not saving it is a waste and most of the times is not that memory
 heavy, yet it makes extending the software so much easier.
 
+# relaxation
+
+Now there is a tough part, where you evaluate every expression and compute sizes and offsets for
+each section. It's surprising that this requires a fixed point iterative algorithm with a
+potentially very large number of iterations over all the program statements.
+
 # Random
 
 I should try to write neovim snippets.

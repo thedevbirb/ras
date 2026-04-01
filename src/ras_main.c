@@ -232,7 +232,11 @@ main(int argument_count, char **argument_vector)
 			fputc(' ', stderr);
 			index += 1;
 		}
+
+		exit(1);
 	}
+
+	Parser_relax(&parser);
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);

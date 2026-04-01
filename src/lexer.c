@@ -306,7 +306,7 @@ Lexer_tokenize(Lexer *lexer)
 
 				B32 hex_prefix = character == 'x';
 				U8 digit = character - '0';
-				B32 octal_prefix = 0 <= digit && digit <= 3;
+				B32 octal_prefix = digit <= 3;
 
 				if (hex_prefix)
 				{

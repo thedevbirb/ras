@@ -299,16 +299,20 @@ typedef enum Expression_Flags
 }
 Expression_Flags;
 
-typedef U8 Instruction_Format;
-#define Instruction_Format__None       0 << 0
-#define Instruction_Format__R          1 << 0
-#define Instruction_Format__I          1 << 1
-#define Instruction_Format__S          1 << 2
-#define Instruction_Format__B          1 << 3
-#define Instruction_Format__U          1 << 4
-#define Instruction_Format__J	       1 << 5
+typedef enum Instruction_Format
+{
+	Instruction_Format__None = 0,
+	Instruction_Format__R,
+	Instruction_Format__I,
+	Instruction_Format__S,
+	Instruction_Format__B,
+	Instruction_Format__U,
+	Instruction_Format__J,
+        Instruction_Format__Expandable,
+	Instruction_Format__COUNT,
+}
+Instruction_Format;
 // TODO: I don't know whether this is the right place.
-#define Instruction_Format__Expandable 1 << 6
 
 typedef enum Instruction_Kind
 {
@@ -709,7 +713,7 @@ register_lookup(String8 string)
 		index += 1;
 
 	}
-	register_value = found ? index : register_invalid;
+	register_value = found ? register_map[index].number : register_invalid;
 
 	return register_value;
 }

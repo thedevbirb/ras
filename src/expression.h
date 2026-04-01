@@ -77,8 +77,7 @@ struct Expression_Node
 	U32 index_right;
 
 	U64 integer_value;
-
-	// TODO: I don't know if this makes sense.
+	// Useful for later finding symbols etc.
 	U32 token_index;
 
 	Expression_Kind  kind;
