@@ -1452,13 +1452,10 @@ Parser_parse(Parser *parser)
 			case Directive_Kind__Align:
 			{
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Immediate);
-				U64 result = Parser_expression_evaluate(parser, expression);
-				U64 power_two = 1 << result;
+				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
 				statement.expressions_indexes = &expression->index;
 				statement.expressions_count = 1;
-				statement.size = power_two;
 			} break;
 			case Directive_Kind__Set: {} // fallthrough
 			case Directive_Kind__Equality:
