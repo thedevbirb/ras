@@ -21,12 +21,14 @@
 #include "section.h"
 #include "expression.h"
 #include "parser.h"
+#include "resolver.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
 
 #include "lexer.c"
 #include "parser.c"
+#include "resolver.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
@@ -234,7 +236,21 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
-	Parser_relax(&parser);
+	Resolver resolver =
+	{
+		.arena         = arena,
+		.input         = &input,
+		.tokens        = token_array.tokens,
+		.statements    = &statements,
+		.symbols_table = &symbols_table,
+		.expressions   = &expressions,
+
+		.error         = {0},
+		.sections_offset = {0},
+		.section_current_index = ELF64_Section__Text,
+	};
+
+	Resolver_relax(&resolver);
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);
