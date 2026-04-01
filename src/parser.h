@@ -150,16 +150,14 @@ Statements_push(Statements *statements, Statement statement);
 typedef struct Parser Parser;
 struct Parser
 {
-	Arena *arena;
-	Input *input;
-	Token *tokens;
-	Statements *statements;
-	Expressions *expressions;
+	Arena         *arena;
+	Input         *input;
+	Token         *tokens;
+	Statements    *statements;
+	Expressions   *expressions;
 	Symbols_Table *symbols_table;
 
-	Object_File_Section *sections;
-	Object_File_Section *section_current;
-	Object_File_Section *section_string_table;
+	U16 section_current_index;
 
 	Token         token_current;
 

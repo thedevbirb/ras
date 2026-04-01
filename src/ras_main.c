@@ -162,9 +162,7 @@ main(int argument_count, char **argument_vector)
 		.symbols_table = &symbols_table,
 		.expressions   = &expressions,
 
-		.sections             = sections,
-		.section_current      = section_text,
-		.section_string_table = section_string_table,
+		.section_current_index = ELF64_Section__Text,
 
 		.token_current = token_array.tokens[0],
 		.token_count   = token_array.token_count,

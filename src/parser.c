@@ -231,7 +231,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	case Token_Kind__Dot:
 	{
 		node->kind          = Expression_Kind__Current_Address;
-		node->integer_value = parser->section_current->offset;
 
 		Parser_advance(parser);
 	} break;
@@ -250,7 +249,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 
 			Symbol symbol =
 			{
-				.section_index = parser->section_current->section_index,
+				.section_index = parser->section_current_index,
 			};
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
 			assert_always_m(!slot_and_found.y);
@@ -490,7 +489,7 @@ Parser_statement_instruction_create(Parser *parser)
 		.token_index_end = parser->token_index,
 
 		.size = 4, // TODO: make this a global?
-		.section_index = parser->section_current->section_index,
+		.section_index = parser->section_current_index,
 		.kind = Statement_Kind__Instruction,
 	};
 
@@ -1284,8 +1283,7 @@ Parser_parse(Parser *parser)
 
 			Symbol symbol =
 			{
-				.value = parser->section_current->offset,
-				.section_index = parser->section_current->section_index,
+				.section_index = parser->section_current_index,
 				.label_defined = 1,
 			};
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
@@ -1296,7 +1294,7 @@ Parser_parse(Parser *parser)
 				.label_symbol_slot = slot_and_found.x,
 				.token_index_begin = parser->token_index_before,
 				.token_index_end   = parser->token_index,
-				.section_index     = parser->section_current->section_index,
+				.section_index     = parser->section_current_index,
 				.kind              = Statement_Kind__Label,
 			};
 			Statements_push(parser->statements, statement);
@@ -1308,7 +1306,7 @@ Parser_parse(Parser *parser)
 			{
 				.token_index_begin = parser->token_index_before,
 				.token_index_end   = parser->token_index,
-				.section_index     = parser->section_current->section_index,
+				.section_index     = parser->section_current_index,
 				.kind              = Statement_Kind__Label_Numeric,
 			};
 			Statements_push(parser->statements, statement);
@@ -1393,7 +1391,7 @@ Parser_parse(Parser *parser)
 				String8 substring             = Parser_token_string(parser);
 				Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
 				ELF64_Section section_index   = ELF64_Section_from_Directive_Kind[directive_kind];
-				parser->section_current       = &parser->sections[section_index];
+				parser->section_current_index = section_index;
 
 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
 				Parser_advance(parser);
@@ -1418,7 +1416,7 @@ Parser_parse(Parser *parser)
 					Symbol symbol =
 					{
 						.type_binding_info = ELF64_Symbol_info_m(Symbol_Binding__Global, 0),
-						.section_index = parser->section_current->section_index,
+						.section_index = parser->section_current_index,
 					};
 					Symbols_Table_put(parser->symbols_table, key, symbol);
 				}
@@ -1444,7 +1442,7 @@ Parser_parse(Parser *parser)
 					Symbol symbol =
 					{
 						.type_binding_info = ELF64_Symbol_info_m(Symbol_Binding__Global, 0),
-						.section_index = parser->section_current->section_index,
+						.section_index = parser->section_current_index,
 					};
 					Symbols_Table_put(parser->symbols_table, key, symbol);
 				}
@@ -1477,7 +1475,7 @@ Parser_parse(Parser *parser)
 
 				Symbol symbol =
 				{
-					.section_index = parser->section_current->section_index,
+					.section_index = parser->section_current_index,
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
 
@@ -1550,14 +1548,14 @@ Parser_parse(Parser *parser)
 				ELF64_Section section_kind = ELF64_Section_from_Directive_Kind[directive_kind];
 				assert_always_m(section_kind && "unhandled directive");
 
-				parser->section_current = &parser->sections[section_kind];
+				parser->section_current_index = section_kind;
 				Parser_advance(parser);
 			} break;
 			}
 
 			statement.token_index_begin  = parser->token_index_before;
 			statement.token_index_end    = parser->token_index - 1;
-			statement.section_index      = parser->section_current->section_index;
+			statement.section_index      = parser->section_current_index;
 
 			Statements_push(parser->statements, statement);
 
