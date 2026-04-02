@@ -74,11 +74,11 @@ main(int argument_count, char **argument_vector)
 
 	// Growable collections with dedicated arenas that don't pay reallocation costs.
 
-	Arena *arena_statements = Arena_alloc_m(.commit_size = file_in_size * 8);
+	Arena *arena_statements = Arena_alloc_m(.commit_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
 	Statements statements;
 	Statements_initialize(&statements, arena_statements);
 
-	Arena *arena_expressions = Arena_alloc_m(.commit_size = file_in_size);
+	Arena *arena_expressions = Arena_alloc_m(.commit_size = file_in_size, .flags = Arena_Flags__No_Chain);
 	Expressions expressions;
 	Expressions_initialize(&expressions, arena_expressions);
 

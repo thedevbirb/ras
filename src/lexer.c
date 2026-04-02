@@ -346,6 +346,7 @@ Lexer_tokenize(Lexer *lexer)
 				{
 					result = escape_table[character];
 					Lexer_expect(lexer, result != escape_value_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
+					Lexer_advance(lexer);
 				}
 			}
 			else if (lexer->current == '\n')

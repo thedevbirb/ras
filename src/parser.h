@@ -7,6 +7,8 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Line_Invalid,
 	Parser_Error_Kind__Identifier_Expected,
 	Parser_Error_Kind__Comma_Expected,
+	Parser_Error_Kind__Parenthesis_Left_Expected,
+	Parser_Error_Kind__Parenthesis_Right_Expected,
 	Parser_Error_Kind__Directive_Unknown,
 	Parser_Error_Kind__Directive_Section_Argument_Missing,
 	Parser_Error_Kind__Directive_Section_Argument_Invalid,
@@ -32,6 +34,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__String_Literal_Expected,
 	Parser_Error_Kind__Symbol_Demoted,
 	Parser_Error_Kind__Symbol_Duplicate,
+	Parser_Error_Kind__Fence_Operand_Invalid,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -43,6 +46,8 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Line_Invalid]                          = "line can only start with a directive, label or instruction",
 	[Parser_Error_Kind__Identifier_Expected]                   = "expected identifier",
 	[Parser_Error_Kind__Comma_Expected]                        = "comma expected",
+	[Parser_Error_Kind__Parenthesis_Left_Expected]             = "left parenthesis expected",
+	[Parser_Error_Kind__Parenthesis_Right_Expected]            = "right parenthesis expected",
 	[Parser_Error_Kind__Directive_Unknown]                     = "unknown directive found",
 	[Parser_Error_Kind__Directive_Section_Argument_Missing]    = "section directive is missing the argument",
 	[Parser_Error_Kind__Directive_Section_Argument_Invalid]    = "section directive argument is invalid",
@@ -68,6 +73,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__String_Literal_Expected]               = "string literal expected",
 	[Parser_Error_Kind__Symbol_Demoted]                        = "demoted symbol from global/weak to local",
 	[Parser_Error_Kind__Symbol_Duplicate]                      = "duplicated symbol",
+	[Parser_Error_Kind__Fence_Operand_Invalid]                 = "fence operand invalid",
 };
 
 typedef struct Parser_Error Parser_Error;

@@ -160,6 +160,10 @@ Parser_error_set(Parser *parser, Parser_Error_Kind kind)
 	assert_always_m(error.column_begin_index <= error.column_end_index && "token_index bug");
 	parser->error = error;
 
+#ifdef ASSEMBLER_EXPECT_PANIC
+	assert_always_m(0 && "panic on expect");
+#endif
+
 	return;
 }
 
@@ -179,6 +183,14 @@ Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind err
 	B32 condition = parser->token_current.kind = token_kind;
 	Parser_expect(parser, condition, error_kind);
 	return;
+}
+
+internal U8
+Parser_register(Parser *parser)
+{
+	String8 string = Parser_token_string(parser);
+	U8 register_value = register_lookup(string);
+	return register_value;
 }
 
 internal U8
@@ -428,6 +440,61 @@ Parser_instruction_I_parse(Parser *parser, Instruction_Kind instruction_kind)
 }
 
 internal void
+Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kind)
+{
+	// Format: instruction rd, offset(rs1). But offset, is optional, and if that'string the case also the parenthesis
+	// are.
+	Parser_advance(parser);
+	U8 register_destionation = Parser_expect_register(parser);
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_register(parser);
+
+	Expression_Node *expression = 0;
+
+	if (parser->token_current.kind == Token_Kind__Left_Parenthesis)
+	{
+		// Case: instruction rd, (rs1)
+		Parser_advance(parser);
+		register_source_1 = Parser_expect_register(parser);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_advance(parser);
+	}
+	else if (register_source_1 != register_invalid)
+	{
+		// Case: instruction, rd, rs1
+		Parser_advance(parser);
+	}
+	else
+	{
+		// Case: instruction rd, offset(rs1)
+		expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+
+		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
+		Parser_advance(parser);
+		register_source_1 = Parser_expect_register(parser);
+
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+
+		Parser_advance(parser);
+	}
+
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+
+	statement->expressions_indexes  = expression ? &expression->index : 0;
+	statement->expressions_count    = expression != 0;
+	statement->instruction_kind     = instruction_kind;
+	statement->instruction_format   = Instruction_Format__I;
+	statement->register_source_1    = register_source_1;
+}
+
+internal void
 Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
 	Parser_advance(parser);
@@ -459,12 +526,8 @@ Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
 internal void
 Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
+	// Format: instruction rs2, offset(rs1). But offset, is optional, and if that'string the case also the parenthesis
+	// are.
 	Parser_advance(parser);
 	U8 register_source_2 = Parser_expect_register(parser);
 
@@ -472,12 +535,44 @@ Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	U8 register_source_1 = Parser_register(parser);
+
+	Expression_Node *expression = 0;
+
+	if (parser->token_current.kind == Token_Kind__Left_Parenthesis)
+	{
+		// Case: instruction rs2, (rs1)
+		Parser_advance(parser);
+		register_source_1 = Parser_expect_register(parser);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_advance(parser);
+	}
+	else if (register_source_1 != register_invalid)
+	{
+		// Case: instruction, rs2, rs1
+		Parser_advance(parser);
+	}
+	else
+	{
+		// Case: instruction rs2, offset(rs1)
+		expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+
+		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
+		Parser_advance(parser);
+		register_source_1 = Parser_expect_register(parser);
+
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+
+		Parser_advance(parser);
+	}
+
 
 	Statement *statement = Parser_statement_instruction_create(parser);
 
-	statement->expressions_indexes  = &expression->index;
-	statement->expressions_count    = 1;
+	statement->expressions_indexes  = expression ? &expression->index : 0;
+	statement->expressions_count    = expression != 0;
 	statement->instruction_kind     = instruction_kind;
 	statement->instruction_format   = Instruction_Format__S;
 	statement->register_source_1    = register_source_1;
@@ -1160,6 +1255,105 @@ Parser_instruction_tail_parse(Parser *parser)
 	statement->register_destination = 0;
 }
 
+internal void
+Parser_instruction_ecall_parse(Parser *parser)
+{
+	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+	statement->instruction_kind   = Instruction_Kind__ECALL;
+	statement->instruction_format = Instruction_Format__I;
+}
+
+internal void
+Parser_instruction_ebreak_parse(Parser *parser)
+{
+	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+	statement->instruction_kind   = Instruction_Kind__EBREAK;
+	statement->instruction_format = Instruction_Format__I;
+}
+
+internal void
+Parser_instruction_pause_parse(Parser *parser)
+{
+	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+	statement->instruction_kind   = Instruction_Kind__PAUSE;
+	statement->instruction_format = Instruction_Format__I;
+}
+
+internal void
+Parser_instruction_fence_tso_parse(Parser *parser)
+{
+	Parser_advance(parser);
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+	statement->instruction_kind   = Instruction_Kind__FENCE_TSO;
+	statement->instruction_format = Instruction_Format__I;
+}
+
+// Parses a fence ordering operand: a string composed of the characters i, o, r, w
+// in that order. Returns a 4-bit mask: i=bit3, o=bit2, r=bit1, w=bit0.
+internal U8
+Parser_expect_fence_operand(Parser *parser)
+{
+	String8 string = Parser_token_string(parser);
+	U8 mask = 0;
+
+	U32 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= string.count || parser->error.kind;
+		if (break_should)
+		{
+			break;
+		}
+
+		switch (string.data[index])
+		{
+		case 'i': { mask |= (1 << 3); } break;
+		case 'o': { mask |= (1 << 2); } break;
+		case 'r': { mask |= (1 << 1); } break;
+		case 'w': { mask |= (1 << 0); } break;
+		default: { Parser_error_set(parser, Parser_Error_Kind__Fence_Operand_Invalid); } break;
+		}
+	}
+	return mask;
+}
+
+// fence pred, succ   -> e.g. fence iorw, iorw
+// fence              -> shorthand for fence iorw, iorw
+internal void
+Parser_instruction_fence_parse(Parser *parser)
+{
+	Parser_advance(parser);
+
+	U8 predecessor = 0xF; // default iorw
+	U8 successor   = 0xF; // default iorw
+
+	B32 end_of_statement = parser->end_reached || parser->token_current.kind == Token_Kind__Newline;
+	if (end_of_statement)
+	{
+		predecessor = Parser_expect_fence_operand(parser);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+		Parser_advance(parser);
+		successor = Parser_expect_fence_operand(parser);
+		Parser_advance(parser);
+	}
+
+	Statement *statement = Parser_statement_instruction_create(parser);
+	statement->instruction_kind   = Instruction_Kind__FENCE;
+	statement->instruction_format = Instruction_Format__I;
+	// Pack predecessor and successor into the two source register fields,
+	// since fence does not use registers. 4 bits each.
+	statement->register_source_1  = predecessor;
+	statement->register_source_2  = successor;
+}
+
 // TODO: how am I transforming output after this stage?
 void
 Parser_parse(Parser *parser)
@@ -1397,7 +1591,7 @@ Parser_parse(Parser *parser)
 				if (parser->token_current.kind == Token_Kind__Comma)
 				{
 					Parser_advance(parser);
-					// NOTE: Let's not allow too funky stuff for now
+					// NOTE: Let'string not allow too funky stuff for now
 					Token token = parser->token_current;
 					B32 condition = token.kind == Token_Kind__Number_Literal || token.kind == Token_Kind__Char_Literal;
 					Parser_expect(parser, condition, Parser_Error_Kind__Directive_Argument_Invalid);
@@ -1468,94 +1662,102 @@ Parser_parse(Parser *parser)
 			switch (instruction_hash)
 			{
 			// U-type
-			case HASH_lui:   { Parser_instruction_U_parse(parser, Instruction_Kind__LUI);   } break;
-			case HASH_auipc: { Parser_instruction_U_parse(parser, Instruction_Kind__AUIPC); } break;
+			case HASH_lui:       { Parser_instruction_U_parse(parser, Instruction_Kind__LUI);       } break;
+			case HASH_auipc:     { Parser_instruction_U_parse(parser, Instruction_Kind__AUIPC);     } break;
 
 			// J-type
-			case HASH_jal:   { Parser_instruction_J_parse(parser, Instruction_Kind__JAL);   } break;
+			case HASH_jal:       { Parser_instruction_J_parse(parser, Instruction_Kind__JAL);       } break;
 
 			// I-type (JALR)
-			case HASH_jalr:  { Parser_instruction_I_parse(parser, Instruction_Kind__JALR);  } break;
+			case HASH_jalr:      { Parser_instruction_I_parse(parser, Instruction_Kind__JALR);      } break;
 
 			// B-type
-			case HASH_beq:   { Parser_instruction_B_parse(parser, Instruction_Kind__BEQ);   } break;
-			case HASH_bne:   { Parser_instruction_B_parse(parser, Instruction_Kind__BNE);   } break;
-			case HASH_blt:   { Parser_instruction_B_parse(parser, Instruction_Kind__BLT);   } break;
-			case HASH_bge:   { Parser_instruction_B_parse(parser, Instruction_Kind__BGE);   } break;
-			case HASH_bltu:  { Parser_instruction_B_parse(parser, Instruction_Kind__BLTU);  } break;
-			case HASH_bgeu:  { Parser_instruction_B_parse(parser, Instruction_Kind__BGEU);  } break;
+			case HASH_beq:       { Parser_instruction_B_parse(parser, Instruction_Kind__BEQ);       } break;
+			case HASH_bne:       { Parser_instruction_B_parse(parser, Instruction_Kind__BNE);       } break;
+			case HASH_blt:       { Parser_instruction_B_parse(parser, Instruction_Kind__BLT);       } break;
+			case HASH_bge:       { Parser_instruction_B_parse(parser, Instruction_Kind__BGE);       } break;
+			case HASH_bltu:      { Parser_instruction_B_parse(parser, Instruction_Kind__BLTU);      } break;
+			case HASH_bgeu:      { Parser_instruction_B_parse(parser, Instruction_Kind__BGEU);      } break;
 
 			// I-type (loads)
-			case HASH_lb:    { Parser_instruction_I_parse(parser, Instruction_Kind__LB);    } break;
-			case HASH_lh:    { Parser_instruction_I_parse(parser, Instruction_Kind__LH);    } break;
-			case HASH_lw:    { Parser_instruction_I_parse(parser, Instruction_Kind__LW);    } break;
-			case HASH_lbu:   { Parser_instruction_I_parse(parser, Instruction_Kind__LBU);   } break;
-			case HASH_lhu:   { Parser_instruction_I_parse(parser, Instruction_Kind__LHU);   } break;
+			case HASH_lb:        { Parser_instruction_I_load_parse(parser, Instruction_Kind__LB);   } break;
+			case HASH_lh:        { Parser_instruction_I_load_parse(parser, Instruction_Kind__LH);   } break;
+			case HASH_lw:        { Parser_instruction_I_load_parse(parser, Instruction_Kind__LW);   } break;
+			case HASH_lbu:       { Parser_instruction_I_load_parse(parser, Instruction_Kind__LBU);  } break;
+			case HASH_lhu:       { Parser_instruction_I_load_parse(parser, Instruction_Kind__LHU);  } break;
 
-			// S-type
-			case HASH_sb:    { Parser_instruction_S_parse(parser, Instruction_Kind__SB);    } break;
-			case HASH_sh:    { Parser_instruction_S_parse(parser, Instruction_Kind__SH);    } break;
-			case HASH_sw:    { Parser_instruction_S_parse(parser, Instruction_Kind__SW);    } break;
+			// string-type
+			case HASH_sb:        { Parser_instruction_S_parse(parser, Instruction_Kind__SB);        } break;
+			case HASH_sh:        { Parser_instruction_S_parse(parser, Instruction_Kind__SH);        } break;
+			case HASH_sw:        { Parser_instruction_S_parse(parser, Instruction_Kind__SW);        } break;
 
 			// I-type (arithmetic)
-			case HASH_addi:  { Parser_instruction_I_parse(parser, Instruction_Kind__ADDI);  } break;
-			case HASH_slti:  { Parser_instruction_I_parse(parser, Instruction_Kind__SLTI);  } break;
-			case HASH_sltiu: { Parser_instruction_I_parse(parser, Instruction_Kind__SLTIU); } break;
-			case HASH_xori:  { Parser_instruction_I_parse(parser, Instruction_Kind__XORI);  } break;
-			case HASH_ori:   { Parser_instruction_I_parse(parser, Instruction_Kind__ORI);   } break;
-			case HASH_andi:  { Parser_instruction_I_parse(parser, Instruction_Kind__ANDI);  } break;
-			case HASH_slli:  { Parser_instruction_I_parse(parser, Instruction_Kind__SLLI);  } break;
-			case HASH_srli:  { Parser_instruction_I_parse(parser, Instruction_Kind__SRLI);  } break;
-			case HASH_srai:  { Parser_instruction_I_parse(parser, Instruction_Kind__SRAI);  } break;
+			case HASH_addi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ADDI);      } break;
+			case HASH_slti:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLTI);      } break;
+			case HASH_sltiu:     { Parser_instruction_I_parse(parser, Instruction_Kind__SLTIU);     } break;
+			case HASH_xori:      { Parser_instruction_I_parse(parser, Instruction_Kind__XORI);      } break;
+			case HASH_ori:       { Parser_instruction_I_parse(parser, Instruction_Kind__ORI);       } break;
+			case HASH_andi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ANDI);      } break;
+			case HASH_slli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLLI);      } break;
+			case HASH_srli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRLI);      } break;
+			case HASH_srai:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRAI);      } break;
 
 			// R-type
-			case HASH_add:   { Parser_instruction_R_parse(parser, Instruction_Kind__ADD);   } break;
-			case HASH_sub:   { Parser_instruction_R_parse(parser, Instruction_Kind__SUB);   } break;
-			case HASH_sll:   { Parser_instruction_R_parse(parser, Instruction_Kind__SLL);   } break;
-			case HASH_slt:   { Parser_instruction_R_parse(parser, Instruction_Kind__SLT);   } break;
-			case HASH_sltu:  { Parser_instruction_R_parse(parser, Instruction_Kind__SLTU);  } break;
-			case HASH_xor:   { Parser_instruction_R_parse(parser, Instruction_Kind__XOR);   } break;
-			case HASH_srl:   { Parser_instruction_R_parse(parser, Instruction_Kind__SRL);   } break;
-			case HASH_sra:   { Parser_instruction_R_parse(parser, Instruction_Kind__SRA);   } break;
-			case HASH_or:    { Parser_instruction_R_parse(parser, Instruction_Kind__OR);    } break;
-			case HASH_and:   { Parser_instruction_R_parse(parser, Instruction_Kind__AND);   } break;
+			case HASH_add:       { Parser_instruction_R_parse(parser, Instruction_Kind__ADD);       } break;
+			case HASH_sub:       { Parser_instruction_R_parse(parser, Instruction_Kind__SUB);       } break;
+			case HASH_sll:       { Parser_instruction_R_parse(parser, Instruction_Kind__SLL);       } break;
+			case HASH_slt:       { Parser_instruction_R_parse(parser, Instruction_Kind__SLT);       } break;
+			case HASH_sltu:      { Parser_instruction_R_parse(parser, Instruction_Kind__SLTU);      } break;
+			case HASH_xor:       { Parser_instruction_R_parse(parser, Instruction_Kind__XOR);       } break;
+			case HASH_srl:       { Parser_instruction_R_parse(parser, Instruction_Kind__SRL);       } break;
+			case HASH_sra:       { Parser_instruction_R_parse(parser, Instruction_Kind__SRA);       } break;
+			case HASH_or:        { Parser_instruction_R_parse(parser, Instruction_Kind__OR);        } break;
+			case HASH_and:       { Parser_instruction_R_parse(parser, Instruction_Kind__AND);       } break;
 
 			// Pseudo-instructions
 
 			// Pseudo-instructions (no operands)
-			case HASH_nop:    { Parser_instruction_nop_parse(parser);                       } break;
-			case HASH_ret:    { Parser_instruction_ret_parse(parser);                       } break;
+			case HASH_nop:       { Parser_instruction_nop_parse(parser);                            } break;
+			case HASH_ret:       { Parser_instruction_ret_parse(parser);                            } break;
 			// Pseudo-instructions (rd, rs)
-			case HASH_mv:     { Parser_instruction_mv_parse(parser);                        } break;
-			case HASH_not:    { Parser_instruction_not_parse(parser);                       } break;
-			case HASH_neg:    { Parser_instruction_neg_parse(parser);                       } break;
-			case HASH_negw:   { Parser_instruction_negw_parse(parser);                      } break;
-			case HASH_sext_w: { Parser_instruction_sext_w_parse(parser);                    } break;
-			case HASH_seqz:   { Parser_instruction_seqz_parse(parser);                      } break;
-			case HASH_snez:   { Parser_instruction_snez_parse(parser);                      } break;
-			case HASH_sltz:   { Parser_instruction_sltz_parse(parser);                      } break;
-			case HASH_sgtz:   { Parser_instruction_sgtz_parse(parser);                      } break;
+			case HASH_mv:        { Parser_instruction_mv_parse(parser);                             } break;
+			case HASH_not:       { Parser_instruction_not_parse(parser);                            } break;
+			case HASH_neg:       { Parser_instruction_neg_parse(parser);                            } break;
+			case HASH_negw:      { Parser_instruction_negw_parse(parser);                           } break;
+			case HASH_sext_w:    { Parser_instruction_sext_w_parse(parser);                         } break;
+			case HASH_seqz:      { Parser_instruction_seqz_parse(parser);                           } break;
+			case HASH_snez:      { Parser_instruction_snez_parse(parser);                           } break;
+			case HASH_sltz:      { Parser_instruction_sltz_parse(parser);                           } break;
+			case HASH_sgtz:      { Parser_instruction_sgtz_parse(parser);                           } break;
 			// Pseudo-instructions (rs, offset)
-			case HASH_beqz:   { Parser_instruction_beqz_parse(parser);                      } break;
-			case HASH_bnez:   { Parser_instruction_bnez_parse(parser);                      } break;
-			case HASH_blez:   { Parser_instruction_blez_parse(parser);                      } break;
-			case HASH_bgez:   { Parser_instruction_bgez_parse(parser);                      } break;
-			case HASH_bltz:   { Parser_instruction_bltz_parse(parser);                      } break;
-			case HASH_bgtz:   { Parser_instruction_bgtz_parse(parser);                      } break;
+			case HASH_beqz:      { Parser_instruction_beqz_parse(parser);                           } break;
+			case HASH_bnez:      { Parser_instruction_bnez_parse(parser);                           } break;
+			case HASH_blez:      { Parser_instruction_blez_parse(parser);                           } break;
+			case HASH_bgez:      { Parser_instruction_bgez_parse(parser);                           } break;
+			case HASH_bltz:      { Parser_instruction_bltz_parse(parser);                           } break;
+			case HASH_bgtz:      { Parser_instruction_bgtz_parse(parser);                           } break;
 			// Pseudo-instructions (rs, rt, offset)
-			case HASH_bgt:    { Parser_instruction_bgt_parse(parser);                       } break;
-			case HASH_ble:    { Parser_instruction_ble_parse(parser);                       } break;
-			case HASH_bgtu:   { Parser_instruction_bgtu_parse(parser);                      } break;
-			case HASH_bleu:   { Parser_instruction_bleu_parse(parser);                      } break;
+			case HASH_bgt:       { Parser_instruction_bgt_parse(parser);                            } break;
+			case HASH_ble:       { Parser_instruction_ble_parse(parser);                            } break;
+			case HASH_bgtu:      { Parser_instruction_bgtu_parse(parser);                           } break;
+			case HASH_bleu:      { Parser_instruction_bleu_parse(parser);                           } break;
 			// Pseudo-instructions (offset only)
-			case HASH_j:      { Parser_instruction_j_parse(parser);                         } break;
-			case HASH_call:   { Parser_instruction_call_parse(parser);                      } break;
-			case HASH_tail:   { Parser_instruction_tail_parse(parser);                      } break;
+			case HASH_j:         { Parser_instruction_j_parse(parser);                              } break;
+			case HASH_call:      { Parser_instruction_call_parse(parser);                           } break;
+			case HASH_tail:      { Parser_instruction_tail_parse(parser);                           } break;
 			// Pseudo-instructions (rs only)
-			case HASH_jr:     { Parser_instruction_jr_parse(parser);                        } break;
+			case HASH_jr:        { Parser_instruction_jr_parse(parser);                             } break;
 			// Pseudo-instructions (rd, imm/symbol)
-			case HASH_li:     { Parser_instruction_li_parse(parser);                        } break;
-			case HASH_la:     { Parser_instruction_la_parse(parser);                        } break;
+			case HASH_li:        { Parser_instruction_li_parse(parser);                             } break;
+			case HASH_la:        { Parser_instruction_la_parse(parser);                             } break;
+
+			// Others
+			case HASH_ecall:     { Parser_instruction_ecall_parse(parser);                          } break;
+			case HASH_ebreak:    { Parser_instruction_ebreak_parse(parser);                         } break;
+			case HASH_pause:     { Parser_instruction_pause_parse(parser);                          } break;
+			case HASH_fence:     { Parser_instruction_fence_parse(parser);                          } break;
+			case HASH_fence_tso: { Parser_instruction_fence_tso_parse(parser);                      } break;
+
 			default:
 			{
 				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);

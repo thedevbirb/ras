@@ -413,8 +413,9 @@ typedef enum Instruction_Kind
 	// SYSTEM
 	Instruction_Kind__ECALL,
 	Instruction_Kind__EBREAK,
+	Instruction_Kind__PAUSE,
 	Instruction_Kind__FENCE,
-	Instruction_Kind__FENCE_I,
+	Instruction_Kind__FENCE_TSO,
 
 	Instruction_Kind__CSRRW,
 	Instruction_Kind__CSRRS,
@@ -533,8 +534,9 @@ global const char *Instruction_Kind_strings[Instruction_Kind__COUNT] =
 
 	[Instruction_Kind__ECALL] = "ecall",
 	[Instruction_Kind__EBREAK] = "ebreak",
+	[Instruction_Kind__PAUSE] = "pause",
 	[Instruction_Kind__FENCE] = "fence",
-	[Instruction_Kind__FENCE_I] = "fence.i",
+	[Instruction_Kind__FENCE_TSO] = "fence.tso",
 
 	[Instruction_Kind__CSRRW] = "csrrw",
 	[Instruction_Kind__CSRRS] = "csrrs",

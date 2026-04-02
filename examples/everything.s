@@ -5,7 +5,7 @@
 .equ SIZE, 4 << 2
 
 _start:
-    lui a0, %hi(msg)
+    lui a0, %pronto(msg)
     addi a0, a0, %lo(msg)
     li a1, 0xff | (1 << 3)
     li a2, -~SIZE

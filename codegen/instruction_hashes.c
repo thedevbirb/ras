@@ -57,7 +57,7 @@ const char *Instruction_Kind_strings[] =
 	"addiw","slliw","srliw","sraiw",
 	"addw","subw","sllw","srlw","sraw",
 
-	"ecall","ebreak","fence","fence.i",
+	"ecall","ebreak","fence", "fence.tso", "pause",
 
 	// Pseudo instructions
 	"nop","ret","mv","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",

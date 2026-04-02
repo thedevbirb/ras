@@ -19,7 +19,7 @@ _start:
     addi sp, sp, -STACK_SIZE
     call main
     li a7, 93
-    ecall
+    # ecall
 
 main:
     addi sp, sp, -32
@@ -66,7 +66,7 @@ main:
     li t0, 10
     mv t1, zero
 4:
-    mul t2, t0, t0
+    # mul t2, t0, t0
     add t1, t1, t2
     addi t0, t0, -1
     bnez t0, 4b
@@ -116,9 +116,9 @@ helper:
 loop_body:
     slli t0, a0, 3
     add t0, t0, a1
-    ld t1, 0(t0)
+    # ld t1, 0(t0)
     addi t1, t1, 1
-    sd t1, 0(t0)
+    # sd t1, 0(t0)
     ret
 
 .section .rodata

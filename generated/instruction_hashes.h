@@ -54,7 +54,8 @@
 #define HASH_ecall     0x96A39180
 #define HASH_ebreak    0x0F9FF17F
 #define HASH_fence     0xBC814616
-#define HASH_fence_i   0xE1ECA453
+#define HASH_fence_tso 0xA3E9C93E
+#define HASH_pause     0x7084D38D
 #define HASH_nop       0x25B1963E
 #define HASH_ret       0x30F467AC
 #define HASH_mv        0x592E130A

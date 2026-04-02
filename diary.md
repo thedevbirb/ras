@@ -166,5 +166,8 @@ label.
 each of them must be parsed and expanded individually. This leads to relaxation algorithms, which
 while I understand why they must exist, and I can't really think of any other simpler way to
 resolve the same problem, I really wonder if we should have that problem in the first place.
+3. Load and store instructions have many different formats, which must be parsed with care. For
+   example: a load word instruction can be in these forms: `mnemonic rd, rs1`, `mnemonic rd, (rs1)`,
+   `mnemonic rd, offset(rs1)`.
 
 
