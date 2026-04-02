@@ -137,6 +137,10 @@ Now there is a tough part, where you evaluate every expression and compute sizes
 each section. It's surprising that this requires a fixed point iterative algorithm with a
 potentially very large number of iterations over all the program statements.
 
+TODO: error display of resolver.
+TODO: handling of forward and backward references in resolver.
+TODO: handling and evaluation of relocation operators, plus emitting relocation entries somewhere.
+
 # Random
 
 I should try to write neovim snippets.
@@ -144,18 +148,23 @@ I should try to write neovim snippets.
 In general assemblers don't follow a standard. So some stuff is a bit unique or up to the assembly
 implementation. I'm trying to follow a bit gas for some compatibility, but some stuff is just funky.
 
+In general there is some value in being wary about 64-bit types. Most of the times you do not need
+them and 32-bit is large enough. On the plus side, makes porting to 32-bit easier, and simplifies
+padding calculations.
 
-# Appendix
+Representing a maybe U32 with `Vec2_U32` has the nice effect that given you access it as a (x,y)
+pair, you can do `if (my_value_maybe.y)` as if "yes, it is set" lol.
 
-## After parsing
+# On exceptions
 
-After parsing, we need to build the object file contents, which is divded in sections that for
-example, distinguish between code text and data.
+Assembly seems an exception or corner-case driven language:
 
-The location counter is an integer that represents the current byte offset within the current
-section. It starts at zero for each section and increases as the pass processes entries, adding
-their size. For example, if `.word 42` is found, it advances the `.data` section by 4 bytes, since
-a word is by definition 4 bytes.
+1. Label definitions are unique, and they behave in a very specific way. But then you have numeric
+labels, which must be lexed, parsed and evaluated differently. But they still kinda behave like a
+label.
+2. Instructions have some consistent format and sizes, but then you have pseudoinstructions, and
+each of them must be parsed and expanded individually. This leads to relaxation algorithms, which
+while I understand why they must exist, and I can't really think of any other simpler way to
+resolve the same problem, I really wonder if we should have that problem in the first place.
 
-A symbol is a name-to-value binding. In the simplest and most common case, the value is the location
-counter at the point where the symbol was defined, paired with which section it belongs to.
+

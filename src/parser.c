@@ -1205,13 +1205,17 @@ Parser_parse(Parser *parser)
 		} break;
 		case Token_Kind__Label_Numeric:
 		{
+			Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+			U8 label_numeric_value = parser->token_current.numerical_value;
+
 			Parser_advance(parser);
 			Statement statement =
 			{
-				.token_index_begin = parser->token_index_before,
-				.token_index_end   = parser->token_index,
-				.section_index     = parser->section_current_index,
-				.kind              = Statement_Kind__Label_Numeric,
+				.label_numeric_value = label_numeric_value,
+				.token_index_begin   = parser->token_index_before,
+				.token_index_end     = parser->token_index,
+				.section_index       = parser->section_current_index,
+				.kind                = Statement_Kind__Label_Numeric,
 			};
 			Statements_push(parser->statements, statement);
 		} break;

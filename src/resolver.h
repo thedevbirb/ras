@@ -5,13 +5,25 @@ typedef enum Resolver_Error_Kind
 {
 	Resolver_Error_Kind__None,
 	Resolver_Error_Kind__Expression_Kind_Unknown,
+	Resolver_Error_Kind__Label_Numeric_Backward_Not_Found,
+	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
+	Resolver_Error_Kind__Label_Numeric_Section_Cross,
 	Resolver_Error_Kind__COUNT,
 }
 Resolver_Error_Kind;
 
+global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
+{
+	[Resolver_Error_Kind__Expression_Kind_Unknown] = "expression unknown",
+	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found] = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found] = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Section_Cross] = "label numeric reference crosses section",
+};
+
 typedef struct Resolver_Error Resolver_Error;
 struct Resolver_Error
 {
+	Statement *statement;
 	Resolver_Error_Kind kind;
 };
 
@@ -24,11 +36,18 @@ struct Resolver
 	Statements    *statements;
 	Expressions   *expressions;
 	Symbols_Table *symbols_table;
+	// Contains the most recent occurrence of [1:, 2:, ..., 9:]. Layout: { x: value, y: set or not }.
+	Vec2_U32 *labels_numeric_statement_index;
 
 	Resolver_Error error;
 
+	Statement *statement_current;
+	U32 statement_index;
+	B32 statements_end_reached;
+
 	U32 sections_offset[ELF64_Section__COUNT];
 	U16 section_current_index;
+
 };
 
 void

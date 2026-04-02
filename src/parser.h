@@ -16,6 +16,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Directive_Data_Value_Size_Invalid,
 	Parser_Error_Kind__Directive_Argument_Invalid,
 	Parser_Error_Kind__Label_Duplicate,
+	Parser_Error_Kind__Label_Numeric_Large,
 	Parser_Error_Kind__Expression_Unexpected_Token,
 	Parser_Error_Kind__Expression_Unexpected_End,
 	Parser_Error_Kind__Expression_Parenthesis_Right_Expected,
@@ -51,6 +52,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Directive_Data_Value_Size_Invalid]     = "directive data expression value doesn't fit",
 	[Parser_Error_Kind__Directive_Argument_Invalid]            = "directive argument invalid",
 	[Parser_Error_Kind__Label_Duplicate]                       = "duplicate label found",
+	[Parser_Error_Kind__Label_Numeric_Large]                   = "numerical label cannot be larger than " stringify_m(label_numeric_max),
 	[Parser_Error_Kind__Expression_Unexpected_Token]           = "unexpected token in expression",
 	[Parser_Error_Kind__Expression_Unexpected_End]             = "unexpected end of tokens in expression",
 	[Parser_Error_Kind__Expression_Parenthesis_Right_Expected] = "expected ')' to close parenthesized expression",
@@ -101,6 +103,8 @@ struct Statement
 
 	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
 	U32 label_symbol_slot;
+	// If this is a numeric label definition, it is its number.
+	U8  label_numeric_value;
 
 	U32 expressions_count;
 	// The list of tokens that make the statement.
@@ -152,12 +156,12 @@ Statements_push(Statements *statements, Statement statement);
 typedef struct Parser Parser;
 struct Parser
 {
-	Arena         *arena;
-	Input         *input;
-	Token         *tokens;
-	Statements    *statements;
-	Expressions   *expressions;
-	Symbols_Table *symbols_table;
+	Arena          *arena;
+	Input          *input;
+	Token          *tokens;
+	Statements     *statements;
+	Expressions    *expressions;
+	Symbols_Table  *symbols_table;
 
 	U16 section_current_index;
 

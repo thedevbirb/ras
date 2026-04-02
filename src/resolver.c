@@ -5,6 +5,16 @@ Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 	if (!resolver->error.kind)
 	{
 		resolver->error.kind = kind;
+		resolver->error.statement = resolver->statement_current;
+	}
+}
+
+void
+Resolver_expect(Resolver *resolver, B32 condition, Resolver_Error_Kind kind)
+{
+	if (!condition && !resolver->error.kind)
+	{
+		Resolver_error_set(resolver, kind);
 	}
 }
 
@@ -18,6 +28,26 @@ Resolver_token_string_from_index(Resolver *resolver, U32 token_index)
 		.count = (U64)token.size,
 	};
 	return string;
+}
+
+internal void
+Resolver_advance(Resolver *resolver)
+{
+	resolver->statements_end_reached = resolver->statement_index + 1 == resolver->statements->count;
+	resolver->statement_index       += !resolver->statements_end_reached;
+	resolver->statement_current      = &resolver->statements->data[resolver->statement_index];
+
+	return;
+}
+
+internal void
+Resolver_cursor_reset(Resolver *resolver)
+{
+	resolver->statements_end_reached = 0 >= resolver->statements->count;
+	resolver->statement_index        = 0;
+	resolver->statement_current      = &resolver->statements->data[0];
+
+	return;
 }
 
 void
@@ -48,12 +78,55 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		}
 
 	} break;
+	case Expression_Kind__Label_Numeric_Reference_Forward:
+	{
+		U16 section_current_index = resolver->section_current_index;
+		U32 label_numeric_value   = node->integer_value; // e.g. 1b or 2b etc.
+
+		B32 match  = 0;
+		U32 offset = 0;
+		U32 index  = resolver->statement_index;
+		for (;;)
+		{
+			index += 1;
+			B32 break_should = match || index >= resolver->statements->count;
+			if (break_should)
+			{
+				break;
+			}
+			Statement *statement = &resolver->statements->data[index];
+			B32 match = statement->kind == Statement_Kind__Label_Numeric && statement->label_numeric_value == label_numeric_value;
+			if (match)
+			{
+				Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
+				offset = statement->section_offset;
+			}
+		}
+
+		if (!match)
+		{
+			Resolver_error_set(resolver, Resolver_Error_Kind__Label_Numeric_Forward_Not_Found);
+		}
+	} break;
+	case Expression_Kind__Label_Numeric_Reference_Backward:
+	{
+		U16 section_current_index      = resolver->section_current_index;
+		U32 label_numeric_value        = node->integer_value; // e.g. 1b or 2b etc.
+		Vec2_U32 statement_index_maybe = resolver->labels_numeric_statement_index[label_numeric_value];
+
+		Resolver_expect(resolver, statement_index_maybe.y, Resolver_Error_Kind__Label_Numeric_Backward_Not_Found);
+		Statement *statement = &resolver->statements->data[statement_index_maybe.x];
+		Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
+
+		node->integer_value = statement_index_maybe.x;
+
+	} break;
 	case Expression_Kind__Current_Address:
 	{
 		U32 section_current_offset = resolver->sections_offset[resolver->section_current_index];
 		node->integer_value = section_current_offset;
 	} break;
-	case Expression_Kind__Relocation:      {  assert_always_m(0 && "todo"); } break;
+	case Expression_Kind__Relocation:      {  todo_m(); } break;
 
 	case Expression_Kind__Negate:
 	{
@@ -128,43 +201,49 @@ Resolver_offsets_recompute(Resolver *resolver)
 {
 	U32 section_offsets[ELF64_Section__COUNT] = {0};
 
-	U32 index = 0;
 	for (;;)
 	{
-		B32 break_should = index >= resolver->statements->count;
+		B32 break_should = resolver->statements_end_reached;
 		if (break_should)
 		{
 			break;
 		}
-		Statement statement      = resolver->statements->data[index];
-		U32 *section_offset      = &section_offsets[statement.section_index];
-		statement.section_offset = *section_offset;
+		Statement *statement     = resolver->statement_current;
+		U32 *section_offset      = &section_offsets[statement->section_index];
+		statement->section_offset = *section_offset;
 
-		if (statement.kind == Statement_Kind__Label)
+		if (statement->kind == Statement_Kind__Label)
 		{
-			Symbols_Table_Entry *entry = &resolver->symbols_table->entries[statement.label_symbol_slot];
-			entry->value.value = statement.section_offset;
+			Symbols_Table_Entry *entry = &resolver->symbols_table->entries[statement->label_symbol_slot];
+			entry->value.value = statement->section_offset;
 		}
 
-		*section_offset += statement.size;
-		index += 1;
+		*section_offset += statement->size;
+		Resolver_advance(resolver);
 	}
 }
 
 internal B32
 Resolver_relax_pass(Resolver *resolver)
 {
+	os_memory_zero(resolver->labels_numeric_statement_index, label_numeric_max);
+
 	B32 changed = 0;
-	U32 index = 0;
 	for (;;)
 	{
-		B32 break_should = index >= resolver->statements->count;
+		B32 break_should = resolver->statements_end_reached;
 		if (break_should)
 		{
 			break;
 		}
 
-		Statement *statement = &resolver->statements->data[index];
+		Statement *statement = resolver->statement_current;
+
+		if (statement->kind == Statement_Kind__Label_Numeric)
+		{
+			resolver->labels_numeric_statement_index[statement->label_numeric_value]
+				= (Vec2_U32){ .x = resolver->statement_index, .y = 1 };
+		}
 
 		U32 size_old = statement->size;
 		U32 size_new = size_old;
@@ -280,7 +359,7 @@ Resolver_relax_pass(Resolver *resolver)
 			changed = 1;
 		}
 
-		index += 1;
+		Resolver_advance(resolver);
 	}
 
 	return changed;
@@ -292,9 +371,12 @@ Resolver_relax(Resolver *resolver)
 	U32 pass_count = 0;
 	for (;;)
 	{
-		Resolver_offsets_recompute(resolver);
 		pass_count += 1;
+		Resolver_offsets_recompute(resolver);
+		Resolver_cursor_reset(resolver);
+
 		B32 changed = Resolver_relax_pass(resolver);
+		Resolver_cursor_reset(resolver);
 
 		if (!changed)
 		{

@@ -3,6 +3,8 @@
 
 #define expression_recursion_max 8
 
+#define label_numeric_max 9
+
 global const U8 escape_valid_table[256] =
 {
 	['a']  = 1,  // bell

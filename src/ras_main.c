@@ -157,12 +157,12 @@ main(int argument_count, char **argument_vector)
 
 	Parser parser =
 	{
-		.arena         = arena,
-		.input         = &input,
-		.tokens        = token_array.tokens,
-		.statements    = &statements,
-		.symbols_table = &symbols_table,
-		.expressions   = &expressions,
+		.arena          = arena,
+		.input          = &input,
+		.tokens         = token_array.tokens,
+		.statements     = &statements,
+		.symbols_table  = &symbols_table,
+		.expressions    = &expressions,
 
 		.section_current_index = ELF64_Section__Text,
 
@@ -236,6 +236,8 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
+	Vec2_U32 *labels_numeric_statement_index = Arena_push_array_m(arena, Vec2_U32, label_numeric_max);
+
 	Resolver resolver =
 	{
 		.arena         = arena,
@@ -244,6 +246,12 @@ main(int argument_count, char **argument_vector)
 		.statements    = &statements,
 		.symbols_table = &symbols_table,
 		.expressions   = &expressions,
+
+		.labels_numeric_statement_index = labels_numeric_statement_index,
+
+		.statement_current      = &statements.data[0],
+		.statement_index        = 0,
+		.statements_end_reached = 0 >= &statements.count,
 
 		.error         = {0},
 		.sections_offset = {0},
