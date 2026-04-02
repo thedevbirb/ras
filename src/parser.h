@@ -24,6 +24,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Relocation_Syntax_Invalid,
 	Parser_Error_Kind__Expression_Kind_Unknown,
 	Parser_Error_Kind__Expression_Recursion_Max,
+	Parser_Error_Kind__Relocation_Operator_Invalid,
 	Parser_Error_Kind__Register_Invalid,
 	Parser_Error_Kind__Immediate_Invalid,
 	Parser_Error_Kind__Instruction_Unknown,
@@ -58,6 +59,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Relocation_Syntax_Invalid]  = "invalid relocation syntax, expected %<relocation>(<expression>)",
 	[Parser_Error_Kind__Expression_Kind_Unknown]               = "unknown expression kind",
 	[Parser_Error_Kind__Expression_Recursion_Max]              = "max recursion reached for expression: " stringify_m(expression_recursion_max),
+	[Parser_Error_Kind__Relocation_Operator_Invalid]           = "relocation operator invalid",
 	[Parser_Error_Kind__Register_Invalid]                      = "register invalid",
 	[Parser_Error_Kind__Immediate_Invalid]                     = "immediate invalid",
 	[Parser_Error_Kind__Instruction_Unknown]                   = "instruction unknown",
@@ -200,7 +202,6 @@ struct Parser_Result
 {
 	Parser_Error error;
 };
-
 
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.

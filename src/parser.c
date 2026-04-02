@@ -276,6 +276,10 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
+		String8 relocation_operator = Parser_token_string(parser);
+		node->relocation_operator   = Relocation_Operator_lookup(relocation_operator);
+		Parser_expect(parser, node->relocation_operator, Parser_Error_Kind__Relocation_Operator_Invalid);
+
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
@@ -1303,21 +1307,16 @@ Parser_parse(Parser *parser)
 
 				String8 key = Parser_token_string(parser);
 				Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
+
+				assert_always_m(Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
 				if (entry)
 				{
 					B32 demoted = ELF64_Symbol_bind_m(entry->value.type_binding_info) > Symbol_Binding__Local;
 					Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
-					U8 type_binding_info =
-						ELF64_Symbol_info_m(Symbol_Binding__Global, ELF64_Symbol_type_m(entry->value.type_binding_info));
-					entry->value.type_binding_info = type_binding_info;
 				}
 				else
 				{
-					Symbol symbol =
-					{
-						.type_binding_info = ELF64_Symbol_info_m(Symbol_Binding__Global, 0),
-						.section_index = parser->section_current_index,
-					};
+					Symbol symbol = {0};
 					Symbols_Table_put(parser->symbols_table, key, symbol);
 				}
 

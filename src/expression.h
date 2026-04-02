@@ -82,6 +82,8 @@ struct Expression_Node
 	// Whether evaluation lead to unresolved symbols.
 	B32 unresolved;
 
+	Relocation_Operator relocation_operator;
+
 	Expression_Kind  kind;
 };
 
