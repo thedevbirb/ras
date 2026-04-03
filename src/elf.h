@@ -500,12 +500,18 @@ struct ELF32_Symbol
 typedef struct ELF64_Symbol ELF64_Symbol;
 struct ELF64_Symbol
 {
-  Offset64	string_table_offset;		/* Symbol name (string tbl index) */
-  U8	type_and_binding;		/* Symbol type and binding */
-  U8 visibility;		/* Symbol visibility */
-  ELF64_Section_Index	section_index;		/* Section index */
-  Address64	value;		/* Symbol value */
-  U64	size;		/* Symbol size */
+	Offset64	    string_table_offset;
+	// Packed field: upper 4 bits = Symbol_Binding, lower 4 bits = Symbol_Type.
+	// Use ELF64_Symbol_info_m / _bind_m / _type_m macros to pack/unpack.
+	U8		    type_and_binding;
+	U8                  visibility;
+	ELF64_Section_Index section_index;
+
+	// For labels: offset within the section (section-relative address).
+	// For .equ: the constant value.
+	// For undefined symbols: 0.
+	Address64           value;
+	U64                 size;
 };
 
 /* The syminfo section if available contains additional information about
@@ -4466,6 +4472,4 @@ enum
 #define R_OR1K_TLS_DTPOFF	33
 #define R_OR1K_TLS_DTPMOD	34
 
-
-#endif // ELF_H
-
+#endif

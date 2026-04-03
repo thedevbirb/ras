@@ -1,6 +1,129 @@
 #ifndef SECTION_H
 #define SECTION_H
 
+
+// TODO: make some stuff into elf if applicable
+
+typedef enum ELF64_Section_Header_Type
+{
+	ELF64_Section_Header_Type__None             = 0,
+	ELF64_Section_Header_Type__Program_Bits     = 1,
+	ELF64_Section_Header_Type__Symbols_Table    = 2,
+	ELF64_Section_Header_Type__String_Table     = 3,
+	ELF64_Section_Header_Type__Relocations      = 4,
+	ELF64_Section_Header_Type__Note             = 7,
+	ELF64_Section_Header_Type__No_Bits          = 8,
+	ELF64_Section_Header_Type__RISCV_Attributes = 0x70000003
+}
+ELF64_Section_Header_Type;
+
+typedef enum ELF64_Section
+{
+	ELF64_Section__None = 0,
+	ELF64_Section__Text,
+	ELF64_Section__Data,
+	ELF64_Section__Read_Only_Data,
+	ELF64_Section__BSS,
+	ELF64_Section__Symbols_Table,
+	ELF64_Section__String_Table,
+	ELF64_Section__Section_Names,
+	ELF64_Section__RISCV_Attributes,
+	ELF64_Section__Relocations_Text,
+	ELF64_Section__Relocations_Data,
+	ELF64_Section__Relocations_Read_Only_Data,
+	ELF64_Section__COUNT,
+}
+ELF64_Section;
+
+global const U8 ELF64_Section_from_Directive_Kind[Directive_Kind__COUNT] =
+{
+	[Directive_Kind__None]           = 0,
+	[Directive_Kind__Section]        = 0,
+	[Directive_Kind__Text]           = ELF64_Section__Text,
+	[Directive_Kind__Data]           = ELF64_Section__Data,
+	[Directive_Kind__Read_Only_Data] = ELF64_Section__Read_Only_Data,
+	[Directive_Kind__BSS]            = ELF64_Section__BSS,
+	[Directive_Kind__Globl]          = 0,
+	[Directive_Kind__Byte]           = 0,
+	[Directive_Kind__Word_Half]      = 0,
+	[Directive_Kind__Word]           = 0,
+	[Directive_Kind__Word_Double]    = 0,
+	[Directive_Kind__Ascii]          = 0,
+	[Directive_Kind__Asciz]          = 0,
+	[Directive_Kind__Equality]       = 0,
+	[Directive_Kind__Align]          = 0,
+};
+
+global const char *ELF64_Section_strings[ELF64_Section__COUNT] =
+{
+	[ELF64_Section__None]                       = "",
+	[ELF64_Section__Text]                       = ".text",
+	[ELF64_Section__Data]                       = ".data",
+	[ELF64_Section__Read_Only_Data]             = ".rodata",
+	[ELF64_Section__BSS]                        = ".bss",
+	[ELF64_Section__Symbols_Table]              = ".symtab",
+	[ELF64_Section__String_Table]               = ".strtab",
+	[ELF64_Section__Section_Names]              = ".shstrtab",
+	[ELF64_Section__RISCV_Attributes]           = ".riscv.attributes",
+	[ELF64_Section__Relocations_Text]           = ".rela.text",
+	[ELF64_Section__Relocations_Data]           = ".rela.data",
+	[ELF64_Section__Relocations_Read_Only_Data] = ".rela.rodata",
+	// [ELF64_Section__Note_GNU_Stack = ".note.GNU-stack",
+};
+
+ELF64_Section_Header_Type ELF64_Section_Header_Type_from_ELF64_Section[ELF64_Section__COUNT] =
+{
+	[ELF64_Section__None]                       = ELF64_Section_Header_Type__None,
+	[ELF64_Section__Text]                       = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__Data]                       = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__Read_Only_Data]             = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__BSS]                        = ELF64_Section_Header_Type__No_Bits,
+	[ELF64_Section__Symbols_Table]              = ELF64_Section_Header_Type__Symbols_Table,
+	[ELF64_Section__String_Table]               = ELF64_Section_Header_Type__String_Table,
+	[ELF64_Section__Section_Names]              = ELF64_Section_Header_Type__String_Table,
+	[ELF64_Section__RISCV_Attributes]           = ELF64_Section_Header_Type__RISCV_Attributes,
+	[ELF64_Section__Relocations_Text]           = ELF64_Section_Header_Type__Relocations,
+	[ELF64_Section__Relocations_Data]           = ELF64_Section_Header_Type__Relocations,
+	[ELF64_Section__Relocations_Read_Only_Data] = ELF64_Section_Header_Type__Relocations,
+};
+
+// Default value for section alignments.
+global const U8 ELF64_Section_alignments[ELF64_Section__COUNT] =
+{
+	[ELF64_Section__None]              = 0,
+	[ELF64_Section__Text]              = 4,
+	[ELF64_Section__Data]              = 8,
+	[ELF64_Section__Read_Only_Data]    = 8,
+	[ELF64_Section__BSS]               = 8,
+	[ELF64_Section__Relocations_Text]  = 8,
+	[ELF64_Section__Relocations_Data]  = 8,
+	[ELF64_Section__Symbols_Table]     = 8,
+	[ELF64_Section__String_Table]      = 1,
+	[ELF64_Section__Section_Names]     = 1,
+	[ELF64_Section__RISCV_Attributes]  = 1
+};
+
+global const ELF64_Section_relocations[ELF64_Section__COUNT] =
+{
+	[ELF64_Section__Text]             = ELF64_Section__Relocations_Text,
+	[ELF64_Section__Data]             = ELF64_Section__Relocations_Data,
+	[ELF64_Section__Read_Only_Data]   = ELF64_Section__Relocations_Read_Only_Data,
+};
+
+internal U32
+Hashmap_hash(String8 key)
+{
+	U32 hash = 2166136261u;
+
+	for (U64 i = 0; i < key.count; i++)
+	{
+		hash ^= key.data[i];
+		hash *= 16777619u;
+	}
+
+	return hash;
+}
+
 // A data structure modelling an object file section, in memory.
 //
 // Helpful references:
@@ -119,7 +242,7 @@ Object_File_Section_write(Object_File_Section *section, U8 *data, U64 count)
 }
 
 
-// Symbol Type
+// ELF64_Symbol Type
 //
 // Lower 4 bits of st_info. Tells the linker and debugger
 // what kind of entity the symbol represents.
@@ -144,7 +267,7 @@ typedef enum Symbol_Type
 }
 Symbol_Type;
 
-// ELF64 Symbol Binding
+// ELF64 ELF64_Symbol Binding
 //
 // Upper 4 bits of st_info. Controls visibility to the linker.
 typedef enum Symbol_Binding
@@ -162,7 +285,7 @@ typedef enum Symbol_Binding
 }
 Symbol_Binding;
 
-// ELF64 Symbol Visibility
+// ELF64 ELF64_Symbol Visibility
 //
 // Lower 2 bits of st_other. Further constrains visibility
 // beyond what binding specifies. Mainly relevant for shared libraries.
@@ -185,7 +308,7 @@ Symbol_Visibility;
 // Special section indices for st_shndx.
 typedef enum Symbol_Section_Index
 {
-	// Symbol is undefined / external. Linker must resolve it.
+	// ELF64_Symbol is undefined / external. Linker must resolve it.
 	Symbol_Section_Index__Undefined = 0,
 
 	// Absolute value, not relative to any section. Used for .equ constants.
@@ -196,7 +319,7 @@ typedef enum Symbol_Section_Index
 }
 Symbol_Section_Index;
 
-// Symbol table (.symtab) content invariants:
+// ELF64_Symbol table (.symtab) content invariants:
 //
 // Entry 0: all zeros (null symbol).
 // All STB_LOCAL entries before all STB_GLOBAL/STB_WEAK entries.
@@ -220,39 +343,6 @@ Symbol_Section_Index;
 #define section_index_common   0xFFF2
 #define section_index_absolute 0xFFF1
 
-// Symbol Table Entry.
-//
-// It is a ELF64-compliant entry
-typedef struct Symbol Symbol;
-struct Symbol
-{
-	// Offset into .strtab where this symbol's name begins.
-	// 0 means the empty string (e.g. section symbols).
-	U32 string_table_offset;
-
-	// Packed field: upper 4 bits = Symbol_Binding, lower 4 bits = Symbol_Type.
-	// Use ELF64_Symbol_info_m / _bind_m / _type_m macros to pack/unpack.
-	U8  type_binding_info;
-
-	// Lower 2 bits = Symbol_Visibility. Almost always 0 (Default).
-	U8  visibility;
-
-	// Index into the section header table identifying which section
-	// this symbol belongs to. Special values: SHN_UNDEF (0),
-	// SHN_ABS (0xFFF1), SHN_COMMON (0xFFF2).
-	U16 section_index;
-
-	// For labels: offset within the section (section-relative address).
-	// For .equ: the constant value.
-	// For undefined symbols: 0.
-	U64 value;
-
-	// Size of the symbol in bytes. 0 if unknown or not applicable.
-	// Set by: .size name, expression
-	U64 size;
-};
-assert_static_m(sizeof(Symbol) == 24, sizeof_Symbol);
-
 // The symbols table and the string table are coupled, meaning there should be a one to one correspondence between the
 // two. This in-memory representation encodes both, by giving a key-value map which records order of insertion and
 // tracks the growing size as null-terminated strings to compute ELF64 symbols string table offset.
@@ -262,7 +352,7 @@ typedef struct Symbols_Table_Entry Symbols_Table_Entry;
 struct Symbols_Table_Entry
 {
 	String8 key;
-	Symbol  value;
+	ELF64_Symbol  value;
 	B32     used;
 };
 
@@ -282,7 +372,7 @@ internal void
 Symbols_Table_initialize(Symbols_Table *map, Arena *arena)
 {
 	map->arena    = arena;
-	map->capacity = HASHMAP_INITIAL_CAP;
+	map->capacity = 64;
 	map->count    = 0;
 	map->entries  = Arena_push_array_m(arena, Symbols_Table_Entry, map->capacity);
 	map->slots    = Arena_push_array_m(arena, U32, map->capacity);
@@ -368,11 +458,11 @@ Symbols_Table_grow(Symbols_Table *map)
 }
 
 internal Vec2_U32 // Slot, found
-Symbols_Table_put(Symbols_Table *map, String8 key, Symbol value)
+Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 {
 	assert_always_m(map->entries && "uninitialized hashmap");
 
-	if ((map->count * 100) >= (map->capacity * HASHMAP_LOAD_MAX))
+	if ((map->count * 100) >= (map->capacity * 70))
 	{
 		Symbols_Table_grow(map);
 	}

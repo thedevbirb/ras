@@ -13,22 +13,27 @@
 #include <generated/instruction_hashes.h>
 
 #include "initialize.h"
-#include "constants.h"
 #include "elf.h"
-#include "hashmap.h"
-#include "list.h"
+
+#include "language/language_include.h"
+#include "section.h"
 
 #include "lexer.h"
-#include "section.h"
 #include "expression.h"
-#include "parser.h"
+#include "statement.h"
+#include "parser/parser_include.h"
 #include "resolver.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
 
+#include "initialize.c"
+
+#include "language/language_include.c"
 #include "lexer.c"
-#include "parser.c"
+#include "expression.c"
+#include "statement.c"
+#include "parser/parser_include.c"
 #include "resolver.c"
 
 // Two's complement.

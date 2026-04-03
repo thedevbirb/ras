@@ -1,6 +1,26 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+global const U8 escape_valid_table[256] =
+{
+	['a']  = 1,  // bell
+	['b']  = 1,  // backspace
+	['t']  = 1,  // tab
+	['n']  = 1,  // newline
+	['v']  = 1,  // vertical tab
+	['f']  = 1,  // form feed
+	['r']  = 1,  // carriage return
+	['e']  = 1,  // escape
+	['\\'] = 1,  // backslash
+	['\''] = 1,  // single quote
+	['"']  = 1,  // double quote
+	['0']  = 1,  // null or octal begin
+	['1']  = 1,  // octal begin
+	['2']  = 1,  // octal begin
+	['3']  = 1,  // octal begin
+	['x']  = 1,  // hex begin
+};
+
 internal U8 Input_count_extra = 8;
 
 // Input is a String8 where we assume ZII, so we can ensure to not panic on out of bounds access. To do so, Input is

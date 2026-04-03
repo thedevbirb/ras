@@ -1,5 +1,9 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef PARSER_CORE_H
+#define PARSER_CORE_H
+
+#define label_numeric_max 9
+#define expression_recursion_max 8
+
 
 typedef enum Parser_Error_Kind
 {
@@ -88,86 +92,6 @@ struct Parser_Error
 	U32 column_end_index;
 };
 
-typedef U8 Statement_Kind;
-enum
-{
-	Statement_Kind__None,
-	Statement_Kind__Instruction,
-	Statement_Kind__Directive,
-	Statement_Kind__Label,
-	Statement_Kind__Label_Numeric,
-};
-
-typedef enum Statement_Flags
-{
-	Statement_Flags__Relax_Disabled = 1 << 0,
-}
-Statement_Flags;
-
-// TODO: revisit padding.
-//
-// An in-memory representation of parsed assembly statement, which can be either an instruction, a directive, or a label
-// definition.
-typedef struct Statement Statement;
-struct Statement
-{
-	// The list of parsed expressions that occurred in this statement.
-	// If its an instruction, once evaluated it would yield its immediate.
-	U32 *expressions_indexes;
-
-	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
-	U32 label_symbol_slot;
-	// If this is a numeric label definition, it is its number.
-	U8  label_numeric_value;
-
-	U32 expressions_count;
-	// The list of tokens that make the statement.
-	U32 token_index_begin;
-	// Excluded, so that end minus begin returns the token count.
-	U32 token_index_end;
-
-	Instruction_Kind instruction_kind;
-	Directive_Kind   directive_kind;
-
-	U8  instruction_format; // R, I, S, B, ...
-	U8  register_destination;
-	U8  register_source_1;
-	U8  register_source_2;
-
-	// Relaxation-related fields. These fields can change during relaxation process.
-
-	// The offset in the object file section where this statement is written to.
-	U32 section_offset;
-	// The size of the statement, as it would be written in the object file section. Note that a directive will have
-	// size zero.
-	U32 size;
-
-	// End of relaxation-related fields.
-
-	// The index of the object file section this statement belongs to.
-	U8  section_index;
-	Statement_Kind kind;
-
-	Statement_Flags flags;
-};
-
-
-typedef struct Statements Statements;
-struct Statements
-{
-	Arena *arena;
-	Statement *data;
-	U32 count;
-};
-
-// Assumption: the provided arena is used ONLY for this.
-internal void
-Statements_initialize(Statements *statements, Arena *arena);
-
-
-// Return the pointer to the arena-allocated statement
-internal Statement *
-Statements_push(Statements *statements, Statement statement);
 
 typedef struct Parser Parser;
 struct Parser
@@ -216,20 +140,17 @@ Parser_expect(Parser *parser, B32 condition, Parser_Error_Kind error_kind);
 internal void
 Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind error_kind);
 
-internal Directive_Kind
-Directive_Kind__from_String8(String8 string);
+internal U8
+Parser_register(Parser *parser);
 
-typedef struct Parser_Result Parser_Result;
-struct Parser_Result
-{
-	Parser_Error error;
-};
+internal U8
+Parser_expect_register(Parser *parser);
 
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
-Parser__expression_parse(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
+Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
 
 // Null denotation: handles prefix positions (atoms, unary operators,
 // parenthesized groups, relocations). The token has already been consumed
@@ -249,8 +170,12 @@ Parser_expression_parse(Parser *parser, Expression_Flags flags);
 Expression_Node *
 Parser_expression_immediate_create(Parser *parser, U64 immediate);
 
+
+// Create a barebone, incomplete statement for an instruction.
+internal Statement *
+Parser_statement_instruction_create(Parser *parser);
+
 void
 Parser_parse(Parser *parser);
 
-#endif // PARSER_H
-
+#endif // PARSER_CORE_H
