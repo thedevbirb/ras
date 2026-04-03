@@ -35,6 +35,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Symbol_Demoted,
 	Parser_Error_Kind__Symbol_Duplicate,
 	Parser_Error_Kind__Fence_Operand_Invalid,
+	Parser_Error_Kind__Option_Invalid,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -74,6 +75,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Symbol_Demoted]                        = "demoted symbol from global/weak to local",
 	[Parser_Error_Kind__Symbol_Duplicate]                      = "duplicated symbol",
 	[Parser_Error_Kind__Fence_Operand_Invalid]                 = "fence operand invalid",
+	[Parser_Error_Kind__Option_Invalid]                        = "invalid option",
 };
 
 typedef struct Parser_Error Parser_Error;
@@ -95,6 +97,12 @@ enum
 	Statement_Kind__Label,
 	Statement_Kind__Label_Numeric,
 };
+
+typedef enum Statement_Flags
+{
+	Statement_Flags__Relax_Disabled = 1 << 0,
+}
+Statement_Flags;
 
 // TODO: revisit padding.
 //
@@ -139,6 +147,8 @@ struct Statement
 	// The index of the object file section this statement belongs to.
 	U8  section_index;
 	Statement_Kind kind;
+
+	Statement_Flags flags;
 };
 
 
@@ -177,6 +187,8 @@ struct Parser
 	U32	      token_index_before;
 	U32	      token_index;
 	B32           end_reached;
+
+	Statement_Flags flags;
 
 	Parser_Error error;
 };

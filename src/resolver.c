@@ -7,6 +7,12 @@ Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 		resolver->error.kind = kind;
 		resolver->error.statement = resolver->statement_current;
 	}
+
+#ifdef ASSEMBLY_EXPECT_PANIC
+	assert_always_m(0 && "panic on expect");
+#endif
+
+	return;
 }
 
 void
@@ -16,6 +22,8 @@ Resolver_expect(Resolver *resolver, B32 condition, Resolver_Error_Kind kind)
 	{
 		Resolver_error_set(resolver, kind);
 	}
+
+	return;
 }
 
 internal String8
@@ -75,6 +83,14 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		else
 		{
 			node->unresolved = 1;
+			if (resolver->flags & Resolver_Flags__Relocations)
+			{
+				ELF64_Section section_index = resolver->statement_current->section_index;
+				ELF64_Section section_relocation = ELF64_Section_relocations[section_index];
+				Resolver_expect(resolver, section_relocation, Resolver_Error_Kind__Section_Relocation_Invalid);
+				Object_File_Section *file_section = &resolver->sections[section_relocation];
+				todo_m();
+			}
 		}
 
 	} break;
@@ -386,4 +402,107 @@ Resolver_relax(Resolver *resolver)
 
 	Resolver_offsets_recompute(resolver);
 	return pass_count;
+}
+
+// For each statement that contains an expression referencing a symbol:
+//
+// 1. If the expression's symbol is UNDEFINED (not defined anywhere in this translation unit):
+//    -> Emit a relocation. The linker must resolve this.
+//    The specific relocation depends on the context:
+//      - %hi(symbol)              -> R_RISCV_HI20
+//      - %lo(symbol) in I-type    -> R_RISCV_LO12_I
+//      - %lo(symbol) in S-type    -> R_RISCV_LO12_S
+//      - %pcrel_hi(symbol)        -> R_RISCV_PCREL_HI20
+//      - %pcrel_lo(label) in I-type -> R_RISCV_PCREL_LO12_I
+//      - %pcrel_lo(label) in S-type -> R_RISCV_PCREL_LO12_S
+//      - %got_pcrel_hi(symbol)    -> R_RISCV_GOT_HI20
+//      - %tprel_hi(symbol)        -> R_RISCV_TPREL_HI20
+//      - %tprel_lo(symbol) in I-type -> R_RISCV_TPREL_LO12_I
+//      - %tprel_lo(symbol) in S-type -> R_RISCV_TPREL_LO12_S
+//      - %tprel_add(symbol)       -> R_RISCV_TPREL_ADD
+//      - %tls_ie_pcrel_hi(symbol) -> R_RISCV_TLS_GOT_HI20
+//      - %tls_gd_pcrel_hi(symbol) -> R_RISCV_TLS_GD_HI20
+//      - B-type branch target     -> R_RISCV_BRANCH
+//      - J-type jump target (jal) -> R_RISCV_JAL
+//      - call/tail pseudo-inst    -> R_RISCV_CALL or R_RISCV_CALL_PLT
+//      - .byte symbol             -> R_RISCV_32 (truncated) — rare, usually an error
+//      - .half symbol             -> R_RISCV_32 (truncated) — rare, usually an error
+//      - .word symbol             -> R_RISCV_32
+//      - .dword symbol            -> R_RISCV_64
+//
+// 2. If the expression's symbol is defined and marked SHN_COMMON:
+//    -> Emit a relocation. Common symbols are resolved by the linker.
+//    Same relocation selection as case 1.
+//
+// 3. If the expression's symbol is defined and marked STB_GLOBAL or STB_WEAK:
+//    -> Emit a relocation. Even if the symbol is defined locally, the linker
+//      may override it with a definition from another translation unit (for
+//      weak symbols) or needs the relocation for shared library interposition
+//      (for global symbols). A strictly static, non-PIC assembler could
+//      optimize some of these away, but the safe default is to emit.
+//    Same relocation selection as case 1.
+//
+// 4. If the expression's symbol is defined, STB_LOCAL, and in a DIFFERENT section
+//    from the statement:
+//    -> Emit a relocation. The assembler does not know the final distance
+//      between sections.
+//    Same relocation selection as case 1.
+//
+// 5. If the expression's symbol is defined, STB_LOCAL, and in the SAME section
+//    as the statement:
+//
+//    5a. If the reference type is ABSOLUTE (%hi, %lo, .word, .dword, etc.):
+//        -> Emit a relocation. The absolute address depends on section placement,
+//          which is determined by the linker.
+//        Relocation selection:
+//          - %hi(symbol)              -> R_RISCV_HI20
+//          - %lo(symbol) in I-type    -> R_RISCV_LO12_I
+//          - %lo(symbol) in S-type    -> R_RISCV_LO12_S
+//          - .word symbol             -> R_RISCV_32
+//          - .dword symbol            -> R_RISCV_64
+//
+//    5b. If the reference type is PC-RELATIVE and linker relaxation is ENABLED:
+//        -> Emit the PC-relative relocation PLUS a companion R_RISCV_RELAX.
+//          Intervening instructions may shrink during relaxation, changing
+//          the offset.
+//        Relocation selection (each paired with R_RISCV_RELAX):
+//          - %pcrel_hi(symbol)          -> R_RISCV_PCREL_HI20 + R_RISCV_RELAX
+//          - %pcrel_lo(label) in I-type -> R_RISCV_PCREL_LO12_I + R_RISCV_RELAX
+//          - %pcrel_lo(label) in S-type -> R_RISCV_PCREL_LO12_S + R_RISCV_RELAX
+//          - B-type branch target       -> R_RISCV_BRANCH + R_RISCV_RELAX
+//          - J-type jump target (jal)   -> R_RISCV_JAL + R_RISCV_RELAX
+//          - call/tail pseudo-inst      -> R_RISCV_CALL(_PLT) + R_RISCV_RELAX
+//
+//    5c. If the reference type is PC-RELATIVE and linker relaxation is DISABLED:
+//        -> Do NOT emit a relocation. The assembler can compute the final offset
+//          directly, since both the reference and the target are in the same
+//          section and no relaxation will alter the distance.
+//
+// 6. If the expression is a CONSTANT (no symbol reference, purely numeric):
+//    -> Do NOT emit a relocation. Encode the value directly.
+//
+// 7. If the expression is a SYMBOL DIFFERENCE (sym_a - sym_b):
+//
+//    7a. If both symbols are defined, STB_LOCAL, and in the SAME section,
+//        and linker relaxation is DISABLED:
+//        -> Do NOT emit a relocation. The difference is a fixed constant
+//          that the assembler can compute directly.
+//
+//    7b. If both symbols are defined, STB_LOCAL, and in the SAME section,
+//        and linker relaxation is ENABLED:
+//        -> Emit a relocation pair. Relaxation may change the distance.
+//        Relocation selection based on data width:
+//          - 1-byte context (.byte) -> R_RISCV_ADD8  + R_RISCV_SUB8
+//          - 2-byte context (.half) -> R_RISCV_ADD16 + R_RISCV_SUB16
+//          - 4-byte context (.word) -> R_RISCV_ADD32 + R_RISCV_SUB32
+//          - 8-byte context (.dword)-> R_RISCV_ADD64 + R_RISCV_SUB64
+//          - 6-bit context (rare)   -> R_RISCV_SET6  + R_RISCV_SUB6
+//
+//    7c. If the symbols are in DIFFERENT sections, or either is STB_GLOBAL,
+//        STB_WEAK, SHN_COMMON, or UNDEFINED:
+//        -> Emit a relocation pair. The linker must resolve the difference.
+//        Same relocation selection as 7b based on data width.
+void
+Resolver_relocation_emit(Resolver *resolver)
+{
 }

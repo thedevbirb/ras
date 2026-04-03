@@ -6,6 +6,8 @@
 .local helper
 .local loop_body
 
+.option relax
+
 .equ STACK_SIZE, 4 << 4
 .equ UART_BASE, 0x10000000
 .equ UART_TX, UART_BASE + 0x00

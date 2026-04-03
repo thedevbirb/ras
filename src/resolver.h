@@ -8,6 +8,7 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Label_Numeric_Backward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Section_Cross,
+	Resolver_Error_Kind__Section_Relocation_Invalid,
 	Resolver_Error_Kind__COUNT,
 }
 Resolver_Error_Kind;
@@ -27,6 +28,14 @@ struct Resolver_Error
 	Resolver_Error_Kind kind;
 };
 
+typedef enum Resolver_Flags
+{
+	// Populate relocation tables during expressions evaluations.
+	Resolver_Flags__Relocations = 1 << 0,
+}
+Resolver_Flags;
+
+
 typedef struct Resolver Resolver;
 struct Resolver
 {
@@ -39,11 +48,15 @@ struct Resolver
 	// Contains the most recent occurrence of [1:, 2:, ..., 9:]. Layout: { x: value, y: set or not }.
 	Vec2_U32 *labels_numeric_statement_index;
 
+	Object_File_Section *sections;
+
 	Resolver_Error error;
 
 	Statement *statement_current;
 	U32 statement_index;
 	B32 statements_end_reached;
+
+	Resolver_Flags flags;
 
 	U32 sections_offset[ELF64_Section__COUNT];
 	U16 section_current_index;
@@ -52,13 +65,6 @@ struct Resolver
 
 void
 Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind);
-
-typedef struct Expression_Evaluation Expression_Evaluation;
-struct Expression_Evaluation
-{
-	U64 value;
-	B32 unresolved;
-};
 
 void
 Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node);
@@ -79,6 +85,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node);
 // outcome of step 2 again. As such, the whole process is repeated until step 2 no longer expands instructions.
 U32
 Resolver_relax(Resolver *resolver);
+
+void
+Resolver_relocation_emit(Resolver *resolver);
 
 #endif // RESOLVER_H
 

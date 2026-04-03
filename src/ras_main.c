@@ -14,6 +14,7 @@
 
 #include "initialize.h"
 #include "constants.h"
+#include "elf.h"
 #include "hashmap.h"
 #include "list.h"
 
@@ -92,9 +93,7 @@ main(int argument_count, char **argument_vector)
 	Symbols_Table symbols_table = {0};
 	Symbols_Table_initialize(&symbols_table, arena);
 
-	Object_File_Section *sections             = Object_File_Section_create_all(arena, file_in_size);
-	Object_File_Section *section_text         = &sections[ELF64_Section__Text];
-	Object_File_Section *section_string_table = &sections[ELF64_Section__String_Table];
+	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
 	arguments_shift(&argument_count, &argument_vector);
 
@@ -248,6 +247,8 @@ main(int argument_count, char **argument_vector)
 		.expressions   = &expressions,
 
 		.labels_numeric_statement_index = labels_numeric_statement_index,
+
+		.sections = sections,
 
 		.statement_current      = &statements.data[0],
 		.statement_index        = 0,

@@ -137,9 +137,13 @@ Now there is a tough part, where you evaluate every expression and compute sizes
 each section. It's surprising that this requires a fixed point iterative algorithm with a
 potentially very large number of iterations over all the program statements.
 
+TODO: limit what instructions and directives can appear in .bss section.
 TODO: error display of resolver.
-TODO: handling of forward and backward references in resolver.
 TODO: handling and evaluation of relocation operators, plus emitting relocation entries somewhere.
+
+# relocations
+
+This is another very tough part.
 
 # Random
 

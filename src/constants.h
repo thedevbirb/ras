@@ -115,6 +115,7 @@ typedef enum Directive_Kind
 	Directive_Kind__Skip,
 	Directive_Kind__Zero,
 	Directive_Kind__Common,
+	Directive_Kind__Option,
 	Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -143,6 +144,7 @@ global const char *Directive_Kind_strings[Directive_Kind__COUNT] =
 	[Directive_Kind__Skip]            = ".skip",
 	[Directive_Kind__Zero]            = ".zero",
 	[Directive_Kind__Common]          = ".comm",
+	[Directive_Kind__Option]          = ".option",
 };
 
 // TODO: probably can change with just memcmp
@@ -214,13 +216,13 @@ typedef enum ELF64_Section
 	ELF64_Section__Data,
 	ELF64_Section__Read_Only_Data,
 	ELF64_Section__BSS,
-	ELF64_Section__Relocations_Text,
-	ELF64_Section__Relocations_Data,
 	ELF64_Section__Symbols_Table,
 	ELF64_Section__String_Table,
 	ELF64_Section__Section_Names,
 	ELF64_Section__RISCV_Attributes,
-	// ELF64_Section__Note_GNU_Stack,
+	ELF64_Section__Relocations_Text,
+	ELF64_Section__Relocations_Data,
+	ELF64_Section__Relocations_Read_Only_Data,
 	ELF64_Section__COUNT,
 }
 ELF64_Section;
@@ -246,33 +248,35 @@ global const U8 ELF64_Section_from_Directive_Kind[Directive_Kind__COUNT] =
 
 global const char *ELF64_Section_strings[ELF64_Section__COUNT] =
 {
-	[ELF64_Section__None]             = "",
-	[ELF64_Section__Text]             = ".text",
-	[ELF64_Section__Data]             = ".data",
-	[ELF64_Section__Read_Only_Data]   = ".rodata",
-	[ELF64_Section__BSS]              = ".bss",
-	[ELF64_Section__Relocations_Text] = ".rela.text",
-	[ELF64_Section__Relocations_Data] = ".rela.data",
-	[ELF64_Section__Symbols_Table]    = ".symtab",
-	[ELF64_Section__String_Table]     = ".strtab",
-	[ELF64_Section__Section_Names]    = ".shstrtab",
-	[ELF64_Section__RISCV_Attributes] = ".riscv.attributes",
+	[ELF64_Section__None]                       = "",
+	[ELF64_Section__Text]                       = ".text",
+	[ELF64_Section__Data]                       = ".data",
+	[ELF64_Section__Read_Only_Data]             = ".rodata",
+	[ELF64_Section__BSS]                        = ".bss",
+	[ELF64_Section__Symbols_Table]              = ".symtab",
+	[ELF64_Section__String_Table]               = ".strtab",
+	[ELF64_Section__Section_Names]              = ".shstrtab",
+	[ELF64_Section__RISCV_Attributes]           = ".riscv.attributes",
+	[ELF64_Section__Relocations_Text]           = ".rela.text",
+	[ELF64_Section__Relocations_Data]           = ".rela.data",
+	[ELF64_Section__Relocations_Read_Only_Data] = ".rela.rodata",
 	// [ELF64_Section__Note_GNU_Stack = ".note.GNU-stack",
 };
 
 ELF64_Section_Header_Type ELF64_Section_Header_Type_from_ELF64_Section[ELF64_Section__COUNT] =
 {
-	[ELF64_Section__None]              = ELF64_Section_Header_Type__None,
-	[ELF64_Section__Text]              = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__Data]              = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__Read_Only_Data]    = ELF64_Section_Header_Type__Program_Bits,
-	[ELF64_Section__BSS]               = ELF64_Section_Header_Type__No_Bits,
-	[ELF64_Section__Relocations_Text]  = ELF64_Section_Header_Type__Relocations,
-	[ELF64_Section__Relocations_Data]  = ELF64_Section_Header_Type__Relocations,
-	[ELF64_Section__Symbols_Table]     = ELF64_Section_Header_Type__Symbols_Table,
-	[ELF64_Section__String_Table]      = ELF64_Section_Header_Type__String_Table,
-	[ELF64_Section__Section_Names]     = ELF64_Section_Header_Type__String_Table,
-	[ELF64_Section__RISCV_Attributes]  = ELF64_Section_Header_Type__RISCV_Attributes,
+	[ELF64_Section__None]                       = ELF64_Section_Header_Type__None,
+	[ELF64_Section__Text]                       = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__Data]                       = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__Read_Only_Data]             = ELF64_Section_Header_Type__Program_Bits,
+	[ELF64_Section__BSS]                        = ELF64_Section_Header_Type__No_Bits,
+	[ELF64_Section__Symbols_Table]              = ELF64_Section_Header_Type__Symbols_Table,
+	[ELF64_Section__String_Table]               = ELF64_Section_Header_Type__String_Table,
+	[ELF64_Section__Section_Names]              = ELF64_Section_Header_Type__String_Table,
+	[ELF64_Section__RISCV_Attributes]           = ELF64_Section_Header_Type__RISCV_Attributes,
+	[ELF64_Section__Relocations_Text]           = ELF64_Section_Header_Type__Relocations,
+	[ELF64_Section__Relocations_Data]           = ELF64_Section_Header_Type__Relocations,
+	[ELF64_Section__Relocations_Read_Only_Data] = ELF64_Section_Header_Type__Relocations,
 };
 
 // Default value for section alignments.
@@ -289,6 +293,13 @@ global const U8 ELF64_Section_alignments[ELF64_Section__COUNT] =
 	[ELF64_Section__String_Table]      = 1,
 	[ELF64_Section__Section_Names]     = 1,
 	[ELF64_Section__RISCV_Attributes]  = 1
+};
+
+global const ELF64_Section_relocations[ELF64_Section__COUNT] =
+{
+	[ELF64_Section__Text]             = ELF64_Section__Relocations_Text,
+	[ELF64_Section__Data]             = ELF64_Section__Relocations_Data,
+	[ELF64_Section__Read_Only_Data]   = ELF64_Section__Relocations_Read_Only_Data,
 };
 
 //////////////////////////////////////////////

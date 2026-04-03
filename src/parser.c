@@ -402,9 +402,10 @@ Parser_statement_instruction_create(Parser *parser)
 		.token_index_begin = parser->token_index_before,
 		.token_index_end = parser->token_index,
 
-		.size = 4, // TODO: make this a global?
+		.size          = 4, // TODO: make this a global?
 		.section_index = parser->section_current_index,
-		.kind = Statement_Kind__Instruction,
+		.kind          = Statement_Kind__Instruction,
+		.flags         = parser->flags,
 	};
 
 	Statement *pointer = Statements_push(parser->statements, statement);
@@ -1635,6 +1636,27 @@ Parser_parse(Parser *parser)
 
 				statement.expressions_indexes = expressions_indexes;
 				statement.expressions_count = 2;
+			} break;
+			case Directive_Kind__Option:
+			{
+				Parser_advance(parser);
+				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
+
+				String8 string = Parser_token_string(parser);
+				if (os_memory_match(string.data, "norelax", min_m(string.count, 7)) == 0)
+				{
+					parser->flags |= Statement_Flags__Relax_Disabled;
+				}
+				else if (os_memory_match(string.data, "relax", min_m(string.count, 5)) == 0)
+				{
+					parser->flags &= ~Statement_Flags__Relax_Disabled;
+				}
+				else
+				{
+					Parser_Error_Kind__Option_Invalid;
+				}
+				Parser_advance(parser);
+
 			} break;
 			default:
 			{
