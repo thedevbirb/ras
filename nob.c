@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 	// Link Cocoa (AppKit + Foundation), CoreGraphics, and QuartzCore (CALayer).
 	nob_cmd_append(&cmd, "cc",
 			"-std=c11", "-g",
-			"-DASSEMBLER_EXPECT_PANIC",
+			// "-DASSEMBLER_EXPECT_PANIC",
 			"-w",
 			"-Wall", "-Wextra", "-Wpedantic",
 			"-Wno-override-init",

@@ -143,7 +143,13 @@ TODO: handling and evaluation of relocation operators, plus emitting relocation 
 
 # relocations
 
-This is another very tough part.
+
+TODO: Relocations change the in some way the expression evaluation algorithm. When encoding, if some
+undefined symbols are found, relocations entry must be emitted, and they can only be of the form
+`symbol + addend` (or viceversa, and signed, so a minus can appear).
+Probably this should be done by another component, the Encoder + Relocator, or in another function
+of the Resolver.
+
 
 # Random
 

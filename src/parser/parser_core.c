@@ -219,13 +219,17 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 
 		Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 
+		// TODO: here, I should save the symbol (key?) added into the node. Otherwise, I'm losing information. However,
+		// token_index also maps to that, although with more hops.
+		// Change this to Expression_Kind__Symbol
+
 		if (!symbol)
 		{
 
 			ELF64_Symbol symbol =
 			{
 				// Will produce a relocation entry, unless defined later.
-				.section_index = ELF64_Section__None
+				.section_index = ELF_Section__None
 			};
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
 			assert_always_m(!slot_and_found.y);
@@ -260,7 +264,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	} break;
 
 	case Token_Kind__Relocation_Prefix:
-	{	// %reloc(expression)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
@@ -277,7 +280,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
-		// node                     = Arena_push_struct_m(parser->arena, Expression_Node);
 		node             = Expressions_push_empty(parser->expressions);
 		node->kind       = Expression_Kind__Relocation;
 		node->index_left = inner->index;
@@ -525,7 +527,7 @@ Parser_parse(Parser *parser)
 
 				String8 substring             = Parser_token_string(parser);
 				Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
-				ELF64_Section section_index   = ELF64_Section_from_Directive_Kind[directive_kind];
+				ELF_Section section_index   = ELF_Section_from_Directive_Kind[directive_kind];
 				parser->section_current_index = section_index;
 
 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
@@ -539,10 +541,10 @@ Parser_parse(Parser *parser)
 				String8 key = Parser_token_string(parser);
 				Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
 
-				assert_always_m(Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
+				assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
 				if (entry)
 				{
-					B32 demoted = ELF64_Symbol_bind_m(entry->value.type_and_binding) > Symbol_Binding__Local;
+					B32 demoted = ELF_Symbol_bind_m(entry->value.type_and_binding) > ELF_Symbol_Binding__Local;
 					Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
 				}
 				else
@@ -564,14 +566,14 @@ Parser_parse(Parser *parser)
 				if (entry)
 				{
 					U8 type_and_binding =
-						ELF64_Symbol_info_m(Symbol_Binding__Global, ELF64_Symbol_type_m(entry->value.type_and_binding));
+						ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(entry->value.type_and_binding));
 					entry->value.type_and_binding = type_and_binding;
 				}
 				else
 				{
 					ELF64_Symbol symbol =
 					{
-						.type_and_binding = ELF64_Symbol_info_m(Symbol_Binding__Global, 0),
+						.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
 					};
 					Symbols_Table_put(parser->symbols_table, key, symbol);
 				}
@@ -601,7 +603,7 @@ Parser_parse(Parser *parser)
 
 				ELF64_Symbol symbol =
 				{
-					.section_index = section_index_absolute,
+					.section_index = ELF_Section_Index__Absolute,
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
 
@@ -644,8 +646,8 @@ Parser_parse(Parser *parser)
 				String8 string = Parser_token_string(parser);
 				ELF64_Symbol symbol =
 				{
-					.type_and_binding = ELF64_Symbol_info_m(Symbol_Binding__Global, 0),
-					.section_index = section_index_common,
+					.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
+					.section_index = ELF_Section_Index__Common,
 				};
 
 				Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, string, symbol);
@@ -692,7 +694,7 @@ Parser_parse(Parser *parser)
 			} break;
 			default:
 			{
-				ELF64_Section section_kind = ELF64_Section_from_Directive_Kind[directive_kind];
+				ELF_Section section_kind = ELF_Section_from_Directive_Kind[directive_kind];
 				assert_always_m(section_kind && "unhandled directive");
 
 				parser->section_current_index = section_kind;

@@ -58,7 +58,7 @@ struct Resolver
 
 	Resolver_Flags flags;
 
-	U32 sections_offset[ELF64_Section__COUNT];
+	U32 sections_offset[ELF_Section__COUNT];
 	U16 section_current_index;
 
 };

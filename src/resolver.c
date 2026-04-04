@@ -83,14 +83,6 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		else
 		{
 			node->unresolved = 1;
-			if (resolver->flags & Resolver_Flags__Relocations)
-			{
-				ELF64_Section section_index = resolver->statement_current->section_index;
-				ELF64_Section section_relocation = ELF64_Section_relocations[section_index];
-				Resolver_expect(resolver, section_relocation, Resolver_Error_Kind__Section_Relocation_Invalid);
-				Object_File_Section *file_section = &resolver->sections[section_relocation];
-				todo_m();
-			}
 		}
 
 	} break;
@@ -215,7 +207,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 internal void
 Resolver_offsets_recompute(Resolver *resolver)
 {
-	U32 section_offsets[ELF64_Section__COUNT] = {0};
+	U32 section_offsets[ELF_Section__COUNT] = {0};
 
 	for (;;)
 	{
@@ -506,3 +498,12 @@ void
 Resolver_relocation_emit(Resolver *resolver)
 {
 }
+
+
+// I can start writing a encoding function that also emits relocation as part of the process.
+// While encoding instruction themselves isn't nothing particularly challenging, its more complex to handle relocations.
+// Relocations essentially happen when some specific relocator operators are found or when some symbols are undefined
+// i.e. they belong to section index undefined. In such case, due to the relocation with addend entry layout `Elf_Rela`
+// or `ELF_Relocation_Addend`, if the expression node is `unresolved`, then we need to check the form of such
+// expressions. The evaluation algorithm tries to evaluate as much as possible, so it must reduce to something like
+// `symbol + addend` or `addend + symbol`, where addend is a signed integer.

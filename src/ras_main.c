@@ -168,7 +168,7 @@ main(int argument_count, char **argument_vector)
 		.symbols_table  = &symbols_table,
 		.expressions    = &expressions,
 
-		.section_current_index = ELF64_Section__Text,
+		.section_current_index = ELF_Section__Text,
 
 		.token_current = token_array.tokens[0],
 		.token_count   = token_array.token_count,
@@ -261,7 +261,7 @@ main(int argument_count, char **argument_vector)
 
 		.error         = {0},
 		.sections_offset = {0},
-		.section_current_index = ELF64_Section__Text,
+		.section_current_index = ELF_Section__Text,
 	};
 
 	Resolver_relax(&resolver);
