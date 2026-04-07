@@ -26,6 +26,10 @@ struct Resolver_Error
 {
 	Statement *statement;
 	Resolver_Error_Kind kind;
+
+	U32 row_index;
+	U32 column_index_begin;
+	U32 column_index_end;
 };
 
 typedef enum Resolver_Flags

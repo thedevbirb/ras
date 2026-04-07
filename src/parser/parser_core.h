@@ -88,8 +88,8 @@ struct Parser_Error
 	Parser_Error_Kind kind;
 
 	U32 row_index;
-	U32 column_begin_index;
-	U32 column_end_index;
+	U32 column_index_begin;
+	U32 column_index_end;
 };
 
 

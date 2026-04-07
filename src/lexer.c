@@ -115,8 +115,8 @@ Lexer_error_set(Lexer *lexer, Lexer_Error_Kind kind)
 	{
 		.kind               = kind,
 		.row_index          = lexer->row_index,
-		.column_begin_index = lexer->column_index_before,
-		.column_end_index   = lexer->column_index,
+		.column_index_begin = lexer->column_index_before,
+		.column_index_end   = lexer->column_index,
 	};
 	return;
 }
@@ -407,8 +407,8 @@ Lexer_tokenize(Lexer *lexer)
 							{
 								.kind               = Lexer_Error_Kind__Escape_Sequence_Invalid,
 								.row_index          = lexer->row_index,
-								.column_begin_index = escape_started_column_index,
-								.column_end_index   = lexer->column_index + 1,
+								.column_index_begin = escape_started_column_index,
+								.column_index_end   = lexer->column_index + 1,
 							};
 						}
 

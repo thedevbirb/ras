@@ -13,11 +13,13 @@
 #include <generated/instruction_hashes.h>
 
 #include "initialize.h"
+#include "primitives.h"
 #include "elf.h"
 
 #include "language/language_include.h"
 #include "section.h"
 
+#include "diagnostic.h"
 #include "lexer.h"
 #include "expression.h"
 #include "statement.h"
@@ -30,6 +32,8 @@
 #include "initialize.c"
 
 #include "language/language_include.c"
+
+#include "diagnostic.c"
 #include "lexer.c"
 #include "expression.c"
 #include "statement.c"
@@ -108,54 +112,18 @@ main(int argument_count, char **argument_vector)
 	Lexer_Error lexer_error = token_array.error;
 	if (lexer_error.kind)
 	{
-		U32 line   = lexer_error.row_index + 1;
-		U32 column_begin = lexer_error.column_begin_index + 1;
-		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
-		fprintf(stderr, "%s\n", lexer_error_kind_messages[lexer_error.kind]);
-		fprintf(stderr, "%5d | ", line);
-		U64 index = token_array.line_start_indexes[lexer_error.row_index];
-		for (;;)
+		Diagnostic diagnostic =
 		{
-			if (input.data[index] == '\n')
-			{
-				fputc('\n', stderr);
-				break;
-			}
+			.input              = &input,
+			.file_in_path       = file_in_path,
+			.message_kind       = lexer_error_kind_messages[lexer_error.kind],
+			.line               = lexer_error.row_index + 1,
+			.column_index_begin = lexer_error.column_index_begin,
+			.column_index_end   = lexer_error.column_index_end,
+			.input_index_start  = token_array.line_start_indexes[lexer_error.row_index],
+		};
 
-			fputc(input.data[index], stderr);
-			index += 1;
-		}
-
-		fprintf(stderr, "      | ");
-		index = 0;
-		for (;;)
-		{
-			if (index == lexer_error.column_begin_index)
-			{
-				fprintf(stderr, "\x1B[1;31m^");
-				U32 tilde_index = 0;
-				// There is already the caret, otherwise we output an extra tilde.
-				U32 tilde_count = lexer_error.column_end_index - lexer_error.column_begin_index;
-				for (;;)
-				{
-					if (tilde_index < tilde_count)
-					{
-						fputc('~', stderr);
-						tilde_index += 1;
-					}
-					else
-					{
-						break;
-					}
-				}
-				fprintf(stderr, "\x1B[0m\n");
-				break;
-			}
-
-			fputc(' ', stderr);
-			index += 1;
-		}
-
+		Diagnostic_print(&diagnostic);
 		exit(1);
 	}
 
@@ -180,63 +148,18 @@ main(int argument_count, char **argument_vector)
 	Parser_Error parser_error = parser.error;
 	if (parser_error.kind)
 	{
-		U32 line   = parser_error.row_index + 1;
-		U32 column_begin = parser_error.column_begin_index + 1;
-		fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", file_in_path, line, column_begin);
-		fprintf(stderr, "%s\n", Parser_Error_Kind_messages[parser_error.kind]);
-		fprintf(stderr, "%5d | ", line);
-
-		U64 index = token_array.line_start_indexes[parser_error.row_index];
-
-		for (;;)
+		Diagnostic diagnostic =
 		{
-			if (input.data[index] == '\n')
-			{
-				fputc('\n', stderr);
-				break;
-			}
-			else if (input.data[index] == '\t')
-			{
-				fputc(' ', stderr);
-			}
-			else
-			{
-				fputc(input.data[index], stderr);
-			}
-			index += 1;
-		}
+			.input              = &input,
+			.file_in_path       = file_in_path,
+			.message_kind       = Parser_Error_Kind_messages[parser_error.kind],
+			.line               = parser_error.row_index + 1,
+			.column_index_begin = parser_error.column_index_begin,
+			.column_index_end   = parser_error.column_index_end,
+			.input_index_start  = token_array.line_start_indexes[parser_error.row_index],
+		};
 
-		fprintf(stderr, "      | ");
-		index = 0;
-
-		for (;;)
-		{
-			if (index == parser_error.column_begin_index)
-			{
-				fprintf(stderr, "\x1B[1;31m^");
-				U32 tilde_index = 0;
-				// There is already the caret, otherwise we output an extra tilde.
-				U32 tilde_count = parser_error.column_end_index - parser_error.column_begin_index;
-				for (;;)
-				{
-					if (tilde_index < tilde_count)
-					{
-						fputc('~', stderr);
-						tilde_index += 1;
-					}
-					else
-					{
-						break;
-					}
-				}
-				fprintf(stderr, "\x1B[0m\n");
-				break;
-			}
-
-			fputc(' ', stderr);
-			index += 1;
-		}
-
+		Diagnostic_print(&diagnostic);
 		exit(1);
 	}
 
@@ -265,6 +188,24 @@ main(int argument_count, char **argument_vector)
 	};
 
 	Resolver_relax(&resolver);
+
+	Resolver_Error resolver_error = resolver.error;
+	if (resolver_error.kind)
+	{
+		Diagnostic diagnostic =
+		{
+			.input              = &input,
+			.file_in_path       = file_in_path,
+			.message_kind       = Resolver_Error_Kind_messages[resolver_error.kind],
+			.line               = resolver_error.row_index + 1,
+			.column_index_begin = resolver_error.column_index_begin,
+			.column_index_end   = resolver_error.column_index_end,
+			.input_index_start  = token_array.line_start_indexes[resolver_error.row_index],
+		};
+
+		Diagnostic_print(&diagnostic);
+		exit(1);
+	}
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);

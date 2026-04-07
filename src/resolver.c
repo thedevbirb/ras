@@ -4,8 +4,19 @@ Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 	// TODO: set other fields as well, for example the token where it happened.
 	if (!resolver->error.kind)
 	{
-		resolver->error.kind = kind;
+		resolver->error.kind      = kind;
 		resolver->error.statement = resolver->statement_current;
+
+		// U32 row_index = resolver->statement_current.
+		Token token_begin      = resolver->tokens[resolver->statement_current->token_index_begin];
+		Token token_end        = resolver->tokens[resolver->statement_current->token_index_end];
+		U32 row_index          = token_begin.row_index;
+		U32 column_index_begin = token_begin.column_index;
+		U32 column_index_end   = token_end.column_index + token_end.size;
+
+		resolver->error.row_index          = row_index;
+		resolver->error.column_index_begin = column_index_begin;
+		resolver->error.column_index_end   = column_index_end;
 	}
 
 #ifdef ASSEMBLY_EXPECT_PANIC

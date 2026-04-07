@@ -130,11 +130,11 @@ Parser_error_set(Parser *parser, Parser_Error_Kind kind)
 	{
 		.kind               = kind,
 		.row_index          = parser->token_current.row_index,
-		.column_begin_index = parser->token_current.column_index,
-		.column_end_index   = parser->token_current.column_index + parser->token_current.size - 1,
+		.column_index_begin = parser->token_current.column_index,
+		.column_index_end   = parser->token_current.column_index + parser->token_current.size - 1,
 	};
 
-	assert_always_m(error.column_begin_index <= error.column_end_index && "token_index bug");
+	assert_always_m(error.column_index_begin <= error.column_index_end && "token_index bug");
 	parser->error = error;
 
 #ifdef ASSEMBLER_EXPECT_PANIC
@@ -264,6 +264,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	} break;
 
 	case Token_Kind__Relocation_Prefix:
+	{
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
