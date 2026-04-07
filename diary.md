@@ -131,6 +131,9 @@ Again, so many times preserving ALL information created during transformations s
 times. It's already computed, not saving it is a waste and most of the times is not that memory
 heavy, yet it makes extending the software so much easier.
 
+TODO: the parser builds statements as it goes line by line, it should have a statement builder that
+can be used during expression parsing to already catch some errors.
+
 # relaxation
 
 Now there is a tough part, where you evaluate every expression and compute sizes and offsets for
