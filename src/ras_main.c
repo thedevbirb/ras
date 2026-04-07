@@ -104,6 +104,8 @@ main(int argument_count, char **argument_vector)
 
 	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
+	Statement *statement_context_parser = Arena_push_struct_m(arena, Statement);
+
 	arguments_shift(&argument_count, &argument_vector);
 
 	Lexer lexer = Lexer_new(&input, arena);
@@ -135,6 +137,8 @@ main(int argument_count, char **argument_vector)
 		.statements     = &statements,
 		.symbols_table  = &symbols_table,
 		.expressions    = &expressions,
+
+		.statement_context = statement_context_parser,
 
 		.section_current_index = ELF_Section__Text,
 

@@ -103,6 +103,9 @@ struct Parser
 	Expressions    *expressions;
 	Symbols_Table  *symbols_table;
 
+	// The current statement being built
+	Statement      *statement_context;
+
 	U16 section_current_index;
 
 	Token         token_current;

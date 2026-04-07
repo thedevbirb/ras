@@ -371,20 +371,31 @@ Parser_expression_immediate_create(Parser *parser, U64 immediate)
 	return node;
 }
 
+internal void
+Parser_statement_context_reset(Parser *parser)
+{
+	*parser->statement_context = (Statement)
+	{
+		.token_index_begin = parser->token_index,
+		.section_index = parser->section_current_index,
+		.flags = parser->flags,
+	};
+
+	return;
+}
+
 // Create a barebone, incomplete statement for an instruction.
 internal Statement *
-Parser_statement_instruction_create(Parser *parser)
+Parser_statement_instruction_context_set(Parser *parser)
 {
-
 	Statement statement =
 	{
-		.token_index_begin = parser->token_index_before,
-		.token_index_end = parser->token_index,
+		parser->statement_context->token_index_begin = parser->token_index_before,
 
-		.size          = 4, // TODO: make this a global?
-		.section_index = parser->section_current_index,
-		.kind          = Statement_Kind__Instruction,
-		.flags         = parser->flags,
+		parser->statement_context->size          = 4, // TODO: make this a global?
+		parser->statement_context->section_index = parser->section_current_index,
+		parser->statement_context->kind          = Statement_Kind__Instruction,
+		parser->statement_context->flags         = parser->flags,
 	};
 
 	Statement *pointer = Statements_push(parser->statements, statement);
@@ -405,6 +416,7 @@ Parser_parse(Parser *parser)
 		}
 
 		parser->token_index_before = parser->token_index;
+		Parser_statement_context_reset(parser);
 
 		switch (parser->token_current.kind)
 		{
@@ -423,15 +435,10 @@ Parser_parse(Parser *parser)
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
 
 			Parser_advance(parser);
-			Statement statement =
-			{
-				.label_symbol_slot = slot_and_found.x,
-				.token_index_begin = parser->token_index_before,
-				.token_index_end   = parser->token_index,
-				.section_index     = parser->section_current_index,
-				.kind              = Statement_Kind__Label,
-			};
-			Statements_push(parser->statements, statement);
+
+			parser->statement_context->label_symbol_slot = slot_and_found.x;
+			parser->statement_context->token_index_begin = parser->token_index_before;
+			parser->statement_context->kind              = Statement_Kind__Label;
 		} break;
 		case Token_Kind__Label_Numeric:
 		{
@@ -439,26 +446,18 @@ Parser_parse(Parser *parser)
 			U8 label_numeric_value = parser->token_current.numerical_value;
 
 			Parser_advance(parser);
-			Statement statement =
-			{
-				.label_numeric_value = label_numeric_value,
-				.token_index_begin   = parser->token_index_before,
-				.token_index_end     = parser->token_index,
-				.section_index       = parser->section_current_index,
-				.kind                = Statement_Kind__Label_Numeric,
-			};
-			Statements_push(parser->statements, statement);
+			parser->statement_context->label_numeric_value = label_numeric_value;
+			parser->statement_context->token_index_end     = parser->token_index;
+			parser->statement_context->kind                = Statement_Kind__Label_Numeric;
 		} break;
 		case Token_Kind__Directive:
 		{
 			String8 substring = Parser_token_string(parser);
 			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
 
-			Statement statement =
-			{
-				.kind = Statement_Kind__Directive,
-				.directive_kind = directive_kind
-			};
+
+			parser->statement_context->kind = Statement_Kind__Directive;
+			parser->statement_context->directive_kind = directive_kind;
 
 			switch (directive_kind)
 			{
@@ -497,9 +496,9 @@ Parser_parse(Parser *parser)
 						break;
 					}
 				}
-				statement.expressions_indexes = expressions_indexes;
-				statement.expressions_count   = expressions_count;
-				statement.size                = data_directive_size * expressions_count;
+				parser->statement_context->expressions_indexes = expressions_indexes;
+				parser->statement_context->expressions_count   = expressions_count;
+				parser->statement_context->size                = data_directive_size * expressions_count;
 
 				data_directive_size = 0;
 			} break;
@@ -516,7 +515,7 @@ Parser_parse(Parser *parser)
 				U32 size = String8_byte_size_escaped(ascii_text);
 				string_size += size;
 
-				statement.size = string_size;
+				parser->statement_context->size = string_size;
 				string_size = 0;
 
 				Parser_advance(parser);
@@ -586,8 +585,8 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
-				statement.expressions_indexes = &expression->index;
-				statement.expressions_count = 1;
+				parser->statement_context->expressions_indexes = &expression->index;
+				parser->statement_context->expressions_count = 1;
 			} break;
 			case Directive_Kind__Set: {} // fallthrough
 			case Directive_Kind__Equality:
@@ -608,16 +607,16 @@ Parser_parse(Parser *parser)
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
 
-				statement.expressions_indexes = &expression->index;
-				statement.expressions_count   = 1;
+				parser->statement_context->expressions_indexes = &expression->index;
+				parser->statement_context->expressions_count   = 1;
 			} break;
 			case Directive_Kind__Zero:
 			{
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
-				statement.expressions_indexes = &expression->index;
-				statement.expressions_count   = 1;
+				parser->statement_context->expressions_indexes = &expression->index;
+				parser->statement_context->expressions_count   = 1;
 			} break;
 			case Directive_Kind__Skip:
 			{
@@ -635,8 +634,8 @@ Parser_parse(Parser *parser)
 					Parser_advance(parser);
 				}
 
-				statement.expressions_indexes = &expression->index;
-				statement.expressions_count   = 1;
+				parser->statement_context->expressions_indexes = &expression->index;
+				parser->statement_context->expressions_count   = 1;
 			} break;
 			case Directive_Kind__Common:
 			{
@@ -669,8 +668,8 @@ Parser_parse(Parser *parser)
 				expressions_indexes[0] = size_expression->index;
 				expressions_indexes[1] = alignment_expression->index;
 
-				statement.expressions_indexes = expressions_indexes;
-				statement.expressions_count = 2;
+				parser->statement_context->expressions_indexes = expressions_indexes;
+				parser->statement_context->expressions_count = 2;
 			} break;
 			case Directive_Kind__Option:
 			{
@@ -703,11 +702,9 @@ Parser_parse(Parser *parser)
 			} break;
 			}
 
-			statement.token_index_begin  = parser->token_index_before;
-			statement.token_index_end    = parser->token_index - 1;
-			statement.section_index      = parser->section_current_index;
-
-			Statements_push(parser->statements, statement);
+			parser->statement_context->token_index_begin  = parser->token_index_before;
+			parser->statement_context->token_index_end    = parser->token_index - 1;
+			parser->statement_context->section_index      = parser->section_current_index;
 
 		} break;
 		case Token_Kind__Identifier:
@@ -820,6 +817,9 @@ Parser_parse(Parser *parser)
 				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
 			} break;
 			}
+
+			// It is at most one.
+			parser->statement_context->expressions_count = parser->statement_context->expressions_indexes ? 1 : 0;
 		} break;
 		default:
 		{
@@ -829,6 +829,9 @@ Parser_parse(Parser *parser)
 
 		B32 loop_infinite_avoided = parser->token_index > parser->token_index_before || parser->error.kind || parser->end_reached;
 		assert_always_m(loop_infinite_avoided && "infinite loop in parser");
+
+		// The iteration has produced a new statement.
+		Statements_push(parser->statements, *parser->statement_context);
 	}
 
 	return;
