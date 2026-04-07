@@ -207,6 +207,8 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
+	Resolver_encode(&resolver);
+
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);
 	// int file_out_descriptor = open(file_path_out, O_CREAT|O_WRONLY|O_TRUNC, 0644);

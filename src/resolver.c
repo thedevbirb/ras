@@ -85,11 +85,10 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	case Expression_Kind__Char_Literal:    {} break;
 	case Expression_Kind__Identifier:
 	{
-		String8 key = Resolver_token_string_from_index(resolver, node->token_index);
-		Symbols_Table_Entry *entry = Symbols_Table_get(resolver->symbols_table, key);
-		if (entry && entry->value.section_index)
+		assert_always_m(node->symbols_table_entry && "parser didn't set expression entry");
+		if (node->symbols_table_entry->value.section_index)
 		{
-			node->integer_value = entry->value.value;
+			node->integer_value = node->symbols_table_entry->value.value;
 		}
 		else
 		{
@@ -147,7 +146,76 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		U32 section_current_offset = resolver->sections_offset[resolver->section_current_index];
 		node->integer_value = section_current_offset;
 	} break;
-	case Expression_Kind__Relocation:      {  todo_m(); } break;
+	case Expression_Kind__Relocation:
+	{
+		// TODO: this could be done during parsing instead.
+		Resolver_expect(resolver, resolver->statement_current->kind == Statement_Kind__Instruction, Resolver_Error_Kind__Relocation_Misplaced);
+
+		if (resolver->flags & (Resolver_Flags__Relocations))
+		{
+			// NOTE: a case like addend + symbol + addend is NOT supported.
+			// Only symbol + addend or viceversa is supported.
+
+
+			// NOTE: this can probably be recycled.
+
+			// We have to find the symbol and the addend.
+			Symbols_Table_Entry *entry = &symbols_table_entry_none;
+			U64 addend = 0;
+
+			// Case 1: just a symbol
+			Expression_Node *node_left = &resolver->expressions->data[node->index_left];
+
+			B32 addend_required = node_left->symbols_table_entry == 0;
+
+			// Case 2: symbol with addend
+			if (addend_required)
+			{
+				Expression_Kind left_kind = node_left->kind;
+				B32 left_kind_add_is = left_kind == Expression_Kind__Add;
+				B32 left_kind_subtract_is = left_kind == Expression_Kind__Subtract;
+				Resolver_expect(resolver, left_kind_add_is || left_kind_subtract_is, Resolver_Error_Kind__Relocation_Operand_Invalid);
+
+				Expression_Node *node_left_left  = &resolver->expressions->data[node_left->index_left];
+				Expression_Node *node_left_right = &resolver->expressions->data[node_left->index_right];
+
+				Resolver_expect(resolver, node_left_left || node_left_right, Resolver_Error_Kind__Relocation_Operand_Symbol_Missing);
+
+				if (node_left_left->symbols_table_entry && node_left_right->symbols_table_entry)
+				{
+					Resolver_expect(resolver, left_kind_subtract_is, Resolver_Error_Kind__Relocation_Operand_Invalid);
+					// Check that both are local etc.
+				}
+				else if (node_left_right->symbols_table_entry)
+				{
+					B32 addend_resolved = !node_left_left->unresolved;
+					Resolver_expect(resolver, addend_resolved, Resolver_Error_Kind__Relocation_Form_Invalid);
+					addend = node_left_left->integer_value;
+					entry = node_left_right->symbols_table_entry;
+				}
+				else if (node_left_left->symbols_table_entry)
+				{
+					B32 addend_resolved = !node_left_right->unresolved;
+					Resolver_expect(resolver, addend_resolved, Resolver_Error_Kind__Relocation_Form_Invalid);
+					addend = node_left_right->integer_value;
+					entry = node_left_left->symbols_table_entry;
+				}
+
+			}
+			else
+			{
+				Resolver_expect(resolver, node_left->symbols_table_entry, Resolver_Error_Kind__Relocation_Symbol_Missing);
+				entry = node_left->symbols_table_entry;
+			}
+
+			Resolver_relocation_emit(resolver, entry->index, addend, node->relocation_operator);
+		}
+		else
+		{
+			// For simplicity, we evaluate relocation operators once relaxation is completed, and offset are known.
+			node->unresolved = 1;
+		}
+	} break;
 
 	case Expression_Kind__Negate:
 	{
@@ -409,109 +477,278 @@ Resolver_relax(Resolver *resolver)
 	return pass_count;
 }
 
-// For each statement that contains an expression referencing a symbol:
+// ============================================================================
+// RISC-V Assembler Relocation Decision Logic
+// ============================================================================
 //
-// 1. If the expression's symbol is UNDEFINED (not defined anywhere in this translation unit):
-//    -> Emit a relocation. The linker must resolve this.
-//    The specific relocation depends on the context:
-//      - %hi(symbol)              -> R_RISCV_HI20
-//      - %lo(symbol) in I-type    -> R_RISCV_LO12_I
-//      - %lo(symbol) in S-type    -> R_RISCV_LO12_S
-//      - %pcrel_hi(symbol)        -> R_RISCV_PCREL_HI20
-//      - %pcrel_lo(label) in I-type -> R_RISCV_PCREL_LO12_I
-//      - %pcrel_lo(label) in S-type -> R_RISCV_PCREL_LO12_S
-//      - %got_pcrel_hi(symbol)    -> R_RISCV_GOT_HI20
-//      - %tprel_hi(symbol)        -> R_RISCV_TPREL_HI20
-//      - %tprel_lo(symbol) in I-type -> R_RISCV_TPREL_LO12_I
-//      - %tprel_lo(symbol) in S-type -> R_RISCV_TPREL_LO12_S
-//      - %tprel_add(symbol)       -> R_RISCV_TPREL_ADD
-//      - %tls_ie_pcrel_hi(symbol) -> R_RISCV_TLS_GOT_HI20
-//      - %tls_gd_pcrel_hi(symbol) -> R_RISCV_TLS_GD_HI20
-//      - B-type branch target     -> R_RISCV_BRANCH
-//      - J-type jump target (jal) -> R_RISCV_JAL
-//      - call/tail pseudo-inst    -> R_RISCV_CALL or R_RISCV_CALL_PLT
-//      - .byte symbol             -> R_RISCV_32 (truncated) — rare, usually an error
-//      - .half symbol             -> R_RISCV_32 (truncated) — rare, usually an error
-//      - .word symbol             -> R_RISCV_32
-//      - .dword symbol            -> R_RISCV_64
+// ELF Structures Reference (from <elf.h>):
+// -----------------------------------------
 //
-// 2. If the expression's symbol is defined and marked SHN_COMMON:
-//    -> Emit a relocation. Common symbols are resolved by the linker.
-//    Same relocation selection as case 1.
+//   Elf64_Sym / Elf32_Sym — Symbol table entry
+//     .st_info   -> ELF64_ST_BIND() extracts binding: STB_LOCAL, STB_GLOBAL, STB_WEAK
+//                -> ELF64_ST_TYPE() extracts type: STT_NOTYPE, STT_OBJECT, STT_FUNC, ...
+//     .st_shndx  -> Section index where the symbol is defined:
+//                     SHN_UNDEF   (0)      — symbol is not defined in this translation unit
+//                     SHN_COMMON  (0xFFF2) — tentative (common) definition
+//                     SHN_ABS     (0xFFF1) — absolute, not relocated
+//                     1..N                 — index into the section header table
+//     .st_value  -> Offset within the section (for defined symbols)
+//     .st_size   -> Size of the symbol (optional, informational)
 //
-// 3. If the expression's symbol is defined and marked STB_GLOBAL or STB_WEAK:
-//    -> Emit a relocation. Even if the symbol is defined locally, the linker
-//      may override it with a definition from another translation unit (for
-//      weak symbols) or needs the relocation for shared library interposition
-//      (for global symbols). A strictly static, non-PIC assembler could
-//      optimize some of these away, but the safe default is to emit.
-//    Same relocation selection as case 1.
+//   Elf64_Rela / Elf32_Rela — Relocation entry (RISC-V uses SHT_RELA exclusively)
+//     .r_offset  -> Offset within the section where the relocation applies
+//     .r_info    -> ELF64_R_SYM()  — index into the symbol table
+//                -> ELF64_R_TYPE() — relocation type (R_RISCV_*)
+//     .r_addend  -> Signed addend used in the relocation computation
 //
-// 4. If the expression's symbol is defined, STB_LOCAL, and in a DIFFERENT section
-//    from the statement:
-//    -> Emit a relocation. The assembler does not know the final distance
-//      between sections.
-//    Same relocation selection as case 1.
+//   Elf64_Shdr / Elf32_Shdr — Section header (for determining "same section")
+//     .sh_type   -> SHT_RELA for relocation sections
+//     .sh_link   -> Index of the associated symbol table
+//     .sh_info   -> Index of the section to which relocations apply
 //
-// 5. If the expression's symbol is defined, STB_LOCAL, and in the SAME section
-//    as the statement:
+// Relocation sections are named .rela.<section>, e.g. .rela.text, .rela.data.
+// Each Elf64_Rela entry targets the section identified by the parent
+// section header's sh_info field.
 //
-//    5a. If the reference type is ABSOLUTE (%hi, %lo, .word, .dword, etc.):
-//        -> Emit a relocation. The absolute address depends on section placement,
-//          which is determined by the linker.
-//        Relocation selection:
-//          - %hi(symbol)              -> R_RISCV_HI20
-//          - %lo(symbol) in I-type    -> R_RISCV_LO12_I
-//          - %lo(symbol) in S-type    -> R_RISCV_LO12_S
-//          - .word symbol             -> R_RISCV_32
-//          - .dword symbol            -> R_RISCV_64
+// ============================================================================
+// Decision Procedure
+// ============================================================================
 //
-//    5b. If the reference type is PC-RELATIVE and linker relaxation is ENABLED:
-//        -> Emit the PC-relative relocation PLUS a companion R_RISCV_RELAX.
-//          Intervening instructions may shrink during relaxation, changing
-//          the offset.
-//        Relocation selection (each paired with R_RISCV_RELAX):
-//          - %pcrel_hi(symbol)          -> R_RISCV_PCREL_HI20 + R_RISCV_RELAX
-//          - %pcrel_lo(label) in I-type -> R_RISCV_PCREL_LO12_I + R_RISCV_RELAX
-//          - %pcrel_lo(label) in S-type -> R_RISCV_PCREL_LO12_S + R_RISCV_RELAX
-//          - B-type branch target       -> R_RISCV_BRANCH + R_RISCV_RELAX
-//          - J-type jump target (jal)   -> R_RISCV_JAL + R_RISCV_RELAX
-//          - call/tail pseudo-inst      -> R_RISCV_CALL(_PLT) + R_RISCV_RELAX
+// For each statement that references a symbol in an expression, the assembler
+// walks the following cases in order. The FIRST matching case applies.
 //
-//    5c. If the reference type is PC-RELATIVE and linker relaxation is DISABLED:
-//        -> Do NOT emit a relocation. The assembler can compute the final offset
-//          directly, since both the reference and the target are in the same
-//          section and no relaxation will alter the distance.
+// ----------------------------------------------------------------------------
+// CASE 1: Symbol is UNDEFINED (st_shndx == SHN_UNDEF)
+// ----------------------------------------------------------------------------
+//   -> Always emit a relocation. The linker must resolve this symbol.
 //
-// 6. If the expression is a CONSTANT (no symbol reference, purely numeric):
-//    -> Do NOT emit a relocation. Encode the value directly.
+//   Relocation type depends on the reference context:
 //
-// 7. If the expression is a SYMBOL DIFFERENCE (sym_a - sym_b):
+//     Assembler modifier / context            Relocation type
+//     ─────────────────────────────────────    ──────────────────────────
+//     %hi(symbol)                             R_RISCV_HI20
+//     %lo(symbol)        in I-type instr      R_RISCV_LO12_I
+//     %lo(symbol)        in S-type instr      R_RISCV_LO12_S
+//     %pcrel_hi(symbol)                       R_RISCV_PCREL_HI20
+//     %pcrel_lo(label)   in I-type instr      R_RISCV_PCREL_LO12_I
+//     %pcrel_lo(label)   in S-type instr      R_RISCV_PCREL_LO12_S
+//     %got_pcrel_hi(symbol)                   R_RISCV_GOT_HI20
+//     %tprel_hi(symbol)                       R_RISCV_TPREL_HI20
+//     %tprel_lo(symbol)  in I-type instr      R_RISCV_TPREL_LO12_I
+//     %tprel_lo(symbol)  in S-type instr      R_RISCV_TPREL_LO12_S
+//     %tprel_add(symbol)                      R_RISCV_TPREL_ADD
+//     %tls_ie_pcrel_hi(symbol)                R_RISCV_TLS_GOT_HI20
+//     %tls_gd_pcrel_hi(symbol)                R_RISCV_TLS_GD_HI20
+//     B-type branch target                    R_RISCV_BRANCH
+//     J-type jump target (jal)                R_RISCV_JAL
+//     call/tail pseudo-instruction            R_RISCV_CALL or R_RISCV_CALL_PLT
+//     .word symbol                            R_RISCV_32
+//     .dword symbol                           R_RISCV_64
 //
-//    7a. If both symbols are defined, STB_LOCAL, and in the SAME section,
-//        and linker relaxation is DISABLED:
-//        -> Do NOT emit a relocation. The difference is a fixed constant
-//          that the assembler can compute directly.
+//   Note on .byte/.half: An absolute symbol reference in a .byte or .half
+//   directive has no standard RISC-V relocation type for 8-bit or 16-bit
+//   absolute addresses. Most assemblers reject this as an error. Do not
+//   confuse this with the R_RISCV_ADD8/SUB8 or ADD16/SUB16 pairs, which
+//   apply only to symbol DIFFERENCES (see Case 7).
 //
-//    7b. If both symbols are defined, STB_LOCAL, and in the SAME section,
-//        and linker relaxation is ENABLED:
-//        -> Emit a relocation pair. Relaxation may change the distance.
-//        Relocation selection based on data width:
-//          - 1-byte context (.byte) -> R_RISCV_ADD8  + R_RISCV_SUB8
-//          - 2-byte context (.half) -> R_RISCV_ADD16 + R_RISCV_SUB16
-//          - 4-byte context (.word) -> R_RISCV_ADD32 + R_RISCV_SUB32
-//          - 8-byte context (.dword)-> R_RISCV_ADD64 + R_RISCV_SUB64
-//          - 6-bit context (rare)   -> R_RISCV_SET6  + R_RISCV_SUB6
+// ----------------------------------------------------------------------------
+// CASE 2: Symbol is COMMON (st_shndx == SHN_COMMON)
+// ----------------------------------------------------------------------------
+//   -> Always emit a relocation. Common symbols are tentative definitions;
+//      the linker merges them and assigns their final address.
+//   Relocation type selection: same table as Case 1.
 //
-//    7c. If the symbols are in DIFFERENT sections, or either is STB_GLOBAL,
-//        STB_WEAK, SHN_COMMON, or UNDEFINED:
-//        -> Emit a relocation pair. The linker must resolve the difference.
-//        Same relocation selection as 7b based on data width.
+// ----------------------------------------------------------------------------
+// CASE 3: Symbol is GLOBAL or WEAK (ELF64_ST_BIND(st_info) == STB_GLOBAL
+//         or STB_WEAK), defined in this translation unit
+// ----------------------------------------------------------------------------
+//   -> Always emit a relocation.
+//      - STB_GLOBAL: needed for shared library interposition (the dynamic
+//        linker may redirect the symbol to a different definition).
+//      - STB_WEAK: may be overridden by a strong definition from another
+//        translation unit.
+//      A non-PIC static assembler targeting a known-final executable could
+//      in principle resolve some of these, but the safe and standard behavior
+//      is to emit the relocation.
+//   Relocation type selection: same table as Case 1.
+//
+// ----------------------------------------------------------------------------
+// CASE 4: Symbol is LOCAL (STB_LOCAL), defined in a DIFFERENT section
+// ----------------------------------------------------------------------------
+//   -> Always emit a relocation. The assembler does not know the final
+//      distance or offset between sections; only the linker does.
+//   Relocation type selection: same table as Case 1.
+//
+// ----------------------------------------------------------------------------
+// CASE 5: Symbol is LOCAL (STB_LOCAL), defined in the SAME section
+// ----------------------------------------------------------------------------
+//   The assembler knows the offset between the reference and the target
+//   within the section. Whether it can resolve the reference depends on
+//   the reference type and whether linker relaxation is active.
+//
+//   5a. ABSOLUTE reference (%hi, %lo, .word, .dword, etc.):
+//       -> Emit a relocation. Even though the intra-section offset is known,
+//          the absolute virtual address depends on where the linker places
+//          the section.
+//       Relocation types:
+//         %hi(symbol)                          R_RISCV_HI20
+//         %lo(symbol)        in I-type         R_RISCV_LO12_I
+//         %lo(symbol)        in S-type         R_RISCV_LO12_S
+//         .word symbol                         R_RISCV_32
+//         .dword symbol                        R_RISCV_64
+//
+//   5b. PC-RELATIVE reference, linker relaxation ENABLED:
+//       -> Emit the PC-relative relocation AND a companion R_RISCV_RELAX.
+//          Relaxation passes may shrink or expand instructions between the
+//          reference and the target (e.g., relaxing auipc+jalr into jal),
+//          invalidating the assembler-computed offset.
+//       Relocation types (each paired with R_RISCV_RELAX):
+//         %pcrel_hi(symbol)                    R_RISCV_PCREL_HI20  + R_RISCV_RELAX
+//         %pcrel_lo(label)   in I-type         R_RISCV_PCREL_LO12_I + R_RISCV_RELAX
+//         %pcrel_lo(label)   in S-type         R_RISCV_PCREL_LO12_S + R_RISCV_RELAX
+//         B-type branch target                 R_RISCV_BRANCH       + R_RISCV_RELAX
+//         J-type jump target (jal)             R_RISCV_JAL          + R_RISCV_RELAX
+//         call/tail pseudo-instruction         R_RISCV_CALL(_PLT)   + R_RISCV_RELAX
+//
+//   5c. PC-RELATIVE reference, linker relaxation DISABLED:
+//       -> Do NOT emit a relocation. The assembler can compute the final
+//          PC-relative offset directly: both reference and target are in the
+//          same section, and no relaxation pass will alter the distance.
+//          Encode the offset into the instruction's immediate field.
+//
+// ----------------------------------------------------------------------------
+// CASE 6: Expression is a CONSTANT (no symbol reference, purely numeric)
+// ----------------------------------------------------------------------------
+//   -> Do NOT emit a relocation. Encode the value directly into the
+//      instruction or data directive.
+//
+// ----------------------------------------------------------------------------
+// CASE 7: Expression is a SYMBOL DIFFERENCE (sym_a - sym_b)
+// ----------------------------------------------------------------------------
+//   Symbol differences produce a pair of relocations (R_RISCV_ADDn +
+//   R_RISCV_SUBn) so the linker can evaluate the subtraction after
+//   final layout. The width of the pair matches the data context:
+//
+//     Context       ADD relocation    SUB relocation
+//     ───────       ──────────────    ──────────────
+//     .byte         R_RISCV_ADD8      R_RISCV_SUB8
+//     .half         R_RISCV_ADD16     R_RISCV_SUB16
+//     .word         R_RISCV_ADD32     R_RISCV_SUB32
+//     .dword        R_RISCV_ADD64     R_RISCV_SUB64
+//     6-bit (rare)  R_RISCV_SET6      R_RISCV_SUB6
+//
+//   Which sub-case applies:
+//
+//   7a. Both symbols are LOCAL, SAME section, relaxation DISABLED:
+//       -> Do NOT emit a relocation. The difference is a fixed constant
+//          that the assembler can compute at assembly time.
+//
+//   7b. Both symbols are LOCAL, SAME section, relaxation ENABLED:
+//       -> Emit the ADDn + SUBn relocation pair. Relaxation may change the
+//          distance between the two symbols.
+//
+//   7c. Symbols are in DIFFERENT sections, or either symbol is STB_GLOBAL,
+//       STB_WEAK, SHN_COMMON, or SHN_UNDEF:
+//       -> Emit the ADDn + SUBn relocation pair.
+//
+//       On UNDEFINED symbols in difference expressions:
+//       The assembler CAN emit the pair when one or both symbols are
+//       undefined (st_shndx == SHN_UNDEF). It emits R_RISCV_ADDn against
+//       sym_a and R_RISCV_SUBn against sym_b, deferring resolution entirely
+//       to the linker. However, the linker will typically require that both
+//       symbols, once resolved, reside in the same output section — otherwise
+//       the difference is not a link-time constant and will produce a link
+//       error. In practice, GNU as permits this; the correctness check is
+//       deferred to link time. This is uncommon in handwritten assembly but
+//       can appear in compiler-generated metadata (e.g., exception tables,
+//       DWARF debug info).
+//
+// ============================================================================
+// Notes
+// ============================================================================
+//
+// - RISC-V uses SHT_RELA sections exclusively (not SHT_REL). Every relocation
+//   entry carries an explicit r_addend, even when it is zero.
+//
+// - The R_RISCV_RELAX relocation is a marker, not a standalone fix-up. It
+//   occupies its own Elf64_Rela entry at the same r_offset as the primary
+//   relocation, with r_addend = 0 and r_sym typically 0. It signals to the
+//   linker that the associated instruction sequence is eligible for
+//   relaxation.
+//
+// - %pcrel_lo(label) does NOT reference the target symbol directly. It
+//   references a label on the instruction that carries the corresponding
+//   %pcrel_hi relocation. The linker uses the %pcrel_hi's target to compute
+//   the low 12 bits. This means the r_sym in the %pcrel_lo relocation entry
+//   points to the label, not to the ultimate target.
+//
+// - The call/tail pseudo-instructions expand to an auipc+jalr pair. The
+//   R_RISCV_CALL / R_RISCV_CALL_PLT relocation covers the full 8-byte
+//   sequence. With relaxation enabled, the linker may replace this with a
+//   single jal instruction (4 bytes) plus a NOP or compressed NOP, or
+//   just a single jal if alignment permits.
+//
+// ============================================================================
 void
-Resolver_relocation_emit(Resolver *resolver)
+Resolver_relocation_emit(Resolver *resolver, U32 symbol_index, S64 addend, Relocation_Operator operator)
 {
+	Statement *statement = resolver->statement_current;
+	ELF_Section section_index = ELF_Section_relocations[statement->section_index];
+	Object_File_Section *section = &resolver->sections[section_index];
+	Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(operator, statement->instruction_format);
+
+	ELF64_Relocation_Addend relocation =
+	{
+		.offset = statement->section_offset,
+		.info   = ELF64_Relocation_info_m(symbol_index, relocation_kind),
+		.addend = addend,
+	};
+
+	Object_File_Section_write(section, (U8 *)&relocation, sizeof(ELF64_Relocation_Addend));
+	return;
 }
 
+// Encode instructions and directives to object files. Assumes Resolver_relax has been called, as such all expressions
+// have been evaluated.
+void
+Resolver_encode(Resolver *resolver)
+{
+	resolver->flags |= Resolver_Flags__Relocations;
+	Resolver_cursor_reset(resolver);
+	Object_File_Section *section_current = &resolver->sections[ELF_Section__Text];
+
+	for (;;)
+	{
+		B32 break_should = resolver->statements_end_reached;
+		if (break_should)
+		{
+			break;
+		}
+
+		Statement *statement = resolver->statement_current;
+
+		switch (statement->kind)
+		{
+		case Statement_Kind__Directive:
+		{
+
+		} break;
+		case Statement_Kind__Instruction:
+		{
+			if (statement->expressions_count)
+			{
+				Expression_Node *expression = &resolver->expressions->data[statement->expressions_indexes[0]];
+				Resolver_expression_evaluate(resolver, expression);
+			}
+
+		} break;
+		}
+
+		Resolver_advance(resolver);
+	}
+
+	return;
+}
 
 // I can start writing a encoding function that also emits relocation as part of the process.
 // While encoding instruction themselves isn't nothing particularly challenging, its more complex to handle relocations.

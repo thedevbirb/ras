@@ -52,5 +52,62 @@ global const U8 Relocation_Operator_strings_sizes[Relocation_Operator__COUNT] =
 Relocation_Operator
 Relocation_Operator_lookup(String8 relocation);
 
+Relocation_RISC_V
+Relocation_RISC_V_from_Relocation_Operator(Relocation_Operator operator, Instruction_Format format)
+{
+	Relocation_RISC_V result = Relocation_RISC_V__None;
+
+	switch (operator)
+	{
+		case Relocation_Operator__None:
+		{
+			result = Relocation_RISC_V__None;
+		} break;
+		case Relocation_Operator__hi:
+		{
+			result = Relocation_RISC_V__High_20;
+		} break;
+		case Relocation_Operator__lo:
+		{
+			result = format == Instruction_Format__S ? Relocation_RISC_V__Low_12_S_Type : Relocation_RISC_V__Low_12_I_Type;
+		} break;
+		case Relocation_Operator__pcrel_hi:
+		{
+			result = Relocation_RISC_V__PC_Relative_High_20;
+		} break;
+		case Relocation_Operator__pcrel_lo:
+		{
+			result = format == Instruction_Format__S ? Relocation_RISC_V__PC_Relative_Low_12_S_Type : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
+		} break;
+		case Relocation_Operator__tprel_hi:
+		{
+			result = Relocation_RISC_V__Thread_Pointer_Relative_High_20;
+		} break;
+		case Relocation_Operator__tprel_lo:
+		{
+			result = format == Instruction_Format__S ? Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type : Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type;
+		} break;
+		case Relocation_Operator__tprel_add:
+		{
+			result = Relocation_RISC_V__Thread_Pointer_Relative_Add;
+		} break;
+		case Relocation_Operator__got_pcrel_hi:
+		{
+			result = Relocation_RISC_V__GOT_High_20;
+		} break;
+		case Relocation_Operator__tls_ie_pcrel_hi:
+		{
+			result = Relocation_RISC_V__TLS_GOT_High_20;
+		} break;
+		case Relocation_Operator__tls_gd_pcrel_hi:
+		{
+			result = Relocation_RISC_V__TLS_Global_Dynamic_High_20;
+		} break;
+		default: {} break;
+	}
+
+	return result;
+}
+
 #endif // LANGUAGE_RELOCATION_H
 

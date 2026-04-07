@@ -120,11 +120,11 @@ Hashmap_hash(String8 key)
 typedef struct Object_File_Section Object_File_Section;
 struct Object_File_Section
 {
-	Arena *arena;
-	String8        buffer;
+	Arena       *arena;
+	String8      buffer;
 	ELF_Section  section_index;
-	U32            offset; // Also known as "location counter", but it's just a byte offset.
-	U8	       alignment;
+	U32          offset; // Also known as "location counter", but it's just a byte offset.
+	U8	     alignment;
 };
 
 internal void
@@ -132,17 +132,18 @@ Object_File_Section_initialize(Object_File_Section *section, ELF_Section section
 {
 	U8 *data = arena ? Arena_push_zero_m(arena) : 0;
 
-	String8 buffer = {
+	String8 buffer =
+	{
 		.data  = data,
 		.count = 0,
 	};
 	*section = (Object_File_Section)
 	{
-		.arena = arena,
-		.buffer = buffer,
+		.arena         = arena,
+		.buffer        = buffer,
 		.section_index = section_index,
-		.offset = 0,
-		.alignment = ELF_Section_alignments[section_index],
+		.offset        = 0,
+		.alignment     = ELF_Section_alignments[section_index],
 
 	};
 
@@ -206,6 +207,7 @@ Object_File_Section_align(Object_File_Section *section, U8 alignment)
 
 	Arena_push_array_m(section->arena, U8, padding);
 	section->offset += padding;
+	section->buffer.count += padding;
 
 	section->alignment = max_m(section->alignment, alignment);
 	return;
@@ -217,11 +219,13 @@ Object_File_Section_write(Object_File_Section *section, U8 *data, U64 count)
 {
 	U32 offset_old = section->offset;
 	U32 offset_new = offset_old + count + 1;
-	assert_always_m(offset_new < section->buffer.count && "filled object file section");
+
 	Arena_push_array_m(section->arena, U8, count);
+
 	os_memory_copy(section->buffer.data + section->offset, data, count);
 	// Extra space for null-termination.
 	section->offset = offset_new;
+	section->buffer.count += count;
 	Object_File_Section_align(section, section->alignment);
 
 	return offset_old;
@@ -252,8 +256,13 @@ struct Symbols_Table_Entry
 	String8 key;
 	ELF64_Symbol  value;
 	B32     used;
+	// The index in the Symbols_Table.entries in which this entry has been inserted.
+	U32     index;
 };
 
+global Symbols_Table_Entry symbols_table_entry_none = {0};
+
+// Symbols table which also tracks order of insertions via an array of slots.
 typedef struct Symbols_Table Symbols_Table;
 struct Symbols_Table
 {
@@ -345,6 +354,7 @@ Symbols_Table_grow(Symbols_Table *map)
 			entry->key   = entry_old->key;
 			entry->value = entry_old->value;
 			entry->used  = 1;
+			entry->index = map->count;
 
 			map->slots[map->count] = slot;
 			map->count  += 1;
@@ -374,6 +384,7 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 	entry->key   = key;
 	entry->value = value;
 	entry->used  = 1;
+	entry->index = map->count;
 
 	if (!found)
 	{

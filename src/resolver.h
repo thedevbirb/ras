@@ -9,16 +9,26 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Section_Cross,
 	Resolver_Error_Kind__Section_Relocation_Invalid,
+	Resolver_Error_Kind__Relocation_Misplaced,
+	Resolver_Error_Kind__Relocation_Operand_Invalid,
+	Resolver_Error_Kind__Relocation_Operand_Symbol_Missing,
+	Resolver_Error_Kind__Relocation_Symbol_Missing,
+	Resolver_Error_Kind__Relocation_Form_Invalid,
 	Resolver_Error_Kind__COUNT,
 }
 Resolver_Error_Kind;
 
 global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 {
-	[Resolver_Error_Kind__Expression_Kind_Unknown] = "expression unknown",
-	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found] = "label numeric backward reference not found",
-	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found] = "label numeric backward reference not found",
-	[Resolver_Error_Kind__Label_Numeric_Section_Cross] = "label numeric reference crosses section",
+	[Resolver_Error_Kind__Expression_Kind_Unknown]           = "expression unknown",
+	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found]  = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found]   = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Section_Cross]       = "label numeric reference crosses section",
+	[Resolver_Error_Kind__Relocation_Misplaced]              = "relocation operator can be used only inside instructions",
+	[Resolver_Error_Kind__Relocation_Operand_Invalid]        = "only addition and subtraction can be done for relocations",
+	[Resolver_Error_Kind__Relocation_Operand_Symbol_Missing] = "relocation has expression without symbol",
+	[Resolver_Error_Kind__Relocation_Symbol_Missing]         = "relocation operator without symbol",
+	[Resolver_Error_Kind__Relocation_Form_Invalid]           = "relocation can only be of the form symbol + addend",
 };
 
 typedef struct Resolver_Error Resolver_Error;
@@ -91,7 +101,7 @@ U32
 Resolver_relax(Resolver *resolver);
 
 void
-Resolver_relocation_emit(Resolver *resolver);
+Resolver_relocation_emit(Resolver *resolver, U32 symbol_index, S64 addend, Relocation_Operator operator);
 
 #endif // RESOLVER_H
 

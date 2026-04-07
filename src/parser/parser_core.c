@@ -233,6 +233,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 			};
 			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
 			assert_always_m(!slot_and_found.y);
+			node->symbols_table_entry = &parser->symbols_table->entries[slot_and_found.x];
 		}
 
 		Parser_advance(parser);
@@ -281,7 +282,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
-		node             = Expressions_push_empty(parser->expressions);
 		node->kind       = Expression_Kind__Relocation;
 		node->index_left = inner->index;
 

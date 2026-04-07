@@ -54,11 +54,15 @@ Expression_Kind;
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
+	U64 integer_value;
+
+	// In case the expression is a known symbol identifier. Set during evaluation.
+	Symbols_Table_Entry *symbols_table_entry;
+
 	U32 index;
 	U32 index_left;
 	U32 index_right;
 
-	U64 integer_value;
 	// Useful for later finding symbols etc.
 	U32 token_index;
 	// Whether evaluation lead to unresolved symbols.

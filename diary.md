@@ -138,7 +138,6 @@ each section. It's surprising that this requires a fixed point iterative algorit
 potentially very large number of iterations over all the program statements.
 
 TODO: limit what instructions and directives can appear in .bss section.
-TODO: error display of resolver.
 TODO: handling and evaluation of relocation operators, plus emitting relocation entries somewhere.
 
 # relocations
@@ -179,5 +178,7 @@ resolve the same problem, I really wonder if we should have that problem in the 
 3. Load and store instructions have many different formats, which must be parsed with care. For
    example: a load word instruction can be in these forms: `mnemonic rd, rs1`, `mnemonic rd, (rs1)`,
    `mnemonic rd, offset(rs1)`.
-
+4. Some relocations require context of the previous lines and symbols, e.g. `%pcrel_lo(symbol)`
+   requires going back to the matching `%pcrel_hi(other_symbol)` occurrence and then check
+   whether `other_symbol` is local or not.
 
