@@ -3,24 +3,6 @@
 
 // After the parser processes an item, it ALWAYS advances.
 
-// TODO: validate relocation names.
-global char const *relocation_names[] =
-{
-	"hi",
-	"lo",
-	"pcrel_hi",
-	"pcrel_lo",
-	"got_pcrel_hi",
-
-	"tprel_hi",
-	"tprel_lo",
-	"tprel_add",
-
-	"tls_ie_pcrel_hi",
-	"tls_gd_pcrel_hi",
-	NULL,
-};
-
 typedef enum Expression_Kind
 {
 	Expression_Kind__None,

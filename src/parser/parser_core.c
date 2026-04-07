@@ -688,7 +688,7 @@ Parser_parse(Parser *parser)
 				}
 				else
 				{
-					Parser_Error_Kind__Option_Invalid;
+					Parser_error_set(parser, Parser_Error_Kind__Option_Invalid);
 				}
 				Parser_advance(parser);
 

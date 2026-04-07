@@ -79,10 +79,10 @@ main(int argument_count, char **argument_vector)
 	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
 	U32 file_in_size = U32_cast_safe((U64)file_in_statistics.st_size); // 4 GiB max size
 
-	// TODO: specify a reserve and commit size as a function of the input size.
-	Arena *arena = Arena_alloc_m();
+	// TODO: re-think allocations. All memory must be reserved upfront, as a basic yet realistic function of input
+	// size. Think like a (real) architect.
 
-	// Growable collections with dedicated arenas that don't pay reallocation costs.
+	Arena *arena = Arena_alloc_m();
 
 	Arena *arena_statements = Arena_alloc_m(.commit_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
 	Statements statements;
@@ -180,7 +180,7 @@ main(int argument_count, char **argument_vector)
 
 		.statement_current      = &statements.data[0],
 		.statement_index        = 0,
-		.statements_end_reached = 0 >= &statements.count,
+		.statements_end_reached = 0 >= statements.count,
 
 		.error         = {0},
 		.sections_offset = {0},

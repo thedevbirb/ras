@@ -32,7 +32,7 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 	// Format: instruction rd, offset(rs1). But offset, is optional, and if that'string the case also the parenthesis
 	// are.
 	Parser_advance(parser);
-	U8 register_destionation = Parser_expect_register(parser);
+	U8 register_destination = Parser_expect_register(parser);
 
 	Parser_advance(parser);
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
@@ -79,6 +79,7 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 	statement->instruction_kind     = instruction_kind;
 	statement->instruction_format   = Instruction_Format__I;
 	statement->register_source_1    = register_source_1;
+	statement->register_destination = register_destination;
 }
 
 internal void

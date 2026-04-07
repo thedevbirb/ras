@@ -114,13 +114,15 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				break;
 			}
 			Statement *statement = &resolver->statements->data[index];
-			B32 match = statement->kind == Statement_Kind__Label_Numeric && statement->label_numeric_value == label_numeric_value;
+			match = statement->kind == Statement_Kind__Label_Numeric && statement->label_numeric_value == label_numeric_value;
 			if (match)
 			{
 				Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
 				offset = statement->section_offset;
 			}
 		}
+
+		node->integer_value = offset;
 
 		if (!match)
 		{

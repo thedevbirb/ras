@@ -89,7 +89,7 @@ global const U8 ELF_Section_alignments[ELF_Section__COUNT] =
 	[ELF_Section__RISCV_Attributes]  = 1
 };
 
-global const ELF_Section_relocations[ELF_Section__COUNT] =
+global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
 {
 	[ELF_Section__Text]             = ELF_Section__Relocations_Text,
 	[ELF_Section__Data]             = ELF_Section__Relocations_Data,
