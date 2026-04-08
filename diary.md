@@ -164,6 +164,8 @@ symbol_b`) so that it can be written with relocations if needed.
 
 # Random
 
+Just found out that there are some good docs that I just skipped :) https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5
+
 I should try to write neovim snippets.
 
 In general assemblers don't follow a standard. So some stuff is a bit unique or up to the assembly

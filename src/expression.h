@@ -123,5 +123,4 @@ typedef enum Expression_Flags
 }
 Expression_Flags;
 
-
 #endif // EXPRESSION_H

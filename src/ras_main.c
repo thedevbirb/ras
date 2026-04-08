@@ -17,6 +17,7 @@
 #include "elf.h"
 
 #include "language/language_include.h"
+#include "symbol.h"
 #include "section.h"
 
 #include "diagnostic.h"
@@ -34,6 +35,7 @@
 #include "language/language_include.c"
 
 #include "diagnostic.c"
+#include "symbol.c"
 #include "lexer.c"
 #include "expression.c"
 #include "statement.c"
