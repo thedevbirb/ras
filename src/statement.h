@@ -39,8 +39,10 @@ struct Statement
 	// Excluded, so that end minus begin returns the token count.
 	U32 token_index_end;
 
-	Instruction_Kind instruction_kind;
-	Directive_Kind   directive_kind;
+	Instruction_Kind    instruction_kind;
+	Directive_Kind      directive_kind;
+
+	Relocation_Operator relocation_operator;
 
 	U8  instruction_format; // R, I, S, B, ...
 	U8  register_destination;

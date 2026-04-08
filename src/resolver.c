@@ -72,7 +72,6 @@ Resolver_cursor_reset(Resolver *resolver)
 void
 Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 {
-
 	assert_always_m(node && "cannot evaluate null expression");
 	assert_always_m(node->kind && "cannot evaluate unknown expression kind");
 
@@ -297,8 +296,8 @@ Resolver_offsets_recompute(Resolver *resolver)
 		{
 			break;
 		}
-		Statement *statement     = resolver->statement_current;
-		U32 *section_offset      = &section_offsets[statement->section_index];
+		Statement *statement      = resolver->statement_current;
+		U32 *section_offset       = &section_offsets[statement->section_index];
 		statement->section_offset = *section_offset;
 
 		if (statement->kind == Statement_Kind__Label)
@@ -719,6 +718,7 @@ Resolver_encode(Resolver *resolver)
 
 	for (;;)
 	{
+		// TODO: ensure that immediate values calculated can fit the instruction encoding.
 		B32 break_should = resolver->statements_end_reached;
 		if (break_should)
 		{
@@ -750,6 +750,22 @@ Resolver_encode(Resolver *resolver)
 	return;
 }
 
+// we want to have a more compact expression evaluation to find out whether the relocation syntax is valid. It must fit
+// in a ELF64_Relocation_Addend, or add & sub pair, with both symbols being local and in the same section
+//
+// Examples:
+// -  .word a + 2 - b
+// -  la x1, symbol_1 * symbol_2
+//
+// We're reading an expression tree node:
+//
+// 1. If is resolved, gucci
+// 2. If is not resolved, look at parent
+//	- It can be addition, if the other end is evaluated e.g. case .word 2 + b
+//	- It can always be subtraction e.g. (a + 2) - b
+
+// TODO: check whether two symbols are in different sections, that needs relocation too
+
 // I can start writing a encoding function that also emits relocation as part of the process.
 // While encoding instruction themselves isn't nothing particularly challenging, its more complex to handle relocations.
 // Relocations essentially happen when some specific relocator operators are found or when some symbols are undefined
@@ -757,3 +773,12 @@ Resolver_encode(Resolver *resolver)
 // or `ELF_Relocation_Addend`, if the expression node is `unresolved`, then we need to check the form of such
 // expressions. The evaluation algorithm tries to evaluate as much as possible, so it must reduce to something like
 // `symbol + addend` or `addend + symbol`, where addend is a signed integer.
+
+// Let's walk through both cases. I'll use R_RISCV_ADD32 and R_RISCV_SUB32 since these are .word directives.
+// .word a - b
+// The assembler emits 4 bytes initialized to zero at the current offset. It then creates two relocations, both pointing at that same offset:
+//
+// R_RISCV_ADD32 with symbol a, addend 0 — the linker adds the resolved value of a to the 4 bytes at the offset.
+// R_RISCV_SUB32 with symbol b, addend 0 — the linker subtracts the resolved value of b from the 4 bytes at the offset.
+//
+// After the linker processes both, the 4 bytes contain a - b.

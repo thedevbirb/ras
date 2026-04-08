@@ -253,11 +253,11 @@ Object_File_Section_write(Object_File_Section *section, U8 *data, U64 count)
 typedef struct Symbols_Table_Entry Symbols_Table_Entry;
 struct Symbols_Table_Entry
 {
-	String8 key;
+	String8       key;
 	ELF64_Symbol  value;
-	B32     used;
+	B32	      used;
 	// The index in the Symbols_Table.entries in which this entry has been inserted.
-	U32     index;
+	U32           index;
 };
 
 global Symbols_Table_Entry symbols_table_entry_none = {0};

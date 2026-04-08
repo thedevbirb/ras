@@ -152,6 +152,15 @@ undefined symbols are found, relocations entry must be emitted, and they can onl
 Probably this should be done by another component, the Encoder + Relocator, or in another function
 of the Resolver.
 
+Relocations is really forcing me to think through more details about expression evaluation and all,
+influencing back on the design on some components such as expression parsing and evaluation.
+Details matter, and details influence design. If I wanted to make a really toy assembler that didn't
+support relocation, these problems wouldn't have been there, but it would have been a way less
+significant project.
+
+Any expression after sufficient simplification and evaluation should be of the form `(constant, symbol_a,
+symbol_b`) so that it can be written with relocations if needed.
+
 
 # Random
 
@@ -184,4 +193,7 @@ resolve the same problem, I really wonder if we should have that problem in the 
 4. Some relocations require context of the previous lines and symbols, e.g. `%pcrel_lo(symbol)`
    requires going back to the matching `%pcrel_hi(other_symbol)` occurrence and then check
    whether `other_symbol` is local or not.
+5. You can use symbols in expressions? Yes, however you need context about instructions. In some
+   instructions, symbols e.g. labels are not allowed because they'd either get truncated or are not
+   intended to use there. E.g. addi x1, x0, symbol. Unless the symbol is absolute!
 

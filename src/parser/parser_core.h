@@ -38,8 +38,10 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__String_Literal_Expected,
 	Parser_Error_Kind__Symbol_Demoted,
 	Parser_Error_Kind__Symbol_Duplicate,
+	Parser_Error_Kind__Symbol_Context_Invalid,
 	Parser_Error_Kind__Fence_Operand_Invalid,
 	Parser_Error_Kind__Option_Invalid,
+	Parser_Error_Kind__Relocation_Operator_Multiple,
 
 	Parser_Error_Kind__COUNT,
 }
@@ -78,8 +80,10 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__String_Literal_Expected]               = "string literal expected",
 	[Parser_Error_Kind__Symbol_Demoted]                        = "demoted symbol from global/weak to local",
 	[Parser_Error_Kind__Symbol_Duplicate]                      = "duplicated symbol",
+	[Parser_Error_Kind__Symbol_Context_Invalid]                = "invalid symbol context: must be either a data directive, a supported branch/jump instruction or inside relocation operator",
 	[Parser_Error_Kind__Fence_Operand_Invalid]                 = "fence operand invalid",
 	[Parser_Error_Kind__Option_Invalid]                        = "invalid option",
+	[Parser_Error_Kind__Relocation_Operator_Multiple]          = "multiple relocation operators in the same statement is invalid",
 };
 
 typedef struct Parser_Error Parser_Error;

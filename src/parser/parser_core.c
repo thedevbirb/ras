@@ -179,9 +179,50 @@ Parser_expect_register(Parser *parser)
 	return register_value;
 }
 
+// A special note goes to symbols inside an expression. While absolute symbols, created with .set or .equ
+// directives are always accepted, others must be present only in specific places:
+//
+// 1. Branch instructions;
+// 2. Jump and other similar pseudo-instructions;
+// 3. Relocation operators.
+//
+// If met in other places, we should emit an error.
+internal void
+Parser_symbol_ensure_statement_valid(Parser *parser)
+{
+	Directive_Kind directive_kind = parser->statement_context->directive_kind;
+	B32 directive_data = directive_kind == Directive_Kind__Byte
+		          || directive_kind == Directive_Kind__Word_Half
+		          || directive_kind == Directive_Kind__Word
+		          || directive_kind == Directive_Kind__Word_Double;
+
+	Instruction_Kind instruction_kind = parser->statement_context->instruction_kind;
+	B32 instruction_branch = instruction_kind == Instruction_Kind__BEQ
+		              || instruction_kind == Instruction_Kind__BNE
+		              || instruction_kind == Instruction_Kind__BLT
+		              || instruction_kind == Instruction_Kind__BGE
+		              || instruction_kind == Instruction_Kind__BLTU
+		              || instruction_kind == Instruction_Kind__BGEU;
+
+	B32 instruction_jump = instruction_kind == Instruction_Kind__JAL
+			    || instruction_kind == Instruction_Kind__CALL
+			    || instruction_kind == Instruction_Kind__TAIL;
+
+	B32 relocation_operator_some = parser->statement_context->relocation_operator != 0;
+
+	B32 context_valid = directive_data
+		         || instruction_branch
+		         || instruction_jump
+		         || relocation_operator_some;
+
+	Parser_expect(parser, context_valid, Parser_Error_Kind__Symbol_Context_Invalid);
+	return;
+}
+
 internal Expression_Node *
 Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 {
+
 	Expression_Node *node  = Expressions_push_empty(parser->expressions);
 	node->token_index      = parser->token_index;
 	Token token            = parser->token_current;
@@ -218,11 +259,6 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Symbols_Table_Entry *symbol = Symbols_Table_get(parser->symbols_table, key);
 
 		Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
-
-		// TODO: here, I should save the symbol (key?) added into the node. Otherwise, I'm losing information. However,
-		// token_index also maps to that, although with more hops.
-		// Change this to Expression_Kind__Symbol
-
 		if (!symbol)
 		{
 
@@ -235,6 +271,8 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 			assert_always_m(!slot_and_found.y);
 			node->symbols_table_entry = &parser->symbols_table->entries[slot_and_found.x];
 		}
+
+		Parser_symbol_ensure_statement_valid(parser);
 
 		Parser_advance(parser);
 	} break;
@@ -269,9 +307,13 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
-		String8 relocation_operator = Parser_token_string(parser);
-		node->relocation_operator   = Relocation_Operator_lookup(relocation_operator);
-		Parser_expect(parser, node->relocation_operator, Parser_Error_Kind__Relocation_Operator_Invalid);
+		String8 relocation_operator_string = Parser_token_string(parser);
+		Relocation_Operator relocation_operator = Relocation_Operator_lookup(relocation_operator_string);
+		Parser_expect(parser, relocation_operator, Parser_Error_Kind__Relocation_Operator_Invalid);
+		Parser_expect(parser, !parser->statement_context->relocation_operator, Parser_Error_Kind__Relocation_Operator_Multiple);
+
+		node->relocation_operator = relocation_operator;
+		parser->statement_context->relocation_operator = relocation_operator;
 
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
@@ -603,9 +645,18 @@ Parser_parse(Parser *parser)
 
 				ELF64_Symbol symbol =
 				{
+					// TODO: it is incorrect to set absolute here, because .set could also create
+					// aliases between symbols, so we have to defer this to evaluation time.
 					.section_index = ELF_Section_Index__Absolute,
 				};
 				Symbols_Table_put(parser->symbols_table, key, symbol);
+
+				// TODO: at evaluation time, I should also check for circular dependencies.
+				// Example:
+				//.set A, B + 1
+				//.set B, A + 1
+				//
+				// Mark symbol A as "being resolved"
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
