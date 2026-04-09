@@ -1,4 +1,4 @@
-internal void
+void
 Symbols_Table_initialize(Symbols_Table *map, Arena *arena)
 {
 	map->arena    = arena;
@@ -88,7 +88,7 @@ Symbols_Table_grow(Symbols_Table *map)
 	return;
 }
 
-internal Vec2_U32 // Slot, found
+Vec2_U32
 Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 {
 	assert_always_m(map->entries && "uninitialized hashmap");
@@ -101,8 +101,6 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 	U32 slot  = 0;
 	U32 found = (U32)Symbols_Table_find_slot(map, key, &slot);
 
-	value.string_table_offset = map->string_table_section_size;
-
 	Symbols_Table_Entry *entry = &map->entries[slot];
 	entry->key   = key;
 	entry->value = value;
@@ -113,7 +111,6 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 	{
 		map->slots[map->count] = slot;
 		map->count  += 1;
-		map->string_table_section_size = key.count + 1; // null-termination
 	}
 
 	Vec2_U32 slot_and_found = { .x = slot, .y = found};
@@ -123,7 +120,7 @@ Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
 
 // TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
 
-internal Symbols_Table_Entry *
+Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key)
 {
 	Symbols_Table_Entry *result = 0;

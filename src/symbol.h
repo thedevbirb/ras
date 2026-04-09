@@ -1,6 +1,57 @@
 #ifndef SYMBOL_H
 #define SYMBOL_H
 
+/* TODO: Use these flags to detect, among other things, whether there a circular dependency in a symbol definition.
+ *
+ * Consider the following example:
+ *
+ * ```
+ * .set A, B + 1
+ * .set B, A
+ * ```
+ * Then the first `.set` directive should mark `A` as "resolving". In the second `.set` directive, when `B` is
+ * resolving, since the expression contains another symbol which is "resolving", this errors.
+ */
+
+typedef enum Symbol_Flags
+{
+	Symbol_Flags__None                       = 0 << 0,
+
+	/* Whether the symbol is a local_symbol.  */
+	Symbol_Flags__Local                      = 1 << 0,
+
+	/* Weather symbol has been written.  */
+	Symbol_Flags__Written                    = 1 << 1,
+
+	/* Whether symbol value has been completely resolved (used during final pass over symbol table).  */
+	Symbol_Flags__Resolved                   = 1 << 2,
+
+	/* Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).  */
+	Symbol_Flags__Resolving                  = 1 << 3,
+
+	/* Whether the symbol value is used in a reloc.  This is used to ensure that symbols used in relocs are written
+	 * out, even if they are local and would otherwise not be.  */
+	Symbol_Flags__Relocation                 = 1 << 4,
+
+	/* Whether the symbol is used as an operand or in an expression.
+	   NOTE:  Not all the backends keep this information accurate; backends which use this bit are responsible for
+	   setting it when a symbol is used in backend routines.  */
+	Symbol_Flags__Used                       = 1 << 5,
+
+	/* Whether the symbol can be re-defined.  */
+	Symbol_Flags__Volatile                   = 1 << 6 ,
+
+	/* Whether the symbol is a forward reference, and whether such has
+	   been determined.  */
+	Symbol_Flags__Forward_Reference          = 1 << 7,
+	Symbol_Flags__Forward_Reference_Resolved = 1 << 8,
+
+	/* Whether the symbol has been marked to be removed by a .symver
+	   directive.  */
+	Symbol_Flags__Removed                    = 1 << 9,
+}
+Symbol_Flags;
+
 // ELF64_Symbol table (.symtab) content invariants:
 //
 // Entry 0: all zeros (null symbol).
@@ -14,11 +65,7 @@
 // When I find a symbol or label I have to both put the value inside the string table, avoiding duplicates and in the
 // symbol table.
 
-// The symbols table and the string table are coupled, meaning there should be a one to one correspondence between the
-// two. This in-memory representation encodes both, by giving a key-value map which records order of insertion and
-// tracks the growing size as null-terminated strings to compute ELF64 symbols string table offset.
-//
-// At a later stage, this can be used to write in both section to produce the ELF file.
+// TODO: revisit padding.
 typedef struct Symbols_Table_Entry Symbols_Table_Entry;
 struct Symbols_Table_Entry
 {
@@ -27,6 +74,7 @@ struct Symbols_Table_Entry
 	B32	      used;
 	// The index in the Symbols_Table.entries in which this entry has been inserted.
 	U32           index;
+	Symbol_Flags  flags;
 };
 
 global Symbols_Table_Entry symbols_table_entry_none = {0};
@@ -39,12 +87,11 @@ struct Symbols_Table
 	Symbols_Table_Entry *entries;
 	U32     *slots;
 
-	U32 string_table_section_size;
 	U32 capacity;
 	U32 count;
 };
 
-internal void
+void
 Symbols_Table_initialize(Symbols_Table *map, Arena *arena);
 
 internal B32
@@ -53,12 +100,12 @@ Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out);
 internal void
 Symbols_Table_grow(Symbols_Table *map);
 
-internal Vec2_U32 // Slot, found
+Vec2_U32 // Slot, found
 Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value);
 
 // TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
 
-internal Symbols_Table_Entry *
+Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key);
 
 #endif // SYMBOL_H
