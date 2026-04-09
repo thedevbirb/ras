@@ -85,9 +85,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	case Expression_Kind__Identifier:
 	{
 		assert_always_m(node->symbols_table_entry && "parser didn't set expression entry");
-		if (node->symbols_table_entry->value.section_index)
+		if (node->symbols_table_entry->elf.section_index)
 		{
-			node->integer_value = node->symbols_table_entry->value.value;
+			node->integer_value = node->symbols_table_entry->elf.value;
 		}
 		else
 		{
@@ -300,11 +300,12 @@ Resolver_offsets_recompute(Resolver *resolver)
 		U32 *section_offset       = &section_offsets[statement->section_index];
 		statement->section_offset = *section_offset;
 
-		if (statement->kind == Statement_Kind__Label)
-		{
-			Symbols_Table_Entry *entry = &resolver->symbols_table->entries[statement->label_symbol_slot];
-			entry->value.value = statement->section_offset;
-		}
+		// if (statement->kind == Statement_Kind__Label)
+		// {
+		// 	String8 symbol_key = Token_string(resolver->tokens[statement->token_index_begin]);
+		// 	Symbols_Table_Entry *entry = &resolver->symbols_table->entries[statement->label_symbol_slot];
+		// 	entry->elf.value = statement->section_offset;
+		// }
 
 		*section_offset += statement->size;
 		Resolver_advance(resolver);
@@ -335,6 +336,24 @@ Resolver_relax_pass(Resolver *resolver)
 
 		U32 size_old = statement->size;
 		U32 size_new = size_old;
+
+		// switch (statement->directive_kind)
+		// {
+		// case Directive_Kind__Set: {} // fallthrough
+		// case Directive_Kind__Equality:
+		// {
+		// 	String8 symbol_key = statement->token_index_begin + 1;
+		// 	Symbols_Table_Entry *symbol = Symbols_Table_get(resolver->symbols_table, symbol_key);
+		// 	assert_always_m(symbol && "symbol not found");
+		//
+		// 	// symbol->flags |= Symbol_Flags__Resolving;
+		// 	// Expression_Node *expression = statement->expressions_indexes[0];
+		// 	// Resolver_expression_evaluate(resolver, expression);
+		//
+		//
+		// } break;
+		//
+		// }
 
 		switch (statement->instruction_kind)
 		{

@@ -65,13 +65,13 @@ Symbol_Flags;
 // When I find a symbol or label I have to both put the value inside the string table, avoiding duplicates and in the
 // symbol table.
 
-// TODO: revisit padding.
 typedef struct Symbols_Table_Entry Symbols_Table_Entry;
 struct Symbols_Table_Entry
 {
 	String8       key;
-	ELF64_Symbol  value;
-	B32	      used;
+	ELF64_Symbol  elf;
+	// The index of the statement where this symbol has been defined, if applicable.
+	U32	      index_statement;
 	// The index in the Symbols_Table.entries in which this entry has been inserted.
 	U32           index;
 	Symbol_Flags  flags;
@@ -94,19 +94,16 @@ struct Symbols_Table
 void
 Symbols_Table_initialize(Symbols_Table *map, Arena *arena);
 
-internal B32
-Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out);
-
-internal void
-Symbols_Table_grow(Symbols_Table *map);
-
-Vec2_U32 // Slot, found
-Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value);
+// Vec2_U32 // Slot, found
+// Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value);
 
 // TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
 
 Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key);
+
+Symbols_Table_Entry *
+Symbols_Table_reserve(Symbols_Table *map, String8 key);
 
 #endif // SYMBOL_H
 

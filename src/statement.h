@@ -29,7 +29,7 @@ struct Statement
 	U32 *expressions_indexes;
 
 	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
-	U32 label_symbol_slot;
+	// U32 label_symbol_slot;
 	// If this is a numeric label definition, it is its number.
 	U8  label_numeric_value;
 

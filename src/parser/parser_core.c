@@ -179,6 +179,13 @@ Parser_expect_register(Parser *parser)
 	return register_value;
 }
 
+internal
+Parser_symbol_initialize(Parser *parser, String8 key)
+{
+	Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
+	entry->index_statement = parser->statements->count;
+}
+
 // A special note goes to symbols inside an expression. While absolute symbols, created with .set or .equ
 // directives are always accepted, others must be present only in specific places:
 //
@@ -256,22 +263,10 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		node->kind = Expression_Kind__Identifier;
 
 		String8 key = Parser_token_string(parser);
-		Symbols_Table_Entry *symbol = Symbols_Table_get(parser->symbols_table, key);
+		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
 
-		Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
-		if (!symbol)
-		{
-
-			ELF64_Symbol symbol =
-			{
-				// Will produce a relocation entry, unless defined later.
-				.section_index = ELF_Section__None
-			};
-			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
-			assert_always_m(!slot_and_found.y);
-			node->symbols_table_entry = &parser->symbols_table->entries[slot_and_found.x];
-		}
-
+		// Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
+		node->symbols_table_entry = symbol;
 		Parser_symbol_ensure_statement_valid(parser);
 
 		Parser_advance(parser);
@@ -466,19 +461,13 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Label:
 		{
 			String8 key = Parser_token_string(parser);
-			Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
-			B32 duplicate = entry && entry->value.section_index;
+			Symbols_Table_Entry *entry = Parser_symbol_initialize(parser->symbols_table, key);
+			B32 duplicate = entry->elf.section_index;
 			Parser_expect(parser, !duplicate, Parser_Error_Kind__Label_Duplicate);
 
-			ELF64_Symbol symbol =
-			{
-				.section_index = parser->section_current_index,
-			};
-			Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, key, symbol);
+			entry->elf.section_index = parser->section_current_index,
 
 			Parser_advance(parser);
-
-			parser->statement_context->label_symbol_slot = slot_and_found.x;
 			parser->statement_context->token_index_begin = parser->token_index_before;
 			parser->statement_context->kind              = Statement_Kind__Label;
 		} break;
@@ -581,19 +570,11 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 key = Parser_token_string(parser);
-				Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
+				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser->symbols_table, key);
 
 				assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
-				if (entry)
-				{
-					B32 demoted = ELF_Symbol_bind_m(entry->value.type_and_binding) > ELF_Symbol_Binding__Local;
-					Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
-				}
-				else
-				{
-					ELF64_Symbol symbol = {0};
-					Symbols_Table_put(parser->symbols_table, key, symbol);
-				}
+				B32 demoted = ELF_Symbol_bind_m(entry->elf.type_and_binding) > ELF_Symbol_Binding__Local;
+				Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
 
 				Parser_advance(parser);
 			} break;
@@ -605,20 +586,9 @@ Parser_parse(Parser *parser)
 
 				String8 key = Parser_token_string(parser);
 				Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
-				if (entry)
-				{
-					U8 type_and_binding =
-						ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(entry->value.type_and_binding));
-					entry->value.type_and_binding = type_and_binding;
-				}
-				else
-				{
-					ELF64_Symbol symbol =
-					{
-						.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
-					};
-					Symbols_Table_put(parser->symbols_table, key, symbol);
-				}
+
+				U8 type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(entry->elf.type_and_binding));
+				entry->elf.type_and_binding = type_and_binding;
 
 				Parser_advance(parser);
 			} break;
@@ -643,20 +613,8 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
-				ELF64_Symbol symbol =
-				{
-					// TODO: it is incorrect to set absolute here, because .set could also create
-					// aliases between symbols, so we have to defer this to evaluation time.
-					.section_index = ELF_Section_Index__Absolute,
-				};
-				Symbols_Table_put(parser->symbols_table, key, symbol);
-
-				// TODO: at evaluation time, I should also check for circular dependencies.
-				// Example:
-				//.set A, B + 1
-				//.set B, A + 1
-				//
-				// Mark symbol A as "being resolved"
+				// TODO: set absolute only during evaluation, if no labels are required.
+				Parser_symbol_initialize(parser->symbols_table, key);
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
@@ -694,15 +652,14 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
-				String8 string = Parser_token_string(parser);
-				ELF64_Symbol symbol =
-				{
-					.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
-					.section_index = ELF_Section_Index__Common,
-				};
+				String8 key = Parser_token_string(parser);
+				Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
+				B32 duplicate = entry->elf.section_index != 0;
 
-				Vec2_U32 slot_and_found = Symbols_Table_put(parser->symbols_table, string, symbol);
-				Parser_expect(parser, !slot_and_found.y, Parser_Error_Kind__Symbol_Duplicate);
+				entry->elf.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
+				entry->elf.section_index    = ELF_Section_Index__Common,
+
+				Parser_expect(parser, !duplicate, Parser_Error_Kind__Symbol_Duplicate);
 
 				Parser_advance(parser);
 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);

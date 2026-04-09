@@ -9,37 +9,6 @@ Symbols_Table_initialize(Symbols_Table *map, Arena *arena)
 	os_memory_zero(map->entries, sizeof(Symbols_Table_Entry) * map->capacity);
 }
 
-internal B32
-Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out)
-{
-	assert_always_m(map->capacity && "uninitialized map");
-
-	U32 hash  = Hashmap_hash(key);
-	U32 index = hash & (map->capacity - 1);
-	B32 key_found = 0;
-
-	for (;;)
-	{
-		Symbols_Table_Entry *entry = &map->entries[index];
-
-		B32 empty = !entry->used;
-		key_found = !empty &&
-		            entry->key.count == key.count &&
-		            os_memory_match(entry->key.data, key.data, key.count) == 0;
-
-		B32 break_should = empty || key_found;
-		if (break_should)
-		{
-			*slot_out = index;
-			break;
-		}
-
-		index = (index + 1) & (map->capacity - 1);
-	}
-
-	return key_found;
-}
-
 internal void
 Symbols_Table_grow(Symbols_Table *map)
 {
@@ -66,20 +35,12 @@ Symbols_Table_grow(Symbols_Table *map)
 		// Re-insert in order of insertion.
 		U32 slot_old = map_old.slots[index];
 		Symbols_Table_Entry *entry_old = &map_old.entries[slot_old];
-		if (entry_old->used)
+		if (entry_old->flags & Symbol_Flags__Written)
 		{
-			// Find a new slot, and put it there.
-			U32 slot = 0;
-			B32 found = Symbols_Table_find_slot(map, entry_old->key, &slot);
-			assert_always_m(!found && "map contains duplicates");
+			Symbols_Table_Entry *entry = Symbols_Table_get(map, entry_old->key);
+			*entry = *entry_old;
 
-			Symbols_Table_Entry *entry = &map->entries[slot];
-			entry->key   = entry_old->key;
-			entry->value = entry_old->value;
-			entry->used  = 1;
-			entry->index = map->count;
-
-			map->slots[map->count] = slot;
+			map->slots[map->count] = entry->index;
 			map->count  += 1;
 		}
 		index += 1;
@@ -88,53 +49,156 @@ Symbols_Table_grow(Symbols_Table *map)
 	return;
 }
 
-Vec2_U32
-Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
+// internal B32
+// Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out)
+// {
+// 	assert_always_m(map->capacity && "uninitialized map");
+//
+// 	U32 hash  = Hashmap_hash(key);
+// 	U32 index = hash & (map->capacity - 1);
+// 	B32 key_found = 0;
+//
+// 	for (;;)
+// 	{
+// 		Symbols_Table_Entry *entry = &map->entries[index];
+//
+// 		B32 empty = !entry->used;
+// 		key_found = !empty &&
+// 		            entry->key.count == key.count &&
+// 		            os_memory_match(entry->key.data, key.data, key.count) == 0;
+//
+// 		B32 break_should = empty || key_found;
+// 		if (break_should)
+// 		{
+// 			*slot_out = index;
+// 			break;
+// 		}
+//
+// 		index = (index + 1) & (map->capacity - 1);
+// 	}
+//
+// 	return key_found;
+// }
+
+Symbols_Table_Entry *
+Symbols_Table_get(Symbols_Table *map, String8 key)
+{
+	assert_m(map->arena);
+	assert_m(map->capacity < map->count);
+
+	U32 hash         = Hashmap_hash(key);
+	U32 index_modulo = hash & (map->capacity - 1);
+	B32 key_found    = 0;
+	B32 empty        = 0;
+	B32 break_should = 0;
+
+	Symbols_Table_Entry *entry = 0;
+
+	for (;;)
+	{
+		entry = &map->entries[index_modulo];
+
+		empty = entry->flags == Symbol_Flags__None;
+		key_found = !empty
+			 && entry->key.count == key.count
+			 && os_memory_match(entry->key.data, key.data, key.count) == 0;
+
+		break_should = empty || key_found;
+		if (break_should)
+		{
+			break;
+		}
+
+		index_modulo = (index_modulo + 1) & (map->capacity - 1);
+	}
+
+	// Ensure this is always set.
+	entry->index = index_modulo;
+
+	return entry;
+}
+
+// problem is:
+//
+// i want the most minimal yet flexible interface for symbol table
+//
+// i want that a get is almost undistinguishable from a put, with the only different that I need to track whether I'm
+// overwriting something.
+
+// Reserve is essentially like `get`, but it grows in case capacity is low.
+// To be used when you want to "put".
+Symbols_Table_Entry *
+Symbols_Table_reserve(Symbols_Table *map, String8 key)
 {
 	assert_always_m(map->entries && "uninitialized hashmap");
+
+	Symbols_Table_Entry *entry = 0;
+	B32 overwritten = 0;
 
 	if ((map->count * 100) >= (map->capacity * 70))
 	{
 		Symbols_Table_grow(map);
 	}
 
-	U32 slot  = 0;
-	U32 found = (U32)Symbols_Table_find_slot(map, key, &slot);
+	entry       = Symbols_Table_get(map, key);
+	overwritten = entry->flags & Symbol_Flags__Written;
 
-	Symbols_Table_Entry *entry = &map->entries[slot];
-	entry->key   = key;
-	entry->value = value;
-	entry->used  = 1;
-	entry->index = map->count;
+	map->slots[map->count] = entry->index & ~(overwritten - 1);
+	map->count           += overwritten;
 
-	if (!found)
-	{
-		map->slots[map->count] = slot;
-		map->count  += 1;
-	}
+	entry->flags |= Symbol_Flags__Written;
 
-	Vec2_U32 slot_and_found = { .x = slot, .y = found};
-
-	return slot_and_found;
+	return entry;
 }
 
-// TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
+// // Deprecated, use "reserve"
+// Vec2_U32
+// Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
+// {
+// 	assert_always_m(map->entries && "uninitialized hashmap");
+//
+// 	if ((map->count * 100) >= (map->capacity * 70))
+// 	{
+// 		Symbols_Table_grow(map);
+// 	}
+//
+// 	U32 slot  = 0;
+// 	U32 found = (U32)Symbols_Table_find_slot(map, key, &slot);
+//
+// 	Symbols_Table_Entry *entry = &map->entries[slot];
+// 	entry->key   = key;
+// 	entry->value = value;
+// 	entry->used  = 1;
+// 	entry->index = map->count;
+//
+// 	if (!found)
+// 	{
+// 		map->slots[map->count] = slot;
+// 		map->count  += 1;
+// 	}
+//
+// 	Vec2_U32 slot_and_found = { .x = slot, .y = found};
+//
+// 	return slot_and_found;
+// }
 
-Symbols_Table_Entry *
-Symbols_Table_get(Symbols_Table *map, String8 key)
-{
-	Symbols_Table_Entry *result = 0;
-
-	if (map->entries)
-	{
-		U32 slot  = 0;
-		B32 found = Symbols_Table_find_slot(map, key, &slot);
-
-		if (found)
-		{
-			result = &map->entries[slot];
-		}
-	}
-
-	return result;
-}
+// // TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
+//
+// Symbols_Table_Entry *
+// Symbols_Table_get(Symbols_Table *map, String8 key)
+// {
+// 	Symbols_Table_Entry *result = 0;
+//
+// 	if (map->entries)
+// 	{
+// 		U32 slot  = 0;
+// 		B32 found = Symbols_Table_find_slot(map, key, &slot);
+//
+// 		if (found)
+// 		{
+// 			result = &map->entries[slot];
+// 		}
+// 	}
+//
+// 	return result;
+// }

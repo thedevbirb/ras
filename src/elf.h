@@ -218,17 +218,17 @@ struct ELF32_Symbol
 typedef struct ELF64_Symbol ELF64_Symbol;
 struct ELF64_Symbol
 {
-        Offset64            string_table_offset;
+        U32            string_table_offset;
         // Packed field: upper 4 bits = Symbol_Binding, lower 4 bits = Symbol_Type.
         // Use ELF_Symbol_info_m / _bind_m / _type_m macros to pack/unpack.
         U8                    type_and_binding;
         U8                  visibility;
-        ELF_Section_Index section_index;
+        U16 section_index;
 
         // For labels: offset within the section (section-relative address).
         // For .equ: the constant value.
         // For undefined symbols: 0.
-        Address64           value;
+        U64           value;
         U64                 size;
 };
 
