@@ -168,7 +168,7 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 		B32 section_empty = ELF_Section__None || index == ELF_Section__BSS;
 		if (!section_empty)
 		{
-			arena_dedicated = Arena_alloc_m(.commit_size = input_size, .flags = Arena_Flags__No_Chain);
+			arena_dedicated = Arena_alloc_m(.reserve_size = input_size, .flags = Arena_Flags__No_Chain);
 		}
 
 		Object_File_Section_initialize(&sections[index], index, arena_dedicated);

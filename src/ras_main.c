@@ -86,11 +86,11 @@ main(int argument_count, char **argument_vector)
 
 	Arena *arena = Arena_alloc_m();
 
-	Arena *arena_statements = Arena_alloc_m(.commit_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
+	Arena *arena_statements = Arena_alloc_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
 	Statements statements;
 	Statements_initialize(&statements, arena_statements);
 
-	Arena *arena_expressions = Arena_alloc_m(.commit_size = file_in_size, .flags = Arena_Flags__No_Chain);
+	Arena *arena_expressions = Arena_alloc_m(.reserve_size = file_in_size, .flags = Arena_Flags__No_Chain);
 	Expressions expressions;
 	Expressions_initialize(&expressions, arena_expressions);
 
