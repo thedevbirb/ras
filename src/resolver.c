@@ -304,15 +304,15 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				}
 				else if (node_left_right->symbols_table_entry)
 				{
-					B32 addend_resolved = !node_left_left->unresolved;
-					Resolver_expect(resolver, addend_resolved, Resolver_Error_Kind__Relocation_Form_Invalid);
+					B32 unresolved = node_left_left->flags & Expression_Flags__Unresolved;
+					Resolver_expect(resolver, !unresolved, Resolver_Error_Kind__Relocation_Form_Invalid);
 					addend = node_left_left->integer_value;
 					entry = node_left_right->symbols_table_entry;
 				}
 				else if (node_left_left->symbols_table_entry)
 				{
-					B32 addend_resolved = !node_left_right->unresolved;
-					Resolver_expect(resolver, addend_resolved, Resolver_Error_Kind__Relocation_Form_Invalid);
+					B32 unresolved = node_left_right->flags & Expression_Flags__Unresolved;
+					Resolver_expect(resolver, !unresolved, Resolver_Error_Kind__Relocation_Form_Invalid);
 					addend = node_left_right->integer_value;
 					entry = node_left_left->symbols_table_entry;
 				}
@@ -329,7 +329,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		else
 		{
 			// For simplicity, we evaluate relocation operators once relaxation is completed, and offset are known.
-			node->unresolved = 1;
+			node->flags |= Expression_Flags__Unresolved;
 		}
 	} break;
 
@@ -461,7 +461,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		}
 		else
 		{
-			S64 integer_result = Resolver_operation_evaluate(resolver, node->kind, node_right->integer_value, node_left->integer_value);
+			S64 integer_result  = Resolver_operation_evaluate(resolver, node->kind, node_right->integer_value, node_left->integer_value);
+			node->integer_value = integer_result;
+
 			if (symbol_right && symbol_left)
 			{
 				Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
@@ -613,7 +615,7 @@ Resolver_relax_pass(Resolver *resolver)
 			S64 immediate = (S64)expression->integer_value;
 
 			size_new = 24; // Worst-case for rv32 is 8.
-			if (!expression->unresolved)
+			if (!(expression->flags & Expression_Flags__Unresolved))
 			{
 				if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
 				{
@@ -648,7 +650,7 @@ Resolver_relax_pass(Resolver *resolver)
 			S64 delta = (S64)expression->integer_value - statement->section_offset;
 
 			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
-			if (expression->unresolved || !range_in)
+			if (expression->flags & Expression_Flags__Unresolved || !range_in)
 			{
 				size_new = 8;
 			}
@@ -671,7 +673,7 @@ Resolver_relax_pass(Resolver *resolver)
 			Resolver_expression_evaluate(resolver, expression);
 
 			size_new = 12;
-			if (!expression->unresolved)
+			if (!(expression->flags & Expression_Flags__Unresolved))
 			{
 				S64 delta = (S64)expression->integer_value - (S64)statement->section_offset;
 				if (-(1 << 12) <= delta && delta <= (1 << 12) - 1)
@@ -695,7 +697,7 @@ Resolver_relax_pass(Resolver *resolver)
 			Expression_Node *expression = &resolver->expressions->data[expression_index];
 			Resolver_expression_evaluate(resolver, expression);
 
-			if (expression->unresolved)
+			if (expression->flags & Expression_Flags__Unresolved)
 			{
 				U32 alignment = 1u << (U32)expression->integer_value;
 				U32 offset    = statement->section_offset;

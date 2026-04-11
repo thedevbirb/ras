@@ -612,7 +612,6 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser);
 
-				// TODO: set absolute only during evaluation, if no labels are required.
 				Parser_symbol_initialize(parser, key);
 
 				parser->statement_context->expressions_indexes = &expression->index;

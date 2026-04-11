@@ -119,13 +119,6 @@ Symbols_Table_get(Symbols_Table *map, String8 key)
 	return entry;
 }
 
-// problem is:
-//
-// i want the most minimal yet flexible interface for symbol table
-//
-// i want that a get is almost undistinguishable from a put, with the only different that I need to track whether I'm
-// overwriting something.
-
 // Reserve is essentially like `get`, but it grows in case capacity is low.
 // To be used when you want to "put".
 Symbols_Table_Entry *
@@ -151,55 +144,3 @@ Symbols_Table_reserve(Symbols_Table *map, String8 key)
 
 	return entry;
 }
-
-// // Deprecated, use "reserve"
-// Vec2_U32
-// Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value)
-// {
-// 	assert_always_m(map->entries && "uninitialized hashmap");
-//
-// 	if ((map->count * 100) >= (map->capacity * 70))
-// 	{
-// 		Symbols_Table_grow(map);
-// 	}
-//
-// 	U32 slot  = 0;
-// 	U32 found = (U32)Symbols_Table_find_slot(map, key, &slot);
-//
-// 	Symbols_Table_Entry *entry = &map->entries[slot];
-// 	entry->key   = key;
-// 	entry->value = value;
-// 	entry->used  = 1;
-// 	entry->index = map->count;
-//
-// 	if (!found)
-// 	{
-// 		map->slots[map->count] = slot;
-// 		map->count  += 1;
-// 	}
-//
-// 	Vec2_U32 slot_and_found = { .x = slot, .y = found};
-//
-// 	return slot_and_found;
-// }
-
-// // TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
-//
-// Symbols_Table_Entry *
-// Symbols_Table_get(Symbols_Table *map, String8 key)
-// {
-// 	Symbols_Table_Entry *result = 0;
-//
-// 	if (map->entries)
-// 	{
-// 		U32 slot  = 0;
-// 		B32 found = Symbols_Table_find_slot(map, key, &slot);
-//
-// 		if (found)
-// 		{
-// 			result = &map->entries[slot];
-// 		}
-// 	}
-//
-// 	return result;
-// }

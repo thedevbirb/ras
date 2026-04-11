@@ -113,9 +113,6 @@ struct Expression_Node
 
 	// Useful for later finding symbols etc.
 	U32 token_index;
-	// Whether evaluation lead to unresolved symbols.
-	// TODO: deprecate this, and use flag
-	B32 unresolved;
 
 	Relocation_Operator relocation_operator;
 
