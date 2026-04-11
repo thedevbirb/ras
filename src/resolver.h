@@ -5,6 +5,7 @@ typedef enum Resolver_Error_Kind
 {
 	Resolver_Error_Kind__None,
 	Resolver_Error_Kind__Expression_Kind_Unknown,
+	Resolver_Error_Kind__Expression_Evaluation_Cross,
 	Resolver_Error_Kind__Label_Numeric_Backward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Section_Cross,
@@ -24,6 +25,7 @@ Resolver_Error_Kind;
 global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 {
 	[Resolver_Error_Kind__Expression_Kind_Unknown]           = "expression unknown",
+	[Resolver_Error_Kind__Expression_Evaluation_Cross]       = "expression involved evaluation of two symbols from different sections",
 	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found]  = "label numeric backward reference not found",
 	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found]   = "label numeric backward reference not found",
 	[Resolver_Error_Kind__Label_Numeric_Section_Cross]       = "label numeric reference crosses section",

@@ -74,12 +74,11 @@ Expression_Kind_constant_is(Expression_Kind kind)
 typedef enum Expression_Flags
 {
 	Expression_Flags__Deferred              = 1 << 0,
-	Expression_Flags__Immediate             = 1 << 1,
+	// TODO: it may be that I just need unresolved, and not this one.
 	// It contains non absolute terms.
 	Expression_Flags__Absolute_Not          = 1 << 2,
 	// It contains linker-dependent symbols (externals, etc.). Implies Expression_Flags__Absolute_Not.
 	Expression_Flags__Unresolved            = 1 << 3,
-	Expression_Flags__Labels_Subtraction    = 1 << 4,
 }
 Expression_Flags;
 
@@ -89,16 +88,23 @@ Expression_Flags;
 //  if you evaluate second term, you get an expr node of kind sub, with eval result added -1 and symbol label_2
 //  if you evalute middle sub, you diff the two evaluation and it works.
 
+// A parsed expression, which can be evaluated.
+//
+// The expression contains an addend and a symbol. Those are immediately set during parsing in case the node is a leaf
+// of the appropriate type (e.g. numeric literal, identifier), and they can set after evaluation to indicate their
+// result in the canonical relocation format `symbol + addend`.
+//
+// Example evaluation:
+//
+// Consider the expression `label_1 + 2`, with the node being `+`. After evaluation, the addend will be set to `2`,
+// while the symbol field will be set to `label_1`.
+//
+// The expression contains indexes referring to the list of `Expressions` it is contained, and where its children, if
+// any, are placed.
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
 	S64 integer_value;
-
-	// Evaluating and storing the result in this format should be good!
-	S64 addend;
-	Symbols_Table_Entry *symbol_result;
-
-	// In case the expression is a known symbol identifier. Set during evaluation.
 	Symbols_Table_Entry *symbols_table_entry;
 
 	U32 index;
