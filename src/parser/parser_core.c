@@ -241,7 +241,7 @@ Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 // A relocation operator can be combined only with constant arithmetic, in the symbol + addend fashion.
 
 internal Expression_Node *
-Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
+Parser_parse_null_denotation(Parser *parser)
 {
 
 	Expression_Node *node  = Expressions_push_empty(parser->expressions);
@@ -307,7 +307,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	{
 		node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
 		Parser_advance(parser);
-		Expression_Node *operand = Parser_expression_parse_inner(parser, Binding_Power__Unary, flags);
+		Expression_Node *operand = Parser_expression_parse_inner(parser, Binding_Power__Unary);
 		node->index_left = operand->index;
 	} break;
 
@@ -328,7 +328,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
 		Parser_advance(parser);
-		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None, flags);
+		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
 
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
@@ -343,7 +343,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	case Token_Kind__Left_Parenthesis:
 	{
 		Parser_advance(parser);
-		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None, flags);
+		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
 
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Parenthesis_Right_Expected);
 		Parser_advance(parser);
@@ -367,7 +367,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
-Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags)
+Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimum)
 {
 	local_persist U8 recursion_level = 0;
 	recursion_level += 1;
@@ -376,7 +376,7 @@ Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimu
 	Parser_expect(parser, !parser->end_reached, Parser_Error_Kind__Expression_Unexpected_End);
 	Parser_expect(parser, recursion_level <= 8, Parser_Error_Kind__Expression_Recursion_Max);
 
-	left = Parser_parse_null_denotation(parser, flags);
+	left = Parser_parse_null_denotation(parser);
 	for (;;)
 	{
 		Token_Kind operator_kind = parser->token_current.kind;
@@ -392,7 +392,7 @@ Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimu
 		// the expression, like commas.
 		Parser_advance(parser);
 
-		Expression_Node *right = Parser_expression_parse_inner(parser, next_power, flags);
+		Expression_Node *right = Parser_expression_parse_inner(parser, next_power);
 		// Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
 		Expression_Node *node  = Expressions_push_empty(parser->expressions);
 
@@ -411,9 +411,9 @@ Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimu
 // Entry point. Parses an expression starting at the token_current parser position.
 // Advances the parser past consumed tokens. On error, error->kind is nonzero.
 Expression_Node *
-Parser_expression_parse(Parser *parser, Expression_Flags flags)
+Parser_expression_parse(Parser *parser)
 {
-	Expression_Node *node = Parser_expression_parse_inner(parser, Binding_Power__None, flags);
+	Expression_Node *node = Parser_expression_parse_inner(parser, Binding_Power__None);
 	return node;
 }
 
@@ -510,7 +510,7 @@ Parser_parse(Parser *parser)
 				for (;;)
 				{
 					Parser_advance(parser);
-					Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+					Expression_Node *expression = Parser_expression_parse(parser);
 					expressions_indexes[expressions_count] = expression->index;
 					expressions_count += 1;
 					assert_always_m(expressions_count < 16);
@@ -584,7 +584,7 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 key = Parser_token_string(parser);
-				Symbols_Table_Entry *entry = Symbols_Table_get(parser->symbols_table, key);
+				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
 
 				U8 type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(entry->elf.type_and_binding));
 				entry->elf.type_and_binding = type_and_binding;
@@ -594,7 +594,7 @@ Parser_parse(Parser *parser)
 			case Directive_Kind__Align:
 			{
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *expression = Parser_expression_parse(parser);
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count = 1;
@@ -610,7 +610,7 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *expression = Parser_expression_parse(parser);
 
 				// TODO: set absolute only during evaluation, if no labels are required.
 				Parser_symbol_initialize(parser, key);
@@ -621,7 +621,7 @@ Parser_parse(Parser *parser)
 			case Directive_Kind__Zero:
 			{
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *expression = Parser_expression_parse(parser);
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
@@ -629,7 +629,7 @@ Parser_parse(Parser *parser)
 			case Directive_Kind__Skip:
 			{
 				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *expression = Parser_expression_parse(parser);
 
 				if (parser->token_current.kind == Token_Kind__Comma)
 				{
@@ -664,12 +664,12 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 				Parser_advance(parser);
-				Expression_Node *size_expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *size_expression = Parser_expression_parse(parser);
 
 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 				Parser_advance(parser);
-				Expression_Node *alignment_expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+				Expression_Node *alignment_expression = Parser_expression_parse(parser);
 
 				U32 *expressions_indexes = Arena_push_array_m(parser->arena, U32, 2);
 				expressions_indexes[0] = size_expression->index;

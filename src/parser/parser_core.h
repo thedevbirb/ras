@@ -159,13 +159,13 @@ Parser_expect_register(Parser *parser);
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
 internal Expression_Node *
-Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimum, Expression_Flags flags);
+Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimum);
 
 // Null denotation: handles prefix positions (atoms, unary operators,
 // parenthesized groups, relocations). The token has already been consumed
 // from the parser before this call.
 internal Expression_Node *
-Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
+Parser_parse_null_denotation(Parser *parser);
 
 
 // Entry point. Parses an expression starting at the token_current parser position.
@@ -173,7 +173,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags);
 //
 // Moves the cursor further until a non-valid token for an expression is met.
 Expression_Node *
-Parser_expression_parse(Parser *parser, Expression_Flags flags);
+Parser_expression_parse(Parser *parser);
 
 // Create an expression consisting of an immediate value.
 Expression_Node *

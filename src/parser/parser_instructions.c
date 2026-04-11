@@ -19,7 +19,7 @@ Parser_instruction_I_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -61,7 +61,7 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 	else
 	{
 		// Case: instruction rd, offset(rs1)
-		expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+		expression = Parser_expression_parse(parser);
 
 		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
 		Parser_advance(parser);
@@ -143,7 +143,7 @@ Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 	else
 	{
 		// Case: instruction rs2, offset(rs1)
-		expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+		expression = Parser_expression_parse(parser);
 
 		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
 		Parser_advance(parser);
@@ -181,7 +181,7 @@ Parser_instruction_B_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -199,7 +199,7 @@ Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -217,7 +217,7 @@ Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -441,7 +441,7 @@ Parser_instruction_beqz_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -460,7 +460,7 @@ Parser_instruction_bnez_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -479,7 +479,7 @@ Parser_instruction_blez_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -498,7 +498,7 @@ Parser_instruction_bgez_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -517,7 +517,7 @@ Parser_instruction_bltz_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -536,7 +536,7 @@ Parser_instruction_bgtz_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -562,7 +562,7 @@ Parser_instruction_bgt_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -588,7 +588,7 @@ Parser_instruction_ble_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -614,7 +614,7 @@ Parser_instruction_bgtu_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -640,7 +640,7 @@ Parser_instruction_bleu_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -652,7 +652,7 @@ Parser_instruction_j_parse(Parser *parser)
 	parser->statement_context->instruction_format   = Instruction_Format__J;
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -720,7 +720,7 @@ Parser_instruction_li_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -740,7 +740,7 @@ Parser_instruction_la_parse(Parser *parser)
 	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 	// Always auipc + addi (8 bytes) at assembly time. The linker may relax this further to a single gp-relative
 	// addi, but the assembler cannot know that.
@@ -756,7 +756,7 @@ Parser_instruction_call_parse(Parser *parser)
 	parser->statement_context->instruction_format   = Instruction_Format__Expandable;
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
@@ -769,7 +769,7 @@ Parser_instruction_tail_parse(Parser *parser)
 	parser->statement_context->instruction_format   = Instruction_Format__Expandable;
 
 	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
+	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
