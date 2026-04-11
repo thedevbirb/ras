@@ -112,8 +112,9 @@ Symbols_Table_get(Symbols_Table *map, String8 key)
 		index_modulo = (index_modulo + 1) & (map->capacity - 1);
 	}
 
-	// Ensure this is always set.
+	// Ensure these are always set.
 	entry->index = index_modulo;
+	entry->key   = key;
 
 	return entry;
 }

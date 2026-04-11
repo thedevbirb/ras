@@ -179,11 +179,14 @@ Parser_expect_register(Parser *parser)
 	return register_value;
 }
 
-internal
+internal Symbols_Table_Entry *
 Parser_symbol_initialize(Parser *parser, String8 key)
 {
 	Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
 	entry->index_statement = parser->statements->count;
+	entry->flags |= Symbol_Flags__Declared;
+
+	return entry;
 }
 
 // A special note goes to symbols inside an expression. While absolute symbols, created with .set or .equ
@@ -195,13 +198,15 @@ Parser_symbol_initialize(Parser *parser, String8 key)
 //
 // If met in other places, we should emit an error.
 internal void
-Parser_symbol_ensure_statement_valid(Parser *parser)
+Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 {
 	Directive_Kind directive_kind = parser->statement_context->directive_kind;
 	B32 directive_data = directive_kind == Directive_Kind__Byte
 		          || directive_kind == Directive_Kind__Word_Half
 		          || directive_kind == Directive_Kind__Word
-		          || directive_kind == Directive_Kind__Word_Double;
+		          || directive_kind == Directive_Kind__Word_Double
+			  || directive_kind == Directive_Kind__Set
+			  || directive_kind == Directive_Kind__Equality;
 
 	Instruction_Kind instruction_kind = parser->statement_context->instruction_kind;
 	B32 instruction_branch = instruction_kind == Instruction_Kind__BEQ
@@ -217,14 +222,23 @@ Parser_symbol_ensure_statement_valid(Parser *parser)
 
 	B32 relocation_operator_some = parser->statement_context->relocation_operator != 0;
 
+	Directive_Kind statement_directive = parser->statements->data[symbol->index_statement].directive_kind;
+	B32 symbol_defined = statement_directive ==  Directive_Kind__Set
+			  || statement_directive == Directive_Kind__Equality;
+
 	B32 context_valid = directive_data
 		         || instruction_branch
 		         || instruction_jump
-		         || relocation_operator_some;
+		         || relocation_operator_some
+			 || symbol_defined;
 
 	Parser_expect(parser, context_valid, Parser_Error_Kind__Symbol_Context_Invalid);
 	return;
 }
+
+// A relocation operator can appear only once in an expression, and %hi can only work where there is a 20-bit immediate
+// like lui e auipc while %lo which takes lower 12 bits works elsewhere.
+// A relocation operator can be combined only with constant arithmetic, in the symbol + addend fashion.
 
 internal Expression_Node *
 Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
@@ -267,7 +281,7 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 
 		// Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 		node->symbols_table_entry = symbol;
-		Parser_symbol_ensure_statement_valid(parser);
+		Parser_symbol_ensure_context_valid(parser, symbol);
 
 		Parser_advance(parser);
 	} break;
@@ -346,6 +360,9 @@ Parser_parse_null_denotation(Parser *parser, Expression_Flags flags)
 	return node;
 }
 
+
+// Consider evaluating already the constants.
+
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).
@@ -421,24 +438,6 @@ Parser_statement_context_reset(Parser *parser)
 	return;
 }
 
-// Create a barebone, incomplete statement for an instruction.
-internal Statement *
-Parser_statement_instruction_context_set(Parser *parser)
-{
-	Statement statement =
-	{
-		parser->statement_context->token_index_begin = parser->token_index_before,
-
-		parser->statement_context->size          = 4, // TODO: make this a global?
-		parser->statement_context->section_index = parser->section_current_index,
-		parser->statement_context->kind          = Statement_Kind__Instruction,
-		parser->statement_context->flags         = parser->flags,
-	};
-
-	Statement *pointer = Statements_push(parser->statements, statement);
-	return pointer;
-}
-
 void
 Parser_parse(Parser *parser)
 {
@@ -461,7 +460,7 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Label:
 		{
 			String8 key = Parser_token_string(parser);
-			Symbols_Table_Entry *entry = Parser_symbol_initialize(parser->symbols_table, key);
+			Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
 			B32 duplicate = entry->elf.section_index;
 			Parser_expect(parser, !duplicate, Parser_Error_Kind__Label_Duplicate);
 
@@ -570,7 +569,7 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 key = Parser_token_string(parser);
-				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser->symbols_table, key);
+				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
 
 				assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
 				B32 demoted = ELF_Symbol_bind_m(entry->elf.type_and_binding) > ELF_Symbol_Binding__Local;
@@ -614,7 +613,7 @@ Parser_parse(Parser *parser)
 				Expression_Node *expression = Parser_expression_parse(parser, Expression_Flags__Deferred);
 
 				// TODO: set absolute only during evaluation, if no labels are required.
-				Parser_symbol_initialize(parser->symbols_table, key);
+				Parser_symbol_initialize(parser, key);
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;

@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 	nob_cmd_append(&cmd, "cc",
 			"-std=c11", "-g",
 			// "-DASSEMBLER_EXPECT_PANIC",
-			"-w",
+			// "-w",
 			"-Wall", "-Wextra", "-Wpedantic",
 			"-Wno-override-init",
 			"-Wno-unused-function",

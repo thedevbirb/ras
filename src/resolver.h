@@ -14,6 +14,9 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Relocation_Operand_Symbol_Missing,
 	Resolver_Error_Kind__Relocation_Symbol_Missing,
 	Resolver_Error_Kind__Relocation_Form_Invalid,
+	Resolver_Error_Kind__Symbol_Cyclic,
+	Resolver_Error_Kind__Operator_Between_Symbols_Invalid,
+	Resolver_Error_Kind__Operator_Expression_Absolute_Not,
 	Resolver_Error_Kind__COUNT,
 }
 Resolver_Error_Kind;
@@ -29,6 +32,9 @@ global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 	[Resolver_Error_Kind__Relocation_Operand_Symbol_Missing] = "relocation has expression without symbol",
 	[Resolver_Error_Kind__Relocation_Symbol_Missing]         = "relocation operator without symbol",
 	[Resolver_Error_Kind__Relocation_Form_Invalid]           = "relocation can only be of the form symbol + addend",
+	[Resolver_Error_Kind__Operator_Between_Symbols_Invalid]  = "only subtraction between symbols is supported",
+	[Resolver_Error_Kind__Operator_Expression_Absolute_Not]  = "operator can be applied only to absolute subexpression",
+	[Resolver_Error_Kind__Symbol_Cyclic]                     = "cyclic symbol definition",
 };
 
 typedef struct Resolver_Error Resolver_Error;

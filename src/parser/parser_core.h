@@ -153,6 +153,8 @@ Parser_register(Parser *parser);
 internal U8
 Parser_expect_register(Parser *parser);
 
+// TODO: deprecate expression flags from these methods.
+
 // Core Pratt parser loop. Parses an expression where all binary operators
 // must have binding power strictly greater than binding_power_minimum.
 // All operators are left-associative (the <= comparison ensures this).

@@ -49,6 +49,9 @@ typedef enum Symbol_Flags
 	/* Whether the symbol has been marked to be removed by a .symver
 	   directive.  */
 	Symbol_Flags__Removed                    = 1 << 9,
+
+	// Whether the symbol has been declared using a label or directive.
+	Symbol_Flags__Declared                   = 1 << 10,
 }
 Symbol_Flags;
 

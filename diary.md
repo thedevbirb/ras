@@ -134,6 +134,10 @@ heavy, yet it makes extending the software so much easier.
 TODO: the parser builds statements as it goes line by line, it should have a statement builder that
 can be used during expression parsing to already catch some errors.
 
+It could be interesting to avoid recursion functions entirely, this is an excellent video about it: https://www.youtube.com/watch?v=YuaJ8x_NcLw.
+However, I'd still bound the number of iterations since each would allocate. As such, for now it's
+okay to recurse imposing a very short recusion level limit.
+
 # relaxation
 
 Now there is a tough part, where you evaluate every expression and compute sizes and offsets for
@@ -160,6 +164,48 @@ significant project.
 
 Any expression after sufficient simplification and evaluation should be of the form `(constant, symbol_a,
 symbol_b`) so that it can be written with relocations if needed.
+
+# problems
+
+Right now I have the following problems in writing the assembler:
+
+1. I don't detect circular dependencies. That is, consider the example:
+    ```s
+    .set A, B + 1
+    .set B, A
+    ```
+2. I don't check whether expressions simplify to a form `symbol_1 - symbol_2 + addend`, where
+   `symbol_2` is optional. That is, expressions simplify to the suitable relocation format.
+
+To address these two, we will probably need to do during relaxation. Reason is we have to evaluate
+many times since values can change.
+
+## Circular dependencies
+
+Consider the example above. We want to discriminate all possible cases:
+
+1. B depends on A, creating a circular dependency.
+2. B is defined, e.g. `.set B, 1`.
+3. B depends on a defined symbol, e.g. `.set B, label + 1`.
+4. B depends on an undefined (external) symbol, e.g. `.set B, ext + 1`.
+
+The algorithm would look as follows:
+
+1. Read a `.set` directive, mark symbol `A` as "resolving";
+2. Find out that it depends on a _defined_ (via `.set` or similar) symbol `B`.
+3. Jump to the statement where `B` is defined, and evaluate the expression.
+    1. If another "resolving" symbol is met, return error
+    2. If B is defined, return its value and set `A` accordingly.
+    3. If B depends on other defined symbols, evaluate again and return.
+    4. If B depends on an undefined symbol, we should emit a relocation. When we go back we should
+       check the expression is in the canonical form.
+
+## Canonical form of expressions.
+
+During relaxation, evaluation of expressions happens. There, we should perform simplification of
+them so that we can reach the canonical form. We have to do it multiple times because for example, a
+subtraction between local labels of the same section may lead to different results in case of
+instruction expansion.
 
 
 # Random

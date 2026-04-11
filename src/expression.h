@@ -51,10 +51,52 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
+B32
+Expression_Kind_leaf_is(Expression_Kind kind)
+{
+	B32 result = kind == Expression_Kind__Number_Literal
+	          || kind == Expression_Kind__Char_Literal
+	          || kind == Expression_Kind__Identifier
+	          || kind == Expression_Kind__Label_Numeric_Reference_Forward
+	          || kind == Expression_Kind__Label_Numeric_Reference_Backward
+	          || kind == Expression_Kind__Current_Address;
+	return result;
+}
+
+B32
+Expression_Kind_constant_is(Expression_Kind kind)
+{
+	B32 result = kind == Expression_Kind__Number_Literal
+		  || kind == Expression_Kind__Char_Literal;
+	return result;
+}
+
+typedef enum Expression_Flags
+{
+	Expression_Flags__Deferred              = 1 << 0,
+	Expression_Flags__Immediate             = 1 << 1,
+	// It contains non absolute terms.
+	Expression_Flags__Absolute_Not          = 1 << 2,
+	// It contains linker-dependent symbols (externals, etc.). Implies Expression_Flags__Absolute_Not.
+	Expression_Flags__Unresolved            = 1 << 3,
+	Expression_Flags__Labels_Subtraction    = 1 << 4,
+}
+Expression_Flags;
+
+// (label_1 + 2) - (label_2 - 1)
+//
+//  if you evaluate first term, you get an expr node of kind add, with eval result addend two and symbol label_1
+//  if you evaluate second term, you get an expr node of kind sub, with eval result added -1 and symbol label_2
+//  if you evalute middle sub, you diff the two evaluation and it works.
+
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
-	U64 integer_value;
+	S64 integer_value;
+
+	// Evaluating and storing the result in this format should be good!
+	S64 addend;
+	Symbols_Table_Entry *symbol_result;
 
 	// In case the expression is a known symbol identifier. Set during evaluation.
 	Symbols_Table_Entry *symbols_table_entry;
@@ -66,11 +108,13 @@ struct Expression_Node
 	// Useful for later finding symbols etc.
 	U32 token_index;
 	// Whether evaluation lead to unresolved symbols.
+	// TODO: deprecate this, and use flag
 	B32 unresolved;
 
 	Relocation_Operator relocation_operator;
 
 	Expression_Kind  kind;
+	Expression_Flags flags;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.
@@ -115,12 +159,5 @@ Expressions_initialize(Expressions *expressions, Arena *arena);
 
 Expression_Node *
 Expressions_push_empty(Expressions *expressions);
-
-typedef enum Expression_Flags
-{
-	Expression_Flags__Deferred  = 1 << 0,
-	Expression_Flags__Immediate = 1 << 1,
-}
-Expression_Flags;
 
 #endif // EXPRESSION_H

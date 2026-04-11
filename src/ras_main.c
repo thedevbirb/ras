@@ -73,6 +73,7 @@ main(int argument_count, char **argument_vector)
 	}
 
 	const char *file_in_path = argument_vector[0];
+	printf("file_in_path: %s\n", file_in_path);
 	int file_in_descriptor = open(file_in_path, O_RDONLY);
 	assert_always_m(file_in_descriptor > 0 && "failed to find input file");
 
