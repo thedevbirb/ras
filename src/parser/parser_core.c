@@ -94,6 +94,27 @@ String8_byte_size_escaped(String8 string)
 	return size;
 }
 
+// Create a label string for the dot symbol, in the format `.D{index}`, where `index` is the current statement index.
+internal String8
+Parser_label_dot(Parser *parser)
+{
+	U32 statement_index = parser->statements->count;
+	U32 digits_count = snprintf(0, 0, "%d", statement_index);
+	U64 string_characters_count  = digits_count + 2;
+	String8 key =
+	{
+		// .D{statement_index}
+		.data = Arena_push_array_m(parser->arena, U8, string_characters_count),
+		.count = string_characters_count,
+	};
+
+	key.data[0] = '.';
+	key.data[1] = 'D';
+	snprintf((char *)(key.data + 2), digits_count, "%d", statement_index);
+
+	return key;
+}
+
 // It is a no-op if the end has been reached already.
 internal void
 Parser_advance(Parser *parser)
@@ -216,6 +237,8 @@ Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 		              || instruction_kind == Instruction_Kind__BLTU
 		              || instruction_kind == Instruction_Kind__BGEU;
 
+	B32 load_address = instruction_kind == Instruction_Kind__LA;
+
 	B32 instruction_jump = instruction_kind == Instruction_Kind__JAL
 			    || instruction_kind == Instruction_Kind__CALL
 			    || instruction_kind == Instruction_Kind__TAIL;
@@ -229,6 +252,7 @@ Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 	B32 context_valid = directive_data
 		         || instruction_branch
 		         || instruction_jump
+			 || load_address
 		         || relocation_operator_some
 			 || symbol_defined;
 
@@ -268,7 +292,17 @@ Parser_parse_null_denotation(Parser *parser)
 
 	case Token_Kind__Dot:
 	{
-		node->kind = Expression_Kind__Current_Address;
+		node->kind = Expression_Kind__Identifier;
+
+		String8 key = Parser_label_dot(parser);
+		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
+
+		symbol->elf.section_index = parser->statement_context->section_index;
+		symbol->elf.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Local, 0);
+
+		node->symbols_table_entry = symbol;
+		Parser_symbol_ensure_context_valid(parser, symbol);
+
 		Parser_advance(parser);
 	} break;
 
@@ -288,15 +322,19 @@ Parser_parse_null_denotation(Parser *parser)
 
 	case Token_Kind__Label_Numeric_Reference_Forward:
 	{
-		node->kind          = Expression_Kind__Label_Numeric_Reference_Forward;
-		node->integer_value = token.numerical_value;
+		Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+
+		node->kind                = Expression_Kind__Label_Numeric_Reference_Forward;
+		node->label_numeric_value = token.numerical_value;
 
 		Parser_advance(parser);
 	} break;
 	case Token_Kind__Label_Numeric_Reference_Backward:
 	{
-		node->kind          = Expression_Kind__Label_Numeric_Reference_Backward;
-		node->integer_value = token.numerical_value;
+		Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+
+		node->kind                = Expression_Kind__Label_Numeric_Reference_Backward;
+		node->label_numeric_value = token.numerical_value;
 
 		Parser_advance(parser);
 	} break;
@@ -454,7 +492,9 @@ Parser_parse(Parser *parser)
 		parser->token_index_before = parser->token_index;
 		Parser_statement_context_reset(parser);
 
-		switch (parser->token_current.kind)
+		Token_Kind token_start_kind = parser->token_current.kind;
+
+		switch (token_start_kind)
 		{
 		case Token_Kind__Newline: { Parser_advance(parser); } break;
 		case Token_Kind__Label:
@@ -467,7 +507,6 @@ Parser_parse(Parser *parser)
 			entry->elf.section_index = parser->section_current_index,
 
 			Parser_advance(parser);
-			parser->statement_context->token_index_begin = parser->token_index_before;
 			parser->statement_context->kind              = Statement_Kind__Label;
 		} break;
 		case Token_Kind__Label_Numeric:
@@ -477,7 +516,6 @@ Parser_parse(Parser *parser)
 
 			Parser_advance(parser);
 			parser->statement_context->label_numeric_value = label_numeric_value;
-			parser->statement_context->token_index_end     = parser->token_index;
 			parser->statement_context->kind                = Statement_Kind__Label_Numeric;
 		} break;
 		case Token_Kind__Directive:
@@ -708,8 +746,6 @@ Parser_parse(Parser *parser)
 			} break;
 			}
 
-			parser->statement_context->token_index_begin  = parser->token_index_before;
-			parser->statement_context->token_index_end    = parser->token_index - 1;
 			parser->statement_context->section_index      = parser->section_current_index;
 
 		} break;
@@ -718,6 +754,8 @@ Parser_parse(Parser *parser)
 			// This must be an instruction.
 			String8 instruction = Parser_token_string(parser);
 			U32 instruction_hash = hash_FNV_1a(instruction);
+
+			parser->statement_context->kind = Statement_Kind__Instruction;
 
 			switch (instruction_hash)
 			{
@@ -836,8 +874,13 @@ Parser_parse(Parser *parser)
 		B32 loop_infinite_avoided = parser->token_index > parser->token_index_before || parser->error.kind || parser->end_reached;
 		assert_always_m(loop_infinite_avoided && "infinite loop in parser");
 
-		// The iteration has produced a new statement.
-		Statements_push(parser->statements, *parser->statement_context);
+		parser->statement_context->token_index_end = parser->token_index - 1;
+
+		if (token_start_kind != Token_Kind__Newline)
+		{
+			// The iteration has produced a new statement.
+			Statements_push(parser->statements, *parser->statement_context);
+		}
 	}
 
 	return;

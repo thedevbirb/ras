@@ -118,6 +118,8 @@ struct Expression_Node
 
 	Expression_Kind  kind;
 	Expression_Flags flags;
+
+	U8 label_numeric_value;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.

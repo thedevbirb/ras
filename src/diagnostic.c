@@ -1,8 +1,10 @@
 void
 Diagnostic_print(Diagnostic *diagnostic)
 {
+	assert_always_m(diagnostic->column_index_begin <= diagnostic->column_index_end);
+
 	fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", diagnostic->file_in_path, diagnostic->line, diagnostic->column_index_begin);
-	fprintf(stderr, "%s\n", diagnostic->message_kind);
+	fprintf(stderr, "%s\n",   diagnostic->message_kind);
 	fprintf(stderr, "%5d | ", diagnostic->line);
 
 	U64 index = diagnostic->input_index_start;

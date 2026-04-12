@@ -131,9 +131,6 @@ Again, so many times preserving ALL information created during transformations s
 times. It's already computed, not saving it is a waste and most of the times is not that memory
 heavy, yet it makes extending the software so much easier.
 
-TODO: the parser builds statements as it goes line by line, it should have a statement builder that
-can be used during expression parsing to already catch some errors.
-
 It could be interesting to avoid recursion functions entirely, this is an excellent video about it: https://www.youtube.com/watch?v=YuaJ8x_NcLw.
 However, I'd still bound the number of iterations since each would allocate. As such, for now it's
 okay to recurse imposing a very short recusion level limit.
@@ -145,10 +142,8 @@ each section. It's surprising that this requires a fixed point iterative algorit
 potentially very large number of iterations over all the program statements.
 
 TODO: limit what instructions and directives can appear in .bss section.
-TODO: handling and evaluation of relocation operators, plus emitting relocation entries somewhere.
 
 # relocations
-
 
 TODO: Relocations change the in some way the expression evaluation algorithm. When encoding, if some
 undefined symbols are found, relocations entry must be emitted, and they can only be of the form

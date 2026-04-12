@@ -46,7 +46,6 @@ Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 		resolver->error.kind      = kind;
 		resolver->error.statement = resolver->statement_current;
 
-		// U32 row_index = resolver->statement_current.
 		Token token_begin      = resolver->tokens[resolver->statement_current->token_index_begin];
 		Token token_end        = resolver->tokens[resolver->statement_current->token_index_end];
 		U32 row_index          = token_begin.row_index;
@@ -216,7 +215,8 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	case Expression_Kind__Label_Numeric_Reference_Forward:
 	{
 		U16 section_current_index = resolver->section_current_index;
-		U32 label_numeric_value   = node->integer_value; // e.g. 1b or 2b etc.
+		U32 label_numeric_value   = node->label_numeric_value; // e.g. 1b or 2b etc.
+		assert_always_m(label_numeric_value <= label_numeric_max);
 
 		B32 match  = 0;
 		U32 offset = 0;
@@ -231,7 +231,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			}
 			Statement *statement = &resolver->statements->data[index];
 			match = statement->kind == Statement_Kind__Label_Numeric && statement->label_numeric_value == label_numeric_value;
-			B32 crossed = match && statement->section_index == section_current_index;
+			B32 crossed = match && statement->section_index != section_current_index;
 			Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Label_Numeric_Section_Cross);
 			offset = statement->section_offset;
 		}
@@ -245,7 +245,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	case Expression_Kind__Label_Numeric_Reference_Backward:
 	{
 		U16 section_current_index      = resolver->section_current_index;
-		U32 label_numeric_value        = node->integer_value; // e.g. 1b or 2b etc.
+		U32 label_numeric_value        = node->label_numeric_value; // e.g. 1b or 2b etc.
+		assert_always_m(label_numeric_value <= label_numeric_max);
+
 		Vec2_U32 statement_index_maybe = resolver->labels_numeric_statement_index[label_numeric_value];
 
 		Resolver_expect(resolver, statement_index_maybe.y, Resolver_Error_Kind__Label_Numeric_Backward_Not_Found);
@@ -407,6 +409,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			}
 			else
 			{
+				// FIX: there might be a dot here, for the current address
 				assert_always_m(symbol_left);
 				assert_always_m(symbol_right);
 
@@ -439,7 +442,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 					B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
 					B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
 
-					B32 crossed = symbol_left->elf.section_index == symbol_right->elf.section_index;
+					B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
 
 					Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
 					Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
@@ -472,7 +475,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
 				B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
 
-				B32 crossed = symbol_left->elf.section_index == symbol_right->elf.section_index;
+				B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
 
 				Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
 				Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);

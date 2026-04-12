@@ -52,6 +52,8 @@ typedef enum Symbol_Flags
 
 	// Whether the symbol has been declared using a label or directive.
 	Symbol_Flags__Declared                   = 1 << 10,
+
+	Symbol_Flags__Dot                        = 1 << 11,
 }
 Symbol_Flags;
 

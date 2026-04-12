@@ -36,7 +36,7 @@ struct Statement
 	U32 expressions_count;
 	// The list of tokens that make the statement.
 	U32 token_index_begin;
-	// Excluded, so that end minus begin returns the token count.
+	// Included
 	U32 token_index_end;
 
 	Instruction_Kind    instruction_kind;
