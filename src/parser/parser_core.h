@@ -9,6 +9,7 @@ typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
 	Parser_Error_Kind__Line_Invalid,
+	Parser_Error_Kind__Line_Extra_Content,
 	Parser_Error_Kind__Identifier_Expected,
 	Parser_Error_Kind__Comma_Expected,
 	Parser_Error_Kind__Parenthesis_Left_Expected,
@@ -51,6 +52,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 {
 	[Parser_Error_Kind__None]                                  = "",
 	[Parser_Error_Kind__Line_Invalid]                          = "line can only start with a directive, label or instruction",
+	[Parser_Error_Kind__Line_Extra_Content]                    = "line ends with unexpected tokens",
 	[Parser_Error_Kind__Identifier_Expected]                   = "expected identifier",
 	[Parser_Error_Kind__Comma_Expected]                        = "comma expected",
 	[Parser_Error_Kind__Parenthesis_Left_Expected]             = "left parenthesis expected",

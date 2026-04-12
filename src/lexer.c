@@ -102,7 +102,7 @@ Lexer_string(Lexer *lexer)
 {
 	String8 string =
 	{
-		.data =  lexer->text + lexer->index_before,
+		.data  =  lexer->text + lexer->index_before,
 		.count = lexer->index - lexer->index_before,
 	};
 	return string;
@@ -184,8 +184,8 @@ Lexer_tokenize(Lexer *lexer)
 		} break;
 
 		case ',' : { token_kind = Token_Kind__Comma;             Lexer_advance(lexer); } break;
-		case '(' : { token_kind = Token_Kind__Left_Parenthesis;  Lexer_advance(lexer); } break;
-		case ')' : { token_kind = Token_Kind__Right_Parenthesis; Lexer_advance(lexer); } break;
+		case '(' : { token_kind = Token_Kind__Parenthesis_Left;  Lexer_advance(lexer); } break;
+		case ')' : { token_kind = Token_Kind__Parenthesis_Right; Lexer_advance(lexer); } break;
 		case '+' : { token_kind = Token_Kind__Plus;              Lexer_advance(lexer); } break;
 		case '-' : { token_kind = Token_Kind__Minus;             Lexer_advance(lexer); } break;
 		case '*' : { token_kind = Token_Kind__Star;              Lexer_advance(lexer); } break;

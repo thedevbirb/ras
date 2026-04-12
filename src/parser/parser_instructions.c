@@ -43,14 +43,14 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 
 	Expression_Node *expression = 0;
 
-	if (parser->token_current.kind == Token_Kind__Left_Parenthesis)
+	if (parser->token_current.kind == Token_Kind__Parenthesis_Left)
 	{
 		// Case: instruction rd, (rs1)
 		Parser_advance(parser);
 		register_source_1 = Parser_expect_register(parser);
 		parser->statement_context->register_source_1 = register_source_1;
 		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Parenthesis_Right_Expected);
 		Parser_advance(parser);
 	}
 	else if (register_source_1 != register_invalid)
@@ -63,13 +63,13 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 		// Case: instruction rd, offset(rs1)
 		expression = Parser_expression_parse(parser);
 
-		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Left, Parser_Error_Kind__Parenthesis_Left_Expected);
 		Parser_advance(parser);
 		register_source_1 = Parser_expect_register(parser);
 		parser->statement_context->register_source_1 = register_source_1;
 
 		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Parenthesis_Right_Expected);
 
 		Parser_advance(parser);
 	}
@@ -125,14 +125,14 @@ Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 
 	Expression_Node *expression = 0;
 
-	if (parser->token_current.kind == Token_Kind__Left_Parenthesis)
+	if (parser->token_current.kind == Token_Kind__Parenthesis_Left)
 	{
 		// Case: instruction rs2, (rs1)
 		Parser_advance(parser);
 		register_source_1 = Parser_expect_register(parser);
 		parser->statement_context->register_source_1 = register_source_1;
 		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Parenthesis_Right_Expected);
 		Parser_advance(parser);
 	}
 	else if (register_source_1 != register_invalid)
@@ -145,13 +145,13 @@ Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 		// Case: instruction rs2, offset(rs1)
 		expression = Parser_expression_parse(parser);
 
-		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Parenthesis_Left_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Left, Parser_Error_Kind__Parenthesis_Left_Expected);
 		Parser_advance(parser);
 		register_source_1 = Parser_expect_register(parser);
 		parser->statement_context->register_source_1 = register_source_1;
 
 		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Parenthesis_Right_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Parenthesis_Right_Expected);
 
 		Parser_advance(parser);
 	}

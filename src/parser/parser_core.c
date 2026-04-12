@@ -178,7 +178,7 @@ Parser_expect(Parser *parser, B32 condition, Parser_Error_Kind error_kind)
 internal void
 Parser_expect_token(Parser *parser, Token_Kind token_kind, Parser_Error_Kind error_kind)
 {
-	B32 condition = parser->token_current.kind = token_kind;
+	B32 condition = parser->token_current.kind == token_kind;
 	Parser_expect(parser, condition, error_kind);
 	return;
 }
@@ -363,13 +363,11 @@ Parser_parse_null_denotation(Parser *parser)
 		parser->statement_context->relocation_operator = relocation_operator;
 
 		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Left_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Left, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
 		Parser_advance(parser);
 		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
-
-		Parser_advance(parser);
-		Parser_expect_token(parser, Token_Kind__Right_Parenthesis, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
 
 		node->kind       = Expression_Kind__Relocation;
 		node->index_left = inner->index;
@@ -378,12 +376,12 @@ Parser_parse_null_denotation(Parser *parser)
 
 	} break;
 
-	case Token_Kind__Left_Parenthesis:
+	case Token_Kind__Parenthesis_Left:
 	{
 		Parser_advance(parser);
 		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
 
-		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Parenthesis_Right_Expected);
+		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Parenthesis_Right_Expected);
 		Parser_advance(parser);
 
 		node = inner;
@@ -876,9 +874,12 @@ Parser_parse(Parser *parser)
 
 		parser->statement_context->token_index_end = parser->token_index - 1;
 
+		// The iteration has produced a new statement.
 		if (token_start_kind != Token_Kind__Newline)
 		{
-			// The iteration has produced a new statement.
+			// We should have reached a newline, otherwise there is junk.
+			B32 correct_end_of_line = parser->token_current.kind == Token_Kind__Newline;
+			Parser_expect(parser, correct_end_of_line, Parser_Error_Kind__Line_Extra_Content);
 			Statements_push(parser->statements, *parser->statement_context);
 		}
 	}
