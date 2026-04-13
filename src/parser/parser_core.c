@@ -245,7 +245,7 @@ Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 
 	B32 relocation_operator_some = parser->statement_context->relocation_operator != 0;
 
-	Directive_Kind statement_directive = parser->statements->data[symbol->index_statement].directive_kind;
+	Directive_Kind statement_directive = parser->statement_context->directive_kind;
 	B32 symbol_defined = statement_directive ==  Directive_Kind__Set
 			  || statement_directive == Directive_Kind__Equality;
 
@@ -312,10 +312,12 @@ Parser_parse_null_denotation(Parser *parser)
 
 		String8 key = Parser_token_string(parser);
 		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
+		Parser_symbol_ensure_context_valid(parser, symbol);
+		// NOTE: inside an expression, symbols are not defined
+		symbol->index_statement = -1;
 
 		// Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 		node->symbols_table_entry = symbol;
-		Parser_symbol_ensure_context_valid(parser, symbol);
 
 		Parser_advance(parser);
 	} break;
@@ -716,6 +718,8 @@ Parser_parse(Parser *parser)
 
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser);
+
+				// TODO: what if set or equ creates an alias for a label? Special handling?
 
 				Parser_symbol_initialize(parser, key);
 

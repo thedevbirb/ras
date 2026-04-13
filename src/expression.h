@@ -73,12 +73,8 @@ Expression_Kind_constant_is(Expression_Kind kind)
 
 typedef enum Expression_Flags
 {
-	Expression_Flags__Deferred              = 1 << 0,
-	// TODO: it may be that I just need unresolved, and not this one.
-	// It contains non absolute terms.
-	Expression_Flags__Absolute_Not          = 1 << 2,
-	// It contains linker-dependent symbols (externals, etc.). Implies Expression_Flags__Absolute_Not.
-	Expression_Flags__Unresolved            = 1 << 3,
+	// It contains linker-dependent symbols (labels, externals, etc.).
+	Expression_Flags__Unresolved            = 1 << 0,
 }
 Expression_Flags;
 

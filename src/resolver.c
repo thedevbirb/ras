@@ -185,10 +185,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		B32 cyclic   = declared && symbol->flags & Symbol_Flags__Resolving;
 		Resolver_expect(resolver, !cyclic, Resolver_Error_Kind__Symbol_Cyclic);
 
-		Statement *statement = &resolver->statements->data[symbol->index_statement];
-
-		B32 definition_is = statement->directive_kind == Directive_Kind__Equality
-			|| statement->directive_kind == Directive_Kind__Set;
+		Statement *statement = symbol->index_statement != -1 ? &resolver->statements->data[symbol->index_statement] : 0;
+		B32 definition_is = statement && (statement->directive_kind == Directive_Kind__Equality
+			                      ||  statement->directive_kind == Directive_Kind__Set);
 
 		if (definition_is && !cyclic)
 		{
@@ -196,15 +195,15 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			Expression_Node *inner = &resolver->expressions->data[statement->expressions_indexes[0]];
 			Resolver_expression_evaluate(resolver, inner);
 
-			B32 symbol_absolute_is = definition_is && !(inner->flags & Expression_Flags__Absolute_Not);
+			B32 symbol_absolute_is = definition_is && !(inner->flags & Expression_Flags__Unresolved);
 
 			if (symbol_absolute_is)
 			{
 				symbol->elf.section_index = ELF_Section_Index__Absolute;
+				node->integer_value = inner->integer_value;
 			}
 
 			node->flags        |= inner->flags;
-			node->integer_value = inner->integer_value;
 		}
 		else
 		{
@@ -239,7 +238,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expect(resolver, match, Resolver_Error_Kind__Label_Numeric_Forward_Not_Found);
 
 		node->integer_value = offset;
-		node->flags |= Expression_Flags__Absolute_Not;
+		node->flags |= Expression_Flags__Unresolved;
 
 	} break;
 	case Expression_Kind__Label_Numeric_Reference_Backward:
@@ -255,20 +254,17 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
 
 		node->integer_value = statement_index_maybe.x;
-		node->flags |= Expression_Flags__Absolute_Not;
+		node->flags |= Expression_Flags__Unresolved;
 
 	} break;
 	case Expression_Kind__Current_Address:
 	{
 		U32 section_current_offset = resolver->sections_offset[resolver->section_current_index];
 		node->integer_value = section_current_offset;
-		node->flags |= Expression_Flags__Absolute_Not;
+		node->flags |= Expression_Flags__Unresolved;
 	} break;
 	case Expression_Kind__Relocation:
 	{
-		// TODO: re do all of this.
-		Resolver_expect(resolver, resolver->statement_current->kind == Statement_Kind__Instruction, Resolver_Error_Kind__Relocation_Misplaced);
-
 		if (resolver->flags & (Resolver_Flags__Relocations))
 		{
 			// NOTE: a case like addend + symbol + addend is NOT supported.
@@ -340,7 +336,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Absolute_Not;
+		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
 		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
 
 		node->flags |= node_left->flags;
@@ -351,7 +347,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Absolute_Not;
+		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
 		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
 
 		node->flags |= node_left->flags;
@@ -362,7 +358,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Absolute_Not;
+		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
 		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
 
 		node->flags |= node_left->flags;
@@ -409,7 +405,6 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			}
 			else
 			{
-				// FIX: there might be a dot here, for the current address
 				assert_always_m(symbol_left);
 				assert_always_m(symbol_right);
 
@@ -591,7 +586,7 @@ Resolver_relax_pass(Resolver *resolver)
 				Expression_Node *expression = &resolver->expressions->data[statement->expressions_indexes[0]];
 				Resolver_expression_evaluate(resolver, expression);
 
-				B32 absolute_expression = !(expression->flags & Expression_Flags__Absolute_Not);
+				B32 absolute_expression = !(expression->flags & Expression_Flags__Unresolved);
 				if (absolute_expression)
 				{
 					symbol->elf.section_index = ELF_Section_Index__Absolute;

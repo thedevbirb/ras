@@ -75,7 +75,9 @@ struct Symbols_Table_Entry
 {
 	String8       key;
 	ELF64_Symbol  elf;
-	// The index of the statement where this symbol has been defined, if applicable.
+	// The index of the statement where this symbol has been defined.
+	//
+	// NOTE: if not defined, this is set to -1, equivalent to U32_max.
 	U32	      index_statement;
 	// The index in the Symbols_Table.entries in which this entry has been inserted.
 	U32           index;
