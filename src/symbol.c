@@ -49,37 +49,6 @@ Symbols_Table_grow(Symbols_Table *map)
 	return;
 }
 
-// internal B32
-// Symbols_Table_find_slot(Symbols_Table *map, String8 key, U32 *slot_out)
-// {
-// 	assert_always_m(map->capacity && "uninitialized map");
-//
-// 	U32 hash  = Hashmap_hash(key);
-// 	U32 index = hash & (map->capacity - 1);
-// 	B32 key_found = 0;
-//
-// 	for (;;)
-// 	{
-// 		Symbols_Table_Entry *entry = &map->entries[index];
-//
-// 		B32 empty = !entry->used;
-// 		key_found = !empty &&
-// 		            entry->key.count == key.count &&
-// 		            os_memory_match(entry->key.data, key.data, key.count) == 0;
-//
-// 		B32 break_should = empty || key_found;
-// 		if (break_should)
-// 		{
-// 			*slot_out = index;
-// 			break;
-// 		}
-//
-// 		index = (index + 1) & (map->capacity - 1);
-// 	}
-//
-// 	return key_found;
-// }
-
 Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key)
 {
@@ -119,8 +88,8 @@ Symbols_Table_get(Symbols_Table *map, String8 key)
 	return entry;
 }
 
-// Reserve is essentially like `get`, but it grows in case capacity is low.
-// To be used when you want to "put".
+// Reserve is essentially like `get`, but it grows in case capacity is low. To be used when you want to "put". Uses the
+// arena set during initialization for allocation if necessary.
 Symbols_Table_Entry *
 Symbols_Table_reserve(Symbols_Table *map, String8 key)
 {

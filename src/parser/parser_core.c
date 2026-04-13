@@ -201,7 +201,7 @@ Parser_expect_register(Parser *parser)
 }
 
 internal Symbols_Table_Entry *
-Parser_symbol_initialize(Parser *parser, String8 key)
+Parser_symbol_declare(Parser *parser, String8 key)
 {
 	Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
 	entry->index_statement = parser->statements->count;
@@ -211,50 +211,29 @@ Parser_symbol_initialize(Parser *parser, String8 key)
 }
 
 // A special note goes to symbols inside an expression. While absolute symbols, created with .set or .equ
-// directives are always accepted, others must be present only in specific places:
-//
-// 1. Branch instructions;
-// 2. Jump and other similar pseudo-instructions;
-// 3. Relocation operators.
+// directives are always accepted, others must be present only instruction which accept immediates.
 //
 // If met in other places, we should emit an error.
 internal void
 Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 {
 	Directive_Kind directive_kind = parser->statement_context->directive_kind;
-	B32 directive_data = directive_kind == Directive_Kind__Byte
-		          || directive_kind == Directive_Kind__Word_Half
-		          || directive_kind == Directive_Kind__Word
-		          || directive_kind == Directive_Kind__Word_Double
-			  || directive_kind == Directive_Kind__Set
-			  || directive_kind == Directive_Kind__Equality;
+	B32 directive_kind_valid = directive_kind == Directive_Kind__Byte
+		                || directive_kind == Directive_Kind__Word_Half
+		                || directive_kind == Directive_Kind__Word
+		                || directive_kind == Directive_Kind__Word_Double
+			        || directive_kind == Directive_Kind__Set
+			        || directive_kind == Directive_Kind__Equality;
 
-	Instruction_Kind instruction_kind = parser->statement_context->instruction_kind;
-	B32 instruction_branch = instruction_kind == Instruction_Kind__BEQ
-		              || instruction_kind == Instruction_Kind__BNE
-		              || instruction_kind == Instruction_Kind__BLT
-		              || instruction_kind == Instruction_Kind__BGE
-		              || instruction_kind == Instruction_Kind__BLTU
-		              || instruction_kind == Instruction_Kind__BGEU;
+	Instruction_Format instruction_format = parser->statement_context->instruction_format;
+	B32 instruction_format_valid = instruction_format == Instruction_Format__B
+		                    || instruction_format == Instruction_Format__I
+		                    || instruction_format == Instruction_Format__J
+		                    || instruction_format == Instruction_Format__S
+		                    || instruction_format == Instruction_Format__Expandable;
 
-	B32 load_address = instruction_kind == Instruction_Kind__LA;
-
-	B32 instruction_jump = instruction_kind == Instruction_Kind__JAL
-			    || instruction_kind == Instruction_Kind__CALL
-			    || instruction_kind == Instruction_Kind__TAIL;
-
-	B32 relocation_operator_some = parser->statement_context->relocation_operator != 0;
-
-	Directive_Kind statement_directive = parser->statement_context->directive_kind;
-	B32 symbol_defined = statement_directive ==  Directive_Kind__Set
-			  || statement_directive == Directive_Kind__Equality;
-
-	B32 context_valid = directive_data
-		         || instruction_branch
-		         || instruction_jump
-			 || load_address
-		         || relocation_operator_some
-			 || symbol_defined;
+	B32 context_valid = directive_kind_valid
+		         || instruction_format_valid;
 
 	Parser_expect(parser, context_valid, Parser_Error_Kind__Symbol_Context_Invalid);
 	return;
@@ -313,8 +292,6 @@ Parser_parse_null_denotation(Parser *parser)
 		String8 key = Parser_token_string(parser);
 		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
 		Parser_symbol_ensure_context_valid(parser, symbol);
-		// NOTE: inside an expression, symbols are not defined
-		symbol->index_statement = -1;
 
 		// Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 		node->symbols_table_entry = symbol;
@@ -569,7 +546,7 @@ Parser_parse(Parser *parser)
 		case Token_Kind__Label:
 		{
 			String8 key = Parser_token_string(parser);
-			Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
+			Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
 			B32 duplicate = entry->elf.section_index;
 			Parser_expect(parser, !duplicate, Parser_Error_Kind__Label_Duplicate);
 
@@ -676,7 +653,7 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 key = Parser_token_string(parser);
-				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
+				Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
 
 				assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
 				B32 demoted = ELF_Symbol_bind_m(entry->elf.type_and_binding) > ELF_Symbol_Binding__Local;
@@ -691,7 +668,7 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 key = Parser_token_string(parser);
-				Symbols_Table_Entry *entry = Parser_symbol_initialize(parser, key);
+				Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
 
 				U8 type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(entry->elf.type_and_binding));
 				entry->elf.type_and_binding = type_and_binding;
@@ -721,7 +698,7 @@ Parser_parse(Parser *parser)
 
 				// TODO: what if set or equ creates an alias for a label? Special handling?
 
-				Parser_symbol_initialize(parser, key);
+				Parser_symbol_declare(parser, key);
 
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;

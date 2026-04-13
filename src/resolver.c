@@ -185,9 +185,9 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		B32 cyclic   = declared && symbol->flags & Symbol_Flags__Resolving;
 		Resolver_expect(resolver, !cyclic, Resolver_Error_Kind__Symbol_Cyclic);
 
-		Statement *statement = symbol->index_statement != -1 ? &resolver->statements->data[symbol->index_statement] : 0;
-		B32 definition_is = statement && (statement->directive_kind == Directive_Kind__Equality
-			                      ||  statement->directive_kind == Directive_Kind__Set);
+		Statement *statement = &resolver->statements->data[symbol->index_statement];
+		B32 definition_is = statement->directive_kind == Directive_Kind__Equality
+			        ||  statement->directive_kind == Directive_Kind__Set;
 
 		if (definition_is && !cyclic)
 		{
@@ -203,7 +203,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				node->integer_value = inner->integer_value;
 			}
 
-			node->flags        |= inner->flags;
+			node->flags |= inner->flags;
 		}
 		else
 		{
@@ -265,6 +265,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Relocation:
 	{
+		// TODO: redo all of this
 		if (resolver->flags & (Resolver_Flags__Relocations))
 		{
 			// NOTE: a case like addend + symbol + addend is NOT supported.
@@ -337,7 +338,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
+		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
 
 		node->flags |= node_left->flags;
 		node->integer_value = ~(node_left->integer_value - 1);
@@ -348,7 +349,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
+		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
 
 		node->flags |= node_left->flags;
 		node->integer_value = ~node_left->integer_value;
@@ -359,7 +360,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Absolute_Not);
+		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
 
 		node->flags |= node_left->flags;
 		node->integer_value = !node_left->integer_value;
@@ -381,128 +382,43 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 
 		// After here, either we have two leafs that we can evaluate straight away or if we have a subexpression
 		// it has been evaluated.
+		S64 integer_result  = Resolver_operation_evaluate(resolver, node->kind, node_right->integer_value, node_left->integer_value);
+		node->integer_value = integer_result;
 
-		// Base case: we have two leafs.
-		if (node_right_leaf && node_left_leaf)
+		if (symbol_right && symbol_left)
 		{
-			B32 right_constant = Expression_Kind_constant_is(node_right->kind);
-			B32 left_constant  = Expression_Kind_constant_is(node_left->kind);
+			Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
 
-			if (right_constant && left_constant)
+			B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
+			B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
+			B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
+
+			B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
+
+			Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
+			Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
+
+			B32 evaluate = local_left && local_right && relax_disabled;
+
+			if (evaluate)
 			{
-				S64 result = Resolver_operation_evaluate(resolver, node->kind, node_left->integer_value, node_right->integer_value);
-				node->integer_value = result;
-			}
-			else if (left_constant)
-			{
-				node->symbols_table_entry = node_right->symbols_table_entry;
-				node->integer_value = node_left->integer_value;
-			}
-			else if (right_constant)
-			{
-				node->symbols_table_entry = node_left->symbols_table_entry;
-				node->integer_value = node_right->integer_value;
+				node->integer_value = node_left->integer_value - node_right->integer_value;
 			}
 			else
 			{
-				assert_always_m(symbol_left);
-				assert_always_m(symbol_right);
-
-				ELF_Section_Index section_left  = symbol_left->elf.section_index;
-				ELF_Section_Index section_right = symbol_right->elf.section_index;
-
-				B32 absolute_left  = section_left  == ELF_Section_Index__Absolute;
-				B32 absolute_right = section_right == ELF_Section_Index__Absolute;
-
-				if (absolute_left && absolute_right)
-				{
-					node->integer_value = Resolver_operation_evaluate(resolver, node->kind, symbol_left->elf.value, symbol_right->elf.value);
-				}
-				else if (absolute_left)
-				{
-					node->integer_value = node_left->integer_value;
-					node->symbols_table_entry = node_right->symbols_table_entry;
-				}
-				else if (absolute_right)
-				{
-					node->integer_value = node_right->integer_value;
-					node->symbols_table_entry = node_right->symbols_table_entry;
-				}
-				else
-				{
-					// TODO: this is duplicate just below, if possible find a way to deduplicate it.
-					Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-
-					B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
-					B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
-					B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
-
-					B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
-
-					Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
-					Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-
-					B32 evaluate = local_left && local_right && relax_disabled;
-
-					if (evaluate)
-					{
-						node->integer_value = node_left->integer_value - node_right->integer_value;
-					}
-					else
-					{
-						// TODO: emit relocation.
-						node->flags |= Expression_Flags__Unresolved;
-					}
-				}
-
+				// TODO: emit relocation.
+				node->flags |= Expression_Flags__Unresolved;
+				node->symbol_operand = node_right->symbols_table_entry;
 			}
 		}
-		else
+		else if (symbol_left)
 		{
-			S64 integer_result  = Resolver_operation_evaluate(resolver, node->kind, node_right->integer_value, node_left->integer_value);
-			node->integer_value = integer_result;
-
-			if (symbol_right && symbol_left)
-			{
-				Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-
-				B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
-				B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
-				B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
-
-				B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
-
-				Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
-				Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-
-				B32 evaluate = local_left && local_right && relax_disabled;
-
-				if (evaluate)
-				{
-					node->integer_value = node_left->integer_value - node_right->integer_value;
-				}
-				else
-				{
-					// TODO: emit relocation.
-					node->flags |= Expression_Flags__Unresolved;
-				}
-			}
-			else if (symbol_left)
-			{
-				node->symbols_table_entry = symbol_left;
-			}
-			else if (symbol_right)
-			{
-				node->symbols_table_entry = symbol_right;
-			}
+			node->symbols_table_entry = symbol_left;
 		}
-
-		// TODO: check whether this is root to emit relocation attempt. For example, if an expression is
-		// `label_1 + 2`, and we're evaluating the node `+`, then we should acknowledge we're in root position
-		// and emit a relocation. Maybe?
-		//
-		// Relocation on leaf nodes should be emitted only after evaluating root node?
-
+		else if (symbol_right)
+		{
+			node->symbols_table_entry = symbol_right;
+		}
 	} break;
 	}
 

@@ -75,12 +75,15 @@ struct Statements
 	U32 count;
 };
 
-// Assumption: the provided arena is used ONLY for this.
+// NOTE: the first element will be zero-initialized, so it can act as a sentinel value.
 internal void
 Statements_initialize(Statements *statements, Arena *arena);
 
 
 // Return the pointer to the arena-allocated statement
+//
+// The arena cannot be used for other purposes while pushing elements into it, it assumes a contiguous range of
+// statements for safe iteration.
 internal Statement *
 Statements_push(Statements *statements, Statement statement);
 

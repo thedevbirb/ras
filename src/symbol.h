@@ -75,9 +75,7 @@ struct Symbols_Table_Entry
 {
 	String8       key;
 	ELF64_Symbol  elf;
-	// The index of the statement where this symbol has been defined.
-	//
-	// NOTE: if not defined, this is set to -1, equivalent to U32_max.
+	// The index of the `Statements` structure where this symbol has been declared, or zero is unknown.
 	U32	      index_statement;
 	// The index in the Symbols_Table.entries in which this entry has been inserted.
 	U32           index;
@@ -98,17 +96,14 @@ struct Symbols_Table
 	U32 count;
 };
 
+// Allocates a initial buffer of zero-initialized values for saving symbols in the table.
 void
 Symbols_Table_initialize(Symbols_Table *map, Arena *arena);
-
-// Vec2_U32 // Slot, found
-// Symbols_Table_put(Symbols_Table *map, String8 key, ELF64_Symbol value);
-
-// TODO: decide whether to return the non-pointer version. In practice, entry will be at least zero-initialized.
 
 Symbols_Table_Entry *
 Symbols_Table_get(Symbols_Table *map, String8 key);
 
+// Akin to a put operation, growing the map if needed.
 Symbols_Table_Entry *
 Symbols_Table_reserve(Symbols_Table *map, String8 key);
 

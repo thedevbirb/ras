@@ -78,22 +78,19 @@ typedef enum Expression_Flags
 }
 Expression_Flags;
 
-// (label_1 + 2) - (label_2 - 1)
-//
-//  if you evaluate first term, you get an expr node of kind add, with eval result addend two and symbol label_1
-//  if you evaluate second term, you get an expr node of kind sub, with eval result added -1 and symbol label_2
-//  if you evalute middle sub, you diff the two evaluation and it works.
-
 // A parsed expression, which can be evaluated.
 //
-// The expression contains an addend and a symbol. Those are immediately set during parsing in case the node is a leaf
-// of the appropriate type (e.g. numeric literal, identifier), and they can set after evaluation to indicate their
-// result in the canonical relocation format `symbol + addend`.
+// The expression contains, among other fields, enough information to emit proper relocations after an unresolved
+// evaluation. This includes a "main" symbol fields and additional "operand" symbol field, along with an addend and the
+// operation kind.
 //
 // Example evaluation:
 //
 // Consider the expression `label_1 + 2`, with the node being `+`. After evaluation, the addend will be set to `2`,
 // while the symbol field will be set to `label_1`.
+//
+// Consider the expression `(global_1 + 2) - (global_2 + 1)`, with the examined being `-`. After evaluation, the addend
+// will be to `1`, the two symbol fields will be set.
 //
 // The expression contains indexes referring to the list of `Expressions` it is contained, and where its children, if
 // any, are placed.
@@ -102,6 +99,7 @@ struct Expression_Node
 {
 	S64 integer_value;
 	Symbols_Table_Entry *symbols_table_entry;
+	Symbols_Table_Entry *symbol_operand;
 
 	U32 index;
 	U32 index_left;

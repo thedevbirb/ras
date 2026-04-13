@@ -158,50 +158,21 @@ support relocation, these problems wouldn't have been there, but it would have b
 significant project.
 
 Any expression after sufficient simplification and evaluation should be of the form `(constant, symbol_a,
-symbol_b`) so that it can be written with relocations if needed.
+symbol_b, operand`) so that it can be written with relocations if needed.
 
-# problems
+Solving this properly without doing too many invasive chances blocked me for a few days. This, along
+with solving circular dependencies.
 
-Right now I have the following problems in writing the assembler:
+For circular dependencies, I solved it by recursively looking to into symbol definitions until an
+a declared symbol or constant was found, and tracking in the meanwhile which symbols were being
+resolved.
 
-1. I don't detect circular dependencies. That is, consider the example:
-    ```s
-    .set A, B + 1
-    .set B, A
-    ```
-2. I don't check whether expressions simplify to a form `symbol_1 - symbol_2 + addend`, where
-   `symbol_2` is optional. That is, expressions simplify to the suitable relocation format.
-
-To address these two, we will probably need to do during relaxation. Reason is we have to evaluate
-many times since values can change.
-
-## Circular dependencies
-
-Consider the example above. We want to discriminate all possible cases:
-
-1. B depends on A, creating a circular dependency.
-2. B is defined, e.g. `.set B, 1`.
-3. B depends on a defined symbol, e.g. `.set B, label + 1`.
-4. B depends on an undefined (external) symbol, e.g. `.set B, ext + 1`.
-
-The algorithm would look as follows:
-
-1. Read a `.set` directive, mark symbol `A` as "resolving";
-2. Find out that it depends on a _defined_ (via `.set` or similar) symbol `B`.
-3. Jump to the statement where `B` is defined, and evaluate the expression.
-    1. If another "resolving" symbol is met, return error
-    2. If B is defined, return its value and set `A` accordingly.
-    3. If B depends on other defined symbols, evaluate again and return.
-    4. If B depends on an undefined symbol, we should emit a relocation. When we go back we should
-       check the expression is in the canonical form.
-
-## Canonical form of expressions.
-
-During relaxation, evaluation of expressions happens. There, we should perform simplification of
-them so that we can reach the canonical form. We have to do it multiple times because for example, a
-subtraction between local labels of the same section may lead to different results in case of
-instruction expansion.
-
+For the relocation friendly format, in the end I kinda mimic what gas did with its expressionS type,
+that is saving the pair of symbols, the addend and the operand in the same expression node. The way
+I did the parser was fine, because it was very detailed, so the information was there, however I
+needed to group them in a cohoerent way so that I could emit relocations. This can be easily done
+during evaluation, and it is a correct place to do it, because relaxation might move things so I
+need to recompute all expressions anyway.
 
 # Random
 
