@@ -174,6 +174,9 @@ needed to group them in a cohoerent way so that I could emit relocations. This c
 during evaluation, and it is a correct place to do it, because relaxation might move things so I
 need to recompute all expressions anyway.
 
+I'm essentially reverse engineering a lot of gas behaviour by feeding it some inputs and see how it
+behaves. In doing so, I've also found a couple of bugs to report!
+
 # Random
 
 Just found out that there are some good docs that I just skipped :) https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5

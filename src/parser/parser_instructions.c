@@ -111,7 +111,7 @@ Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 	parser->statement_context->instruction_kind     = instruction_kind;
 	parser->statement_context->instruction_format   = Instruction_Format__S;
 
-	// Format: instruction rs2, offset(rs1). But offset, is optional, and if that'string the case also the parenthesis
+	// Format: instruction rs2, offset(rs1). But offset, is optional, and if that's the case also the parenthesis
 	// are.
 	Parser_advance(parser);
 	U8 register_source_2 = Parser_expect_register(parser);

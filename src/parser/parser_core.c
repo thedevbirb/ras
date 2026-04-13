@@ -412,10 +412,10 @@ Parser_parse_null_denotation(Parser *parser)
 		// %tprel_hi / %tprel_lo / %tprel_add — symbol must be in .tdata or .tbss (TLS sections)
 		// %tls_ie_pcrel_hi — symbol must be a TLS symbol
 		// %tls_gd_pcrel_hi — symbol must be a TLS symbol
+		//
+		// This may be correct/desiderable but in practice gas doesn't enforce almost anything.
 		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
-		// TODO: check that if pcrel_lo the label (maybe numeric, or 1b/1f!) points to the right pcrel_hi. Maybe
-		// it must be done after parsing.
-		// TODO: %pcrel_lo addi, loads, storesI / Srs1 = rd of auipclabel of auipc
+		// TODO: %pcrel_lo addi, loads, storesI / Srs1 = rd of auipclabel of auipc. gas doesn't check it.
 
 		node->kind       = Expression_Kind__Relocation;
 		node->index_left = inner->index;
@@ -927,7 +927,7 @@ Parser_parse(Parser *parser)
 		// The iteration has produced a new statement.
 		if (token_start_kind != Token_Kind__Newline)
 		{
-			// We should have reached a newline, otherwise there is junk.
+			// We should have reached a newline, or the statement should be a label definition, otherwise there is junk.
 			B32 correct_end_of_line = parser->token_current.kind == Token_Kind__Newline;
 			Parser_expect(parser, correct_end_of_line, Parser_Error_Kind__Line_Extra_Content);
 			Statements_push(parser->statements, *parser->statement_context);

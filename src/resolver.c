@@ -208,7 +208,6 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		else
 		{
 			node->flags |= Expression_Flags__Unresolved;
-			// TODO: emit relocation.
 		}
 	} break;
 	case Expression_Kind__Label_Numeric_Reference_Forward:
@@ -265,76 +264,32 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Relocation:
 	{
-		// TODO: redo all of this
-		if (resolver->flags & (Resolver_Flags__Relocations))
-		{
-			// NOTE: a case like addend + symbol + addend is NOT supported.
-			// Only symbol + addend or viceversa is supported.
+		// TODO: redo all of this, probably just check valid expression inside and that's it.
+		// Creating the relocation will be done at a later pass.
 
+		Expression_Node *inner = &resolver->expressions->data[node->index_left];
+		Resolver_expression_evaluate(resolver, inner);
+		B32 unresolved = (inner->flags & Expression_Flags__Unresolved);
+		// TODO: gas supports some relocation prefixes with absolute values. For example,
+		// `%hi/lo(1234)` is accepted, and a relocation is not emitted. I think this is NOT desired.
+		Resolver_expect(resolver, unresolved, Resolver_Error_Kind__Relocation_Operator_Absolute_Invalid);
+		B32 symbol_single = inner->symbol_operand == 0;
+		Resolver_expect(resolver, symbol_single, Resolver_Error_Kind__Relocation_Operator_Expression_Invalid);
 
-			// NOTE: this can probably be recycled.
+		assert_always_m(inner->symbols_table_entry && "unresolved expression with no symbol");
+		// This node absorbs the symbol and the value of the inner node.
+		node->symbols_table_entry = inner->symbols_table_entry;
+		node->integer_value       = inner->integer_value;
+		node->flags |= Expression_Flags__Unresolved;
 
-			// We have to find the symbol and the addend.
-			Symbols_Table_Entry *entry = &symbols_table_entry_none;
-			U64 addend = 0;
+		// TODO: gas doesn't check that a `pcrel_lo` label points to an appropriate `pcrel_hi`, or it allows an
+		// addend within it, leaving the heavy duty on the linker with basically no validation.
 
-			// Case 1: just a symbol
-			Expression_Node *node_left = &resolver->expressions->data[node->index_left];
-
-			B32 addend_required = node_left->symbols_table_entry == 0;
-
-			// Case 2: symbol with addend
-			if (addend_required)
-			{
-				Expression_Kind left_kind = node_left->kind;
-				B32 left_kind_add_is = left_kind == Expression_Kind__Add;
-				B32 left_kind_subtract_is = left_kind == Expression_Kind__Subtract;
-				Resolver_expect(resolver, left_kind_add_is || left_kind_subtract_is, Resolver_Error_Kind__Relocation_Operand_Invalid);
-
-				Expression_Node *node_left_left  = &resolver->expressions->data[node_left->index_left];
-				Expression_Node *node_left_right = &resolver->expressions->data[node_left->index_right];
-
-				Resolver_expect(resolver, node_left_left || node_left_right, Resolver_Error_Kind__Relocation_Operand_Symbol_Missing);
-
-				if (node_left_left->symbols_table_entry && node_left_right->symbols_table_entry)
-				{
-					Resolver_expect(resolver, left_kind_subtract_is, Resolver_Error_Kind__Relocation_Operand_Invalid);
-					// Check that both are local etc.
-				}
-				else if (node_left_right->symbols_table_entry)
-				{
-					B32 unresolved = node_left_left->flags & Expression_Flags__Unresolved;
-					Resolver_expect(resolver, !unresolved, Resolver_Error_Kind__Relocation_Form_Invalid);
-					addend = node_left_left->integer_value;
-					entry = node_left_right->symbols_table_entry;
-				}
-				else if (node_left_left->symbols_table_entry)
-				{
-					B32 unresolved = node_left_right->flags & Expression_Flags__Unresolved;
-					Resolver_expect(resolver, !unresolved, Resolver_Error_Kind__Relocation_Form_Invalid);
-					addend = node_left_right->integer_value;
-					entry = node_left_left->symbols_table_entry;
-				}
-
-			}
-			else
-			{
-				Resolver_expect(resolver, node_left->symbols_table_entry != 0, Resolver_Error_Kind__Relocation_Symbol_Missing);
-				entry = node_left->symbols_table_entry;
-			}
-
-			Resolver_relocation_emit(resolver, entry->index, addend, node->relocation_operator);
-		}
-		else
-		{
-			// For simplicity, we evaluate relocation operators once relaxation is completed, and offset are known.
-			node->flags |= Expression_Flags__Unresolved;
-		}
 	} break;
 
 	case Expression_Kind__Negate:
 	{
-		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
+		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
@@ -345,7 +300,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Bitwise_Not:
 	{
-		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
+		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
@@ -356,7 +311,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Logical_Not:
 	{
-		Expression_Node *node_left       = &resolver->expressions->data[node->index_left];
+		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
 		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
@@ -374,50 +329,69 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Resolver_expression_evaluate(resolver, node_right);
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 node_right_leaf = Expression_Kind_leaf_is(node_right->kind);
-		B32 node_left_leaf  = Expression_Kind_leaf_is(node_left->kind);
+		Relocation_Operator relocation_operator_right = node_right->relocation_operator;
+		Relocation_Operator relocation_operator_left = node_left->relocation_operator;
+
+		// Propagating relocation operators is important for relocation emission later without further
+		// expression investigation.
+		assert_always_m(node_right->relocation_operator == 0 || node_left->relocation_operator == 0 && "parser didn't catch multiple relocation operators");
+		node->relocation_operator = relocation_operator_right;
+		node->relocation_operator = relocation_operator_left;
+
+		B32 unresolved_right = node_right->flags & Expression_Flags__Unresolved;
+		B32 unresolved_left  = node_left->flags  & Expression_Flags__Unresolved;
 
 		Symbols_Table_Entry *symbol_right = node_right->symbols_table_entry;
 		Symbols_Table_Entry *symbol_left  = node_left->symbols_table_entry;
 
+		Symbols_Table_Entry *symbol_operand_right = node_right->symbol_operand;
+		Symbols_Table_Entry *symbol_operand_left  = node_left->symbol_operand;
+
 		// After here, either we have two leafs that we can evaluate straight away or if we have a subexpression
 		// it has been evaluated.
+
+		// This is always okay to perform, no harm.
 		S64 integer_result  = Resolver_operation_evaluate(resolver, node->kind, node_right->integer_value, node_left->integer_value);
 		node->integer_value = integer_result;
 
-		if (symbol_right && symbol_left)
+		if (unresolved_left && unresolved_right)
 		{
 			Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
+			Resolver_expect(resolver, symbol_operand_right == 0 && symbol_operand_left == 0, Resolver_Error_Kind__Operator_Expression_Unresolved);
+			Resolver_expect(resolver, !node->relocation_operator, Resolver_Error_Kind__Relocation_Expression_Invalid);
 
 			B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
 			B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
 			B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
-
-			B32 crossed = symbol_left->elf.section_index != symbol_right->elf.section_index;
-
-			Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Expression_Evaluation_Cross);
-			Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-
-			B32 evaluate = local_left && local_right && relax_disabled;
-
+			B32 section_same   = symbol_left->elf.section_index == symbol_right->elf.section_index;
+			B32 evaluate       = local_left && local_right && relax_disabled && section_same;
 			if (evaluate)
 			{
 				node->integer_value = node_left->integer_value - node_right->integer_value;
+				// Symbols can be safely cancelled.
+				node->symbols_table_entry = 0;
+				node->symbol_operand      = 0;
+
+				node->flags &= ~Expression_Flags__Unresolved;
 			}
 			else
 			{
-				// TODO: emit relocation.
 				node->flags |= Expression_Flags__Unresolved;
+				node->symbols_table_entry = symbol_left;
 				node->symbol_operand = node_right->symbols_table_entry;
 			}
 		}
-		else if (symbol_left)
+		else if (unresolved_left)
 		{
+			node->flags |= Expression_Flags__Unresolved;
 			node->symbols_table_entry = symbol_left;
+			node->symbol_operand = symbol_operand_left;
 		}
-		else if (symbol_right)
+		else if (unresolved_right)
 		{
+			node->flags |= Expression_Flags__Unresolved;
 			node->symbols_table_entry = symbol_right;
+			node->symbol_operand = symbol_operand_right;
 		}
 	} break;
 	}
