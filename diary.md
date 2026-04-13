@@ -240,3 +240,8 @@ resolve the same problem, I really wonder if we should have that problem in the 
    instructions, symbols e.g. labels are not allowed because they'd either get truncated or are not
    intended to use there. E.g. addi x1, x0, symbol. Unless the symbol is absolute!
 
+# GAS quirks
+
+1. if you declare a label with `.local`, without defining it, it is marked as global.
+2. when assembling, it doesn't validate that `pcrel_lo` doesn't point to a defined label where
+   `pcrel_hi` is used.

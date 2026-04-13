@@ -8,6 +8,8 @@ struct Register
     U8 number; // Bad padding but that's it.
 };
 
+#define register_tp 4
+
 static const Register register_map[] =
 {
 	{"x0",  0},  {"x1",  1},  {"x2",  2},  {"x3",  3},

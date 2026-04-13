@@ -351,13 +351,69 @@ Parser_parse_null_denotation(Parser *parser)
 
 	case Token_Kind__Relocation_Prefix:
 	{
+		Statement *statement = parser->statement_context;
+		Parser_expect(parser, statement->kind == Statement_Kind__Instruction, Parser_Error_Kind__Relocation_Instruction_Missing);
+
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
-
 		String8 relocation_operator_string = Parser_token_string(parser);
 		Relocation_Operator relocation_operator = Relocation_Operator_lookup(relocation_operator_string);
 		Parser_expect(parser, relocation_operator, Parser_Error_Kind__Relocation_Operator_Invalid);
 		Parser_expect(parser, !parser->statement_context->relocation_operator, Parser_Error_Kind__Relocation_Operator_Multiple);
+		B32 condition = 0;
+		switch (relocation_operator)
+		{
+		case Relocation_Operator__hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__LUI;
+		} break;
+		case Relocation_Operator__lo:
+		{
+			condition = statement->instruction_format == Instruction_Format__I
+				 || statement->instruction_format == Instruction_Format__S;
+		} break;
+		case Relocation_Operator__pcrel_hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+		} break;
+		case Relocation_Operator__pcrel_lo:
+		{
+			condition = statement->instruction_format == Instruction_Format__I
+				 || statement->instruction_format == Instruction_Format__S;
+		} break;
+		case Relocation_Operator__tprel_hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__LUI;
+		} break;
+		case Relocation_Operator__tprel_lo:
+		{
+			condition = statement->instruction_format == Instruction_Format__I
+				 || statement->instruction_format == Instruction_Format__S;
+		} break;
+		case Relocation_Operator__tprel_add:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__ADD
+				    && (statement->register_source_1 == register_tp
+				    ||  statement->register_source_2 == register_tp);
+		} break;
+		case Relocation_Operator__got_pcrel_hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+		} break;
+		case Relocation_Operator__tls_ie_pcrel_hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+		} break;
+		case Relocation_Operator__tls_gd_pcrel_hi:
+		{
+			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+		} break;
+		default:
+		{
+			Parser_error_set(parser, Parser_Error_Kind__Relocation_Operator_Invalid);
+		} break;
+		}
+		Parser_expect(parser, condition, Parser_Error_Kind__Relocation_Instruction_Invalid);
 
 		node->relocation_operator = relocation_operator;
 		parser->statement_context->relocation_operator = relocation_operator;
@@ -367,7 +423,20 @@ Parser_parse_null_denotation(Parser *parser)
 
 		Parser_advance(parser);
 		Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
+		Symbols_Table_Entry *symbol = inner->symbols_table_entry;
+		Parser_expect(parser, symbol != 0, Parser_Error_Kind__Relocation_Symbol_Missing);
+		// TODO: do context verification of symbol during evaluation, or at later stage, when all symbols are known.
+		// More specifically:
+		// %hi / %lo — symbol must have an absolute address in some section
+		// %pcrel_hi / %pcrel_lo — symbol must be in a section (PC-relative offset is meaningless for an absolute value)
+		// %got_pcrel_hi — symbol must have a GOT entry, so it must be a real symbol
+		// %tprel_hi / %tprel_lo / %tprel_add — symbol must be in .tdata or .tbss (TLS sections)
+		// %tls_ie_pcrel_hi — symbol must be a TLS symbol
+		// %tls_gd_pcrel_hi — symbol must be a TLS symbol
 		Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
+		// TODO: check that if pcrel_lo the label (maybe numeric, or 1b/1f!) points to the right pcrel_hi. Maybe
+		// it must be done after parsing.
+		// TODO: %pcrel_lo addi, loads, storesI / Srs1 = rd of auipclabel of auipc
 
 		node->kind       = Expression_Kind__Relocation;
 		node->index_left = inner->index;
