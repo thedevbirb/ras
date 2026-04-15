@@ -469,33 +469,6 @@ Resolver_relax_pass(Resolver *resolver)
 
 		switch (directive_kind)
 		{
-		// case Directive_Kind__Set: {} // fallthrough
-		// case Directive_Kind__Equality:
-		// {
-		// 	U32 symbol_token_index = statement->token_index_begin + 1;
-		// 	Token symbol_token = resolver->tokens[symbol_token_index];
-		// 	String8 symbol_string =
-		// 	{
-		// 		.data  = &resolver->input->data[symbol_token.index],
-		// 		.count = symbol_token.size,
-		// 	};
-		// 	Symbols_Table_Entry *symbol = Symbols_Table_get(resolver->symbols_table, symbol_string);
-		//
-		// 	if (symbol->elf.section_index != ELF_Section_Index__Absolute)
-		// 	{
-		// 		Expression_Node *expression = &resolver->expressions->data[statement->expressions_indexes[0]];
-		// 		symbol->flags |= Symbol_Flags__Resolving;
-		// 		Resolver_expression_evaluate(resolver, expression);
-		// 		symbol->flags &= ~Symbol_Flags__Resolving;
-		//
-		// 		B32 absolute_expression = !(expression->flags & Expression_Flags__Unresolved);
-		// 		if (absolute_expression)
-		// 		{
-		// 			symbol->elf.section_index = ELF_Section_Index__Absolute;
-		// 		}
-		// 		Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Symbol_Operand);
-		// 	}
-		// } break;
 		case Directive_Kind__Word_Double: {} // fallthrough
 		case Directive_Kind__Word:        {} // fallthrough
 		case Directive_Kind__Word_Half:   {} // fallthrough
