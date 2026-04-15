@@ -6,6 +6,9 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__None,
 	Resolver_Error_Kind__Expression_Kind_Unknown,
 	Resolver_Error_Kind__Expression_Evaluation_Cross,
+	Resolver_Error_Kind__Expression_Unresolved,
+	Resolver_Error_Kind__Expression_Symbol_Operand,
+	Resolver_Error_Kind__Expression_Value_Bounds_Outside,
 	Resolver_Error_Kind__Label_Numeric_Backward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Section_Cross,
@@ -17,9 +20,11 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Relocation_Symbol_Missing,
 	Resolver_Error_Kind__Relocation_Form_Invalid,
 	Resolver_Error_Kind__Relocation_Expression_Invalid,
+	Resolver_Error_Kind__Relocation_Byte,
 	Resolver_Error_Kind__Symbol_Cyclic,
 	Resolver_Error_Kind__Operator_Between_Symbols_Invalid,
 	Resolver_Error_Kind__Operator_Expression_Unresolved,
+	Resolver_Error_Kind__Immediate_Large,
 	Resolver_Error_Kind__COUNT,
 }
 Resolver_Error_Kind;
@@ -28,6 +33,9 @@ global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 {
 	[Resolver_Error_Kind__Expression_Kind_Unknown]                = "expression unknown",
 	[Resolver_Error_Kind__Expression_Evaluation_Cross]            = "expression involved evaluation of two symbols from different sections",
+	[Resolver_Error_Kind__Expression_Unresolved]                  = "statement doesn't support unresolved expressions",
+	[Resolver_Error_Kind__Expression_Symbol_Operand]              = "expression doesn't support operations with unresolved symbols",
+	[Resolver_Error_Kind__Expression_Value_Bounds_Outside]        = "expression value doesn't fit instruction",
 	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found]       = "label numeric backward reference not found",
 	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found]        = "label numeric backward reference not found",
 	[Resolver_Error_Kind__Label_Numeric_Section_Cross]            = "label numeric reference crosses section",
@@ -38,8 +46,10 @@ global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 	[Resolver_Error_Kind__Relocation_Symbol_Missing]              = "relocation operator without symbol",
 	[Resolver_Error_Kind__Relocation_Form_Invalid]                = "relocation can only be of the form symbol + addend",
 	[Resolver_Error_Kind__Relocation_Expression_Invalid]          = "expression contains relocation operator mixed with other symbol expressions",
+	[Resolver_Error_Kind__Relocation_Byte]                        = "relocation of one byte is unsupported in ELF",
 	[Resolver_Error_Kind__Operator_Between_Symbols_Invalid]       = "only subtraction between symbols is supported",
 	[Resolver_Error_Kind__Operator_Expression_Unresolved]         = "invalid operator applied to unresolved subexpression",
+	[Resolver_Error_Kind__Immediate_Large]                        = "immediate too large",
 	[Resolver_Error_Kind__Symbol_Cyclic]                          = "cyclic symbol definition",
 };
 
@@ -53,14 +63,6 @@ struct Resolver_Error
 	U32 column_index_begin;
 	U32 column_index_end;
 };
-
-typedef enum Resolver_Flags
-{
-	// Populate relocation tables during expressions evaluations.
-	Resolver_Flags__Relocations = 1 << 0,
-}
-Resolver_Flags;
-
 
 typedef struct Resolver Resolver;
 struct Resolver
@@ -81,8 +83,6 @@ struct Resolver
 	Statement *statement_current;
 	U32 statement_index;
 	B32 statements_end_reached;
-
-	Resolver_Flags flags;
 
 	U32 sections_offset[ELF_Section__COUNT];
 	U16 section_current_index;

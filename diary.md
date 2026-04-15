@@ -216,6 +216,40 @@ resolve the same problem, I really wonder if we should have that problem in the 
 
 # GAS quirks
 
+The following is a list of gotchas and quirks I have found while using `gas`, specifically
+`riscv64-elf-as` binary on MacOS.
+
 1. if you declare a label with `.local`, without defining it, it is marked as global.
 2. when assembling, it doesn't validate that `pcrel_lo` doesn't point to a defined label where
    `pcrel_hi` is used.
+3. The `li` instruction MUST accept a constant (not even an absolute expression!) which is okay but
+   seems a bit counterintuitive considering how flexible gas is elsewhere, sometimes. I understand
+   though that accepting an undefined symbol is problematic because on 64 bit you would not have a
+   way to express it via relocations.
+4. Writing `j global_2 - global_1` produces the following ELF relocation:
+   ```
+   Relocation section '.rela.text' at offset 0x1d0 contains 1 entry:
+     Offset          Info           Type           Sym. Value    Sym. Name + Addend
+   000000000000  000700000011 R_RISCV_JAL       0000000000000000 global_2 + 0
+
+   The decoding of unwind sections for machine type RISC-V is not currently supported.
+
+   Symbol table '.symtab' contains 8 entries:
+      Num:    Value          Size Type    Bind   Vis      Ndx Name
+        0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+        1: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 .text
+        2: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 .data
+        3: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 .bss
+        4: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    1 $xrv64i2p1_m2p0_[...]
+        5: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 .riscv.attributes
+        6: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND global_1
+        7: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND global_2
+   ```
+   That is, the symbol difference doesn't error which is very weird and probably a bug.
+5. `.skip` directives accepted a symbol difference for the padding value, while `.align` does not.
+   For example:
+   ```asm
+   .skip  2, global_2 - global_1
+   .align 2, global_2 - global_1 # doesn't assemble
+   ```
+   I really don't see a strong reason why! I'm supporting it.

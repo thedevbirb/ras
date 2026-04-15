@@ -73,6 +73,7 @@ Expression_Kind_constant_is(Expression_Kind kind)
 
 typedef enum Expression_Flags
 {
+	// TODO: add to distinguish whether it does NOT depend on symbols, so it can be computed just once.
 	// It contains linker-dependent symbols (labels, externals, etc.).
 	Expression_Flags__Unresolved            = 1 << 0,
 }

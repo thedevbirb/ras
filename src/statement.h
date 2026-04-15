@@ -1,6 +1,7 @@
 #ifndef STATEMENT_H
 #define STATEMENT_H
 
+// TODO: this is a bit redundant with Instruction_Kind and Directive_Kind. Ideally we would not have this tag.
 typedef U8 Statement_Kind;
 enum
 {

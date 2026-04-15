@@ -33,9 +33,10 @@
 #include "initialize.c"
 
 #include "language/language_include.c"
+#include "symbol.c"
+#include "section.c"
 
 #include "diagnostic.c"
-#include "symbol.c"
 #include "lexer.c"
 #include "expression.c"
 #include "statement.c"
@@ -44,6 +45,10 @@
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
+
+#ifndef ARCH_LITTLE_ENDIAN
+#error "little endian architecture expected"
+#endif
 
 void
 arguments_shift(int *argument_count, char ***argument_vector)

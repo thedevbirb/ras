@@ -14,7 +14,6 @@ typedef enum Instruction_Format
 	Instruction_Format__COUNT,
 }
 Instruction_Format;
-// TODO: I don't know whether this is the right place.
 
 typedef enum Instruction_Kind
 {

@@ -610,6 +610,7 @@ Parser_parse(Parser *parser)
 						break;
 					}
 				}
+
 				parser->statement_context->expressions_indexes = expressions_indexes;
 				parser->statement_context->expressions_count   = expressions_count;
 				parser->statement_context->size                = data_directive_size * expressions_count;
@@ -641,7 +642,7 @@ Parser_parse(Parser *parser)
 
 				String8 substring             = Parser_token_string(parser);
 				Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
-				ELF_Section section_index   = ELF_Section_from_Directive_Kind[directive_kind];
+				ELF_Section section_index   = ELF_Section_from_Directive_Kind(directive_kind);
 				parser->section_current_index = section_index;
 
 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
@@ -675,14 +676,6 @@ Parser_parse(Parser *parser)
 
 				Parser_advance(parser);
 			} break;
-			case Directive_Kind__Align:
-			{
-				Parser_advance(parser);
-				Expression_Node *expression = Parser_expression_parse(parser);
-
-				parser->statement_context->expressions_indexes = &expression->index;
-				parser->statement_context->expressions_count = 1;
-			} break;
 			case Directive_Kind__Set: {} // fallthrough
 			case Directive_Kind__Equality:
 			{
@@ -711,24 +704,20 @@ Parser_parse(Parser *parser)
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
 			} break;
+			case Directive_Kind__Align: {} // fallthrough, same parsing.
 			case Directive_Kind__Skip:
 			{
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser);
+				parser->statement_context->expressions_indexes[0] = expression->index;
+				parser->statement_context->expressions_count = 1;
 
 				if (parser->token_current.kind == Token_Kind__Comma)
 				{
-					Parser_advance(parser);
-					// NOTE: Let'string not allow too funky stuff for now
-					Token token = parser->token_current;
-					B32 condition = token.kind == Token_Kind__Number_Literal || token.kind == Token_Kind__Char_Literal;
-					Parser_expect(parser, condition, Parser_Error_Kind__Directive_Argument_Invalid);
-
-					Parser_advance(parser);
+					Expression_Node *expression_second = Parser_expression_parse(parser);
+					parser->statement_context->expressions_indexes[1] = expression_second->index;
+					parser->statement_context->expressions_count = 2;
 				}
-
-				parser->statement_context->expressions_indexes = &expression->index;
-				parser->statement_context->expressions_count   = 1;
 			} break;
 			case Directive_Kind__Common:
 			{
@@ -786,7 +775,7 @@ Parser_parse(Parser *parser)
 			} break;
 			default:
 			{
-				ELF_Section section_kind = ELF_Section_from_Directive_Kind[directive_kind];
+				ELF_Section section_kind = ELF_Section_from_Directive_Kind(directive_kind);
 				assert_always_m(section_kind && "unhandled directive");
 
 				parser->section_current_index = section_kind;
