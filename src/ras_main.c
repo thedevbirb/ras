@@ -26,6 +26,7 @@
 #include "statement.h"
 #include "parser/parser_include.h"
 #include "resolver.h"
+#include "resolver_instructions.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
@@ -42,6 +43,7 @@
 #include "statement.c"
 #include "parser/parser_include.c"
 #include "resolver.c"
+// #include "resolver_instructions.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);

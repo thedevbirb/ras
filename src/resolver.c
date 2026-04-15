@@ -193,7 +193,10 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		{
 			// Search its definition, and evaluate it.
 			Expression_Node *inner = &resolver->expressions->data[statement->expressions_indexes[0]];
+
+			symbol->flags |= Symbol_Flags__Resolving;
 			Resolver_expression_evaluate(resolver, inner);
+			symbol->flags &= ~Symbol_Flags__Resolving;
 
 			B32 symbol_absolute_is = definition_is && !(inner->flags & Expression_Flags__Unresolved);
 
@@ -432,6 +435,12 @@ Resolver_offsets_recompute(Resolver *resolver)
 
 // TODO: check whether some relocations are possible within certain statements. For example, the relocation pairs
 // ADD/SUB can be emitted only in data directives.
+//
+// Performs the "inverse" relaxation steps, starting assuming a statements minimum size and expanding them until a fixed
+// point iteration is reached.
+//
+// In this process, only statements which can actually expand are inspected with their expressions being evaluated. The
+// others are ignored. Subsequent steps, like encoding, must take care of them.
 internal B32
 Resolver_relax_pass(Resolver *resolver)
 {
@@ -460,33 +469,33 @@ Resolver_relax_pass(Resolver *resolver)
 
 		switch (directive_kind)
 		{
-		case Directive_Kind__Set: {} // fallthrough
-		case Directive_Kind__Equality:
-		{
-			U32 symbol_token_index = statement->token_index_begin + 1;
-			Token symbol_token = resolver->tokens[symbol_token_index];
-			String8 symbol_string =
-			{
-				.data  = &resolver->input->data[symbol_token.index],
-				.count = symbol_token.size,
-			};
-			Symbols_Table_Entry *symbol = Symbols_Table_get(resolver->symbols_table, symbol_string);
-
-			if (symbol->elf.section_index != ELF_Section_Index__Absolute)
-			{
-				Expression_Node *expression = &resolver->expressions->data[statement->expressions_indexes[0]];
-				symbol->flags |= Symbol_Flags__Resolving;
-				Resolver_expression_evaluate(resolver, expression);
-				symbol->flags &= ~Symbol_Flags__Resolving;
-
-				B32 absolute_expression = !(expression->flags & Expression_Flags__Unresolved);
-				if (absolute_expression)
-				{
-					symbol->elf.section_index = ELF_Section_Index__Absolute;
-				}
-				Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Symbol_Operand);
-			}
-		} break;
+		// case Directive_Kind__Set: {} // fallthrough
+		// case Directive_Kind__Equality:
+		// {
+		// 	U32 symbol_token_index = statement->token_index_begin + 1;
+		// 	Token symbol_token = resolver->tokens[symbol_token_index];
+		// 	String8 symbol_string =
+		// 	{
+		// 		.data  = &resolver->input->data[symbol_token.index],
+		// 		.count = symbol_token.size,
+		// 	};
+		// 	Symbols_Table_Entry *symbol = Symbols_Table_get(resolver->symbols_table, symbol_string);
+		//
+		// 	if (symbol->elf.section_index != ELF_Section_Index__Absolute)
+		// 	{
+		// 		Expression_Node *expression = &resolver->expressions->data[statement->expressions_indexes[0]];
+		// 		symbol->flags |= Symbol_Flags__Resolving;
+		// 		Resolver_expression_evaluate(resolver, expression);
+		// 		symbol->flags &= ~Symbol_Flags__Resolving;
+		//
+		// 		B32 absolute_expression = !(expression->flags & Expression_Flags__Unresolved);
+		// 		if (absolute_expression)
+		// 		{
+		// 			symbol->elf.section_index = ELF_Section_Index__Absolute;
+		// 		}
+		// 		Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Symbol_Operand);
+		// 	}
+		// } break;
 		case Directive_Kind__Word_Double: {} // fallthrough
 		case Directive_Kind__Word:        {} // fallthrough
 		case Directive_Kind__Word_Half:   {} // fallthrough
@@ -518,6 +527,9 @@ Resolver_relax_pass(Resolver *resolver)
 		case Directive_Kind__Align: {} // fallthrough, since most logic is shared with .skip.
 		case Directive_Kind__Skip:
 		{
+			// NOTE: `.skip label_2 - label_1, global_2 - global_1` is supported. This means on every
+			// iteration we should check the value to get proper instruction size.
+
 			U32 expression_index        = statement->expressions_indexes[0];
 			Expression_Node *expression = &resolver->expressions->data[expression_index];
 			Resolver_expression_evaluate(resolver, expression);
@@ -1095,12 +1107,150 @@ Resolver_encode(Resolver *resolver)
 		case Directive_Kind__COUNT:          {} break;
 		}
 
+		U8 rd  = statement->register_destination;
+		U8 rs1 = statement->register_source_1;
+		U8 rs2 = statement->register_source_2;
+
 		switch (statement->instruction_kind)
 		{
-		default:
+		case Instruction_Kind__LUI:       {} break;
+		case Instruction_Kind__AUIPC:     {} break;
+
+		case Instruction_Kind__JAL:       {} break;
+		case Instruction_Kind__JALR:      {} break;
+
+		case Instruction_Kind__BEQ:       {} break;
+		case Instruction_Kind__BNE:       {} break;
+		case Instruction_Kind__BLT:       {} break;
+		case Instruction_Kind__BGE:       {} break;
+		case Instruction_Kind__BLTU:      {} break;
+		case Instruction_Kind__BGEU:      {} break;
+
+		case Instruction_Kind__LB:        {} break;
+		case Instruction_Kind__LH:        {} break;
+		case Instruction_Kind__LW:        {} break;
+		case Instruction_Kind__LD:        {} break;
+		case Instruction_Kind__LBU:       {} break;
+		case Instruction_Kind__LHU:       {} break;
+		case Instruction_Kind__LWU:       {} break;
+
+		case Instruction_Kind__SB:        {} break;
+		case Instruction_Kind__SH:        {} break;
+		case Instruction_Kind__SW:        {} break;
+		case Instruction_Kind__SD:        {} break;
+
+		case Instruction_Kind__ADDI:      {} break;
+		case Instruction_Kind__SLTI:      {} break;
+		case Instruction_Kind__SLTIU:     {} break;
+		case Instruction_Kind__XORI:      {} break;
+		case Instruction_Kind__ORI:       {} break;
+		case Instruction_Kind__ANDI:      {} break;
+
+		case Instruction_Kind__SLLI:      {} break;
+		case Instruction_Kind__SRLI:      {} break;
+		case Instruction_Kind__SRAI:      {} break;
+
+		case Instruction_Kind__ADD:
 		{
-			assert_always_m(resolver->statement_index == 0 && "sentinel statement");
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_ADD,  FUNCT7_ADD);
+			Object_File_Section_write_instruction(section, encoding);
 		} break;
+		case Instruction_Kind__SUB:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SUB,  FUNCT7_SUB);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__SLL:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SLL,  FUNCT7_SLL);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__SLT:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SLT,  FUNCT7_SLT);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__SLTU:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SLTU, FUNCT7_SLTU);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__XOR:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_XOR,  FUNCT7_XOR);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__SRL:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SRL,  FUNCT7_SRL);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__SRA:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_SRA,  FUNCT7_SRA);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__OR:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_OR,   FUNCT7_OR);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		case Instruction_Kind__AND:
+		{
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, OPCODE_R_TYPE, FUNCT3_AND,  FUNCT7_AND);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		// RV64-specific
+		case Instruction_Kind__ADDIW:     {} break;
+		case Instruction_Kind__SLLIW:     {} break;
+		case Instruction_Kind__SRLIW:     {} break;
+		case Instruction_Kind__SRAIW:     {} break;
+
+		case Instruction_Kind__ADDW:      {} break;
+		case Instruction_Kind__SUBW:      {} break;
+		case Instruction_Kind__SLLW:      {} break;
+		case Instruction_Kind__SRLW:      {} break;
+		case Instruction_Kind__SRAW:      {} break;
+
+		// Pseudo-case instructions
+		case Instruction_Kind__NOP:       {} break;
+		case Instruction_Kind__RET:       {} break;
+		case Instruction_Kind__MV:        {} break;
+		case Instruction_Kind__NOT:       {} break;
+		case Instruction_Kind__NEG:       {} break;
+		case Instruction_Kind__NEGW:      {} break;
+		case Instruction_Kind__SEXT_W:    {} break;
+		case Instruction_Kind__SEQZ:      {} break;
+		case Instruction_Kind__SNEZ:      {} break;
+		case Instruction_Kind__SLTZ:      {} break;
+		case Instruction_Kind__SGTZ:      {} break;
+		case Instruction_Kind__BEQZ:      {} break;
+		case Instruction_Kind__BNEZ:      {} break;
+		case Instruction_Kind__BLEZ:      {} break;
+		case Instruction_Kind__BGEZ:      {} break;
+		case Instruction_Kind__BLTZ:      {} break;
+		case Instruction_Kind__BGTZ:      {} break;
+		case Instruction_Kind__BGT:       {} break;
+		case Instruction_Kind__BLE:       {} break;
+		case Instruction_Kind__BGTU:      {} break;
+		case Instruction_Kind__BLEU:      {} break;
+		case Instruction_Kind__J:         {} break;
+		case Instruction_Kind__CALL:      {} break;
+		case Instruction_Kind__TAIL:      {} break;
+		case Instruction_Kind__JR:        {} break;
+		case Instruction_Kind__LI:        {} break;
+		case Instruction_Kind__LA:        {} break;
+
+		// SYSTEM
+		case Instruction_Kind__ECALL:     {} break;
+		case Instruction_Kind__EBREAK:    {} break;
+		case Instruction_Kind__PAUSE:     {} break;
+		case Instruction_Kind__FENCE:     {} break;
+		case Instruction_Kind__FENCE_TSO: {} break;
+
+		case Instruction_Kind__None:      {} break;
+		case Instruction_Kind__COUNT:     { unreachable_m(); } break;
 		}
 
 		Resolver_advance(resolver);

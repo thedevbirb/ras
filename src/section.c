@@ -116,6 +116,23 @@ Object_File_Section_write_byte(Object_File_Section *section, U8 value, U64 count
 	return offset_old;
 }
 
+// TODO: this is kinda bad, not very generic either.
+U32
+Object_File_Section_write_instruction(Object_File_Section *section, U32 instruction_encoding)
+{
+	U32 offset_old = section->offset;
+	U32 offset_new = offset_old + sizeof(instruction_encoding);
+
+	U32 *value_pointer = Arena_push_struct_m(section->arena, U32);
+	*value_pointer = instruction_encoding;
+
+	section->offset = offset_new;
+	section->buffer.count += sizeof(instruction_encoding);
+	Object_File_Section_align(section, section->alignment);
+
+	return offset_old;
+}
+
 // Write and align, returning the offset where data has been written.
 U32
 Object_File_Section_write_bytes(Object_File_Section *section, U8 *data, U64 count)
