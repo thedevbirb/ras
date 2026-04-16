@@ -464,8 +464,9 @@ Resolver_relax_pass(Resolver *resolver)
 			break;
 		}
 
-		Statement *statement          = resolver->statement_current;
-		Directive_Kind directive_kind = statement->directive_kind;
+		Statement *statement              = resolver->statement_current;
+		Directive_Kind directive_kind     = statement->directive_kind;
+		Instruction_Kind instruction_kind = statement->instruction_kind;
 
 		if (statement->kind == Statement_Kind__Label_Numeric)
 		{
@@ -567,7 +568,7 @@ Resolver_relax_pass(Resolver *resolver)
 		case Directive_Kind__COUNT:          {} break;
 		}
 
-		switch (statement->instruction_kind)
+		switch (instruction_kind)
 		{
 		case Instruction_Kind__LI:
 		{
@@ -955,8 +956,9 @@ Resolver_encode(Resolver *resolver)
 			break;
 		}
 
-		Statement *statement          = resolver->statement_current;
-		Directive_Kind directive_kind = statement->directive_kind;
+		Statement *statement              = resolver->statement_current;
+		Directive_Kind directive_kind     = statement->directive_kind;
+		Instruction_Kind instruction_kind = statement->instruction_kind;
 
 		Object_File_Section *section            = &resolver->sections[statement->section_index];
 		Object_File_Section *section_relocation = &resolver->sections[statement->section_index];
@@ -1092,13 +1094,50 @@ Resolver_encode(Resolver *resolver)
 		U8 rs1 = statement->register_source_1;
 		U8 rs2 = statement->register_source_2;
 
-		switch (statement->instruction_kind)
+		switch (instruction_kind)
 		{
-		case Instruction_Kind__LUI:       {} break;
-		case Instruction_Kind__AUIPC:     {} break;
+		case Instruction_Kind__LUI:       {} // fallthrough
+		case Instruction_Kind__AUIPC:
+		{
+			U8 opcode = instruction_kind == Instruction_Kind__LUI ? OPCODE_LUI : OPCODE_AUIPC;
+			U32 expression_index = statement->expressions_indexes[0];
+			Expression_Node *expression = &resolver->expressions->data[expression_index];
+			Resolver_expression_evaluate(resolver, expression);
+			S64 immediate = expression->integer_value;
+
+			if (expression->flags & Expression_Flags__Unresolved)
+			{
+				immediate = 0;
+				Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
+				Resolver_expect(resolver, expression->relocation_operator, Resolver_Error_Kind__Relocation_Operator_Expected);
+				Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
+
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+
+				B32 relax_enabled = !(statement->flags & Statement_Flags__Relax_Disabled);
+				if (relax_enabled)
+				{
+					ELF64_Relocation_Addend relocation_relax =
+					{
+						.offset = statement->section_offset,
+						.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Relax),
+						.addend = 0,
+					};
+					Object_File_Section_relocation_write(section_relocation, &relocation_relax);
+				}
+			}
+
+			U32 encoding = instruction_u_encode_m(rd, immediate, opcode);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
 
 		case Instruction_Kind__JAL:       {} break;
-		case Instruction_Kind__JALR:      {} break;
 
 		case Instruction_Kind__BEQ:  {} // fallthrough
 		case Instruction_Kind__BNE:  {} // fallthrough
@@ -1139,8 +1178,8 @@ Resolver_encode(Resolver *resolver)
 				[Instruction_Kind__BLEU] = { FUNCT3_BGEU, 1 }, // bgeu rt, rs
 			};
 
-			U8 funct3   = branch_table[statement->instruction_kind].funct3;
-			U8 swap_mode = branch_table[statement->instruction_kind].swap_mode;
+			U8 funct3   = branch_table[instruction_kind].funct3;
+			U8 swap_mode = branch_table[instruction_kind].swap_mode;
 			if (swap_mode == 1)
 			{
 				swap_m(U8, rs2, rs1);
@@ -1159,7 +1198,6 @@ Resolver_encode(Resolver *resolver)
 			{
 				offset = 0;
 				Resolver_expect(resolver, expression->symbol_operand == 0,     Resolver_Error_Kind__Expression_Unresolved_Two);
-				Resolver_expect(resolver, statement->relocation_operator == 0, Resolver_Error_Kind_Relocation_Operator_Unexpected);
 				ELF64_Relocation_Addend relocation_branch =
 				{
 					.offset = statement->section_offset,
@@ -1186,6 +1224,7 @@ Resolver_encode(Resolver *resolver)
 
 		// Apart from small encoding different with stores, the logic of these operations is the same, and thus
 		// can be grouped together.
+		case Instruction_Kind__JALR:      {} // fallthrough
 		case Instruction_Kind__LB:        {} // fallthrough
 		case Instruction_Kind__LH:        {} // fallthrough
 		case Instruction_Kind__LW:        {} // fallthrough
@@ -1208,6 +1247,7 @@ Resolver_encode(Resolver *resolver)
 		{
 			local_persist const struct { U8 funct3; U8 opcode; } encoding_table[] =
 			{
+				[Instruction_Kind__JALR]  = { FUNCT3_JALR,  OPCODE_JALR     },
 				[Instruction_Kind__LB]    = { FUNCT3_LB,    OPCODE_LOAD     },
 				[Instruction_Kind__LH]    = { FUNCT3_LH,    OPCODE_LOAD     },
 				[Instruction_Kind__LW]    = { FUNCT3_LW,    OPCODE_LOAD     },
@@ -1227,10 +1267,9 @@ Resolver_encode(Resolver *resolver)
 				[Instruction_Kind__SD]    = { FUNCT3_SD,    OPCODE_STORE    },
 				[Instruction_Kind__ADDIW] = { FUNCT3_ADDIW, OPCODE_I_TYPE_W },
 			};
-			U8  funct3                  = encoding_table[statement->instruction_kind].funct3;
-			U8  opcode                  = encoding_table[statement->instruction_kind].opcode;
+			U8  funct3                  = encoding_table[instruction_kind].funct3;
+			U8  opcode                  = encoding_table[instruction_kind].opcode;
 			S64 offset                  = 0;
-			B32 unresolved              = 0;
 			Expression_Node *expression = 0;
 
 			if (statement->expressions_count > 0)
@@ -1240,24 +1279,37 @@ Resolver_encode(Resolver *resolver)
 				Resolver_expression_evaluate(resolver, expression);
 
 				offset     = expression->integer_value;
-				unresolved = expression->flags & Expression_Flags__Unresolved;
+				B32 unresolved = expression->flags & Expression_Flags__Unresolved;
+				if (unresolved)
+				{
+					offset = 0;
+					Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
+					Relocation_RISC_V relocation_kind =
+						Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
+					Resolver_expect(resolver, relocation_kind, Resolver_Error_Kind__Relocation_Operator_Expected);
+					ELF64_Relocation_Addend relocation =
+					{
+						.offset = statement->section_offset,
+						.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
+						.addend = expression->integer_value,
+					};
+					Object_File_Section_relocation_write(section_relocation, &relocation);
+
+					B32 emit_relax = !(statement->flags & Statement_Flags__Relax_Disabled);
+					if (emit_relax)
+					{
+						ELF64_Relocation_Addend relocation_relax =
+						{
+							.offset = statement->section_offset,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Relax),
+							.addend = 0,
+						};
+						Object_File_Section_relocation_write(section_relocation, &relocation_relax);
+					}
+				}
 			}
 
-			if (unresolved)
-			{
-				offset = 0;
-				Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
-				Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
-				B32 relocation_low_12_is = Relocation_RISC_V_low_12[relocation_kind];
-				Resolver_expect(resolver, relocation_low_12_is, Resolver_Error_Kind__Instruction_Relocation_Low_12_Expected);
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-			}
+
 
 			U32 encoding;
 			if (opcode == OPCODE_STORE)
@@ -1282,9 +1334,9 @@ Resolver_encode(Resolver *resolver)
 				[Instruction_Kind__SRLI]  = { FUNCT3_SRLI,  FUNCT6_SRLI, OPCODE_I_TYPE   },
 				[Instruction_Kind__SRAI]  = { FUNCT3_SRAI,  FUNCT6_SRAI, OPCODE_I_TYPE   },
 			};
-			U8 funct3 = funct_table[statement->instruction_kind].funct3;
-			U8 funct6 = funct_table[statement->instruction_kind].funct6;
-			U8 opcode = funct_table[statement->instruction_kind].opcode;
+			U8 funct3 = funct_table[instruction_kind].funct3;
+			U8 funct6 = funct_table[instruction_kind].funct6;
+			U8 opcode = funct_table[instruction_kind].opcode;
 
 			U32 expression_index = statement->expressions_indexes[0];
 			Expression_Node *expression = &resolver->expressions->data[expression_index];
@@ -1310,9 +1362,9 @@ Resolver_encode(Resolver *resolver)
 				[Instruction_Kind__SRLIW] = { FUNCT3_SRLIW, FUNCT7_SRLIW, OPCODE_I_TYPE_W },
 				[Instruction_Kind__SRAIW] = { FUNCT3_SRAIW, FUNCT7_SRAIW, OPCODE_I_TYPE_W },
 			};
-			U8 funct3 = shift_w_table[statement->instruction_kind].funct3;
-			U8 funct7 = shift_w_table[statement->instruction_kind].funct7;
-			U8 opcode = shift_w_table[statement->instruction_kind].opcode;
+			U8 funct3 = shift_w_table[instruction_kind].funct3;
+			U8 funct7 = shift_w_table[instruction_kind].funct7;
+			U8 opcode = shift_w_table[instruction_kind].opcode;
 
 			U32 expression_index = statement->expressions_indexes[0];
 			Expression_Node *expression = &resolver->expressions->data[expression_index];
@@ -1340,28 +1392,76 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__SLLW: {} // fallthrough
 		case Instruction_Kind__SRLW: {} // fallthrough
 		case Instruction_Kind__SRAW: {} // fallthrough
+		// Pseudo-instructions (rd, rs → R-type with x0)
+		case Instruction_Kind__NEG:  {} // fallthrough
+		case Instruction_Kind__NEGW: {} // fallthrough
+		case Instruction_Kind__SNEZ: {} // fallthrough
+		case Instruction_Kind__SLTZ: {} // fallthrough
+		case Instruction_Kind__SGTZ:
 		{
-			local_persist const struct { U8 funct3; U8 funct7; U8 opcode; } r_type_table[] =
+			// swap: 0 = no swap
+			//       1 = rs2 = rs1, rs1 = 0  (neg, negw, snez, sgtz)
+			local_persist const struct { U8 funct3; U8 funct7; U8 opcode; U8 swap; } r_type_table[] =
 			{
-				[Instruction_Kind__ADD]  = { FUNCT3_ADD,  FUNCT7_ADD,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SUB]  = { FUNCT3_SUB,  FUNCT7_SUB,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SLL]  = { FUNCT3_SLL,  FUNCT7_SLL,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SLT]  = { FUNCT3_SLT,  FUNCT7_SLT,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SLTU] = { FUNCT3_SLTU, FUNCT7_SLTU, OPCODE_R_TYPE   },
-				[Instruction_Kind__XOR]  = { FUNCT3_XOR,  FUNCT7_XOR,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SRL]  = { FUNCT3_SRL,  FUNCT7_SRL,  OPCODE_R_TYPE   },
-				[Instruction_Kind__SRA]  = { FUNCT3_SRA,  FUNCT7_SRA,  OPCODE_R_TYPE   },
-				[Instruction_Kind__OR]   = { FUNCT3_OR,   FUNCT7_OR,   OPCODE_R_TYPE   },
-				[Instruction_Kind__AND]  = { FUNCT3_AND,  FUNCT7_AND,  OPCODE_R_TYPE   },
-				[Instruction_Kind__ADDW] = { FUNCT3_ADDW, FUNCT7_ADDW, OPCODE_R_TYPE_W },
-				[Instruction_Kind__SUBW] = { FUNCT3_SUBW, FUNCT7_SUBW, OPCODE_R_TYPE_W },
-				[Instruction_Kind__SLLW] = { FUNCT3_SLLW, FUNCT7_SLLW, OPCODE_R_TYPE_W },
-				[Instruction_Kind__SRLW] = { FUNCT3_SRLW, FUNCT7_SRLW, OPCODE_R_TYPE_W },
-				[Instruction_Kind__SRAW] = { FUNCT3_SRAW, FUNCT7_SRAW, OPCODE_R_TYPE_W },
+				[Instruction_Kind__ADD]  = { FUNCT3_ADD,  FUNCT7_ADD,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SUB]  = { FUNCT3_SUB,  FUNCT7_SUB,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SLL]  = { FUNCT3_SLL,  FUNCT7_SLL,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SLT]  = { FUNCT3_SLT,  FUNCT7_SLT,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SLTU] = { FUNCT3_SLTU, FUNCT7_SLTU, OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__XOR]  = { FUNCT3_XOR,  FUNCT7_XOR,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SRL]  = { FUNCT3_SRL,  FUNCT7_SRL,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__SRA]  = { FUNCT3_SRA,  FUNCT7_SRA,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__OR]   = { FUNCT3_OR,   FUNCT7_OR,   OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__AND]  = { FUNCT3_AND,  FUNCT7_AND,  OPCODE_R_TYPE,   0 },
+				[Instruction_Kind__ADDW] = { FUNCT3_ADDW, FUNCT7_ADDW, OPCODE_R_TYPE_W, 0 },
+				[Instruction_Kind__SUBW] = { FUNCT3_SUBW, FUNCT7_SUBW, OPCODE_R_TYPE_W, 0 },
+				[Instruction_Kind__SLLW] = { FUNCT3_SLLW, FUNCT7_SLLW, OPCODE_R_TYPE_W, 0 },
+				[Instruction_Kind__SRLW] = { FUNCT3_SRLW, FUNCT7_SRLW, OPCODE_R_TYPE_W, 0 },
+				[Instruction_Kind__SRAW] = { FUNCT3_SRAW, FUNCT7_SRAW, OPCODE_R_TYPE_W, 0 },
+				[Instruction_Kind__NEG]  = { FUNCT3_SUB,  FUNCT7_SUB,  OPCODE_R_TYPE,   1 }, // sub  rd, x0, rs
+				[Instruction_Kind__NEGW] = { FUNCT3_SUBW, FUNCT7_SUBW, OPCODE_R_TYPE_W, 1 }, // subw rd, x0, rs
+				[Instruction_Kind__SNEZ] = { FUNCT3_SLTU, FUNCT7_SLTU, OPCODE_R_TYPE,   1 }, // sltu rd, x0, rs
+				[Instruction_Kind__SGTZ] = { FUNCT3_SLT,  FUNCT7_SLT,  OPCODE_R_TYPE,   1 }, // slt  rd, x0, rs
+				[Instruction_Kind__SLTZ] = { FUNCT3_SLT,  FUNCT7_SLT,  OPCODE_R_TYPE,   0 }, // slt  rd, rs, x0 (rs2 already 0)
 			};
-			U8  funct3   = r_type_table[statement->instruction_kind].funct3;
-			U8  funct7   = r_type_table[statement->instruction_kind].funct7;
-			U8  opcode   = r_type_table[statement->instruction_kind].opcode;
+			U8  funct3 = r_type_table[instruction_kind].funct3;
+			U8  funct7 = r_type_table[instruction_kind].funct7;
+			U8  opcode = r_type_table[instruction_kind].opcode;
+			U8  swap   = r_type_table[instruction_kind].swap;
+			if (swap)
+			{
+				rs2 = rs1; rs1 = 0;
+			}
+
+			B32 relax_enabled = 0;
+
+			if (instruction_kind == Instruction_Kind__ADD && statement->expressions_count > 0)
+			{
+				// We have emit tprel_add relocation, along with relax.
+				U32 expression_index  = statement->expressions_indexes[0];
+				Expression_Node *node = &resolver->expressions->data[expression_index];
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Thread_Pointer_Relative_Add),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+
+				relax_enabled = !(statement->flags & Statement_Flags__Relax_Disabled);
+			}
+
+			if (relax_enabled)
+			{
+				ELF64_Relocation_Addend relocation_relax =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Relax),
+					.addend = 0,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation_relax);
+			}
+
 			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7);
 			Object_File_Section_write_instruction(section, encoding);
 		} break;
@@ -1371,13 +1471,8 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__RET:       {} break;
 		case Instruction_Kind__MV:        {} break;
 		case Instruction_Kind__NOT:       {} break;
-		case Instruction_Kind__NEG:       {} break;
-		case Instruction_Kind__NEGW:      {} break;
 		case Instruction_Kind__SEXT_W:    {} break;
 		case Instruction_Kind__SEQZ:      {} break;
-		case Instruction_Kind__SNEZ:      {} break;
-		case Instruction_Kind__SLTZ:      {} break;
-		case Instruction_Kind__SGTZ:      {} break;
 		case Instruction_Kind__J:         {} break;
 		case Instruction_Kind__CALL:      {} break;
 		case Instruction_Kind__TAIL:      {} break;

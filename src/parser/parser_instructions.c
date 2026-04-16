@@ -74,7 +74,6 @@ Parser_instruction_I_load_parse(Parser *parser, Instruction_Kind instruction_kin
 		Parser_advance(parser);
 	}
 
-
 	parser->statement_context->expressions_indexes  = expression ? &expression->index : 0;
 }
 
@@ -103,6 +102,14 @@ Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
 	parser->statement_context->register_source_2 = register_source_2;
 
 	Parser_advance(parser);
+
+	// Extra case: ADD supports an optional tprel_add relocation operator.
+	B32 extra_expression = parser->token_current.kind == Token_Kind__Comma;
+	if (instruction_kind == Instruction_Kind__Add && extra_expression)
+		Parser_advance(parser);
+		Expression_Node *expression = Parser_expression_parse(parser);
+		parser->statement_context->expressions_indexes = &expression->index;
+	}
 }
 
 // Generic parser for R-type pseudos with two operands: neg, negw, snez, sltz, sgtz

@@ -311,3 +311,8 @@ The following is a list of gotchas and quirks I have found while using `gas`, sp
    ```
    So it has been somehow converted to a jump. Maybe I don't have enough context to understand the
    reason of such choice, but to me that seems just weird.
+7. Some relocation operators should be rejected because their semantics would not apply, yet they
+   are accepted, for example:
+   ```asm
+   lui x1, %pcrel_hi(global_1)
+   ```

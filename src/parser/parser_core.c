@@ -293,7 +293,6 @@ Parser_parse_null_denotation(Parser *parser)
 		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
 		Parser_symbol_ensure_context_valid(parser, symbol);
 
-		// Parser_expect(parser, flags & Expression_Flags__Deferred, Parser_Error_Kind__Expression_Identifier_Undefined);
 		node->symbols_table_entry = symbol;
 
 		Parser_advance(parser);
@@ -332,67 +331,69 @@ Parser_parse_null_denotation(Parser *parser)
 	{
 		Statement *statement = parser->statement_context;
 		Parser_expect(parser, statement->kind == Statement_Kind__Instruction, Parser_Error_Kind__Relocation_Instruction_Missing);
+		B32 supported = Instruction_relocation_supported[statement->instruction_kind];
+		Parser_expect(parser, supported, Parser_Error_Kind__Relocation_Operator_Invalid);
 
 		Parser_advance(parser);
 		Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Expression_Relocation_Syntax_Invalid);
-		String8 relocation_operator_string = Parser_token_string(parser);
+		String8 relocation_operator_string      = Parser_token_string(parser);
 		Relocation_Operator relocation_operator = Relocation_Operator_lookup(relocation_operator_string);
 		Parser_expect(parser, relocation_operator, Parser_Error_Kind__Relocation_Operator_Invalid);
 		Parser_expect(parser, !parser->statement_context->relocation_operator, Parser_Error_Kind__Relocation_Operator_Multiple);
-		B32 condition = 0;
+
+		B32 relocation_operator_valid = 0;
 		switch (relocation_operator)
 		{
 		case Relocation_Operator__hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__LUI;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__LUI;
 		} break;
 		case Relocation_Operator__lo:
 		{
-			condition = statement->instruction_format == Instruction_Format__I
-				 || statement->instruction_format == Instruction_Format__S;
+			relocation_operator_valid = statement->instruction_format == Instruction_Format__I
+				                 || statement->instruction_format == Instruction_Format__S;
 		} break;
 		case Relocation_Operator__pcrel_hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__AUIPC;
 		} break;
 		case Relocation_Operator__pcrel_lo:
 		{
-			condition = statement->instruction_format == Instruction_Format__I
-				 || statement->instruction_format == Instruction_Format__S;
+			relocation_operator_valid = statement->instruction_format == Instruction_Format__I
+						 || statement->instruction_format == Instruction_Format__S;
 		} break;
 		case Relocation_Operator__tprel_hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__LUI;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__AUIPC
+						 || statement->instruction_kind == Instruction_Kind__LUI;
 		} break;
 		case Relocation_Operator__tprel_lo:
 		{
-			condition = statement->instruction_format == Instruction_Format__I
-				 || statement->instruction_format == Instruction_Format__S;
+			relocation_operator_valid = statement->instruction_format == Instruction_Format__I
+						 || statement->instruction_format == Instruction_Format__S;
 		} break;
 		case Relocation_Operator__tprel_add:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__ADD
-				    && (statement->register_source_1 == register_tp
-				    ||  statement->register_source_2 == register_tp);
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__ADD
+				                && (statement->register_source_1 == register_tp
+						||  statement->register_source_2 == register_tp);
 		} break;
 		case Relocation_Operator__got_pcrel_hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__AUIPC;
 		} break;
 		case Relocation_Operator__tls_ie_pcrel_hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__AUIPC;
 		} break;
 		case Relocation_Operator__tls_gd_pcrel_hi:
 		{
-			condition = statement->instruction_kind == Instruction_Kind__AUIPC;
+			relocation_operator_valid = statement->instruction_kind == Instruction_Kind__AUIPC;
 		} break;
-		default:
-		{
-			Parser_error_set(parser, Parser_Error_Kind__Relocation_Operator_Invalid);
-		} break;
+		case Relocation_Operator__None:  {} break;
+		case Relocation_Operator__COUNT: { unreachable_m(); } break;
 		}
-		Parser_expect(parser, condition, Parser_Error_Kind__Relocation_Instruction_Invalid);
+		Parser_expect(parser, !supported || relocation_operator_valid, Parser_Error_Kind__Relocation_Instruction_Invalid);
 
 		node->relocation_operator = relocation_operator;
 		parser->statement_context->relocation_operator = relocation_operator;
@@ -821,7 +822,7 @@ Parser_parse(Parser *parser)
 			case HASH_lbu:       { Parser_instruction_I_load_parse(parser, Instruction_Kind__LBU);  } break;
 			case HASH_lhu:       { Parser_instruction_I_load_parse(parser, Instruction_Kind__LHU);  } break;
 
-			// string-type
+			// Store-type
 			case HASH_sb:        { Parser_instruction_S_parse(parser, Instruction_Kind__SB);        } break;
 			case HASH_sh:        { Parser_instruction_S_parse(parser, Instruction_Kind__SH);        } break;
 			case HASH_sw:        { Parser_instruction_S_parse(parser, Instruction_Kind__SW);        } break;
