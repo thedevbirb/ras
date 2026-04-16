@@ -14,7 +14,8 @@ enum
 
 typedef enum Statement_Flags
 {
-	Statement_Flags__Relax_Disabled = 1 << 0,
+	Statement_Flags__Relax_Disabled                  = 1 << 0,
+	Statement_Flags__JAL_Register_Destination_Unset = 1 << 1,
 }
 Statement_Flags;
 

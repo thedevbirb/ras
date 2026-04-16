@@ -17,6 +17,8 @@ typedef enum Relocation_Operator
 	Relocation_Operator__COUNT,
 } Relocation_Operator;
 
+// TODO: tprel_lo needs extra parsing care. See examples/tls.s
+
 // Without the % sign prepended.
 global const char *Relocation_Operator_strings[Relocation_Operator__COUNT] =
 {

@@ -26,7 +26,6 @@
 #include "statement.h"
 #include "parser/parser_include.h"
 #include "resolver.h"
-#include "resolver_instructions.h"
 
 #include <base/base_include.c>
 #include <os/os_include.c>
@@ -43,7 +42,6 @@
 #include "statement.c"
 #include "parser/parser_include.c"
 #include "resolver.c"
-// #include "resolver_instructions.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
@@ -112,6 +110,8 @@ main(int argument_count, char **argument_vector)
 	Symbols_Table symbols_table = {0};
 	Symbols_Table_initialize(&symbols_table, arena);
 
+	// TODO: while some of them can be created in advance, in practice arbitrary sections can be created on demand
+	// using the `.section` directive, so I should change around this.
 	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
 	Statement *statement_context_parser = Arena_push_struct_m(arena, Statement);

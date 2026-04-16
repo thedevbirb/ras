@@ -190,6 +190,9 @@ many little details you can add that can make even simil-boilerplate code so muc
 understand, write and execute. Intention is so important. I want this code to read as a reference
 book.
 
+Even though this is a very "mechanical" section, you can really pour a lot of thinking in trying to
+make it as simple as possible, meaning with the least amount of code needed.
+
 # General about C
 
 Lookup tables, paired with designated initializers, are incredibly powerful. While the latter is
@@ -203,6 +206,10 @@ you noticing, are very handy when you write your application.
 # Random
 
 Just found out that there are some good docs that I just skipped :) https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5
+Also https://sourceware.org/binutils/docs/as/.
+
+Reading through this, and some things don't match, at least not in all targets. For examples, empty
+expressions are not really supported on rv, while they claim they are.
 
 I should try to write neovim snippets.
 

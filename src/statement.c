@@ -13,6 +13,7 @@ Statements_initialize(Statements *statements, Arena *arena)
 internal Statement *
 Statements_push(Statements *statements, Statement statement)
 {
+	// TODO: make a list of invariants that must be met when pushing a statement.
 	assert_always_m(statement.kind);
 
 	Statement *buffer = Arena_push_struct_m(statements->arena, Statement);

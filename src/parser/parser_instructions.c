@@ -105,7 +105,8 @@ Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
 
 	// Extra case: ADD supports an optional tprel_add relocation operator.
 	B32 extra_expression = parser->token_current.kind == Token_Kind__Comma;
-	if (instruction_kind == Instruction_Kind__Add && extra_expression)
+	if (instruction_kind == Instruction_Kind__ADD && extra_expression)
+	{
 		Parser_advance(parser);
 		Expression_Node *expression = Parser_expression_parse(parser);
 		parser->statement_context->expressions_indexes = &expression->index;
@@ -254,38 +255,42 @@ Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind)
 }
 
 internal void
-Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind)
+Parser_instruction_jal_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = instruction_kind;
+	parser->statement_context->instruction_kind     = Instruction_Kind__JAL;
 	parser->statement_context->instruction_format   = Instruction_Format__J;
 
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
+	// Two possible forms: `jal rd, offset` or `jal offset`, where `rd` is implicitly `rd`.
 
 	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+	Token *next = Parser_peek_next(parser);
+	if (next->kind == Token_Kind__Comma)
+	{
+		// `jal rd, offset`
+		Parser_expect_register(parser);
+		Parser_advance(parser);
+		// Comma already checked
+		Parser_advance(parser);
+	}
+	else
+	{
+		parser->statement_context->flags |= Statement_Flags__JAL_Register_Destination_Unset;
+	}
 
-	Parser_advance(parser);
 	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
-// nop -> addi x0, x0, 0
-internal void
-Parser_instruction_nop_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__ADDI;
-	parser->statement_context->instruction_format   = Instruction_Format__I;
-
-	Parser_advance(parser);
-}
+// Pseudo-instructions section.
+//
+// These instruction are parsed as is, meaning that Instruction_Kind is not converted and no fake is injected. Later
+// stages, close to encoding, will effectively treat them differently.
 
 // mv rd, rs -> addi rd, rs, 0
 internal void
 Parser_instruction_mv_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__ADDI;
+	parser->statement_context->instruction_kind     = Instruction_Kind__MV;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
@@ -306,7 +311,7 @@ Parser_instruction_mv_parse(Parser *parser)
 internal void
 Parser_instruction_not_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__XORI;
+	parser->statement_context->instruction_kind     = Instruction_Kind__NOT;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
@@ -321,16 +326,13 @@ Parser_instruction_not_parse(Parser *parser)
 	parser->statement_context->register_source_1 = register_source_1;
 
 	Parser_advance(parser);
-
-	Expression_Node *expression = Parser_expression_immediate_create(parser, -1);
-	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
 // sext.w rd, rs -> addiw rd, rs, 0 (RV64)
 internal void
 Parser_instruction_sext_w_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__ADDIW;
+	parser->statement_context->instruction_kind     = Instruction_Kind__SEXT_W;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
@@ -351,7 +353,7 @@ Parser_instruction_sext_w_parse(Parser *parser)
 internal void
 Parser_instruction_seqz_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__SLTIU;
+	parser->statement_context->instruction_kind     = Instruction_Kind__SEQZ;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
@@ -366,16 +368,13 @@ Parser_instruction_seqz_parse(Parser *parser)
 	parser->statement_context->register_source_1 = register_source_1;
 
 	Parser_advance(parser);
-
-	Expression_Node *expression = Parser_expression_immediate_create(parser, 1);
-	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
 // j offset -> jal x0, offset
 internal void
 Parser_instruction_j_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__JAL;
+	parser->statement_context->instruction_kind     = Instruction_Kind__J;
 	parser->statement_context->instruction_format   = Instruction_Format__J;
 
 	Parser_advance(parser);
@@ -387,7 +386,7 @@ Parser_instruction_j_parse(Parser *parser)
 internal void
 Parser_instruction_jr_parse(Parser *parser)
 {
-	parser->statement_context->instruction_kind     = Instruction_Kind__JALR;
+	parser->statement_context->instruction_kind     = Instruction_Kind__JR;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
@@ -395,39 +394,43 @@ Parser_instruction_jr_parse(Parser *parser)
 	parser->statement_context->register_source_1 = register_source_1;
 
 	Parser_advance(parser);
-
-	parser->statement_context->register_destination = 0;
-	parser->statement_context->register_source_1    = register_source_1;
 }
 
-// jalr rs -> jalr ra, rs, 0 (single-operand form)
+// jalr rd, rs1, offset  (three-operand form)
+// jalr rs               (single-operand pseudo: jalr ra, rs, 0)
 internal void
-Parser_instruction_jalr_pseudo_parse(Parser *parser)
+Parser_instruction_jalr_parse(Parser *parser)
 {
 	parser->statement_context->instruction_kind     = Instruction_Kind__JALR;
 	parser->statement_context->instruction_format   = Instruction_Format__I;
 
 	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
+	U8 first_register = Parser_expect_register(parser);
 	Parser_advance(parser);
 
-	parser->statement_context->register_destination = 1; // ra
-	parser->statement_context->register_source_1    = register_source_1;
-}
+	if (parser->token_current.kind == Token_Kind__Comma)
+	{
+		// Three-operand form: jalr rd, rs1, offset
+		parser->statement_context->register_destination  = first_register;
 
-// ret -> jalr x0, ra, 0
-internal void
-Parser_instruction_ret_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__JALR;
-	parser->statement_context->instruction_format   = Instruction_Format__I;
+		Parser_advance(parser);
+		U8 register_source_1 = Parser_expect_register(parser);
+		parser->statement_context->register_source_1 = register_source_1;
 
-	Parser_advance(parser);
+		Parser_advance(parser);
+		Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
 
-	parser->statement_context->register_destination = 0;
-	parser->statement_context->register_source_1    = 1; // ra
+		Parser_advance(parser);
+		Expression_Node *expression = Parser_expression_parse(parser);
+		parser->statement_context->expressions_indexes = &expression->index;
+	}
+	else
+	{
+		// Single-operand pseudo: jalr rs -> jalr ra, rs, 0
+		parser->statement_context->instruction_kind     = Instruction_Kind__JALR;
+		parser->statement_context->register_destination = 1; // ra
+		parser->statement_context->register_source_1    = first_register;
+	}
 }
 
 // li rd, imm -> lui rd, %hi(imm) + addi rd, rd, %lo(imm)
@@ -501,42 +504,13 @@ Parser_instruction_tail_parse(Parser *parser)
 }
 
 internal void
-Parser_instruction_ecall_parse(Parser *parser)
+Parser_instruction_mnemonic_only_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
-	parser->statement_context->instruction_kind   = Instruction_Kind__ECALL;
+
+	parser->statement_context->instruction_kind   = instruction_kind;
 	parser->statement_context->instruction_format = Instruction_Format__I;
 
 	Parser_advance(parser);
-
-}
-
-internal void
-Parser_instruction_ebreak_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind   = Instruction_Kind__EBREAK;
-	parser->statement_context->instruction_format = Instruction_Format__I;
-
-	Parser_advance(parser);
-
-}
-
-internal void
-Parser_instruction_pause_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind   = Instruction_Kind__PAUSE;
-	parser->statement_context->instruction_format = Instruction_Format__I;
-
-	Parser_advance(parser);
-}
-
-internal void
-Parser_instruction_fence_tso_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind   = Instruction_Kind__FENCE_TSO;
-	parser->statement_context->instruction_format = Instruction_Format__I;
-
-	Parser_advance(parser);
-
 }
 
 // Parses a fence ordering operand: a string composed of the characters i, o, r, w

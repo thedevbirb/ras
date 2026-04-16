@@ -26,11 +26,10 @@ internal void
 Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind);
 
 internal void
-Parser_instruction_J_parse(Parser *parser, Instruction_Kind instruction_kind);
+Parser_instruction_jal_parse(Parser *parser);
 
-// nop -> addi x0, x0, 0
 internal void
-Parser_instruction_nop_parse(Parser *parser);
+Parser_instruction_jalr_parse(Parser *parser);
 
 // mv rd, rs -> addi rd, rs, 0
 internal void
@@ -52,13 +51,8 @@ Parser_instruction_j_parse(Parser *parser);
 internal void
 Parser_instruction_jr_parse(Parser *parser);
 
-// jalr rs -> jalr ra, rs, 0 (single-operand form)
 internal void
-Parser_instruction_jalr_pseudo_parse(Parser *parser);
-
-// ret -> jalr x0, ra, 0
-internal void
-Parser_instruction_ret_parse(Parser *parser);
+Parser_instruction_seqz_parse(Parser *parser);
 
 // li rd, imm -> lui rd, %hi(imm) + addi rd, rd, %lo(imm)
 // NOTE: For small immediates that fit in 12 bits, a single addi suffices.
@@ -82,16 +76,7 @@ internal void
 Parser_instruction_tail_parse(Parser *parser);
 
 internal void
-Parser_instruction_ecall_parse(Parser *parser);
-
-internal void
-Parser_instruction_ebreak_parse(Parser *parser);
-
-internal void
-Parser_instruction_pause_parse(Parser *parser);
-
-internal void
-Parser_instruction_fence_tso_parse(Parser *parser);
+Parser_instruction_mnemonic_only_parse(Parser *parser, Instruction_Kind instruction_kind);
 
 // Parses a fence ordering operand: a string composed of the characters i, o, r, w
 // in that order. Returns a 4-bit mask: i=bit3, o=bit2, r=bit1, w=bit0.
