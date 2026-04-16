@@ -105,6 +105,28 @@ Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Parser_advance(parser);
 }
 
+// Generic parser for R-type pseudos with two operands: neg, negw, snez, sltz, sgtz
+// Syntax: mnemonic rd, rs
+internal void
+Parser_instruction_R_pseudo_parse(Parser *parser, Instruction_Kind instruction_kind)
+{
+	parser->statement_context->instruction_kind     = instruction_kind;
+	parser->statement_context->instruction_format   = Instruction_Format__R;
+
+	Parser_advance(parser);
+	U8 register_destination = Parser_expect_register(parser);
+	parser->statement_context->register_destination = register_destination;
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	U8 register_source = Parser_expect_register(parser);
+	parser->statement_context->register_source_1 = register_source;
+
+	Parser_advance(parser);
+}
+
 internal void
 Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind)
 {
@@ -184,6 +206,27 @@ Parser_instruction_B_parse(Parser *parser, Instruction_Kind instruction_kind)
 	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
+
+// Generic parser for branch pseudos with one register: beqz, bnez, bltz, bgez, blez, bgtz
+// Syntax: mnemonic rs, offset
+internal void
+Parser_instruction_B_pseudo_parse(Parser *parser, Instruction_Kind instruction_kind)
+{
+	parser->statement_context->instruction_kind     = instruction_kind;
+	parser->statement_context->instruction_format   = Instruction_Format__B;
+
+	Parser_advance(parser);
+	U8 register_source_1 = Parser_expect_register(parser);
+	parser->statement_context->register_source_1 = register_source_1;
+
+	Parser_advance(parser);
+	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
+
+	Parser_advance(parser);
+	Expression_Node *expression = Parser_expression_parse(parser);
+	parser->statement_context->expressions_indexes  = &expression->index;
+}
+
 
 internal void
 Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind)
@@ -276,48 +319,6 @@ Parser_instruction_not_parse(Parser *parser)
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
-// neg rd, rs -> sub rd, x0, rs
-internal void
-Parser_instruction_neg_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__SUB;
-	parser->statement_context->instruction_format   = Instruction_Format__R;
-
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-}
-
-// negw rd, rs -> subw rd, x0, rs (RV64)
-internal void
-Parser_instruction_negw_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__SUBW;
-	parser->statement_context->instruction_format   = Instruction_Format__R;
-
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-}
-
 // sext.w rd, rs -> addiw rd, rs, 0 (RV64)
 internal void
 Parser_instruction_sext_w_parse(Parser *parser)
@@ -360,287 +361,6 @@ Parser_instruction_seqz_parse(Parser *parser)
 	Parser_advance(parser);
 
 	Expression_Node *expression = Parser_expression_immediate_create(parser, 1);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// snez rd, rs -> sltu rd, x0, rs
-internal void
-Parser_instruction_snez_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__SLTU;
-	parser->statement_context->instruction_format   = Instruction_Format__R;
-
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-}
-
-// sltz rd, rs -> slt rd, rs, x0
-internal void
-Parser_instruction_sltz_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__SLT;
-	parser->statement_context->instruction_format   = Instruction_Format__R;
-
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-}
-
-// sgtz rd, rs -> slt rd, x0, rs
-internal void
-Parser_instruction_sgtz_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__SLT;
-	parser->statement_context->instruction_format   = Instruction_Format__R;
-
-	Parser_advance(parser);
-	U8 register_destination = Parser_expect_register(parser);
-	parser->statement_context->register_destination = register_destination;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-}
-
-// beqz rs, offset -> beq rs, x0, offset
-internal void
-Parser_instruction_beqz_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BEQ;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bnez rs, offset -> bne rs, x0, offset
-internal void
-Parser_instruction_bnez_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BNE;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// blez rs, offset -> bge x0, rs, offset
-internal void
-Parser_instruction_blez_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BGE;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bgez rs, offset -> bge rs, x0, offset
-internal void
-Parser_instruction_bgez_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BGE;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bltz rs, offset -> blt rs, x0, offset
-internal void
-Parser_instruction_bltz_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BLT;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bgtz rs, offset -> blt x0, rs, offset
-internal void
-Parser_instruction_bgtz_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BLT;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bgt rs, rt, offset -> blt rt, rs, offset
-internal void
-Parser_instruction_bgt_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BLT;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-	parser->statement_context->register_source_2 = register_source_2;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// ble rs, rt, offset -> bge rt, rs, offset
-internal void
-Parser_instruction_ble_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BGE;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-	parser->statement_context->register_source_2 = register_source_2;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bgtu rs, rt, offset -> bltu rt, rs, offset
-internal void
-Parser_instruction_bgtu_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BLTU;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-	parser->statement_context->register_source_2 = register_source_2;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
-}
-
-// bleu rs, rt, offset -> bgeu rt, rs, offset
-internal void
-Parser_instruction_bleu_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__BGEU;
-	parser->statement_context->instruction_format   = Instruction_Format__B;
-
-	Parser_advance(parser);
-	U8 register_source_1 = Parser_expect_register(parser);
-	parser->statement_context->register_source_1 = register_source_1;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	U8 register_source_2 = Parser_expect_register(parser);
-	parser->statement_context->register_source_2 = register_source_2;
-
-	Parser_advance(parser);
-	Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
 	parser->statement_context->expressions_indexes  = &expression->index;
 }
 

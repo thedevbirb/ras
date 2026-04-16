@@ -48,66 +48,114 @@ global const U8 Relocation_Operator_strings_sizes[Relocation_Operator__COUNT] =
 	[Relocation_Operator__tls_gd_pcrel_hi] = 15,
 };
 
+global const B32 Relocation_Operator_low_12[Relocation_Operator__COUNT] =
+{
+	[Relocation_Operator__lo]              = 1,
+	[Relocation_Operator__pcrel_lo]        = 1,
+	[Relocation_Operator__tprel_lo]        = 1,
+};
+
+global const B32 Relocation_Operator_high_20[Relocation_Operator__COUNT] =
+{
+	[Relocation_Operator__None]            = 1,
+	[Relocation_Operator__pcrel_hi]        = 1,
+	[Relocation_Operator__tprel_hi]        = 1,
+	[Relocation_Operator__got_pcrel_hi]    = 1,
+	[Relocation_Operator__tls_ie_pcrel_hi] = 1,
+	[Relocation_Operator__tls_gd_pcrel_hi] = 1,
+};
 
 Relocation_Operator
 Relocation_Operator_lookup(String8 relocation);
 
+// Distinguishes between [not S-type] and [S-type].
+//
+// Smaller and faster compared to using a switch.
+global const Relocation_RISC_V Relocation_RISCV_from_Relocation_Operator_table[Relocation_Operator__COUNT][2] =
+{
+    [Relocation_Operator__None]            =
+    {
+	    Relocation_RISC_V__None,
+	    Relocation_RISC_V__None
+    },
+    [Relocation_Operator__hi]              =
+    {
+	    Relocation_RISC_V__High_20,
+	    Relocation_RISC_V__High_20
+    },
+    [Relocation_Operator__lo]              =
+    {
+	    Relocation_RISC_V__Low_12_I_Type,
+	    Relocation_RISC_V__Low_12_S_Type
+    },
+    [Relocation_Operator__pcrel_hi]        =
+    {
+	    Relocation_RISC_V__PC_Relative_High_20,
+	    Relocation_RISC_V__PC_Relative_High_20
+    },
+    [Relocation_Operator__pcrel_lo]        =
+    {
+	    Relocation_RISC_V__PC_Relative_Low_12_I_Type,
+	    Relocation_RISC_V__PC_Relative_Low_12_S_Type
+    },
+    [Relocation_Operator__tprel_hi]        =
+    {
+	    Relocation_RISC_V__Thread_Pointer_Relative_High_20,
+	    Relocation_RISC_V__Thread_Pointer_Relative_High_20
+    },
+    [Relocation_Operator__tprel_lo]        =
+    {
+	    Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type,
+	    Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type
+    },
+    [Relocation_Operator__tprel_add]       =
+    {
+	    Relocation_RISC_V__Thread_Pointer_Relative_Add,
+	    Relocation_RISC_V__Thread_Pointer_Relative_Add
+    },
+    [Relocation_Operator__got_pcrel_hi]    =
+    {
+	    Relocation_RISC_V__GOT_High_20,
+	    Relocation_RISC_V__GOT_High_20
+    },
+    [Relocation_Operator__tls_ie_pcrel_hi] =
+    {
+	    Relocation_RISC_V__TLS_GOT_High_20,
+	    Relocation_RISC_V__TLS_GOT_High_20
+    },
+    [Relocation_Operator__tls_gd_pcrel_hi] =
+    {
+	    Relocation_RISC_V__TLS_Global_Dynamic_High_20,
+	    Relocation_RISC_V__TLS_Global_Dynamic_High_20
+    },
+};
+
 Relocation_RISC_V
 Relocation_RISC_V_from_Relocation_Operator(Relocation_Operator operator, Instruction_Format format)
 {
-	Relocation_RISC_V result = Relocation_RISC_V__None;
-
-	switch (operator)
-	{
-		case Relocation_Operator__None:
-		{
-			result = Relocation_RISC_V__None;
-		} break;
-		case Relocation_Operator__hi:
-		{
-			result = Relocation_RISC_V__High_20;
-		} break;
-		case Relocation_Operator__lo:
-		{
-			result = format == Instruction_Format__S ? Relocation_RISC_V__Low_12_S_Type : Relocation_RISC_V__Low_12_I_Type;
-		} break;
-		case Relocation_Operator__pcrel_hi:
-		{
-			result = Relocation_RISC_V__PC_Relative_High_20;
-		} break;
-		case Relocation_Operator__pcrel_lo:
-		{
-			result = format == Instruction_Format__S ? Relocation_RISC_V__PC_Relative_Low_12_S_Type : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
-		} break;
-		case Relocation_Operator__tprel_hi:
-		{
-			result = Relocation_RISC_V__Thread_Pointer_Relative_High_20;
-		} break;
-		case Relocation_Operator__tprel_lo:
-		{
-			result = format == Instruction_Format__S ? Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type : Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type;
-		} break;
-		case Relocation_Operator__tprel_add:
-		{
-			result = Relocation_RISC_V__Thread_Pointer_Relative_Add;
-		} break;
-		case Relocation_Operator__got_pcrel_hi:
-		{
-			result = Relocation_RISC_V__GOT_High_20;
-		} break;
-		case Relocation_Operator__tls_ie_pcrel_hi:
-		{
-			result = Relocation_RISC_V__TLS_GOT_High_20;
-		} break;
-		case Relocation_Operator__tls_gd_pcrel_hi:
-		{
-			result = Relocation_RISC_V__TLS_Global_Dynamic_High_20;
-		} break;
-		default: {} break;
-	}
-
-	return result;
+    B32 s_type_is = (format == Instruction_Format__S);
+    return Relocation_RISCV_from_Relocation_Operator_table[operator][s_type_is];
 }
+
+global const B32 Relocation_RISC_V_low_12[Relocation_RISC_V__COUNT] =
+{
+	[Relocation_RISC_V__Low_12_I_Type]                              = 1,
+	[Relocation_RISC_V__Low_12_S_Type]                              = 1,
+	[Relocation_RISC_V__PC_Relative_Low_12_I_Type]                  = 1,
+	[Relocation_RISC_V__PC_Relative_Low_12_S_Type]                  = 1,
+	[Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type]      = 1,
+	[Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type]      = 1,
+};
+
+global const B32 Relocation_RISC_V_high_20[Relocation_RISC_V__COUNT] =
+{
+	[Relocation_RISC_V__High_20]                                    = 1,
+	[Relocation_RISC_V__PC_Relative_High_20]                        = 1,
+	[Relocation_RISC_V__Thread_Pointer_Relative_High_20]            = 1,
+	[Relocation_RISC_V__GOT_High_20]                                = 1,
+	[Relocation_RISC_V__TLS_GOT_High_20]                            = 1,
+	[Relocation_RISC_V__TLS_Global_Dynamic_High_20]                 = 1,
+};
 
 #endif // LANGUAGE_RELOCATION_H
 

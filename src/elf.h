@@ -3596,7 +3596,7 @@ typedef U8 Relocation_RISC_V;
 #define Relocation_RISC_V__TLS_Descriptor_Load_Low_12                     63
 #define Relocation_RISC_V__TLS_Descriptor_Add_Low_12                      64
 #define Relocation_RISC_V__TLS_Descriptor_Call                            65
-#define Relocation_RISC_V__Count                                          66
+#define Relocation_RISC_V__COUNT                                          66
 
 //
 // /* RISC-V specific values for the visibility field.  */

@@ -5,6 +5,7 @@ plan/
 *.md
 *.out
 *.old
+*.o
 nob
 
 core

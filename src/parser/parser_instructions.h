@@ -11,10 +11,16 @@ internal void
 Parser_instruction_R_parse(Parser *parser, Instruction_Kind instruction_kind);
 
 internal void
+Parser_instruction_R_pseudo_parse(Parser *parser, Instruction_Kind instruction_kind);
+
+internal void
 Parser_instruction_S_parse(Parser *parser, Instruction_Kind instruction_kind);
 
 internal void
 Parser_instruction_B_parse(Parser *parser, Instruction_Kind instruction_kind);
+
+internal void
+Parser_instruction_B_pseudo_parse(Parser *parser, Instruction_Kind instruction_kind);
 
 internal void
 Parser_instruction_U_parse(Parser *parser, Instruction_Kind instruction_kind);
@@ -34,73 +40,9 @@ Parser_instruction_mv_parse(Parser *parser);
 internal void
 Parser_instruction_not_parse(Parser *parser);
 
-// neg rd, rs -> sub rd, x0, rs
-internal void
-Parser_instruction_neg_parse(Parser *parser);
-
-// negw rd, rs -> subw rd, x0, rs (RV64)
-internal void
-Parser_instruction_negw_parse(Parser *parser);
-
 // sext.w rd, rs -> addiw rd, rs, 0 (RV64)
 internal void
 Parser_instruction_sext_w_parse(Parser *parser);
-
-// seqz rd, rs -> sltiu rd, rs, 1
-internal void
-Parser_instruction_seqz_parse(Parser *parser);
-
-// snez rd, rs -> sltu rd, x0, rs
-internal void
-Parser_instruction_snez_parse(Parser *parser);
-
-// sltz rd, rs -> slt rd, rs, x0
-internal void
-Parser_instruction_sltz_parse(Parser *parser);
-
-// sgtz rd, rs -> slt rd, x0, rs
-internal void
-Parser_instruction_sgtz_parse(Parser *parser);
-
-// beqz rs, offset -> beq rs, x0, offset
-internal void
-Parser_instruction_beqz_parse(Parser *parser);
-
-// bnez rs, offset -> bne rs, x0, offset
-internal void
-Parser_instruction_bnez_parse(Parser *parser);
-
-// blez rs, offset -> bge x0, rs, offset
-internal void
-Parser_instruction_blez_parse(Parser *parser);
-
-// bgez rs, offset -> bge rs, x0, offset
-internal void
-Parser_instruction_bgez_parse(Parser *parser);
-
-// bltz rs, offset -> blt rs, x0, offset
-internal void
-Parser_instruction_bltz_parse(Parser *parser);
-
-// bgtz rs, offset -> blt x0, rs, offset
-internal void
-Parser_instruction_bgtz_parse(Parser *parser);
-
-// bgt rs, rt, offset -> blt rt, rs, offset
-internal void
-Parser_instruction_bgt_parse(Parser *parser);
-
-// ble rs, rt, offset -> bge rt, rs, offset
-internal void
-Parser_instruction_ble_parse(Parser *parser);
-
-// bgtu rs, rt, offset -> bltu rt, rs, offset
-internal void
-Parser_instruction_bgtu_parse(Parser *parser);
-
-// bleu rs, rt, offset -> bgeu rt, rs, offset
-internal void
-Parser_instruction_bleu_parse(Parser *parser);
 
 // j offset -> jal x0, offset
 internal void

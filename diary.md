@@ -177,6 +177,29 @@ need to recompute all expressions anyway.
 I'm essentially reverse engineering a lot of gas behaviour by feeding it some inputs and see how it
 behaves. In doing so, I've also found a couple of bugs to report!
 
+# encoding
+
+Now I'm finally at the encoding stage. By this time, I'm quite confident in understand and reading
+riscv assembly, which is honestly awesome, and I feel very empowered. Examples:
+
+1. Understanding why a table lookup is better than a jump table, both in execution time and in
+   binary size.
+
+Writing the code for the encoding phase is sometimes a bit mechanic. However, there are still so
+many little details you can add that can make even simil-boilerplate code so much nicer to read,
+understand, write and execute. Intention is so important. I want this code to read as a reference
+book.
+
+# General about C
+
+Lookup tables, paired with designated initializers, are incredibly powerful. While the latter is
+technically just syntax sugar, it makes creating the former so much easy and safe. I acknowledge
+that it imposes some complexity on the compiler that may not be desiderable, however I just like
+them.
+It also allows to write function with optional arguments, using a quite reasonable macro trick.
+While optional arguments are bad when exposed by dependencies, since the defaults may change without
+you noticing, are very handy when you write your application.
+
 # Random
 
 Just found out that there are some good docs that I just skipped :) https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5
@@ -253,3 +276,38 @@ The following is a list of gotchas and quirks I have found while using `gas`, sp
    .align 2, global_2 - global_1 # doesn't assemble
    ```
    I really don't see a strong reason why! I'm supporting it.
+6. Again, handling differences between some globals has weird behaviour, similar to being buggy.
+   Consider the following source:
+   ```asm
+   .globl global_1
+   .globl global_2
+   beq x2, x1, global_2 - global_1
+   ```
+   After assembly, `readelf` returns the following:
+   ```
+   Relocation section '.rela.text' at offset 0x1d0 contains 1 entry:
+     Offset          Info           Type           Sym. Value    Sym. Name + Addend
+   000000000004  000700000011 R_RISCV_JAL       0000000000000000 global_2 + 0
+
+   The decoding of unwind sections for machine type RISC-V is not currently supported.
+
+   Symbol table '.symtab' contains 8 entries:
+      Num:    Value          Size Type    Bind   Vis      Ndx Name
+        0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+        1: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 .text
+        2: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 .data
+        3: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 .bss
+        4: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    1 $xrv64i2p1_m2p0_[...]
+        5: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 .riscv.attributes
+        6: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND global_1
+        7: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND global_2
+   ```
+   So `- global_1` has been completely ignored, and a JAL relocation has been emitted somehow.
+   Looking more closely with `objdump -d` returns:
+   ```
+   0000000000000000 <.text>:
+      0:	00111463          	bne	sp,ra,8 <.text+0x8>
+      4:	ffdff06f          	j	0 <.text>
+   ```
+   So it has been somehow converted to a jump. Maybe I don't have enough context to understand the
+   reason of such choice, but to me that seems just weird.

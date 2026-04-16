@@ -852,46 +852,46 @@ Parser_parse(Parser *parser)
 			// Pseudo-instructions
 
 			// Pseudo-instructions (no operands)
-			case HASH_nop:       { Parser_instruction_nop_parse(parser);                            } break;
-			case HASH_ret:       { Parser_instruction_ret_parse(parser);                            } break;
+			case HASH_nop:       { Parser_instruction_nop_parse(parser);                              } break;
+			case HASH_ret:       { Parser_instruction_ret_parse(parser);                              } break;
 			// Pseudo-instructions (rd, rs)
-			case HASH_mv:        { Parser_instruction_mv_parse(parser);                             } break;
-			case HASH_not:       { Parser_instruction_not_parse(parser);                            } break;
-			case HASH_neg:       { Parser_instruction_neg_parse(parser);                            } break;
-			case HASH_negw:      { Parser_instruction_negw_parse(parser);                           } break;
-			case HASH_sext_w:    { Parser_instruction_sext_w_parse(parser);                         } break;
-			case HASH_seqz:      { Parser_instruction_seqz_parse(parser);                           } break;
-			case HASH_snez:      { Parser_instruction_snez_parse(parser);                           } break;
-			case HASH_sltz:      { Parser_instruction_sltz_parse(parser);                           } break;
-			case HASH_sgtz:      { Parser_instruction_sgtz_parse(parser);                           } break;
+			case HASH_mv:        { Parser_instruction_mv_parse(parser);                               } break;
+			case HASH_not:       { Parser_instruction_not_parse(parser);                              } break;
+			case HASH_sext_w:    { Parser_instruction_sext_w_parse(parser);                           } break;
+			case HASH_neg:       { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__NEG);  } break;
+			case HASH_negw:      { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__NEGW); } break;
+			case HASH_seqz:      { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__SEQZ); } break;
+			case HASH_snez:      { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__SNEZ); } break;
+			case HASH_sltz:      { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__SLTZ); } break;
+			case HASH_sgtz:      { Parser_instruction_R_pseudo_parse(parser, Instruction_Kind__SGTZ); } break;
 			// Pseudo-instructions (rs, offset)
-			case HASH_beqz:      { Parser_instruction_beqz_parse(parser);                           } break;
-			case HASH_bnez:      { Parser_instruction_bnez_parse(parser);                           } break;
-			case HASH_blez:      { Parser_instruction_blez_parse(parser);                           } break;
-			case HASH_bgez:      { Parser_instruction_bgez_parse(parser);                           } break;
-			case HASH_bltz:      { Parser_instruction_bltz_parse(parser);                           } break;
-			case HASH_bgtz:      { Parser_instruction_bgtz_parse(parser);                           } break;
+			case HASH_beqz:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BEQZ); } break;
+			case HASH_bnez:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BNEZ); } break;
+			case HASH_blez:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BLEZ); } break;
+			case HASH_bgez:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BGEZ); } break;
+			case HASH_bltz:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BLTZ); } break;
+			case HASH_bgtz:      { Parser_instruction_B_pseudo_parse(parser, Instruction_Kind__BGTZ); } break;
 			// Pseudo-instructions (rs, rt, offset)
-			case HASH_bgt:       { Parser_instruction_bgt_parse(parser);                            } break;
-			case HASH_ble:       { Parser_instruction_ble_parse(parser);                            } break;
-			case HASH_bgtu:      { Parser_instruction_bgtu_parse(parser);                           } break;
-			case HASH_bleu:      { Parser_instruction_bleu_parse(parser);                           } break;
+			case HASH_bgt:       { Parser_instruction_B_parse(parser, Instruction_Kind__BGT);         } break;
+			case HASH_ble:       { Parser_instruction_B_parse(parser, Instruction_Kind__BLE);         } break;
+			case HASH_bgtu:      { Parser_instruction_B_parse(parser, Instruction_Kind__BGTU);        } break;
+			case HASH_bleu:      { Parser_instruction_B_parse(parser, Instruction_Kind__BLEU);        } break;
 			// Pseudo-instructions (offset only)
-			case HASH_j:         { Parser_instruction_j_parse(parser);                              } break;
-			case HASH_call:      { Parser_instruction_call_parse(parser);                           } break;
-			case HASH_tail:      { Parser_instruction_tail_parse(parser);                           } break;
+			case HASH_j:         { Parser_instruction_j_parse(parser);                                } break;
+			case HASH_call:      { Parser_instruction_call_parse(parser);                             } break;
+			case HASH_tail:      { Parser_instruction_tail_parse(parser);                             } break;
 			// Pseudo-instructions (rs only)
-			case HASH_jr:        { Parser_instruction_jr_parse(parser);                             } break;
+			case HASH_jr:        { Parser_instruction_jr_parse(parser);                               } break;
 			// Pseudo-instructions (rd, imm/symbol)
-			case HASH_li:        { Parser_instruction_li_parse(parser);                             } break;
-			case HASH_la:        { Parser_instruction_la_parse(parser);                             } break;
+			case HASH_li:        { Parser_instruction_li_parse(parser);                               } break;
+			case HASH_la:        { Parser_instruction_la_parse(parser);                               } break;
 
 			// Others
-			case HASH_ecall:     { Parser_instruction_ecall_parse(parser);                          } break;
-			case HASH_ebreak:    { Parser_instruction_ebreak_parse(parser);                         } break;
-			case HASH_pause:     { Parser_instruction_pause_parse(parser);                          } break;
-			case HASH_fence:     { Parser_instruction_fence_parse(parser);                          } break;
-			case HASH_fence_tso: { Parser_instruction_fence_tso_parse(parser);                      } break;
+			case HASH_ecall:     { Parser_instruction_ecall_parse(parser);                            } break;
+			case HASH_ebreak:    { Parser_instruction_ebreak_parse(parser);                           } break;
+			case HASH_pause:     { Parser_instruction_pause_parse(parser);                            } break;
+			case HASH_fence:     { Parser_instruction_fence_parse(parser);                            } break;
+			case HASH_fence_tso: { Parser_instruction_fence_tso_parse(parser);                        } break;
 
 			default:
 			{
