@@ -8,8 +8,8 @@ Directive_Kind__from_String8(String8 string)
 	B32 found = 0;
 	for (;;)
 	{
-		B32 break_should = found || token_index >= Directive_Kind__COUNT;
-		if (break_should)
+		B32 break_should_outer = found || token_index >= Directive_Kind__COUNT;
+		if (break_should_outer)
 		{
 			break;
 		}
@@ -20,8 +20,8 @@ Directive_Kind__from_String8(String8 string)
 		B32 mismatch = 0;
 		for (;;)
 		{
-			B32 break_should = mismatch || index_match >= string.count || target[index_match] == '\0';
-			if (break_should)
+			B32 break_should_inner = mismatch || index_match >= string.count || target[index_match] == '\0';
+			if (break_should_inner)
 			{
 				break;
 			}

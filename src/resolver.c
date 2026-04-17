@@ -171,7 +171,7 @@ Resolver_label_distance_fixed(Resolver *resolver, Symbols_Table_Entry *symbol_le
 	U32 index_right = symbol_right->index_statement;
 
 	U32 index_low  = min_m(index_left, index_right);
-	U32 index_high = max_m(index_left, index_2ight);
+	U32 index_high = max_m(index_left, index_right);
 
 	for (;;)
 	{
@@ -181,8 +181,8 @@ Resolver_label_distance_fixed(Resolver *resolver, Symbols_Table_Entry *symbol_le
 			break;
 		}
 
-		Statement *statement = resolver->statements->data[index];
-		if (statement->section_index == symbol_1->section_index)
+		Statement *statement = &resolver->statements->data[index_low];
+		if (statement->section_index == symbol_left->elf.section_index)
 		{
 			variable_gap = statement->flags & Statement_Flags__Size_Variable;
 		}
@@ -497,8 +497,8 @@ Resolver_relax_pass(Resolver *resolver)
 	B32 changed = 0;
 	for (;;)
 	{
-		B32 break_should = resolver->statements_end_reached || resolver->error.kind;
-		if (break_should)
+		B32 break_should_relax = resolver->statements_end_reached || resolver->error.kind;
+		if (break_should_relax)
 		{
 			break;
 		}
@@ -516,6 +516,27 @@ Resolver_relax_pass(Resolver *resolver)
 		U32 size_old = statement->size;
 		U32 size_new = size_old;
 
+		// Do here all the expression related boilerplate. In particular, evaluate the first expression to
+		// deduplicate some code.
+		Expression_Node *expression = 0;
+		B32 absolute                = 0;
+		B32 unresolved              = 0;
+		S64 immediate               = 0;
+		if (instruction_kind && statement->expressions_count)
+		{
+			U32 expression_index = statement->expressions_indexes[0];
+			expression = &resolver->expressions->data[expression_index];
+			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
+			Resolver_expression_evaluate(resolver, expression);
+			unresolved = expression->flags & Expression_Flags__Unresolved;
+			absolute   = !unresolved;
+			if (absolute)
+			{
+				immediate = expression->integer_value;
+			}
+		}
+
+
 		switch (directive_kind)
 		{
 		case Directive_Kind__Word_Double: {} // fallthrough
@@ -525,22 +546,23 @@ Resolver_relax_pass(Resolver *resolver)
 		{
 			B32 byte_or_word_half = directive_kind == Directive_Kind__Byte
 				             || directive_kind == Directive_Kind__Word_Half;
+			// This could changed to 1, but whatever..
 			U32 index = 0;
 			for (;;)
 			{
-				B32 break_should = index >= statement->expressions_count;
-				if (break_should)
+				B32 break_should_data = index >= statement->expressions_count;
+				if (break_should_data)
 				{
 					break;
 				}
-				U32 expression_index        = statement->expressions_indexes[index];
-				Expression_Node *expression = &resolver->expressions->data[expression_index];
-				Resolver_expression_evaluate(resolver, expression);
+				U32 expression_index              = statement->expressions_indexes[index];
+				Expression_Node *expression_inner = &resolver->expressions->data[expression_index];
+				Resolver_expression_evaluate(resolver, expression_inner);
 				if (byte_or_word_half)
 				{
 					// No relocations types exist for these two, hence the error.
-					B32 absolute = !(expression->flags & Expression_Flags__Unresolved);
-					Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
+					B32 absolute_inner = !(expression->flags & Expression_Flags__Unresolved);
+					Resolver_expect(resolver, absolute_inner, Resolver_Error_Kind__Expression_Unresolved);
 				}
 			}
 		} break;
@@ -561,19 +583,13 @@ Resolver_relax_pass(Resolver *resolver)
 		{
 			// NOTE: `.skip label_2 - label_1, global_2 - global_1` is supported. This means on every
 			// iteration we should check the value to get proper instruction size.
-
-			U32 expression_index        = statement->expressions_indexes[0];
-			Expression_Node *expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-
-			B32 absolute = !(expression->flags & Expression_Flags__Unresolved);
 			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
 
 			if (statement->expressions_count > 1)
 			{
-				U32 expression_index        = statement->expressions_indexes[1];
-				Expression_Node *expression = &resolver->expressions->data[expression_index];
-				Resolver_expression_evaluate(resolver, expression);
+				U32 expression_index_inner  = statement->expressions_indexes[1];
+				Expression_Node *expression_inner = &resolver->expressions->data[expression_index_inner];
+				Resolver_expression_evaluate(resolver, expression_inner);
 			}
 
 			size_new = expression->integer_value;
@@ -587,13 +603,7 @@ Resolver_relax_pass(Resolver *resolver)
 		} break;
 		case Directive_Kind__Zero:
 		{
-			U32 expression_index        = statement->expressions_indexes[0];
-			Expression_Node *expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-
-			B32 absolute = !(expression->flags & Expression_Flags__Unresolved);
 			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
-
 			size_new = expression->integer_value;
 		} break;
 
@@ -618,26 +628,6 @@ Resolver_relax_pass(Resolver *resolver)
 		}
 
 		// Instruction related.
-
-		// Do here all the expression related boilerplate.
-		Expression_Node *expression = 0;
-		B32 absolute                = 0;
-		B32 unresolved              = 0;
-		S64 immediate               = 0;
-		if (instruction_kind && statement->expressions_count)
-		{
-			assert_m(statement->expressions_count == 1);
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
-			Resolver_expression_evaluate(resolver, expression);
-			unresolved = expression->flags & Expression_Flags__Unresolved;
-			absolute   = !unresolved;
-			if (absolute)
-			{
-				immediate = expression->integer_value;
-			}
-		}
 
 		switch (instruction_kind)
 		{
@@ -672,13 +662,7 @@ Resolver_relax_pass(Resolver *resolver)
 		{
 			// jal has a 21-bit signed offset range. If the target is not within that range, than we need an
 			// auipc + jalr, for 8 bytes total.
-
-			U32 expression_index         = statement->expressions_indexes[0];
-			Expression_Node *expression  = &resolver->expressions->data[expression_index];
-
-			Resolver_expression_evaluate(resolver, expression);
 			S64 delta = (S64)expression->integer_value - statement->section_offset;
-
 			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
 			if (expression->flags & Expression_Flags__Unresolved || !range_in)
 			{
@@ -709,10 +693,6 @@ Resolver_relax_pass(Resolver *resolver)
 			// If the target is out of range, invert and jump:
 			//   bxx_inv rs1, rs2, +8; jal zero, offset -> 8 bytes  (if jal range suffices)
 			//   bxx_inv rs1, rs2, +12; auipc + jalr    -> 12 bytes (if beyond jal range too)
-			U32 expression_index        = statement->expressions_indexes[0];
-			Expression_Node *expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-
 			size_new = 12;
 			if (!(expression->flags & Expression_Flags__Unresolved))
 			{
@@ -1010,8 +990,8 @@ Resolver_encode(Resolver *resolver)
 	for (;;)
 	{
 		// TODO: ensure that immediate values calculated can fit the instruction encoding.
-		B32 break_should = resolver->statements_end_reached || resolver->error.kind;
-		if (break_should)
+		B32 break_should_encoding = resolver->statements_end_reached || resolver->error.kind;
+		if (break_should_encoding)
 		{
 			break;
 		}
@@ -1472,11 +1452,6 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__CALL:
 		case Instruction_Kind__TAIL:
 		{
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-
-			B32 unresolved = expression->flags & Expression_Flags__Unresolved;
 			S64 delta = 0;
 			B32 range_in = 0;
 			if (!unresolved)
@@ -1536,13 +1511,7 @@ Resolver_encode(Resolver *resolver)
 		// TODO: check
 		case Instruction_Kind__LI:
 		{
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-			B32 absolute = !(expression->flags & Expression_Flags__Unresolved);
 			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
-
-			S64 immediate = expression->integer_value;
 
 			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
 			{
@@ -1562,11 +1531,6 @@ Resolver_encode(Resolver *resolver)
 		// TODO: check
 		case Instruction_Kind__LA:
 		{
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expression_evaluate(resolver, expression);
-
-			B32 unresolved = expression->flags & Expression_Flags__Unresolved;
 			S64 value = 0;
 			S64 upper = 0;
 			S64 lower = 0;
@@ -1600,7 +1564,7 @@ Resolver_encode(Resolver *resolver)
 
 		case Instruction_Kind__FENCE:
 		{
-			U32 immediate = (rs1 << 4) | rs2;  // pred(4) | succ(4)
+			U32 immediate_fence = (rs1 << 4) | rs2;  // pred(4) | succ(4)
 			U32 encoding = instruction_i_encode_m(0, 0, immediate, OPCODE_FENCE, 0);
 			Object_File_Section_write_instruction(section, encoding);
 		} break;

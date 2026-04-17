@@ -55,6 +55,7 @@ int main(int argc, char **argv)
 			"-Wall", "-Wextra", "-Wpedantic",
 			"-Wno-override-init",
 			"-Wno-unused-function",
+			"-Werror=shadow",
 			"-I.",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",

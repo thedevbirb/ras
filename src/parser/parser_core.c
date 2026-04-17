@@ -41,8 +41,8 @@ String8_byte_size_escaped(String8 string)
 
 		size += 1;
 
-		U8 character = string.data[index];
-		if (character == '\\')
+		U8 character_outer = string.data[index];
+		if (character_outer == '\\')
 		{
 			index += 1;
 			U8 character_escaped = string.data[index];
@@ -57,8 +57,8 @@ String8_byte_size_escaped(String8 string)
 					index += 2;
 					// E.g. \x1a
 					//         ^--- cursor is here
-					U8 character = string.data[index];
-					if (hex_table[character] != hex_table_sentinel_invalid)
+					U8 character_inner = string.data[index];
+					if (hex_table[character_inner] != hex_table_sentinel_invalid)
 					{
 						index += 1;
 					}
@@ -68,14 +68,14 @@ String8_byte_size_escaped(String8 string)
 					// E.g. \377
 					//       ^--- cursor is here
 					index += 1;
-					U8 character = string.data[index];
-					if (character - '0' < 8)
+					U8 character_inner = string.data[index];
+					if (character_inner - '0' < 8)
 					{
 						index += 1;
 					}
 
-					character = string.data[index];
-					if (character - '0' < 8)
+					character_inner = string.data[index];
+					if (character_inner - '0' < 8)
 					{
 						index += 1;
 					}
@@ -575,8 +575,8 @@ Parser_parse(Parser *parser)
 		} break;
 		case Token_Kind__Directive:
 		{
-			String8 substring = Parser_token_string(parser);
-			Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
+			String8 string_directive = Parser_token_string(parser);
+			Directive_Kind directive_kind = Directive_Kind__from_String8(string_directive);
 
 
 			parser->statement_context->kind = Statement_Kind__Directive;
@@ -613,8 +613,8 @@ Parser_parse(Parser *parser)
 
 					Parser_expect(parser, token_comma || token_newline, Parser_Error_Kind__Directive_Data_Invalid);
 
-					B32 break_should = parser->error.kind || parser->end_reached || token_newline;
-					if (break_should)
+					B32 break_should_directive = parser->error.kind || parser->end_reached || token_newline;
+					if (break_should_directive)
 					{
 						break;
 					}
@@ -649,9 +649,11 @@ Parser_parse(Parser *parser)
 			{
 				Parser_advance(parser);
 
-				String8 substring             = Parser_token_string(parser);
-				Directive_Kind directive_kind = Directive_Kind__from_String8(substring);
-				ELF_Section section_index   = ELF_Section_from_Directive_Kind(directive_kind);
+				// FIX: `.section` can be used to create new sections so limiting to the ones that can
+				// be a standalone directive is not desiderable.
+				String8 string_section        = Parser_token_string(parser);
+				Directive_Kind section_kind   = Directive_Kind__from_String8(string_section);
+				ELF_Section section_index     = ELF_Section_from_Directive_Kind(section_kind);
 				parser->section_current_index = section_index;
 
 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);

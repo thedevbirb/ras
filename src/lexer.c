@@ -143,8 +143,8 @@ Lexer_tokenize(Lexer *lexer)
 	U64 numerical_value = 0;
 	for (;;)
 	{
-		B32 break_should = lexer->error.kind || lexer->end_reached;
-		if (break_should)
+		B32 break_should_lexer = lexer->error.kind || lexer->end_reached;
+		if (break_should_lexer)
 		{
 			break;
 		}
@@ -162,7 +162,7 @@ Lexer_tokenize(Lexer *lexer)
 		// NOTE: no multi-line comment support (yet).
 		case '#':
 		{
-			B32 break_should = 0;
+			B32 break_should_comment = 0;
 			for (;;)
 			{
 				Lexer_advance(lexer);
@@ -174,8 +174,8 @@ Lexer_tokenize(Lexer *lexer)
 					Lexer_advance_newline(lexer);
 				}
 
-				break_should = newline_reached || lexer->end_reached;
-				if (break_should)
+				break_should_comment = newline_reached || lexer->end_reached;
+				if (break_should_comment)
 				{
 					break;
 				}
@@ -371,13 +371,13 @@ Lexer_tokenize(Lexer *lexer)
 			// escapes is done at a later stage.
 			U8 escaping_started             = 0;
 			U8 quote_ending_found           = 0;
-			B32 break_should                = 0;
+			B32 break_should_double_quote   = 0;
 			U32 escape_started_column_index = 0;
 			for (;;)
 			{
 				Lexer_advance(lexer);
-				break_should = quote_ending_found || lexer->end_reached || lexer->error.kind;
-				if (break_should)
+				break_should_double_quote = quote_ending_found || lexer->end_reached || lexer->error.kind;
+				if (break_should_double_quote)
 				{
 					break;
 				}
@@ -438,12 +438,12 @@ Lexer_tokenize(Lexer *lexer)
 			if (LE_U8_identifier_start_is(lexer->current))
 			{
 				U8 character_start = lexer->current;
-				B32 break_should = 0;
+				B32 break_should_identifier = 0;
 				B32 invalid = 0;
 				for (;;)
 				{
-					break_should = invalid || lexer->end_reached;
-					if (break_should)
+					break_should_identifier = invalid || lexer->end_reached;
+					if (break_should_identifier)
 					{
 						break;
 					}
