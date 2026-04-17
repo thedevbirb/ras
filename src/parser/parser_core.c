@@ -713,7 +713,10 @@ Parser_parse(Parser *parser)
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
 			} break;
-			case Directive_Kind__Align: {} // fallthrough, same parsing.
+			case Directive_Kind__Align:
+			{
+				parser->statement_context->flags |= Statement_Flags__Size_Variable;
+			} // fallthrough, same parsing.
 			case Directive_Kind__Skip:
 			{
 				Parser_advance(parser);
@@ -906,6 +909,13 @@ Parser_parse(Parser *parser)
 			{
 				Parser_error_set(parser, Parser_Error_Kind__Line_Invalid);
 			} break;
+			}
+
+			Instruction_Kind instruction_kind = parser->statement_context->instruction_kind;
+			B32 expandable = Instruction_Encoding_table[instruction_kind].flags & Instruction_Flags__Expandable;
+			if (expandable)
+			{
+				parser->statement_context->flags |= Statement_Flags__Size_Variable;
 			}
 
 			// It is at most one.

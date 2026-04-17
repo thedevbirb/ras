@@ -151,6 +151,49 @@ Resolver_operation_evaluate(Resolver *resolver, Expression_Kind kind, S64 a, S64
 	return result;
 }
 
+// Whether two symbols have a fixed distance, so that their difference can be safely computed at assembly time. This
+// requires:
+//
+// 1. Both symbols are local;
+// 2. Both symbols are in the same section;
+// 4. All statements between the two labels cannot grow.
+// 3. Relax is disabled.
+internal B32
+Resolver_label_distance_fixed(Resolver *resolver, Symbols_Table_Entry *symbol_left, Symbols_Table_Entry *symbol_right)
+{
+	B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
+	B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
+	B32 section_same   = symbol_left->elf.section_index == symbol_right->elf.section_index;
+	B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
+	B32 variable_gap   = local_left && local_right && relax_disabled && section_same;
+
+	U32 index_left  = symbol_left->index_statement;
+	U32 index_right = symbol_right->index_statement;
+
+	U32 index_low  = min_m(index_left, index_right);
+	U32 index_high = max_m(index_left, index_2ight);
+
+	for (;;)
+	{
+		B32 break_should = index_low > index_high || variable_gap;
+		if (break_should)
+		{
+			break;
+		}
+
+		Statement *statement = resolver->statements->data[index];
+		if (statement->section_index == symbol_1->section_index)
+		{
+			variable_gap = statement->flags & Statement_Flags__Size_Variable;
+		}
+
+		index_low += 1;
+	}
+
+	B32 fixed = !variable_gap;
+	return fixed;
+}
+
 // Notes on relocation when difference between labels, e.g. label_1 - label_2 is involved.
 //
 // Unless both symbols are of the same section, local, and it is explicitly set .option norelax for that
@@ -372,47 +415,8 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			Resolver_expect(resolver, symbol_operand_right == 0 && symbol_operand_left == 0, Resolver_Error_Kind__Operator_Expression_Unresolved);
 			Resolver_expect(resolver, !node->relocation_operator, Resolver_Error_Kind__Relocation_Expression_Invalid);
 
-			// FIX: this check is incorrect. Here is an edge case:
-			//
-			// ```asm
-			// .option norelax
-			// label1:
-			// nop
-			// .option relax
-			// # Whatever instruction can be relaxed by the linker.
-			// .option norelax
-			// label2:
-			// nop
-			// addi x1, x0, label2 - label1
-			// ```
-			//
-			// With this algorithm, the `addi` instruction would be considered with an absolute expression,
-			// and a relocation wouldn't be emitted. However, this is wrong. After linker relaxation,
-			// `label2` might be moved, making the distance invalid.
-			//
-			// Another convoluted example could b ethe following:
-			//
-			// ```asm
-			// .option norelax
-			// label1:
-			// nop
-			// .section ???
-			// .option relax
-			// # Whatever instruction can be relaxed by the linker.
-			// .option norelax
-			// label2:
-			// nop
-			// addi x1, x0, label2 - label1
-			// ```
-			//
-			// There are some details
-
-			B32 local_left     = ELF_Symbol_bind_m(symbol_left->elf.type_and_binding)  == ELF_Symbol_Binding__Local;
-			B32 local_right    = ELF_Symbol_bind_m(symbol_right->elf.type_and_binding) == ELF_Symbol_Binding__Local;
-			B32 relax_disabled = resolver->statement_current->flags & Statement_Flags__Relax_Disabled;
-			B32 section_same   = symbol_left->elf.section_index == symbol_right->elf.section_index;
-			B32 evaluate       = local_left && local_right && relax_disabled && section_same;
-			if (evaluate)
+			B32 distance_fixed = Resolver_label_distance_fixed(resolver, symbol_left, symbol_right);
+			if (distance_fixed)
 			{
 				node->integer_value = node_left->integer_value - node_right->integer_value;
 				// Symbols can be safely cancelled.
@@ -542,7 +546,17 @@ Resolver_relax_pass(Resolver *resolver)
 		} break;
 		// .align computes padding based on current offset.
 		// Padding = bytes needed to reach next alignment boundary.
-		case Directive_Kind__Align: {} // fallthrough, since most logic is shared with .skip.
+		case Directive_Kind__Align:
+		{
+			// TODO: depending on whether the section is executable or not, we should pad here with zeros or
+			// `nop` operations.
+			//
+			// Note that the assembler usually sets some flags to some section and the linker respects it,
+			// even though some overrides could be performed.
+			//
+			// Moreover, align emits always a relocation `R_RISCV_ALIGN`, with the pessimistic number of
+			// bytes that can guarantee the alignment, given there might be previous unresolved symbols.
+		} // fallthrough, since most logic is shared with .skip.
 		case Directive_Kind__Skip:
 		{
 			// NOTE: `.skip label_2 - label_1, global_2 - global_1` is supported. This means on every
