@@ -210,6 +210,7 @@ Resolver_label_distance_fixed(Resolver *resolver, Symbols_Table_Entry *symbol_le
 // 1. A R_RISCV_RELAX, in case the instruction is suitable and .option relax is enabled.
 // 2. A specific relocation, or a R_RISCV_ADD/SUB pair.
 
+// TODO(low): Don't make this recursive.
 void
 Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 {
@@ -218,7 +219,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 
 	assert_always_m(node && "cannot evaluate null expression");
 	assert_always_m(node->kind && "cannot evaluate unknown expression kind");
-	// TODO: print error immediately, and then exit.
+	// TODO(low): print error immediately, and then exit.
 	assert_always_m(recursion_level < expression_recursion_max && "max recursion");
 
 	Expression_Kind kind = node->kind;
@@ -232,6 +233,8 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	{
 		Symbols_Table_Entry *symbol = node->symbols_table_entry;
 		assert_always_m(symbol && "parser didn't set expression entry");
+
+		symbol->flags |= Symbol_Flags__Used;
 
 		B32 declared = symbol->flags & Symbol_Flags__Declared;
 		B32 cyclic   = declared && symbol->flags & Symbol_Flags__Resolving;
@@ -269,11 +272,12 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	{
 		U16 section_current_index = resolver->section_current_index;
 		U32 label_numeric_value   = node->label_numeric_value; // e.g. 1b or 2b etc.
-		assert_always_m(label_numeric_value <= label_numeric_max);
+		assert_always_m(label_numeric_value < label_numeric_max);
 
 		B32 match  = 0;
 		U32 offset = 0;
 		U32 index  = resolver->statement_index;
+		Statement *statement = 0;
 		for (;;)
 		{
 			index += 1;
@@ -282,11 +286,22 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			{
 				break;
 			}
-			Statement *statement = &resolver->statements->data[index];
+			statement = &resolver->statements->data[index];
 			match = statement->kind == Statement_Kind__Label_Numeric && statement->label_numeric_value == label_numeric_value;
+
+			// NOTE: GNU gas doesn't error on these crosses, but I still fail to understand how they're
+			// resolved in practice.
 			B32 crossed = match && statement->section_index != section_current_index;
 			Resolver_expect(resolver, !crossed, Resolver_Error_Kind__Label_Numeric_Section_Cross);
 			offset = statement->section_offset;
+
+		}
+
+		if (match)
+		{
+			// NOTE: this means the symbol is referred by multiple nodes.
+			node->symbols_table_entry = statement->s_symbol;
+			statement->s_symbol->flags |= Symbol_Flags__Used;
 		}
 
 		Resolver_expect(resolver, match, Resolver_Error_Kind__Label_Numeric_Forward_Not_Found);
@@ -297,15 +312,24 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Label_Numeric_Reference_Backward:
 	{
+		// FIX: now numeric labels have their own entry in the symbols table.
+
 		U16 section_current_index      = resolver->section_current_index;
 		U32 label_numeric_value        = node->label_numeric_value; // e.g. 1b or 2b etc.
-		assert_always_m(label_numeric_value <= label_numeric_max);
+		assert_always_m(label_numeric_value < label_numeric_max);
 
 		Vec2_U32 statement_index_maybe = resolver->labels_numeric_statement_index[label_numeric_value];
 
 		Resolver_expect(resolver, statement_index_maybe.y, Resolver_Error_Kind__Label_Numeric_Backward_Not_Found);
 		Statement *statement = &resolver->statements->data[statement_index_maybe.x];
 		Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
+
+		if (statement_index_maybe.y)
+		{
+			// NOTE: this means the symbol is referred by multiple nodes.
+			node->symbols_table_entry = statement->s_symbol;
+			statement->s_symbol->flags |= Symbol_Flags__Used;
+		}
 
 		node->integer_value = statement_index_maybe.x;
 		node->flags |= Expression_Flags__Unresolved;
@@ -319,9 +343,6 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	} break;
 	case Expression_Kind__Relocation:
 	{
-		// TODO: redo all of this, probably just check valid expression inside and that's it.
-		// Creating the relocation will be done at a later pass.
-
 		Expression_Node *inner = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, inner);
 		B32 unresolved = (inner->flags & Expression_Flags__Unresolved);
@@ -481,9 +502,6 @@ Resolver_offsets_recompute(Resolver *resolver)
 	}
 }
 
-// TODO: check whether some relocations are possible within certain statements. For example, the relocation pairs
-// ADD/SUB can be emitted only in data directives.
-//
 // Performs the "inverse" relaxation steps, starting assuming a statements minimum size and expanding them until a fixed
 // point iteration is reached.
 //
@@ -493,6 +511,18 @@ internal B32
 Resolver_relax_pass(Resolver *resolver)
 {
 	os_memory_zero(resolver->labels_numeric_statement_index, label_numeric_max);
+
+	// FIX: I think here I'm not taking into account whether relaxation is enabled or not. If not, I should probably
+	// consider maximum sizes, consider this example:
+	//
+	// ```asm
+	// .option norelax
+	// 1:
+	// call printf
+	// beqz x0, 1b
+	// ```
+	//
+	// On GNU gas, this produces no relocation on the branch operations.
 
 	B32 changed = 0;
 	for (;;)
@@ -522,7 +552,7 @@ Resolver_relax_pass(Resolver *resolver)
 		B32 absolute                = 0;
 		B32 unresolved              = 0;
 		S64 immediate               = 0;
-		if (instruction_kind && statement->expressions_count)
+		if (statement->expressions_count)
 		{
 			U32 expression_index = statement->expressions_indexes[0];
 			expression = &resolver->expressions->data[expression_index];
@@ -564,6 +594,7 @@ Resolver_relax_pass(Resolver *resolver)
 					B32 absolute_inner = !(expression->flags & Expression_Flags__Unresolved);
 					Resolver_expect(resolver, absolute_inner, Resolver_Error_Kind__Expression_Unresolved);
 				}
+				index += 1;
 			}
 		} break;
 		// .align computes padding based on current offset.
@@ -1082,7 +1113,7 @@ Resolver_encode(Resolver *resolver)
 					B32 range_in = -limit_low <= value && value <= limit_high;
 					// TODO: this could be a warning, and truncation could be performed.
 					Resolver_expect(resolver, range_in, Resolver_Error_Kind__Expression_Value_Bounds_Outside);
-					Object_File_Section_write_bytes(section, (U8 *)value, data_directive_size);
+					Object_File_Section_write_bytes(section, (U8 *)&value, data_directive_size);
 				}
 				index += 1;
 			}

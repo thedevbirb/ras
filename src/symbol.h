@@ -1,18 +1,6 @@
 #ifndef SYMBOL_H
 #define SYMBOL_H
 
-/* TODO: Use these flags to detect, among other things, whether there a circular dependency in a symbol definition.
- *
- * Consider the following example:
- *
- * ```
- * .set A, B + 1
- * .set B, A
- * ```
- * Then the first `.set` directive should mark `A` as "resolving". In the second `.set` directive, when `B` is
- * resolving, since the expression contains another symbol which is "resolving", this errors.
- */
-
 typedef enum Symbol_Flags
 {
 	Symbol_Flags__None                       = 0 << 0,
@@ -31,6 +19,7 @@ typedef enum Symbol_Flags
 
 	/* Whether the symbol value is used in a reloc.  This is used to ensure that symbols used in relocs are written
 	 * out, even if they are local and would otherwise not be.  */
+	// TODO(high): actually use this, for example in branches.
 	Symbol_Flags__Relocation                 = 1 << 4,
 
 	/* Whether the symbol is used as an operand or in an expression.
@@ -94,6 +83,8 @@ struct Symbols_Table
 
 	U32 capacity;
 	U32 count;
+	// With 10 labels, this pads well.
+	U16 label_numeric_count[label_numeric_max];
 };
 
 // Allocates a initial buffer of zero-initialized values for saving symbols in the table.

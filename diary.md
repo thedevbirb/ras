@@ -193,6 +193,12 @@ book.
 Even though this is a very "mechanical" section, you can really pour a lot of thinking in trying to
 make it as simple as possible, meaning with the least amount of code needed.
 
+I've added encoding to the instructions, now it's time to run it via the complete examples. Again,
+that reveals stuff. In general, I've noticed some extra care is needed again during label
+difference, ensuring that no expandable instructions are in between. Then, I noticed that gas may
+produce relocation symbols for local labels, which are encoded as `.L<numeric_label>^B<occurrence>`.
+Currently, I haven't treated local labels as symbols to save, and this must be changed.
+
 # General about C
 
 Lookup tables, paired with designated initializers, are incredibly powerful. While the latter is
@@ -202,6 +208,15 @@ them.
 It also allows to write function with optional arguments, using a quite reasonable macro trick.
 While optional arguments are bad when exposed by dependencies, since the defaults may change without
 you noticing, are very handy when you write your application.
+
+# Resources
+
+Note that some of them may not be updated or reflect accurately what the actual assembler does, but
+still better than nothing.
+
+- https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5
+- https://sourceware.org/binutils/docs/as/
+- https://github.com/riscv-non-isa/riscv-elf-psabi-doc
 
 # Random
 

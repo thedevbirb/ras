@@ -31,6 +31,9 @@ struct Statement
 	// If its an instruction, once evaluated it would yield its immediate.
 	U32 *expressions_indexes;
 
+	// The symbol defined by the statement, if any.
+	Symbols_Table_Entry *s_symbol;
+
 	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
 	// U32 label_symbol_slot;
 	// If this is a numeric label definition, it is its number.

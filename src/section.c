@@ -99,7 +99,7 @@ Object_File_Section_align(Object_File_Section *section, U8 alignment)
 	return;
 }
 
-// TODO: maybe avoid this duplication?
+// TODO(low): maybe avoid this duplication?
 U32
 Object_File_Section_write_byte(Object_File_Section *section, U8 value, U64 count)
 {
@@ -116,7 +116,7 @@ Object_File_Section_write_byte(Object_File_Section *section, U8 value, U64 count
 	return offset_old;
 }
 
-// TODO: this is kinda bad, not very generic either.
+// TODO(low): this is kinda bad, not very generic either.
 U32
 Object_File_Section_write_instruction(Object_File_Section *section, U32 instruction_encoding)
 {

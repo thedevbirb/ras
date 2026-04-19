@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <errno.h>
 
+// TODO(medium): move this into appropriate place.
+#define label_numeric_max 10
+
 #include <base/base_include.h>
 #include <os/os_include.h>
 
@@ -31,7 +34,7 @@
 #include <os/os_include.c>
 
 #include "initialize.c"
-
+#include "utils.c"
 #include "language/language_include.c"
 #include "symbol.c"
 #include "section.c"

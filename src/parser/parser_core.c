@@ -1,105 +1,11 @@
-internal U32
-hash_FNV_1a(String8 string)
-{
-	U32 hash = 2166136261u;
-
-	U32 index = 0;
-	for (;;)
-	{
-		B32 break_should = index >= string.count;
-		if (break_should)
-		{
-			break;
-		}
-
-		hash ^= (U8)string.data[index];
-		hash *= 16777619u;
-
-		index += 1;
-	}
-
-	return hash;
-}
-
-// Returns the size of the literal string, as if were a byte slice, escaping characters.
-// Assumes a string with valid escape sequences.
-//
-// Example: String8.data = [",\,n,h,e,l,l,o,\,n,"] -> 7
-internal U32
-String8_byte_size_escaped(String8 string)
-{
-	U32 size = 0;
-	U32 index = 1;
-	U32 count = string.count - 2; // No ".
-	for (;;)
-	{
-		B32 break_should = index >= count;
-		if (break_should)
-		{
-			break;
-		}
-
-		size += 1;
-
-		U8 character_outer = string.data[index];
-		if (character_outer == '\\')
-		{
-			index += 1;
-			U8 character_escaped = string.data[index];
-			B32 hex_prefix   = character_escaped == 'x';
-			B32 octal_prefix = 0 <= character_escaped - '0' && character_escaped - '0' < 8;
-
-				if (hex_prefix)
-				{
-					// E.g. \x1a
-					//       ^--- cursor is here
-					// We know from lexing the first one is guaranteed to be valid
-					index += 2;
-					// E.g. \x1a
-					//         ^--- cursor is here
-					U8 character_inner = string.data[index];
-					if (hex_table[character_inner] != hex_table_sentinel_invalid)
-					{
-						index += 1;
-					}
-				}
-				else if (octal_prefix)
-				{
-					// E.g. \377
-					//       ^--- cursor is here
-					index += 1;
-					U8 character_inner = string.data[index];
-					if (character_inner - '0' < 8)
-					{
-						index += 1;
-					}
-
-					character_inner = string.data[index];
-					if (character_inner - '0' < 8)
-					{
-						index += 1;
-					}
-				}
-				else
-				{
-					index += 2;
-				}
-		}
-		else
-		{
-			index += 1;
-		}
-	}
-
-	return size;
-}
-
 // Create a label string for the dot symbol, in the format `.D{index}`, where `index` is the current statement index.
+//
+// TODO(medium): this may not be needed, since every statements brings its own section offset.
 internal String8
 Parser_label_dot(Parser *parser)
 {
 	U32 statement_index = parser->statements->count;
-	U32 digits_count = snprintf(0, 0, "%d", statement_index);
+	U32 digits_count = number_to_digits_count(statement_index);
 	U64 string_characters_count  = digits_count + 2;
 	String8 key =
 	{
@@ -110,7 +16,32 @@ Parser_label_dot(Parser *parser)
 
 	key.data[0] = '.';
 	key.data[1] = 'D';
+	// TODO(low): I mean, snprintf is quite overkill for this.
 	snprintf((char *)(key.data + 2), digits_count, "%d", statement_index);
+
+	return key;
+}
+
+// Format: .L<number>^B<occurrences>, compliant to GNU as. ^B is 0x02.
+internal String8
+Parser_label_numeric_symbol_string(Parser *parser, U8 label_numeric)
+{
+	assert_always_m(label_numeric < label_numeric_max);
+	U16 occurrences = parser->symbols_table->label_numeric_count[label_numeric];
+	U32 digits_count = number_to_digits_count(occurrences);
+	U8 string_characters_count = 4 + digits_count;
+	String8 key =
+	{
+		.data = Arena_push_array_m(parser->arena, U8, string_characters_count),
+		.count = string_characters_count,
+	};
+
+	key.data[0] = '.';
+	key.data[1] = '.';
+	key.data[2] = '0' + label_numeric;
+	key.data[3] = 0x02;
+	// TODO(low): I mean, snprintf is quite overkill for this.
+	snprintf((char *)(key.data + 4), digits_count, "%d", occurrences);
 
 	return key;
 }
@@ -228,12 +159,16 @@ Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
 	Instruction_Format instruction_format = parser->statement_context->instruction_format;
 	B32 instruction_format_valid = instruction_format == Instruction_Format__B
 		                    || instruction_format == Instruction_Format__I
+		                    || instruction_format == Instruction_Format__U
 		                    || instruction_format == Instruction_Format__J
 		                    || instruction_format == Instruction_Format__S
 		                    || instruction_format == Instruction_Format__Expandable;
 
+	B32 relocation_operator_present = parser->statement_context->relocation_operator != 0;
+
 	B32 context_valid = directive_kind_valid
-		         || instruction_format_valid;
+		         || instruction_format_valid
+			 || relocation_operator_present;
 
 	Parser_expect(parser, context_valid, Parser_Error_Kind__Symbol_Context_Invalid);
 	return;
@@ -280,7 +215,7 @@ Parser_parse_null_denotation(Parser *parser)
 		symbol->elf.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Local, 0);
 
 		node->symbols_table_entry = symbol;
-		Parser_symbol_ensure_context_valid(parser, symbol);
+		// Parser_symbol_ensure_context_valid(parser, symbol);
 
 		Parser_advance(parser);
 	} break;
@@ -291,7 +226,7 @@ Parser_parse_null_denotation(Parser *parser)
 
 		String8 key = Parser_token_string(parser);
 		Symbols_Table_Entry *symbol = Symbols_Table_reserve(parser->symbols_table, key);
-		Parser_symbol_ensure_context_valid(parser, symbol);
+		// Parser_symbol_ensure_context_valid(parser, symbol);
 
 		node->symbols_table_entry = symbol;
 
@@ -300,19 +235,23 @@ Parser_parse_null_denotation(Parser *parser)
 
 	case Token_Kind__Label_Numeric_Reference_Forward:
 	{
-		Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+		Parser_expect(parser, parser->token_current.numerical_value < label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
 
 		node->kind                = Expression_Kind__Label_Numeric_Reference_Forward;
 		node->label_numeric_value = token.numerical_value;
+
+		// NOTE: the symbol of this expression will be filled during evaluation.
 
 		Parser_advance(parser);
 	} break;
 	case Token_Kind__Label_Numeric_Reference_Backward:
 	{
-		Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+		Parser_expect(parser, parser->token_current.numerical_value < label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
 
 		node->kind                = Expression_Kind__Label_Numeric_Reference_Backward;
 		node->label_numeric_value = token.numerical_value;
+
+		// NOTE: the symbol of this expression will be filled during evaluation.
 
 		Parser_advance(parser);
 	} break;
@@ -562,14 +501,22 @@ Parser_parse(Parser *parser)
 			entry->elf.section_index = parser->section_current_index,
 
 			Parser_advance(parser);
-			parser->statement_context->kind              = Statement_Kind__Label;
+			parser->statement_context->s_symbol = entry;
+			parser->statement_context->kind     = Statement_Kind__Label;
 		} break;
 		case Token_Kind__Label_Numeric:
 		{
-			Parser_expect(parser, parser->token_current.numerical_value <= label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
+			Parser_expect(parser, parser->token_current.numerical_value < label_numeric_max, Parser_Error_Kind__Label_Numeric_Large);
 			U8 label_numeric_value = parser->token_current.numerical_value;
 
+			String8 key = Parser_label_numeric_symbol_string(parser, label_numeric_value);
+			Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
+
+			entry->elf.section_index    = parser->section_current_index;
+			entry->elf.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Local, 0);
+
 			Parser_advance(parser);
+			parser->statement_context->s_symbol = entry;
 			parser->statement_context->label_numeric_value = label_numeric_value;
 			parser->statement_context->kind                = Statement_Kind__Label_Numeric;
 		} break;
@@ -702,8 +649,9 @@ Parser_parse(Parser *parser)
 
 				// TODO: what if set or equ creates an alias for a label? Special handling?
 
-				Parser_symbol_declare(parser, key);
+				Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
 
+				parser->statement_context->s_symbol = entry;
 				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count   = 1;
 			} break;
@@ -723,7 +671,7 @@ Parser_parse(Parser *parser)
 			{
 				Parser_advance(parser);
 				Expression_Node *expression = Parser_expression_parse(parser);
-				parser->statement_context->expressions_indexes[0] = expression->index;
+				parser->statement_context->expressions_indexes = &expression->index;
 				parser->statement_context->expressions_count = 1;
 
 				if (parser->token_current.kind == Token_Kind__Comma)
@@ -763,6 +711,7 @@ Parser_parse(Parser *parser)
 				expressions_indexes[0] = size_expression->index;
 				expressions_indexes[1] = alignment_expression->index;
 
+				parser->statement_context->s_symbol = entry;
 				parser->statement_context->expressions_indexes = expressions_indexes;
 				parser->statement_context->expressions_count = 2;
 			} break;

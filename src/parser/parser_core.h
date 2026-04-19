@@ -1,7 +1,6 @@
 #ifndef PARSER_CORE_H
 #define PARSER_CORE_H
 
-#define label_numeric_max 9
 #define expression_recursion_max 8
 
 
@@ -69,7 +68,7 @@ global const char *Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Directive_Data_Value_Size_Invalid]     = "directive data expression value doesn't fit",
 	[Parser_Error_Kind__Directive_Argument_Invalid]            = "directive argument invalid",
 	[Parser_Error_Kind__Label_Duplicate]                       = "duplicate label found",
-	[Parser_Error_Kind__Label_Numeric_Large]                   = "numerical label cannot be larger than " stringify_m(label_numeric_max),
+	[Parser_Error_Kind__Label_Numeric_Large]                   = "numerical label must be less than " stringify_m(label_numeric_max),
 	[Parser_Error_Kind__Expression_Unexpected_Token]           = "unexpected token in expression",
 	[Parser_Error_Kind__Expression_Unexpected_End]             = "unexpected end of tokens in expression",
 	[Parser_Error_Kind__Expression_Parenthesis_Right_Expected] = "expected ')' to close parenthesized expression",
