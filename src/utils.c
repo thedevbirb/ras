@@ -122,3 +122,13 @@ label_symbol_prefix_set(U8 *data, U8 label_numeric_value)
 	data[3] = 0x02;
 	return 4;
 }
+
+internal B32
+S64_bits_range_in(S64 signed_integer, U8 bits)
+{
+	S64 limit_low  = -(1 << (bits - 1));
+	S64 limit_high =  (1 << (bits - 1)) - 1;
+	B32 result = - limit_low < signed_integer && signed_integer && limit_high;
+	return result;
+}
+

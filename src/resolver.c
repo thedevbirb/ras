@@ -1,51 +1,3 @@
-// Implementation notes.
-//
-// # Absolute Symbols and Expressions
-//
-// The definition of an absolute symbol is the following:
-//
-// A symbol is said to be absolute when its numeric value is invariant under relocation, that is, its value does not
-// change regardless of where any section is loaded in memory. An absolute symbol is placed into the
-// `ELF_Section_Index__Absolute` section inside the object file.
-//
-// More concretely, it means after relaxation it doesn't contain no residual dependency on any section base address, so
-// it must reduce to a pure numeric constant.
-//
-// While this theoretical definition is helpful, transforming it into an algorithm is not as easy as it sounds. First,
-// absolute symbols require a definition using a directive like `.set` or `.equ`. Then, the expression that defines the
-// symbol must be recursively inspected and resolved, until we reach the base case consisting of numerical evaluation or
-// subtraction of local labels defined within the same section.
-//
-// Since labels may change their section offset during the relaxation process, due to instruction expansion, we have to
-// recompute the value of these symbols in every iteration. One thing that can be done is tracking whether labels occur.
-//
-// Similarly, it is helpful to define whether an expression is absolute. Again, it must only contain operations between
-// absolute symbols, numeric literals, or subtraction between locally defined labels within the same section.
-//
-// ## Optimization
-//
-// Consider the following example:
-//
-// ```
-// .set A, B
-// .set B, ~C
-// .set C, 1
-// ```
-//
-// The algorithm described above will evaluate the expression which defines `A`, sees a definition of `B` and tries to
-// evaluate it, and so on. After the process is finished, we will discover that `A` is indeed absolute, however it must
-// be that every symbol definition encountered along the way is also absolute, meaning we can already set `B` and `C` as
-// absolute as well.
-
-internal B32
-S64_bits_range_in(S64 signed_integer, U8 bits)
-{
-	S64 limit_low  = -(1 << (bits - 1));
-	S64 limit_high =  (1 << (bits - 1)) - 1;
-	B32 result = - limit_low < signed_integer && signed_integer && limit_high;
-	return result;
-}
-
 void
 Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 {
@@ -224,13 +176,28 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 
 	Expression_Kind kind = node->kind;
 
+	if (node->evaluation < Evaluation__Constant)
+	{
 	switch (kind)
 	{
 	case Expression_Kind__None:            {} break;
-	case Expression_Kind__Number_Literal:  {} break;
-	case Expression_Kind__Char_Literal:    {} break;
+	case Expression_Kind__Number_Literal:
+	{
+		assert_always_m(node->index_left  == 0);
+		assert_always_m(node->index_right == 0);
+		node->evaluation = Evaluation__Constant;
+	} break;
+	case Expression_Kind__Char_Literal:
+	{
+		assert_always_m(node->index_left  == 0);
+		assert_always_m(node->index_right == 0);
+		node->evaluation = Evaluation__Constant;
+	} break;
 	case Expression_Kind__Identifier:
 	{
+		assert_always_m(node->index_left  == 0);
+		assert_always_m(node->index_right == 0);
+
 		Symbols_Table_Entry *symbol = node->symbols_table_entry;
 		assert_always_m(symbol && "parser didn't set expression entry");
 
@@ -253,7 +220,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			Resolver_expression_evaluate(resolver, inner);
 			symbol->flags &= ~Symbol_Flags__Resolving;
 
-			B32 symbol_absolute_is = definition_is && !(inner->flags & Expression_Flags__Unresolved);
+			B32 symbol_absolute_is = definition_is && inner->evaluation >= Evaluation__Absolute;
 
 			if (symbol_absolute_is)
 			{
@@ -261,27 +228,38 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				node->integer_value = inner->integer_value;
 			}
 
-			node->flags |= inner->flags;
+			node->evaluation = inner->evaluation;
 		}
 		else
 		{
-			node->flags |= Expression_Flags__Unresolved;
+			node->evaluation = Evaluation__Unresolved;
 		}
 	} break;
+	case Expression_Kind__Label_Numeric_Reference_Backward: {} // fallthrough
 	case Expression_Kind__Label_Numeric_Reference_Forward:
 	{
+		// This is a straighforward walk forward/backward algorithm. Numerical label reference are usually very
+		// close by so this should not be here too long.
+
+		assert_always_m(node->index_left  == 0);
+		assert_always_m(node->index_right == 0);
+
 		U16 section_current_index = resolver->section_current_index;
 		U32 label_numeric_value   = node->label_numeric_value; // e.g. 1b or 2b etc.
 		assert_always_m(label_numeric_value < label_numeric_max);
 
-		B32 match  = 0;
-		U32 offset = 0;
-		U32 index  = resolver->statement_index;
+		S64 index      = resolver->statement_index;
+		B32 forward_is = node->kind == Expression_Kind__Label_Numeric_Reference_Forward;
+		S32 direction                  = forward_is ? 1 : -1;
+		S64 end                        = forward_is ? (S64)resolver->statements->count : -1;
+
+		B32 match            = 0;
+		U32 offset           = 0;
 		Statement *statement = 0;
 		for (;;)
 		{
-			index += 1;
-			B32 break_should = match || index >= resolver->statements->count;
+			index += direction;
+			B32 break_should = match || index == end;
 			if (break_should)
 			{
 				break;
@@ -304,61 +282,40 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 			statement->s_symbol->flags |= Symbol_Flags__Used;
 		}
 
+		Resolver_Error_Kind error_kind = forward_is ? Resolver_Error_Kind__Label_Numeric_Forward_Not_Found
+			                                    : Resolver_Error_Kind__Label_Numeric_Backward_Not_Found;
 		Resolver_expect(resolver, match, Resolver_Error_Kind__Label_Numeric_Forward_Not_Found);
 
 		node->integer_value = offset;
-		node->flags |= Expression_Flags__Unresolved;
-
-	} break;
-	case Expression_Kind__Label_Numeric_Reference_Backward:
-	{
-		// FIX: now numeric labels have their own entry in the symbols table.
-
-		U16 section_current_index      = resolver->section_current_index;
-		U32 label_numeric_value        = node->label_numeric_value; // e.g. 1b or 2b etc.
-		assert_always_m(label_numeric_value < label_numeric_max);
-
-		Vec2_U32 statement_index_maybe = resolver->labels_numeric_statement_index[label_numeric_value];
-
-		Resolver_expect(resolver, statement_index_maybe.y, Resolver_Error_Kind__Label_Numeric_Backward_Not_Found);
-		Statement *statement = &resolver->statements->data[statement_index_maybe.x];
-		Resolver_expect(resolver, statement->section_index == section_current_index, Resolver_Error_Kind__Label_Numeric_Section_Cross);
-
-		if (statement_index_maybe.y)
-		{
-			// NOTE: this means the symbol is referred by multiple nodes.
-			node->symbols_table_entry = statement->s_symbol;
-			statement->s_symbol->flags |= Symbol_Flags__Used;
-		}
-
-		node->integer_value = statement_index_maybe.x;
-		node->flags |= Expression_Flags__Unresolved;
+		node->evaluation = Evaluation__Unresolved;
 
 	} break;
 	case Expression_Kind__Current_Address:
 	{
+		assert_always_m(node->index_left  == 0);
+		assert_always_m(node->index_right == 0);
+
 		U32 section_current_offset = resolver->sections_offset[resolver->section_current_index];
 		node->integer_value = section_current_offset;
-		node->flags |= Expression_Flags__Unresolved;
+		node->evaluation = Evaluation__Unresolved;
 	} break;
 	case Expression_Kind__Relocation:
 	{
 		Expression_Node *inner = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, inner);
-		B32 unresolved = (inner->flags & Expression_Flags__Unresolved);
-		// TODO: gas supports some relocation prefixes with absolute values. For example,
+		// NOTE: gas supports some relocation prefixes with absolute values. For example,
 		// `%hi/lo(1234)` is accepted, and a relocation is not emitted. I think this is NOT desired.
-		Resolver_expect(resolver, unresolved, Resolver_Error_Kind__Relocation_Operator_Absolute_Invalid);
+		Resolver_expect(resolver, inner->evaluation == Evaluation__Unresolved, Resolver_Error_Kind__Relocation_Operator_Expression_Unresolved_Expected);
 		B32 symbol_single = inner->symbol_operand == 0;
 		Resolver_expect(resolver, symbol_single, Resolver_Error_Kind__Relocation_Operator_Expression_Invalid);
 
-		assert_always_m(inner->symbols_table_entry && "unresolved expression with no symbol");
+		assert_always_m(inner->symbols_table_entry && "expression->evaluation == Evaluation__Unresolved expression with no symbol");
 		// This node absorbs the symbol and the value of the inner node.
 		node->symbols_table_entry = inner->symbols_table_entry;
 		node->integer_value       = inner->integer_value;
-		node->flags |= Expression_Flags__Unresolved;
+		node->evaluation = Evaluation__Unresolved;
 
-		// TODO: gas doesn't check that a `pcrel_lo` label points to an appropriate `pcrel_hi`, or it allows an
+		// NOTE: gas doesn't check that a `pcrel_lo` label points to an appropriate `pcrel_hi`, or it allows an
 		// addend within it, leaving the heavy duty on the linker with basically no validation.
 
 	} break;
@@ -368,10 +325,10 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
+		B32 valid = node_left->evaluation >= Evaluation__Absolute;
+		Resolver_expect(resolver, valid, Resolver_Error_Kind__Operator_Expression_Absolute_Expected);
 
-		node->flags |= node_left->flags;
+		node->evaluation = node_left->evaluation;
 		node->integer_value = ~(node_left->integer_value - 1);
 	} break;
 	case Expression_Kind__Bitwise_Not:
@@ -379,10 +336,10 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
+		B32 valid = node_left->evaluation >= Evaluation__Absolute;
+		Resolver_expect(resolver, valid, Resolver_Error_Kind__Operator_Expression_Absolute_Expected);
 
-		node->flags |= node_left->flags;
+		node->evaluation = node_left->evaluation;
 		node->integer_value = ~node_left->integer_value;
 	} break;
 	case Expression_Kind__Logical_Not:
@@ -390,10 +347,10 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		Expression_Node *node_left = &resolver->expressions->data[node->index_left];
 		Resolver_expression_evaluate(resolver, node_left);
 
-		B32 invalid = node_left->flags & Expression_Flags__Unresolved;
-		Resolver_expect(resolver, !invalid, Resolver_Error_Kind__Operator_Expression_Unresolved);
+		B32 valid = node_left->evaluation >= Evaluation__Absolute;
+		Resolver_expect(resolver, valid, Resolver_Error_Kind__Operator_Expression_Absolute_Expected);
 
-		node->flags |= node_left->flags;
+		node->evaluation = node_left->evaluation;
 		node->integer_value = !node_left->integer_value;
 	} break;
 	default:
@@ -414,8 +371,8 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		node->relocation_operator = relocation_operator_right;
 		node->relocation_operator = relocation_operator_left;
 
-		B32 unresolved_right = node_right->flags & Expression_Flags__Unresolved;
-		B32 unresolved_left  = node_left->flags  & Expression_Flags__Unresolved;
+		B32 unresolved_right = node_right->evaluation == Evaluation__Unresolved;
+		B32 unresolved_left  = node_left->evaluation  == Evaluation__Unresolved;
 
 		Symbols_Table_Entry *symbol_right = node_right->symbols_table_entry;
 		Symbols_Table_Entry *symbol_left  = node_left->symbols_table_entry;
@@ -433,7 +390,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 		if (unresolved_left && unresolved_right)
 		{
 			Resolver_expect(resolver, node->kind == Expression_Kind__Subtract, Resolver_Error_Kind__Operator_Between_Symbols_Invalid);
-			Resolver_expect(resolver, symbol_operand_right == 0 && symbol_operand_left == 0, Resolver_Error_Kind__Operator_Expression_Unresolved);
+			Resolver_expect(resolver, symbol_operand_right == 0 && symbol_operand_left == 0, Resolver_Error_Kind__Operator_Expression_Absolute_Expected);
 			Resolver_expect(resolver, !node->relocation_operator, Resolver_Error_Kind__Relocation_Expression_Invalid);
 
 			B32 distance_fixed = Resolver_label_distance_fixed(resolver, symbol_left, symbol_right);
@@ -443,29 +400,27 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 				// Symbols can be safely cancelled.
 				node->symbols_table_entry = 0;
 				node->symbol_operand      = 0;
-
-				node->flags &= ~Expression_Flags__Unresolved;
 			}
 			else
 			{
-				node->flags |= Expression_Flags__Unresolved;
 				node->symbols_table_entry = symbol_left;
 				node->symbol_operand = node_right->symbols_table_entry;
 			}
 		}
 		else if (unresolved_left)
 		{
-			node->flags |= Expression_Flags__Unresolved;
 			node->symbols_table_entry = symbol_left;
 			node->symbol_operand = symbol_operand_left;
 		}
 		else if (unresolved_right)
 		{
-			node->flags |= Expression_Flags__Unresolved;
 			node->symbols_table_entry = symbol_right;
 			node->symbol_operand = symbol_operand_right;
 		}
+
+		node->evaluation = min_m(node_left->evaluation, node_right->evaluation);
 	} break;
+	}
 	}
 
 	recursion_level -= 1;
@@ -473,6 +428,14 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	return;
 }
 
+internal Expression_Node *
+Resolver_statement_expression_evaluate_index(Resolver *resolver, Statement *statement, U32 index)
+{
+	U32 expression_index        = statement->expressions_indexes[index];
+	Expression_Node *expression = &resolver->expressions->data[expression_index];
+	Resolver_expression_evaluate(resolver, expression);
+	return expression;
+}
 
 internal void
 Resolver_offsets_recompute(Resolver *resolver)
@@ -490,13 +453,6 @@ Resolver_offsets_recompute(Resolver *resolver)
 		U32 *section_offset       = &section_offsets[statement->section_index];
 		statement->section_offset = *section_offset;
 
-		// if (statement->kind == Statement_Kind__Label)
-		// {
-		// 	String8 symbol_key = Token_string(resolver->tokens[statement->token_index_begin]);
-		// 	Symbols_Table_Entry *entry = &resolver->symbols_table->entries[statement->label_symbol_slot];
-		// 	entry->elf.value = statement->section_offset;
-		// }
-
 		*section_offset += statement->size;
 		Resolver_advance(resolver);
 	}
@@ -505,14 +461,12 @@ Resolver_offsets_recompute(Resolver *resolver)
 // Performs the "inverse" relaxation steps, starting assuming a statements minimum size and expanding them until a fixed
 // point iteration is reached.
 //
-// In this process, only statements which can actually expand are inspected with their expressions being evaluated. The
+// NOTE: In this process, only statements which can actually expand are inspected with their expressions being evaluated. The
 // others are ignored. Subsequent steps, like encoding, must take care of them.
 internal B32
 Resolver_relax_pass(Resolver *resolver)
 {
-	os_memory_zero(resolver->labels_numeric_statement_index, label_numeric_max);
-
-	// FIX: I think here I'm not taking into account whether relaxation is enabled or not. If not, I should probably
+	// TODO(high): I think here I'm not taking into account whether relaxation is enabled or not. If not, I should probably
 	// consider maximum sizes, consider this example:
 	//
 	// ```asm
@@ -533,97 +487,32 @@ Resolver_relax_pass(Resolver *resolver)
 			break;
 		}
 
-		Statement          *statement          = resolver->statement_current;
-		Directive_Kind      directive_kind     = statement->directive_kind;
-		Instruction_Kind    instruction_kind   = statement->instruction_kind;
-
-		if (statement->kind == Statement_Kind__Label_Numeric)
-		{
-			resolver->labels_numeric_statement_index[statement->label_numeric_value]
-				= (Vec2_U32){ .x = resolver->statement_index, .y = 1 };
-		}
+		Statement        *statement         = resolver->statement_current;
+		Directive_Kind    directive_kind    = statement->directive_kind;
+		Instruction_Kind  instruction_kind  = statement->instruction_kind;
 
 		U32 size_old = statement->size;
 		U32 size_new = size_old;
 
-		// Do here all the expression related boilerplate. In particular, evaluate the first expression to
-		// deduplicate some code.
-		Expression_Node *expression = 0;
-		B32 absolute                = 0;
-		B32 unresolved              = 0;
-		S64 immediate               = 0;
-		if (statement->expressions_count)
-		{
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
-			Resolver_expression_evaluate(resolver, expression);
-			unresolved = expression->flags & Expression_Flags__Unresolved;
-			absolute   = !unresolved;
-			if (absolute)
-			{
-				immediate = expression->integer_value;
-			}
-		}
-
-
 		switch (directive_kind)
 		{
-		case Directive_Kind__Word_Double: {} // fallthrough
-		case Directive_Kind__Word:        {} // fallthrough
-		case Directive_Kind__Word_Half:   {} // fallthrough
-		case Directive_Kind__Byte:
-		{
-			B32 byte_or_word_half = directive_kind == Directive_Kind__Byte
-				             || directive_kind == Directive_Kind__Word_Half;
-			// This could changed to 1, but whatever..
-			U32 index = 0;
-			for (;;)
-			{
-				B32 break_should_data = index >= statement->expressions_count;
-				if (break_should_data)
-				{
-					break;
-				}
-				U32 expression_index              = statement->expressions_indexes[index];
-				Expression_Node *expression_inner = &resolver->expressions->data[expression_index];
-				Resolver_expression_evaluate(resolver, expression_inner);
-				if (byte_or_word_half)
-				{
-					// No relocations types exist for these two, hence the error.
-					B32 absolute_inner = !(expression->flags & Expression_Flags__Unresolved);
-					Resolver_expect(resolver, absolute_inner, Resolver_Error_Kind__Expression_Unresolved);
-				}
-				index += 1;
-			}
-		} break;
 		// .align computes padding based on current offset.
 		// Padding = bytes needed to reach next alignment boundary.
-		case Directive_Kind__Align:
-		{
-			// TODO: depending on whether the section is executable or not, we should pad here with zeros or
-			// `nop` operations.
-			//
-			// Note that the assembler usually sets some flags to some section and the linker respects it,
-			// even though some overrides could be performed.
-			//
-			// Moreover, align emits always a relocation `R_RISCV_ALIGN`, with the pessimistic number of
-			// bytes that can guarantee the alignment, given there might be previous unresolved symbols.
-		} // fallthrough, since most logic is shared with .skip.
+		case Directive_Kind__Align: {} // fallthrough, since most logic is shared with .skip.
 		case Directive_Kind__Skip:
 		{
-			// NOTE: `.skip label_2 - label_1, global_2 - global_1` is supported. This means on every
+			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
+
+			// NOTE: `.skip/align label_2 - label_1, global_2 - global_1` is supported. This means on every
 			// iteration we should check the value to get proper instruction size.
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			size_new = expression->integer_value;
 
 			if (statement->expressions_count > 1)
 			{
-				U32 expression_index_inner  = statement->expressions_indexes[1];
-				Expression_Node *expression_inner = &resolver->expressions->data[expression_index_inner];
-				Resolver_expression_evaluate(resolver, expression_inner);
+				Resolver_statement_expression_evaluate_index(resolver, statement, 1);
 			}
 
-			size_new = expression->integer_value;
 			if (directive_kind == Directive_Kind__Align)
 			{
 				U32 alignment = 1u << (U32)expression->integer_value;
@@ -634,12 +523,19 @@ Resolver_relax_pass(Resolver *resolver)
 		} break;
 		case Directive_Kind__Zero:
 		{
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
+			U32 expression_index        = statement->expressions_indexes[0];
+			Expression_Node *expression = &resolver->expressions->data[expression_index];
+			Resolver_expression_evaluate(resolver, expression);
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
 			size_new = expression->integer_value;
 		} break;
 
 		// Ignored directives, that we keep for exhaustive match warnings.
 		case Directive_Kind__None:           {} break;
+		case Directive_Kind__Word_Double:    {} break;
+		case Directive_Kind__Word:           {} break;
+		case Directive_Kind__Word_Half:      {} break;
+		case Directive_Kind__Byte:           {} break;
 		case Directive_Kind__Section:        {} break;
 		case Directive_Kind__Text:           {} break;
 		case Directive_Kind__Data:           {} break;
@@ -658,15 +554,15 @@ Resolver_relax_pass(Resolver *resolver)
 		case Directive_Kind__COUNT:          {} break;
 		}
 
-		// Instruction related.
-
 		switch (instruction_kind)
 		{
 		case Instruction_Kind__LI:
 		{
 			// If the immediate fits in 12 bits, sign-extended, a single addi suffices.
 			// Otherwise, we need a lui + addi, for 8 bytes total.
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
+			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			S64 immediate = expression->integer_value;
 
 			size_new = 24; // Worst-case for rv32 is 8.
 			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
@@ -680,7 +576,7 @@ Resolver_relax_pass(Resolver *resolver)
 		} break;
 		case Instruction_Kind__J:
 		{
-			// Expands to `jal, x0, immediate`. In code, an unresolved expression can be in place, and e JAL
+			// Expands to `jal, x0, immediate`. In code, an expression->evaluation == Evaluation__Unresolved expression can be in place, and e JAL
 			// relocation is emitted.
 		} break;
 		case Instruction_Kind__TAIL:
@@ -691,11 +587,12 @@ Resolver_relax_pass(Resolver *resolver)
 		} // fallthrough
 		case Instruction_Kind__CALL:
 		{
+			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
 			// jal has a 21-bit signed offset range. If the target is not within that range, than we need an
 			// auipc + jalr, for 8 bytes total.
 			S64 delta = (S64)expression->integer_value - statement->section_offset;
 			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
-			if (expression->flags & Expression_Flags__Unresolved || !range_in)
+			if (expression->evaluation <= Evaluation__Absolute || !range_in)
 			{
 				size_new = 8;
 			}
@@ -718,6 +615,7 @@ Resolver_relax_pass(Resolver *resolver)
 		case Instruction_Kind__BGTU: {} // fallthrough
 		case Instruction_Kind__BLEU:
 		{
+			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
 			// Conditional branches have a 4 KiB range (13-bit signed offset).
 			// If the target is within range:
 			//   bxx rs1, rs2, offset -> 4 bytes
@@ -725,7 +623,7 @@ Resolver_relax_pass(Resolver *resolver)
 			//   bxx_inv rs1, rs2, +8; jal zero, offset -> 8 bytes  (if jal range suffices)
 			//   bxx_inv rs1, rs2, +12; auipc + jalr    -> 12 bytes (if beyond jal range too)
 			size_new = 12;
-			if (!(expression->flags & Expression_Flags__Unresolved))
+			if (expression->evaluation >= Evaluation__Absolute)
 			{
 				S64 delta = (S64)expression->integer_value - (S64)statement->section_offset;
 				if (-(1 << 12) <= delta && delta <= (1 << 12) - 1)
@@ -774,6 +672,623 @@ Resolver_relax(Resolver *resolver)
 
 	Resolver_offsets_recompute(resolver);
 	return pass_count;
+}
+
+// Encode instructions and directives to object files, emitting relocations if needed.
+//
+// Assumes Resolver_relax has been called.
+
+void
+Resolver_encode(Resolver *resolver)
+{
+	Resolver_cursor_reset(resolver);
+
+	U8 data_directive_size = 0;
+
+	for (;;)
+	{
+		// TODO(high): ensure that immediate values calculated can fit the instruction encoding.
+		B32 break_should_encoding = resolver->statements_end_reached || resolver->error.kind;
+		if (break_should_encoding)
+		{
+			break;
+		}
+
+		Statement       *statement         = resolver->statement_current;
+		Directive_Kind   directive_kind    = statement->directive_kind;
+		Instruction_Kind instruction_kind  = statement->instruction_kind;
+
+		Object_File_Section *section            = &resolver->sections[statement->section_index];
+		Object_File_Section *section_relocation = &resolver->sections[statement->section_index];
+
+		switch (directive_kind)
+		{
+		case Directive_Kind__Word_Double: { data_directive_size += 4; } // fallthrough
+		case Directive_Kind__Word:        { data_directive_size += 2; } // fallthrough
+		case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
+		case Directive_Kind__Byte:
+		{
+			local_persist const struct { Relocation_RISC_V add; Relocation_RISC_V sub; } relocation_pair_table[] =
+			{
+				{ Relocation_RISC_V__Add_8,  Relocation_RISC_V__Sub_8  },
+				{ Relocation_RISC_V__Add_16, Relocation_RISC_V__Sub_16 },
+				{ Relocation_RISC_V__Add_32, Relocation_RISC_V__Sub_32 },
+				{ Relocation_RISC_V__Add_64, Relocation_RISC_V__Sub_64 },
+			};
+			local_persist const Relocation_RISC_V relocation_table[] =
+			{
+				Relocation_RISC_V__None,
+				Relocation_RISC_V__None,
+				Relocation_RISC_V__32_Bit,
+				Relocation_RISC_V__64_Bit,
+			};
+			U8 relocation_table_index = (data_directive_size / 2) - 1;
+
+			U32 index = 0;
+			for (;;)
+			{
+				U32 expression_index        = statement->expressions_indexes[index];
+				Expression_Node *expression = &resolver->expressions->data[expression_index];
+				if (expression->evaluation == Evaluation__Unresolved)
+				{
+					if (expression->symbol_operand)
+					{
+						Relocation_RISC_V relocation_kind_add = relocation_pair_table[relocation_table_index].add;
+						Relocation_RISC_V relocation_kind_sub = relocation_pair_table[relocation_table_index].sub;
+
+						ELF64_Relocation_Addend relocation_add =
+						{
+							.offset = statement->section_offset + index,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind_add),
+							.addend = expression->integer_value,
+						};
+						ELF64_Relocation_Addend relocation_sub =
+						{
+							.offset = statement->section_offset + index,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind_sub),
+							.addend = 0,
+						};
+
+						Object_File_Section_relocation_write(section_relocation, &relocation_add);
+						Object_File_Section_relocation_write(section_relocation, &relocation_sub);
+					}
+					else
+					{
+						Relocation_RISC_V relocation_kind = relocation_table[data_directive_size];
+						Resolver_expect(resolver, relocation_kind, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+
+						ELF64_Relocation_Addend relocation =
+						{
+							.offset = statement->section_offset + index,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind),
+							.addend = expression->integer_value,
+						};
+						Object_File_Section_relocation_write(section_relocation, &relocation);
+					}
+				}
+				else
+				{
+					// TODO: conversions etc might bite me off here.
+					S64 value = expression->integer_value;
+					U64 limit_low  =  1 << (8 * data_directive_size - 1);
+					U64 limit_high = (1 << (8 * data_directive_size)) - 1;
+					B32 range_in = -limit_low <= value && value <= limit_high;
+					// TODO: this could be a warning, and truncation could be performed.
+					Resolver_expect(resolver, range_in, Resolver_Error_Kind__Expression_Value_Bounds_Outside);
+					Object_File_Section_write_bytes(section, (U8 *)&value, data_directive_size);
+				}
+
+				index += 1;
+				B32 break_should = index >= statement->expressions_count || resolver->error.kind;
+				if (break_should)
+				{
+					break;
+				}
+			}
+
+			data_directive_size = 0;
+		} break;
+		case Directive_Kind__Align:
+		{
+			// TODO: depending on whether the section is executable or not, we should pad here with zeros or
+			// `nop` operations.
+			//
+			// Note that the assembler usually sets some flags to some section and the linker respects it,
+			// even though some overrides could be performed.
+			//
+			// Moreover, align emits always a relocation `R_RISCV_ALIGN`, with the pessimistic number of
+			// bytes that can guarantee the alignment, given there might be previous expression->evaluation == Evaluation__Unresolved symbols.
+		} // fallthrough
+		case Directive_Kind__Skip:
+		{
+			U8 value = 0;
+			if (statement->expressions_count > 1)
+			{
+				U32 expression_index = statement->expressions_indexes[1];
+				Expression_Node *expression = &resolver->expressions->data[expression_index];
+				if (expression->evaluation == Evaluation__Unresolved)
+				{
+					// Emit relocations for each byte
+					Resolver_expect(resolver, expression->symbol_operand != 0, Resolver_Error_Kind__Relocation_Byte);
+					assert_always_m(expression->kind == Expression_Kind__Subtract);
+					U32 index = 0;
+					for (;;)
+					{
+						B32 break_should = index >= statement->size;
+						if (break_should)
+						{
+							break;
+						}
+						// NOTE: only one relocation will have a non-zero addend if
+						// expression->integer_value is non-zero.
+						ELF64_Relocation_Addend relocation_add =
+						{
+							.offset = statement->section_offset + index,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, Relocation_RISC_V__Add_8),
+							.addend = expression->integer_value,
+						};
+						ELF64_Relocation_Addend relocation_sub =
+						{
+							.offset = statement->section_offset + index,
+							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, Relocation_RISC_V__Sub_8),
+							.addend = 0,
+						};
+						Object_File_Section_relocation_write(section_relocation, &relocation_add);
+						Object_File_Section_relocation_write(section_relocation, &relocation_sub);
+
+						index += 1;
+					}
+				}
+				else
+				{
+					value = expression->integer_value;
+				}
+			}
+			Object_File_Section_write_byte(section, value, statement->size);
+		}
+		case Directive_Kind__Zero:
+		{
+			Object_File_Section_write_byte(section, 0, statement->size);
+		}
+
+		// Ignored directives, that we keep for exhaustive match warnings.
+		case Directive_Kind__Section:        {} break;
+		case Directive_Kind__Text:           {} break;
+		case Directive_Kind__Data:           {} break;
+		case Directive_Kind__Read_Only_Data: {} break;
+		case Directive_Kind__BSS:            {} break;
+		case Directive_Kind__Local:          {} break;
+		case Directive_Kind__Globl:          {} break;
+		case Directive_Kind__Global:         {} break;
+		case Directive_Kind__Ascii:          {} break;
+		case Directive_Kind__Asciz:          {} break;
+		case Directive_Kind__String:         {} break;
+		// Both .set and .equ are zero-sized instructions!
+		case Directive_Kind__Set:            {} break;
+		case Directive_Kind__Equality:       {} break;
+		case Directive_Kind__Common:         {} break;
+		case Directive_Kind__Option:         {} break;
+		case Directive_Kind__None:           {} break;
+		case Directive_Kind__COUNT:          { unreachable_m(); } break;
+		}
+
+		// Instruction boilerplate
+		U8  rd         = statement->register_destination;
+		U8  rs1        = statement->register_source_1;
+		U8  rs2        = statement->register_source_2;
+		S64 immediate  = 0;
+
+		Instruction_Encoding instruction_encoding = Instruction_Encoding_table[instruction_kind];
+		U8 opcode             = instruction_encoding.opcode;
+		U8 funct3             = instruction_encoding.funct3;
+		U8 funct7             = instruction_encoding.funct7;
+		U8 instruction_flags  = instruction_encoding.flags;
+
+		if (instruction_flags & Instruction_Flags__Swap_1)
+		{
+			swap_m(U8, rs2, rs1);
+		}
+		else if (instruction_flags & Instruction_Flags__Swap_2)
+		{
+			rs2 = rs1; rs1 = 0;
+		}
+
+		// We do some expression boilerplate handling since every instruction has at most one expression and
+		// doesn't allow difference between expression->evaluation == Evaluation__Unresolved symbols.
+		Expression_Node *expression = 0;
+		if (statement->expressions_count)
+		{
+			expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
+			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Instruction_Expression_Unresolved_Symbols);
+
+			if (expression->evaluation >= Evaluation__Absolute)
+			{
+				immediate = expression->integer_value;
+			}
+
+		}
+
+		B32 relax_enabled = !(statement->flags & Statement_Flags__Relax_Disabled);
+		B32 relaxable = relax_enabled
+			     && (instruction_flags & Instruction_Flags__Relax_Hint)
+			     && (expression->evaluation == Evaluation__Unresolved);
+
+		if (relaxable)
+		{
+			ELF64_Relocation_Addend relocation_relax =
+			{
+				.offset = statement->section_offset,
+				.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Relax),
+				.addend = 0,
+			};
+			Object_File_Section_relocation_write(section_relocation, &relocation_relax);
+		}
+
+		// Giant switch ahead. One could point that dividing cases by instruction formats is more logical. Well,
+		// I try to do this, but sometimes there are that minor exceptions that need separate branches. While
+		// formats are a inherently CPU-friendly concept, the data of some instructions contains in the same
+		// family can changed a lot.
+		//
+		// For example:
+		//
+		// 1. Encoding S-types shared 99% of the logic of I-types, so they should be grouped together.
+		// 2. Shift and shift wide instructions have different funct6/7 size on 64 bits, and have stricter
+		//    requirements on their expressions.
+
+		switch (instruction_kind)
+		{
+		case Instruction_Kind__LUI:       {} // fallthrough
+		case Instruction_Kind__AUIPC:
+		{
+			if (expression->evaluation == Evaluation__Unresolved)
+			{
+				Resolver_expect(resolver, expression->relocation_operator, Resolver_Error_Kind__Relocation_Operator_Expected);
+				Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
+
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+			}
+
+			U32 encoding = instruction_u_encode_m(rd, immediate, opcode);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__JAL:
+		{
+			if (statement->flags & Statement_Flags__JAL_Register_Destination_Unset)
+			{
+				rd = 1; // ra
+			}
+
+			if (expression->evaluation == Evaluation__Unresolved)
+			{
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+			}
+
+			U32 encoding = instruction_j_encode_m(rd, immediate, OPCODE_JAL);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__BEQ:  {} // fallthrough
+		case Instruction_Kind__BNE:  {} // fallthrough
+		case Instruction_Kind__BLT:  {} // fallthrough
+		case Instruction_Kind__BGE:  {} // fallthrough
+		case Instruction_Kind__BLTU: {} // fallthrough
+		case Instruction_Kind__BGEU:
+		// Pseudo-instructions
+		case Instruction_Kind__BEQZ: {} // fallthrough
+		case Instruction_Kind__BNEZ: {} // fallthrough
+		case Instruction_Kind__BLEZ: {} // fallthrough
+		case Instruction_Kind__BGEZ: {} // fallthrough
+		case Instruction_Kind__BLTZ: {} // fallthrough
+		case Instruction_Kind__BGTZ: {} // fallthrough
+		case Instruction_Kind__BGT:  {} // fallthrough
+		case Instruction_Kind__BLE:  {} // fallthrough
+		case Instruction_Kind__BGTU: {} // fallthrough
+		case Instruction_Kind__BLEU:
+		{
+			if (expression->evaluation == Evaluation__Unresolved)
+			{
+				ELF64_Relocation_Addend relocation_branch =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Branch),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation_branch);
+			}
+
+			U32 encoding = instruction_b_encode_m(rs2, rs1, immediate, OPCODE_BRANCH, funct3);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		// Apart from small encoding different with stores, the logic of I and S format is the same, and thus
+		// can be grouped together.
+		case Instruction_Kind__JALR:      {} // fallthrough
+		case Instruction_Kind__JR:        {} // fallthrough
+		case Instruction_Kind__LB:        {} // fallthrough
+		case Instruction_Kind__LH:        {} // fallthrough
+		case Instruction_Kind__LW:        {} // fallthrough
+		case Instruction_Kind__LBU:       {} // fallthrough
+		case Instruction_Kind__LHU:       {} // fallthrough
+		case Instruction_Kind__SB:        {} // fallthrough
+		case Instruction_Kind__SH:        {} // fallthrough
+		case Instruction_Kind__SW:        {} // fallthrough
+		case Instruction_Kind__ADDI:      {} // fallthrough
+		case Instruction_Kind__SLTI:      {} // fallthrough
+		case Instruction_Kind__SLTIU:     {} // fallthrough
+		case Instruction_Kind__XORI:      {} // fallthrough
+		case Instruction_Kind__ORI:       {} // fallthrough
+		case Instruction_Kind__ANDI:
+		// RV64-specific
+		case Instruction_Kind__LD:        {} // fallthrough
+		case Instruction_Kind__LWU:       {} // fallthrough
+		case Instruction_Kind__SD:        {} // fallthrough
+		case Instruction_Kind__ADDIW:     {} // fallthrough
+		// Pseudo-instructions
+		case Instruction_Kind__NOT:       {} // fallthrough
+		case Instruction_Kind__MV:        {} // fallthrough
+		case Instruction_Kind__SEXT_W:    {} // fallthrough
+		case Instruction_Kind__SEQZ:
+		{
+			if (instruction_kind == Instruction_Kind__NOT)
+			{
+				immediate = -1;
+			}
+			if (instruction_kind == Instruction_Kind__SEQZ)
+			{
+				immediate = 1;
+			}
+
+			if (expression && expression->evaluation == Evaluation__Unresolved)
+			{
+				Relocation_RISC_V relocation_kind =
+					Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
+				Resolver_expect(resolver, relocation_kind, Resolver_Error_Kind__Relocation_Operator_Expected);
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+
+			}
+
+			U32 encoding = instruction_i_encode_m(rd, rs1, immediate, opcode, funct3);
+			if (opcode == OPCODE_STORE)
+			{
+				encoding = instruction_s_encode_m(rs2, rs1, immediate, opcode, funct3);
+			}
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__SLLI:   {} // fallthrough
+		case Instruction_Kind__SRLI:   {} // fallthrough
+		case Instruction_Kind__SRAI:   {} // fallthrough
+		{
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			B32 range_in = 0 <= immediate && immediate < 64; // Architecture bit size.
+			Resolver_expect(resolver, range_in, Resolver_Error_Kind__Shift_Amount_Invalid);
+
+			U32 encoding = instruction_i_shift_encode_m(rd, rs1, immediate, opcode, funct3, funct7);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__SLLIW: {} // fallthrough
+		case Instruction_Kind__SRLIW: {} // fallthrough
+		case Instruction_Kind__SRAIW:
+		{
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			U32 encoding = instruction_i_shift_wide_encode_m(rd, rs1, immediate, opcode, funct3, funct7);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__ADD:  {} // fallthrough
+		case Instruction_Kind__SUB:  {} // fallthrough
+		case Instruction_Kind__SLL:  {} // fallthrough
+		case Instruction_Kind__SLT:  {} // fallthrough
+		case Instruction_Kind__SLTU: {} // fallthrough
+		case Instruction_Kind__XOR:  {} // fallthrough
+		case Instruction_Kind__SRL:  {} // fallthrough
+		case Instruction_Kind__SRA:  {} // fallthrough
+		case Instruction_Kind__OR:   {} // fallthrough
+		case Instruction_Kind__AND:  {} // fallthrough
+		case Instruction_Kind__ADDW: {} // fallthrough
+		case Instruction_Kind__SUBW: {} // fallthrough
+		case Instruction_Kind__SLLW: {} // fallthrough
+		case Instruction_Kind__SRLW: {} // fallthrough
+		case Instruction_Kind__SRAW: {} // fallthrough
+		// Pseudo-instructions (rd, rs → R-type with x0)
+		case Instruction_Kind__NEG:  {} // fallthrough
+		case Instruction_Kind__NEGW: {} // fallthrough
+		case Instruction_Kind__SNEZ: {} // fallthrough
+		case Instruction_Kind__SLTZ: {} // fallthrough
+		case Instruction_Kind__SGTZ:
+		{
+			if (expression && expression->evaluation == Evaluation__Unresolved)
+			{
+				assert_always_m(instruction_kind == Instruction_Kind__ADD);
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Thread_Pointer_Relative_Add),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+
+			}
+
+			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		// Pseudo-case instructions
+		// TODO: check
+		case Instruction_Kind__J:
+		{
+			if (expression->evaluation == Evaluation__Unresolved)
+			{
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+			}
+
+			U32 encoding = instruction_j_encode_m(0, immediate, OPCODE_JAL);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+		// TODO: check
+		case Instruction_Kind__CALL:
+		case Instruction_Kind__TAIL:
+		{
+			S64 delta = 0;
+			B32 range_in = 0;
+			if (expression->evaluation >= Evaluation__Absolute)
+			{
+				delta = (S64)expression->integer_value - (S64)statement->section_offset;
+				range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
+			}
+
+			U32 auipc_encoding = 0;
+			U32 jalr_encoding = 0;
+
+			if (expression->evaluation == Evaluation__Unresolved || !range_in)
+			{
+				S64 upper = 0;
+				S64 lower = 0;
+				if (expression->evaluation >= Evaluation__Absolute)
+				{
+					upper = ((S64)expression->integer_value + 0x800) >> 12;
+					lower = (S64)expression->integer_value & 0xFFF;
+				}
+
+				if (expression->evaluation == Evaluation__Unresolved)
+				{
+					Relocation_RISC_V relocation_kind = Relocation_RISC_V__Call;
+					ELF64_Relocation_Addend relocation =
+					{
+						.offset = statement->section_offset,
+						.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
+						.addend = expression->integer_value,
+					};
+					Object_File_Section_relocation_write(section_relocation, &relocation);
+				}
+				else
+				{
+					auipc_encoding = instruction_u_encode_m(5, upper, OPCODE_AUIPC);
+					jalr_encoding = instruction_i_encode_m(
+						instruction_kind == Instruction_Kind__CALL ? 1 : 0,
+						5, lower, OPCODE_JALR, FUNCT3_JALR
+					);
+				}
+			}
+			else
+			{
+				U32 encoding = instruction_u_encode_m(instruction_kind == Instruction_Kind__CALL ? 1 : 0, delta, OPCODE_JAL);
+				Object_File_Section_write_instruction(section, encoding);
+			}
+
+			if (auipc_encoding)
+			{
+				Object_File_Section_write_instruction(section, auipc_encoding);
+			}
+			if (jalr_encoding)
+			{
+				Object_File_Section_write_instruction(section, jalr_encoding);
+			}
+		} break;
+		// TODO: check
+		case Instruction_Kind__LI:
+		{
+
+			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+
+			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
+			{
+				U32 encoding = instruction_i_encode_m(rd, 0, immediate, OPCODE_I_TYPE, FUNCT3_ADDI);
+				Object_File_Section_write_instruction(section, encoding);
+			}
+			else
+			{
+				S32 upper = (immediate + 0x800) >> 12;
+				S32 lower = immediate & 0xFFF;
+				U32 lui_encoding = instruction_u_encode_m(rd, upper, OPCODE_LUI);
+				U32 addi_encoding = instruction_i_encode_m(rd, rd, lower, OPCODE_I_TYPE, FUNCT3_ADDI);
+				Object_File_Section_write_instruction(section, lui_encoding);
+				Object_File_Section_write_instruction(section, addi_encoding);
+			}
+		} break;
+		// TODO: check
+		case Instruction_Kind__LA:
+		{
+			S64 value = 0;
+			S64 upper = 0;
+			S64 lower = 0;
+
+			if (expression->evaluation >= Evaluation__Absolute)
+			{
+				value = expression->integer_value;
+				upper = (value + 0x800) >> 12;
+				lower = value & 0xFFF;
+			}
+
+			if (expression->evaluation == Evaluation__Unresolved)
+			{
+				Relocation_RISC_V relocation_hi = Relocation_RISC_V__High_20;
+				ELF64_Relocation_Addend relocation =
+				{
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_hi),
+					.addend = expression->integer_value,
+				};
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+
+				upper = 0;
+			}
+
+			U32 lui_encoding = instruction_u_encode_m(rd, upper, OPCODE_LUI);
+			U32 addi_encoding = instruction_i_encode_m(rd, rd, lower, OPCODE_I_TYPE, FUNCT3_ADDI);
+			Object_File_Section_write_instruction(section, lui_encoding);
+			Object_File_Section_write_instruction(section, addi_encoding);
+		} break;
+
+		case Instruction_Kind__FENCE:
+		{
+			U32 immediate_fence = (rs1 << 4) | rs2;  // pred(4) | succ(4)
+			U32 encoding = instruction_i_encode_m(0, 0, immediate_fence, OPCODE_FENCE, 0);
+			Object_File_Section_write_instruction(section, encoding);
+		} break;
+
+		case Instruction_Kind__NOP:       { Object_File_Section_write_instruction(section, ENCODING_NOP);    } break;
+		case Instruction_Kind__RET:       { Object_File_Section_write_instruction(section, ENCODING_RET);    } break;
+		case Instruction_Kind__ECALL:     { Object_File_Section_write_instruction(section, ENCODING_ECALL);  } break;
+		case Instruction_Kind__EBREAK:    { Object_File_Section_write_instruction(section, ENCODING_EBREAK); } break;
+		case Instruction_Kind__PAUSE:     { Object_File_Section_write_instruction(section, ENCODING_PAUSE);  } break;
+		case Instruction_Kind__FENCE_TSO: { Object_File_Section_write_instruction(section, ENCODING_TSO);    } break;
+
+		case Instruction_Kind__None:      {} break;
+		case Instruction_Kind__COUNT:     { unreachable_m(); } break;
+		}
+
+		Resolver_advance(resolver);
+	}
+
+	return;
 }
 
 // ============================================================================
@@ -1004,648 +1519,3 @@ Resolver_relax(Resolver *resolver)
 // 	Object_File_Section_write(section, (U8 *)&relocation, sizeof(ELF64_Relocation_Addend));
 // 	return;
 // }
-
-// Encode instructions and directives to object files, emitting relocations if needed.
-//
-// Assumes Resolver_relax has been called.
-//
-// TODO: clarify a bit better which errors are caught here and what during evaluation.
-
-void
-Resolver_encode(Resolver *resolver)
-{
-	Resolver_cursor_reset(resolver);
-
-	U8 data_directive_size = 0;
-
-	for (;;)
-	{
-		// TODO: ensure that immediate values calculated can fit the instruction encoding.
-		B32 break_should_encoding = resolver->statements_end_reached || resolver->error.kind;
-		if (break_should_encoding)
-		{
-			break;
-		}
-
-		Statement       *statement        = resolver->statement_current;
-		Directive_Kind   directive_kind   = statement->directive_kind;
-		Instruction_Kind instruction_kind = statement->instruction_kind;
-
-		Object_File_Section *section            = &resolver->sections[statement->section_index];
-		Object_File_Section *section_relocation = &resolver->sections[statement->section_index];
-
-		switch (directive_kind)
-		{
-		case Directive_Kind__Word_Double: { data_directive_size += 4; } // fallthrough
-		case Directive_Kind__Word:        { data_directive_size += 2; } // fallthrough
-		case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
-		case Directive_Kind__Byte:
-		{
-			local_persist const struct { Relocation_RISC_V add; Relocation_RISC_V sub; } relocation_pair_table[] =
-			{
-				{ Relocation_RISC_V__Add_8,  Relocation_RISC_V__Sub_8  },
-				{ Relocation_RISC_V__Add_16, Relocation_RISC_V__Sub_16 },
-				{ Relocation_RISC_V__Add_32, Relocation_RISC_V__Sub_32 },
-				{ Relocation_RISC_V__Add_64, Relocation_RISC_V__Sub_64 },
-			};
-			local_persist const Relocation_RISC_V relocation_table[] =
-			{
-				Relocation_RISC_V__None,
-				Relocation_RISC_V__None,
-				Relocation_RISC_V__32_Bit,
-				Relocation_RISC_V__64_Bit,
-			};
-			U8 relocation_table_index = (data_directive_size / 2) - 1;
-
-			U32 index = 0;
-			for (;;)
-			{
-				B32 break_should = index >= statement->expressions_count || resolver->error.kind;
-				if (break_should)
-				{
-					break;
-				}
-				U32 expression_index        = statement->expressions_indexes[index];
-				Expression_Node *expression = &resolver->expressions->data[expression_index];
-				if (expression->flags & Expression_Flags__Unresolved)
-				{
-					if (expression->symbol_operand)
-					{
-						Relocation_RISC_V relocation_kind_add = relocation_pair_table[relocation_table_index].add;
-						Relocation_RISC_V relocation_kind_sub = relocation_pair_table[relocation_table_index].sub;
-
-						ELF64_Relocation_Addend relocation_add =
-						{
-							.offset = statement->section_offset + index,
-							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind_add),
-							.addend = expression->integer_value,
-						};
-						ELF64_Relocation_Addend relocation_sub =
-						{
-							.offset = statement->section_offset + index,
-							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind_sub),
-							.addend = 0,
-						};
-
-						Object_File_Section_relocation_write(section_relocation, &relocation_add);
-						Object_File_Section_relocation_write(section_relocation, &relocation_sub);
-					}
-					else
-					{
-						Relocation_RISC_V relocation_kind = relocation_table[data_directive_size];
-						Resolver_expect(resolver, relocation_kind, Resolver_Error_Kind__Expression_Unresolved);
-
-						ELF64_Relocation_Addend relocation =
-						{
-							.offset = statement->section_offset + index,
-							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, relocation_kind),
-							.addend = expression->integer_value,
-						};
-						Object_File_Section_relocation_write(section_relocation, &relocation);
-					}
-				}
-				else
-				{
-					// TODO: conversions etc might bite me off here.
-					S64 value = expression->integer_value;
-					U64 limit_low  =  1 << (8 * data_directive_size - 1);
-					U64 limit_high = (1 << (8 * data_directive_size)) - 1;
-					B32 range_in = -limit_low <= value && value <= limit_high;
-					// TODO: this could be a warning, and truncation could be performed.
-					Resolver_expect(resolver, range_in, Resolver_Error_Kind__Expression_Value_Bounds_Outside);
-					Object_File_Section_write_bytes(section, (U8 *)&value, data_directive_size);
-				}
-				index += 1;
-			}
-
-			data_directive_size = 0;
-		} break;
-		case Directive_Kind__Align: {} // fallthrough
-		case Directive_Kind__Skip:
-		{
-			U8 value = 0;
-			if (statement->expressions_count > 1)
-			{
-				U32 expression_index = statement->expressions_indexes[1];
-				Expression_Node *expression = &resolver->expressions->data[expression_index];
-				if (expression->flags & Expression_Flags__Unresolved)
-				{
-					// Emit relocations for each byte
-					Resolver_expect(resolver, expression->symbol_operand != 0, Resolver_Error_Kind__Relocation_Byte);
-					assert_always_m(expression->kind == Expression_Kind__Subtract);
-					U32 index = 0;
-					for (;;)
-					{
-						B32 break_should = index >= statement->size;
-						if (break_should)
-						{
-							break;
-						}
-						// NOTE: only one relocation will have a non-zero addend if
-						// expression->integer_value is non-zero.
-						ELF64_Relocation_Addend relocation_add =
-						{
-							.offset = statement->section_offset + index,
-							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, Relocation_RISC_V__Add_8),
-							.addend = expression->integer_value,
-						};
-						ELF64_Relocation_Addend relocation_sub =
-						{
-							.offset = statement->section_offset + index,
-							.info   = ELF64_Relocation_info_m(expression->symbols_table_entry, Relocation_RISC_V__Sub_8),
-							.addend = 0,
-						};
-						Object_File_Section_relocation_write(section_relocation, &relocation_add);
-						Object_File_Section_relocation_write(section_relocation, &relocation_sub);
-
-						index += 1;
-					}
-				}
-				else
-				{
-					value = expression->integer_value;
-				}
-			}
-			Object_File_Section_write_byte(section, value, statement->size);
-		}
-		case Directive_Kind__Zero:
-		{
-			Object_File_Section_write_byte(section, 0, statement->size);
-		}
-
-		// Ignored directives, that we keep for exhaustive match warnings.
-		case Directive_Kind__Section:        {} break;
-		case Directive_Kind__Text:           {} break;
-		case Directive_Kind__Data:           {} break;
-		case Directive_Kind__Read_Only_Data: {} break;
-		case Directive_Kind__BSS:            {} break;
-		case Directive_Kind__Local:          {} break;
-		case Directive_Kind__Globl:          {} break;
-		case Directive_Kind__Global:         {} break;
-		case Directive_Kind__Ascii:          {} break;
-		case Directive_Kind__Asciz:          {} break;
-		case Directive_Kind__String:         {} break;
-		// Both .set and .equ are zero-sized instructions!
-		case Directive_Kind__Set:            {} break;
-		case Directive_Kind__Equality:       {} break;
-		case Directive_Kind__Common:         {} break;
-		case Directive_Kind__Option:         {} break;
-		case Directive_Kind__None:           {} break;
-		case Directive_Kind__COUNT:          { unreachable_m(); } break;
-		}
-
-		// Instruction encoding, common operations.
-
-		U8  rd         = statement->register_destination;
-		U8  rs1        = statement->register_source_1;
-		U8  rs2        = statement->register_source_2;
-		S64 immediate = 0;
-
-		// Option 1: access through the struct
-		Instruction_Encoding instruction_encoding = Instruction_Encoding_table[instruction_kind];
-		U8 opcode             = instruction_encoding.opcode;
-		U8 funct3             = instruction_encoding.funct3;
-		U8 funct7             = instruction_encoding.funct7;
-		U8 instruction_flags  = instruction_encoding.flags;
-
-		if (instruction_flags & Instruction_Flags__Swap_1)
-		{
-			swap_m(U8, rs2, rs1);
-		}
-		else if (instruction_flags & Instruction_Flags__Swap_2)
-		{
-			rs2 = rs1; rs1 = 0;
-		}
-
-		// Do here all the expression related boilerplate.
-		Expression_Node *expression = 0;
-		B32 absolute                = 0;
-		B32 unresolved              = 0;
-		if (instruction_kind && statement->expressions_count)
-		{
-			assert_m(statement->expressions_count == 1);
-			U32 expression_index = statement->expressions_indexes[0];
-			expression = &resolver->expressions->data[expression_index];
-			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Expression_Unresolved_Two);
-			Resolver_expression_evaluate(resolver, expression);
-			unresolved = expression->flags & Expression_Flags__Unresolved;
-			absolute   = !unresolved;
-			if (absolute)
-			{
-				immediate = expression->integer_value;
-			}
-
-		}
-
-		B32 relax_enabled = !(statement->flags & Statement_Flags__Relax_Disabled);
-		B32 relaxable = relax_enabled && instruction_flags & Instruction_Flags__Relax_Hint && unresolved;
-
-		if (relaxable)
-		{
-			ELF64_Relocation_Addend relocation_relax =
-			{
-				.offset = statement->section_offset,
-				.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Relax),
-				.addend = 0,
-			};
-			Object_File_Section_relocation_write(section_relocation, &relocation_relax);
-		}
-
-		// Giant switch ahead. One could point that dividing cases by instruction formats is more logical. Well,
-		// I try to do this, but sometimes there are that minor exceptions that need separate branches. While
-		// formats are a inherently CPU-friendly concept, the data of some instructions contains in the same
-		// family can changed a lot.
-		//
-		// For example:
-		//
-		// 1. Encoding S-types shared 99% of the logic of I-types, so they should be grouped together.
-		// 2. Shift and shift wide instructions have different funct6/7 size on 64 bits, and have stricter
-		//    requirements on their expressions.
-
-		switch (instruction_kind)
-		{
-		case Instruction_Kind__LUI:       {} // fallthrough
-		case Instruction_Kind__AUIPC:
-		{
-			if (unresolved)
-			{
-				Resolver_expect(resolver, expression->relocation_operator, Resolver_Error_Kind__Relocation_Operator_Expected);
-				Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
-
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-			}
-
-			U32 encoding = instruction_u_encode_m(rd, immediate, opcode);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__JAL:
-		{
-			if (statement->flags & Statement_Flags__JAL_Register_Destination_Unset)
-			{
-				rd = 1; // ra
-			}
-
-			if (unresolved)
-			{
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-			}
-
-			U32 encoding = instruction_j_encode_m(rd, immediate, OPCODE_JAL);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__BEQ:  {} // fallthrough
-		case Instruction_Kind__BNE:  {} // fallthrough
-		case Instruction_Kind__BLT:  {} // fallthrough
-		case Instruction_Kind__BGE:  {} // fallthrough
-		case Instruction_Kind__BLTU: {} // fallthrough
-		case Instruction_Kind__BGEU:
-		// Pseudo-instructions
-		case Instruction_Kind__BEQZ: {} // fallthrough
-		case Instruction_Kind__BNEZ: {} // fallthrough
-		case Instruction_Kind__BLEZ: {} // fallthrough
-		case Instruction_Kind__BGEZ: {} // fallthrough
-		case Instruction_Kind__BLTZ: {} // fallthrough
-		case Instruction_Kind__BGTZ: {} // fallthrough
-		case Instruction_Kind__BGT:  {} // fallthrough
-		case Instruction_Kind__BLE:  {} // fallthrough
-		case Instruction_Kind__BGTU: {} // fallthrough
-		case Instruction_Kind__BLEU:
-		{
-			if (unresolved)
-			{
-				ELF64_Relocation_Addend relocation_branch =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Branch),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation_branch);
-			}
-
-			U32 encoding = instruction_b_encode_m(rs2, rs1, immediate, OPCODE_BRANCH, funct3);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		// Apart from small encoding different with stores, the logic of I and S format is the same, and thus
-		// can be grouped together.
-		case Instruction_Kind__JALR:      {} // fallthrough
-		case Instruction_Kind__JR:        {} // fallthrough
-		case Instruction_Kind__LB:        {} // fallthrough
-		case Instruction_Kind__LH:        {} // fallthrough
-		case Instruction_Kind__LW:        {} // fallthrough
-		case Instruction_Kind__LBU:       {} // fallthrough
-		case Instruction_Kind__LHU:       {} // fallthrough
-		case Instruction_Kind__SB:        {} // fallthrough
-		case Instruction_Kind__SH:        {} // fallthrough
-		case Instruction_Kind__SW:        {} // fallthrough
-		case Instruction_Kind__ADDI:      {} // fallthrough
-		case Instruction_Kind__SLTI:      {} // fallthrough
-		case Instruction_Kind__SLTIU:     {} // fallthrough
-		case Instruction_Kind__XORI:      {} // fallthrough
-		case Instruction_Kind__ORI:       {} // fallthrough
-		case Instruction_Kind__ANDI:
-		// RV64-specific
-		case Instruction_Kind__LD:        {} // fallthrough
-		case Instruction_Kind__LWU:       {} // fallthrough
-		case Instruction_Kind__SD:        {} // fallthrough
-		case Instruction_Kind__ADDIW:     {} // fallthrough
-		// Pseudo-instructions
-		case Instruction_Kind__NOT:       {} // fallthrough
-		case Instruction_Kind__MV:        {} // fallthrough
-		case Instruction_Kind__SEXT_W:    {} // fallthrough
-		case Instruction_Kind__SEQZ:
-		{
-			if (instruction_kind == Instruction_Kind__NOT)
-			{
-				immediate = -1;
-			}
-			if (instruction_kind == Instruction_Kind__SEQZ)
-			{
-				immediate = 1;
-			}
-
-			if (unresolved)
-			{
-				Relocation_RISC_V relocation_kind =
-					Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
-				Resolver_expect(resolver, relocation_kind, Resolver_Error_Kind__Relocation_Operator_Expected);
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-
-			}
-
-			U32 encoding = instruction_i_encode_m(rd, rs1, immediate, opcode, funct3);
-			if (opcode == OPCODE_STORE)
-			{
-				encoding = instruction_s_encode_m(rs2, rs1, immediate, opcode, funct3);
-			}
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__SLLI:   {} // fallthrough
-		case Instruction_Kind__SRLI:   {} // fallthrough
-		case Instruction_Kind__SRAI:   {} // fallthrough
-		{
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
-			B32 range_in = 0 <= immediate && immediate < 64; // Architecture bit size.
-			Resolver_expect(resolver, range_in, Resolver_Error_Kind__Shift_Amount_Invalid);
-
-			U32 encoding = instruction_i_shift_encode_m(rd, rs1, immediate, opcode, funct3, funct7);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__SLLIW: {} // fallthrough
-		case Instruction_Kind__SRLIW: {} // fallthrough
-		case Instruction_Kind__SRAIW:
-		{
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
-			U32 encoding = instruction_i_shift_wide_encode_m(rd, rs1, immediate, opcode, funct3, funct7);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__ADD:  {} // fallthrough
-		case Instruction_Kind__SUB:  {} // fallthrough
-		case Instruction_Kind__SLL:  {} // fallthrough
-		case Instruction_Kind__SLT:  {} // fallthrough
-		case Instruction_Kind__SLTU: {} // fallthrough
-		case Instruction_Kind__XOR:  {} // fallthrough
-		case Instruction_Kind__SRL:  {} // fallthrough
-		case Instruction_Kind__SRA:  {} // fallthrough
-		case Instruction_Kind__OR:   {} // fallthrough
-		case Instruction_Kind__AND:  {} // fallthrough
-		case Instruction_Kind__ADDW: {} // fallthrough
-		case Instruction_Kind__SUBW: {} // fallthrough
-		case Instruction_Kind__SLLW: {} // fallthrough
-		case Instruction_Kind__SRLW: {} // fallthrough
-		case Instruction_Kind__SRAW: {} // fallthrough
-		// Pseudo-instructions (rd, rs → R-type with x0)
-		case Instruction_Kind__NEG:  {} // fallthrough
-		case Instruction_Kind__NEGW: {} // fallthrough
-		case Instruction_Kind__SNEZ: {} // fallthrough
-		case Instruction_Kind__SLTZ: {} // fallthrough
-		case Instruction_Kind__SGTZ:
-		{
-			if (unresolved)
-			{
-				assert_always_m(instruction_kind == Instruction_Kind__ADD);
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__Thread_Pointer_Relative_Add),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-
-			}
-
-			U32 encoding = instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		// Pseudo-case instructions
-		// TODO: check
-		case Instruction_Kind__J:
-		{
-			if (unresolved)
-			{
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-			}
-
-			U32 encoding = instruction_j_encode_m(0, immediate, OPCODE_JAL);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-		// TODO: check
-		case Instruction_Kind__CALL:
-		case Instruction_Kind__TAIL:
-		{
-			S64 delta = 0;
-			B32 range_in = 0;
-			if (!unresolved)
-			{
-				delta = (S64)expression->integer_value - (S64)statement->section_offset;
-				range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
-			}
-
-			U32 auipc_encoding = 0;
-			U32 jalr_encoding = 0;
-
-			if (unresolved || !range_in)
-			{
-				S64 upper = 0;
-				S64 lower = 0;
-				if (!unresolved)
-				{
-					upper = ((S64)expression->integer_value + 0x800) >> 12;
-					lower = (S64)expression->integer_value & 0xFFF;
-				}
-
-				if (unresolved)
-				{
-					Relocation_RISC_V relocation_kind = Relocation_RISC_V__Call;
-					ELF64_Relocation_Addend relocation =
-					{
-						.offset = statement->section_offset,
-						.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
-						.addend = expression->integer_value,
-					};
-					Object_File_Section_relocation_write(section_relocation, &relocation);
-				}
-				else
-				{
-					auipc_encoding = instruction_u_encode_m(5, upper, OPCODE_AUIPC);
-					jalr_encoding = instruction_i_encode_m(
-						instruction_kind == Instruction_Kind__CALL ? 1 : 0,
-						5, lower, OPCODE_JALR, FUNCT3_JALR
-					);
-				}
-			}
-			else
-			{
-				U32 encoding = instruction_u_encode_m(instruction_kind == Instruction_Kind__CALL ? 1 : 0, delta, OPCODE_JAL);
-				Object_File_Section_write_instruction(section, encoding);
-			}
-
-			if (auipc_encoding)
-			{
-				Object_File_Section_write_instruction(section, auipc_encoding);
-			}
-			if (jalr_encoding)
-			{
-				Object_File_Section_write_instruction(section, jalr_encoding);
-			}
-		} break;
-		// TODO: check
-		case Instruction_Kind__LI:
-		{
-			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Expression_Unresolved);
-
-			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
-			{
-				U32 encoding = instruction_i_encode_m(rd, 0, immediate, OPCODE_I_TYPE, FUNCT3_ADDI);
-				Object_File_Section_write_instruction(section, encoding);
-			}
-			else
-			{
-				S32 upper = (immediate + 0x800) >> 12;
-				S32 lower = immediate & 0xFFF;
-				U32 lui_encoding = instruction_u_encode_m(rd, upper, OPCODE_LUI);
-				U32 addi_encoding = instruction_i_encode_m(rd, rd, lower, OPCODE_I_TYPE, FUNCT3_ADDI);
-				Object_File_Section_write_instruction(section, lui_encoding);
-				Object_File_Section_write_instruction(section, addi_encoding);
-			}
-		} break;
-		// TODO: check
-		case Instruction_Kind__LA:
-		{
-			S64 value = 0;
-			S64 upper = 0;
-			S64 lower = 0;
-
-			if (!unresolved)
-			{
-				value = expression->integer_value;
-				upper = (value + 0x800) >> 12;
-				lower = value & 0xFFF;
-			}
-
-			if (unresolved)
-			{
-				Relocation_RISC_V relocation_hi = Relocation_RISC_V__High_20;
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_hi),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-
-				upper = 0;
-			}
-
-			U32 lui_encoding = instruction_u_encode_m(rd, upper, OPCODE_LUI);
-			U32 addi_encoding = instruction_i_encode_m(rd, rd, lower, OPCODE_I_TYPE, FUNCT3_ADDI);
-			Object_File_Section_write_instruction(section, lui_encoding);
-			Object_File_Section_write_instruction(section, addi_encoding);
-		} break;
-
-		case Instruction_Kind__FENCE:
-		{
-			U32 immediate_fence = (rs1 << 4) | rs2;  // pred(4) | succ(4)
-			U32 encoding = instruction_i_encode_m(0, 0, immediate, OPCODE_FENCE, 0);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-
-		case Instruction_Kind__NOP:       { Object_File_Section_write_instruction(section, 0x00000013); } break;
-		case Instruction_Kind__RET:       { Object_File_Section_write_instruction(section, 0x00008067); } break;
-		case Instruction_Kind__ECALL:     { Object_File_Section_write_instruction(section, 0x00000073); } break;
-		case Instruction_Kind__EBREAK:    { Object_File_Section_write_instruction(section, 0x00100073); } break;
-		case Instruction_Kind__PAUSE:     { Object_File_Section_write_instruction(section, 0x0100000F); } break;
-		case Instruction_Kind__FENCE_TSO: { Object_File_Section_write_instruction(section, 0x8330000F); } break;
-
-		case Instruction_Kind__None:      {} break;
-		case Instruction_Kind__COUNT:     { unreachable_m(); } break;
-		}
-
-		Resolver_advance(resolver);
-	}
-
-	return;
-}
-
-// we want to have a more compact expression evaluation to find out whether the relocation syntax is valid. It must fit
-// in a ELF64_Relocation_Addend, or add & sub pair, with both symbols being local and in the same section
-//
-// Examples:
-// -  .word a + 2 - b
-// -  la x1, symbol_1 * symbol_2
-//
-// We're reading an expression tree node:
-//
-// 1. If is resolved, gucci
-// 2. If is not resolved, look at parent
-//	- It can be addition, if the other end is evaluated e.g. case .word 2 + b
-//	- It can always be subtraction e.g. (a + 2) - b
-
-// TODO: check whether two symbols are in different sections, that needs relocation too
-
-// I can start writing a encoding function that also emits relocation as part of the process.
-// While encoding instruction themselves isn't nothing particularly challenging, its more complex to handle relocations.
-// Relocations essentially happen when some specific relocator operators are found or when some symbols are undefined
-// i.e. they belong to section index undefined. In such case, due to the relocation with addend entry layout `Elf_Rela`
-// or `ELF_Relocation_Addend`, if the expression node is `unresolved`, then we need to check the form of such
-// expressions. The evaluation algorithm tries to evaluate as much as possible, so it must reduce to something like
-// `symbol + addend` or `addend + symbol`, where addend is a signed integer.
-
-// Let's walk through both cases. I'll use R_RISCV_ADD32 and R_RISCV_SUB32 since these are .word directives.
-// .word a - b
-// The assembler emits 4 bytes initialized to zero at the current offset. It then creates two relocations, both pointing at that same offset:
-//
-// R_RISCV_ADD32 with symbol a, addend 0 — the linker adds the resolved value of a to the 4 bytes at the offset.
-// R_RISCV_SUB32 with symbol b, addend 0 — the linker subtracts the resolved value of b from the 4 bytes at the offset.
-//
-// After the linker processes both, the 4 bytes contain a - b.

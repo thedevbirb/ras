@@ -15,6 +15,7 @@ Statements_push(Statements *statements, Statement statement)
 {
 	// TODO: make a list of invariants that must be met when pushing a statement.
 	assert_always_m(statement.kind);
+	assert_always_m((statement.instruction_kind && statement.directive_kind) == 0);
 
 	Statement *buffer = Arena_push_struct_m(statements->arena, Statement);
 	*buffer = statement;

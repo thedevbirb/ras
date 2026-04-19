@@ -6,10 +6,10 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__None,
 	Resolver_Error_Kind__Expression_Kind_Unknown,
 	Resolver_Error_Kind__Expression_Evaluation_Cross,
-	Resolver_Error_Kind__Expression_Unresolved,
+	Resolver_Error_Kind__Evaluation_Absolute_Expected,
 	Resolver_Error_Kind__Expression_Symbol_Operand,
 	Resolver_Error_Kind__Expression_Value_Bounds_Outside,
-	Resolver_Error_Kind__Expression_Unresolved_Two,
+	Resolver_Error_Kind__Instruction_Expression_Unresolved_Symbols,
 	Resolver_Error_Kind__Label_Numeric_Backward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Forward_Not_Found,
 	Resolver_Error_Kind__Label_Numeric_Section_Cross,
@@ -17,7 +17,7 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Relocation_Operand_Invalid,
 	Resolver_Error_Kind__Relocation_Operand_Symbol_Missing,
 	Resolver_Error_Kind__Relocation_Operator_Expression_Invalid,
-	Resolver_Error_Kind__Relocation_Operator_Absolute_Invalid,
+	Resolver_Error_Kind__Relocation_Operator_Expression_Unresolved_Expected,
 	Resolver_Error_Kind__Relocation_Operator_Unexpected,
 	Resolver_Error_Kind__Relocation_Operator_Expected,
 	Resolver_Error_Kind__Relocation_Symbol_Missing,
@@ -26,7 +26,7 @@ typedef enum Resolver_Error_Kind
 	Resolver_Error_Kind__Relocation_Byte,
 	Resolver_Error_Kind__Symbol_Cyclic,
 	Resolver_Error_Kind__Operator_Between_Symbols_Invalid,
-	Resolver_Error_Kind__Operator_Expression_Unresolved,
+	Resolver_Error_Kind__Operator_Expression_Absolute_Expected,
 	Resolver_Error_Kind__Immediate_Large,
 	Resolver_Error_Kind__Instruction_Relocation_Low_12_Expected,
 	Resolver_Error_Kind__Shift_Amount_Invalid,
@@ -36,31 +36,31 @@ Resolver_Error_Kind;
 
 global const char *Resolver_Error_Kind_messages[Resolver_Error_Kind__COUNT] =
 {
-	[Resolver_Error_Kind__Expression_Kind_Unknown]                = "expression unknown",
-	[Resolver_Error_Kind__Expression_Evaluation_Cross]            = "expression involved evaluation of two symbols from different sections",
-	[Resolver_Error_Kind__Expression_Unresolved]                  = "statement doesn't support unresolved expressions",
-	[Resolver_Error_Kind__Expression_Symbol_Operand]              = "expression doesn't support operations with unresolved symbols",
-	[Resolver_Error_Kind__Expression_Value_Bounds_Outside]        = "expression value doesn't fit instruction",
-	[Resolver_Error_Kind__Expression_Unresolved_Two]              = "expression contains more than one unresolved symbol",
-	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found]       = "label numeric backward reference not found",
-	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found]        = "label numeric backward reference not found",
-	[Resolver_Error_Kind__Label_Numeric_Section_Cross]            = "label numeric reference crosses section",
-	[Resolver_Error_Kind__Relocation_Operand_Invalid]             = "only addition and subtraction can be done for relocations",
-	[Resolver_Error_Kind__Relocation_Operand_Symbol_Missing]      = "relocation has expression without symbol",
-	[Resolver_Error_Kind__Relocation_Operator_Expression_Invalid] = "relocation operator has invalid subexpression",
-	[Resolver_Error_Kind__Relocation_Operator_Absolute_Invalid]   = "relocation operator doesn't support absolute value",
-	[Resolver_Error_Kind__Relocation_Operator_Unexpected]         = "relocation operator unexpected",
-	[Resolver_Error_Kind__Relocation_Operator_Expected]           = "relocation operator expected",
-	[Resolver_Error_Kind__Relocation_Symbol_Missing]              = "relocation operator without symbol",
-	[Resolver_Error_Kind__Relocation_Form_Invalid]                = "relocation can only be of the form symbol + addend",
-	[Resolver_Error_Kind__Relocation_Expression_Invalid]          = "expression contains relocation operator mixed with other symbol expressions",
-	[Resolver_Error_Kind__Relocation_Byte]                        = "relocation of one byte is unsupported in ELF",
-	[Resolver_Error_Kind__Operator_Between_Symbols_Invalid]       = "only subtraction between symbols is supported",
-	[Resolver_Error_Kind__Operator_Expression_Unresolved]         = "invalid operator applied to unresolved subexpression",
-	[Resolver_Error_Kind__Immediate_Large]                        = "immediate too large",
-	[Resolver_Error_Kind__Instruction_Relocation_Low_12_Expected] = "instruction expects a relocation operator which takes low 12 bits if the symbol is unresolved",
-	[Resolver_Error_Kind__Shift_Amount_Invalid]                   = "shift amount must be in [0,64) on RISCV-64",
-	[Resolver_Error_Kind__Symbol_Cyclic]                          = "cyclic symbol definition",
+	[Resolver_Error_Kind__Expression_Kind_Unknown]                            = "expression unknown",
+	[Resolver_Error_Kind__Expression_Evaluation_Cross]                        = "expression involved evaluation of two symbols from different sections",
+	[Resolver_Error_Kind__Evaluation_Absolute_Expected]                       = "statement expects absolute expression",
+	[Resolver_Error_Kind__Expression_Symbol_Operand]                          = "expression doesn't support operations with unresolved symbols",
+	[Resolver_Error_Kind__Expression_Value_Bounds_Outside]                    = "expression value doesn't fit instruction",
+	[Resolver_Error_Kind__Instruction_Expression_Unresolved_Symbols]                      = "instruction expression can have at most one unresolved symbol",
+	[Resolver_Error_Kind__Label_Numeric_Backward_Not_Found]                   = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Forward_Not_Found]                    = "label numeric backward reference not found",
+	[Resolver_Error_Kind__Label_Numeric_Section_Cross]                        = "label numeric reference crosses section",
+	[Resolver_Error_Kind__Relocation_Operand_Invalid]                         = "only addition and subtraction can be done for relocations",
+	[Resolver_Error_Kind__Relocation_Operand_Symbol_Missing]                  = "relocation has expression without symbol",
+	[Resolver_Error_Kind__Relocation_Operator_Expression_Invalid]             = "relocation operator has invalid subexpression",
+	[Resolver_Error_Kind__Relocation_Operator_Expression_Unresolved_Expected] = "relocation operator expression unresolved expected",
+	[Resolver_Error_Kind__Relocation_Operator_Unexpected]                     = "relocation operator unexpected",
+	[Resolver_Error_Kind__Relocation_Operator_Expected]                       = "relocation operator expected",
+	[Resolver_Error_Kind__Relocation_Symbol_Missing]                          = "relocation operator without symbol",
+	[Resolver_Error_Kind__Relocation_Form_Invalid]                            = "relocation can only be of the form symbol + addend",
+	[Resolver_Error_Kind__Relocation_Expression_Invalid]                      = "expression contains relocation operator mixed with other symbol expressions",
+	[Resolver_Error_Kind__Relocation_Byte]                                    = "relocation of one byte is unsupported in ELF",
+	[Resolver_Error_Kind__Operator_Between_Symbols_Invalid]                   = "only subtraction between symbols is supported",
+	[Resolver_Error_Kind__Operator_Expression_Absolute_Expected]              = "expression operator expects absolute subexpression",
+	[Resolver_Error_Kind__Immediate_Large]                                    = "immediate too large",
+	[Resolver_Error_Kind__Instruction_Relocation_Low_12_Expected]             = "instruction expects a relocation operator which takes low 12 bits if the symbol is unresolved",
+	[Resolver_Error_Kind__Shift_Amount_Invalid]                               = "shift amount must be in [0,64) on RISCV-64",
+	[Resolver_Error_Kind__Symbol_Cyclic]                                      = "cyclic symbol definition",
 };
 
 typedef struct Resolver_Error Resolver_Error;
@@ -83,8 +83,6 @@ struct Resolver
 	Statements    *statements;
 	Expressions   *expressions;
 	Symbols_Table *symbols_table;
-	// Contains the most recent occurrence of [1:, 2:, ..., 9:]. Layout: { x: value, y: set or not }.
-	Vec2_U32 *labels_numeric_statement_index;
 
 	Object_File_Section *sections;
 

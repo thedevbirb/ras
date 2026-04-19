@@ -666,12 +666,13 @@ global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__C
     // Pseudo — J-type mapped
     // j is jal x0, label — same properties as jal itself.
     [Instruction_Kind__J]      = { OPCODE_JAL,      0,            0,             0                                                                      },
- };
+};
 
-#undef Instruction_Flags__Relocation_Operator
-#undef Instruction_Flags__Relax_Hint
-#undef Instruction_Flags__Expandable
-#undef Instruction_Flags__Swap_1
-#undef Instruction_Flags__Swap_2
+#define ENCODING_NOP    0x00000013
+#define ENCODING_RET    0x00008067
+#define ENCODING_ECALL  0x00000073
+#define ENCODING_EBREAK 0x00100073
+#define ENCODING_PAUSE  0x0100000F
+#define ENCODING_TSO    0x8330000F
 
 #endif // LANGUAGE_INSTRUCTION_H

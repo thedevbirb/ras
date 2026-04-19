@@ -71,13 +71,18 @@ Expression_Kind_constant_is(Expression_Kind kind)
 	return result;
 }
 
-typedef enum Expression_Flags
+// The evaluation status of an `Expression_Node`. The higher, the stricter, with zero being not evaluated at all.
+typedef enum Evaluation
 {
-	// TODO: add to distinguish whether it does NOT depend on symbols, so it can be computed just once.
-	// It contains linker-dependent symbols (labels, externals, etc.).
-	Expression_Flags__Unresolved            = 1 << 0,
+	Evaluation__None       = 0,
+	// Contains unresolved symbols that will be patched at link time.
+	Evaluation__Unresolved = 1,
+	// Involves symbols that can be resolved at assembly time.
+	Evaluation__Absolute   = 2,
+	// Only involves constant-time arithmetic.
+	Evaluation__Constant   = 3,
 }
-Expression_Flags;
+Evaluation;
 
 // A parsed expression, which can be evaluated.
 //
@@ -112,7 +117,7 @@ struct Expression_Node
 	Relocation_Operator relocation_operator;
 
 	Expression_Kind  kind;
-	Expression_Flags flags;
+	Evaluation evaluation;
 
 	U8 label_numeric_value;
 };

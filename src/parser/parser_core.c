@@ -146,7 +146,7 @@ Parser_symbol_declare(Parser *parser, String8 key)
 //
 // If met in other places, we should emit an error.
 internal void
-Parser_symbol_ensure_context_valid(Parser *parser, Symbols_Table_Entry *symbol)
+Parser_symbol_ensure_context_valid(Parser *parser)
 {
 	Directive_Kind directive_kind = parser->statement_context->directive_kind;
 	B32 directive_kind_valid = directive_kind == Directive_Kind__Byte

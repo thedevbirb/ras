@@ -180,8 +180,6 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
-	Vec2_U32 *labels_numeric_statement_index = Arena_push_array_m(arena, Vec2_U32, label_numeric_max);
-
 	Resolver resolver =
 	{
 		.arena         = arena,
@@ -190,8 +188,6 @@ main(int argument_count, char **argument_vector)
 		.statements    = &statements,
 		.symbols_table = &symbols_table,
 		.expressions   = &expressions,
-
-		.labels_numeric_statement_index = labels_numeric_statement_index,
 
 		.sections = sections,
 
@@ -225,6 +221,8 @@ main(int argument_count, char **argument_vector)
 	}
 
 	Resolver_encode(&resolver);
+
+	// TODO: write file.
 
 	// const char *file_path_out = argument_vector[0];
 	// printf("file path out: %s\n", file_path_out);
