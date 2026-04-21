@@ -420,9 +420,11 @@ Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimu
 		// Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
 		Expression_Node *node  = Expressions_push_empty(parser->expressions);
 
-		node->kind        = Expression_Kind_from_binary_Token_Kind(operator_kind);
+		node->kind        = Expression_Kind__binary_from_Token_Kind(operator_kind);
 		node->index_left  = left->index;
 		node->index_right = right->index;
+
+		assert_always_m(node->kind);
 
 		left = node;
 	}
@@ -597,7 +599,11 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 
 				// FIX: `.section` can be used to create new sections so limiting to the ones that can
-				// be a standalone directive is not desiderable.
+				// be a standalone directive is not desiderable. Moreover, the syntax is more complex
+				// because it is like:
+				// ```asm
+				// .section .<section>, "<flags>", @<type>
+				// ```
 				String8 string_section        = Parser_token_string(parser);
 				Directive_Kind section_kind   = Directive_Kind__from_String8(string_section);
 				ELF_Section section_index     = ELF_Section_from_Directive_Kind(section_kind);

@@ -4,6 +4,10 @@
 
 // TODO: make some stuff into elf if applicable
 
+// NOTE: programs can have a lot of sections. In particular compilers may emit one section per function
+// `-ffunction-section` that allows them to eliminate dead functions at link time. This means sections should be stored
+// in an hashmap. Moreover, each section can grow its data.
+
 typedef enum ELF_Section
 {
 	ELF_Section__None = 0,

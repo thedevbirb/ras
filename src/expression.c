@@ -30,7 +30,7 @@ Binding_Power_from_Token_Kind(Token_Kind kind)
 }
 
 internal Expression_Kind
-Expression_Kind_from_binary_Token_Kind(Token_Kind kind)
+Expression_Kind__binary_from_Token_Kind(Token_Kind kind)
 {
 	Expression_Kind result = Expression_Kind__None;
 

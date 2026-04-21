@@ -29,38 +29,38 @@ typedef U16 ELF64_Version_Symbol;
 typedef struct ELF32_Header ELF32_Header;
 struct ELF32_Header
 {
-        U16          object_file_type;                        /* Object file type */
-        U16          architecture;                /* Architecture */
-        U32          object_file_version;                /* Object file version */
-        Address32 entry_point_virtual_address;                /* Entry point virtual address */
-        Offset32  program_header_table_file_offset;                /* Program header table file offset */
-        Offset32  section_header_table_file_offset;                /* Section header table file offset */
-        U32          processor_flags;                /* Processor-specific flags */
-        U16          header_size;                /* ELF header size in bytes */
-        U16          program_header_table_entry_size;                /* Program header table entry size */
-        U16          program_header_table_entry_count;                /* Program header table entry count */
-        U16          section_header_table_entry_size;                /* Section header table entry size */
-        U16          section_header_table_entry_count;                /* Section header table entry count */
-        U16          section_header_string_table_index;                /* Section header string table index */
+        U16 object_file_type;
+        U16 architecture;
+        U32 object_file_version;
+        U32 entry_point_virtual_address;
+        U32 program_header_table_file_offset;
+        U32 section_header_table_file_offset;
+        U32 processor_flags;
+        U16 header_size;
+        U16 program_header_table_entry_size;
+        U16 program_header_table_entry_count;
+        U16 section_header_table_entry_size;
+        U16 section_header_table_entry_count;
+        U16 section_header_string_table_index;
 };
 
 typedef struct ELF64_Header ELF64_Header;
 struct ELF64_Header
 {
-        U8               identifier[ELF_id_size];                  /* Magic number and other info */
-        U16               object_file_type;                                         /* Object file type */
-        U16               architecture;                                     /* Architecture */
-        U64               object_file_version;                              /* Object file version */
-        Address64         entry_point_virtual_address;                      /* Entry point virtual address */
-        Offset64          program_header_table_file_offset;                 /* Program header table file offset */
-        Offset64          section_header_table_file_offset;                 /* Section header table file offset */
-        U64               processor_flags;                                  /* Processor-specific flags */
-        U16               header_size;                                      /* ELF header size in bytes */
-        U16               program_header_table_entry_size;                  /* Program header table entry size */
-        U16               program_header_table_entry_count;                 /* Program header table entry count */
-        U16               section_header_table_entry_size;                  /* Section header table entry size */
-        U16               section_header_table_entry_count;                 /* Section header table entry count */
-        U16               section_header_string_table_index;                /* Section header string table index */
+        U8  identifier[ELF_id_size];
+        U16 object_file_type;
+        U16 architecture;
+        U64 object_file_version;
+        U64 entry_point_virtual_address;
+        U64 program_header_table_file_offset;
+        U64 section_header_table_file_offset;
+        U64 processor_flags;
+        U16 header_size;
+        U16 program_header_table_entry_size;
+        U16 program_header_table_entry_count;
+        U16 section_header_table_entry_size;
+        U16 section_header_table_entry_count;
+        U16 section_header_string_table_index;
 };
 
 /* Section header.  */
@@ -68,16 +68,16 @@ struct ELF64_Header
 typedef struct ELF32_Section_Header ELF32_Section_Header;
 struct ELF32_Section_Header
 {
-  U32        string_table_offset;                /* Section name (string tbl index) */
-  U32        type;                /* Section type */
-  U32        flags;                /* Section flags */
-  Address32        address_virtual;                /* Section virtual addr at execution */
-  Offset32        offset;                /* Section file offset */
-  U32        size;                /* Section size in bytes */
-  U32        link;                /* Link to another section */
-  U32        info;                /* Additional section information */
-  U32        alignment;                /* Section alignment */
-  U32        entry_size;                /* Entry size if section holds table */
+	U32 string_table_offset;
+  	U32 type;
+  	U32 flags;
+  	U32 address_virtual;
+  	U32 offset;
+  	U32 size;
+  	U32 link;
+  	U32 info;
+  	U32 alignment;
+  	U32 entry_size;
 };
 
 typedef struct ELF_Section_Header ELF_Section_Header;
@@ -1283,7 +1283,7 @@ typedef struct
 //
 // #define STT_SPARC_REGISTER        13        /* Global register reserved to app. */
 //
-// /* Values for ELF64_Header.processor_flags.  */
+// /* Values for ELF64_Section_Header.processor_flags.  */
 //
 // #define EF_SPARCV9_MM                3
 // #define EF_SPARCV9_TSO                0
@@ -1943,7 +1943,7 @@ typedef struct
 //
 // /* Alpha specific definitions.  */
 //
-// /* Legal values for processor_flags field of ELF64_Header.  */
+// /* Legal values for processor_flags field of ELF64_Section_Header.  */
 //
 // #define EF_ALPHA_32BIT                1        /* All addresses must be < 2GB.  */
 // #define EF_ALPHA_CANRelocations_AddendsX        2        /* Relocations for relaxing exist.  */

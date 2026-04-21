@@ -238,6 +238,9 @@ padding calculations.
 Representing a maybe U32 with `Vec2_U32` has the nice effect that given you access it as a (x,y)
 pair, you can do `if (my_value_maybe.y)` as if "yes, it is set" lol.
 
+Ok while choosing riscv asm for its simplicity has been a good choice, if I want to link an actual
+executable to test is a damn pita.
+
 # On exceptions
 
 Assembly seems an exception or corner-case driven language:

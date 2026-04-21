@@ -90,8 +90,10 @@ main(int argument_count, char **argument_vector)
 	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
 	U32 file_in_size = U32_cast_safe((U64)file_in_statistics.st_size); // 4 GiB max size
 
-	// TODO: re-think allocations. All memory must be reserved upfront, as a basic yet realistic function of input
-	// size. Think like a (real) architect.
+	// TODO: re-think allocations strategies. For this type of program, not all memory can be allocated upfront,
+	// because it varies too much with input size. Moreover, an assembler is not a "streaming" program, like let's
+	// say a web-server, where data comes in and out. Here, data is created and added as we go, and we need to keep
+	// it from the start diagnostics.
 
 	Arena *arena = Arena_alloc_m();
 

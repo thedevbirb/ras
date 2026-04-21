@@ -84,6 +84,24 @@ typedef enum Evaluation
 }
 Evaluation;
 
+// TODO(medium): use these instead of direct checks.
+internal B32
+Evaluation__absolute(Evaluation evaluation)
+{
+	assert_always_m(evaluation <= Evaluation__Constant);
+	B32 result = evaluation >= Evaluation__Absolute;
+	return result;
+}
+
+// TODO(medium): use these instead of direct checks.
+internal B32
+Evaluation__unresolved(Evaluation evaluation)
+{
+	assert_always_m(evaluation <= Evaluation__Constant);
+	B32 result = evaluation != Evaluation__None && evaluation <= Evaluation__Unresolved;
+	return result;
+}
+
 // A parsed expression, which can be evaluated.
 //
 // The expression contains, among other fields, enough information to emit proper relocations after an unresolved
@@ -145,7 +163,7 @@ internal Binding_Power
 Binding_Power_from_Token_Kind(Token_Kind kind);
 
 internal Expression_Kind
-Expression_Kind_from_binary_Token_Kind(Token_Kind kind);
+Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);

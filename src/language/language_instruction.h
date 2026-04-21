@@ -1,6 +1,12 @@
 #ifndef LANGUAGE_INSTRUCTION_H
 #define LANGUAGE_INSTRUCTION_H
 
+#define INSTRUCTION_SIZE 4
+#define IMMEDIATE_NOMINAL_J_SIZE_BIT   21
+#define IMMEDIATE_NOMINAL_U_SIZE_BIT   21
+#define IMMEDIATE_NOMINAL_B_SIZE_BIT   13
+#define IMMEDIATE_NOMINAL_I_S_SIZE_BIT 12
+
 typedef enum Instruction_Format
 {
 	Instruction_Format__None = 0,
@@ -518,8 +524,8 @@ enum
 {
     Instruction_Flags__None                = 0,
     // Operand transformations for pseudo-instruction encoding:
-    //   Swap_1: swap rs1 and rs2 (e.g., bgt → blt with swapped ops)
-    //   Swap_2: rs1 → x0, rs2 → rs1 (e.g., bgtz → blt x0, rs, label)
+    //   Swap_1: swap rs1 and rs2 (e.g., bgt -> blt with swapped ops)
+    //   Swap_2: rs1 -> x0, rs2 -> rs1 (e.g., bgtz -> blt x0, rs, label)
     Instruction_Flags__Swap_1              = 1 << 0,
     Instruction_Flags__Swap_2              = 1 << 1,
     // The assembler attaches R_RISCV_RELAX to this instruction when it
@@ -564,7 +570,7 @@ global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__C
     // Branches have R_RISCV_BRANCH for resolvable backward in-range targets,
     // but the assembler expands them to jal-based long form when the target
     // isn't provably reachable. No %-operator syntax.
-    // Linker does not shrink branches → no Instruction_Flags__Relax_Hint hint.
+    // Linker does not shrink branches -> no Instruction_Flags__Relax_Hint hint.
     [Instruction_Kind__BEQ]    = { OPCODE_BRANCH,   FUNCT3_BEQ,   0,             Instruction_Flags__Expandable                                          },
     [Instruction_Kind__BNE]    = { OPCODE_BRANCH,   FUNCT3_BNE,   0,             Instruction_Flags__Expandable                                          },
     [Instruction_Kind__BLT]    = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable                                          },

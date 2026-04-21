@@ -170,17 +170,17 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 	recursion_level += 1;
 
 	assert_always_m(node && "cannot evaluate null expression");
-	assert_always_m(node->kind && "cannot evaluate unknown expression kind");
 	// TODO(low): print error immediately, and then exit.
 	assert_always_m(recursion_level < expression_recursion_max && "max recursion");
 
 	Expression_Kind kind = node->kind;
 
+	// TODO(low): Also if it is unresolved it might not be worth it to evaluate it again?
 	if (node->evaluation < Evaluation__Constant)
 	{
 	switch (kind)
 	{
-	case Expression_Kind__None:            {} break;
+	case Expression_Kind__None:            { unreachable_m(); } break;
 	case Expression_Kind__Number_Literal:
 	{
 		assert_always_m(node->index_left  == 0);
@@ -284,7 +284,7 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 
 		Resolver_Error_Kind error_kind = forward_is ? Resolver_Error_Kind__Label_Numeric_Forward_Not_Found
 			                                    : Resolver_Error_Kind__Label_Numeric_Backward_Not_Found;
-		Resolver_expect(resolver, match, Resolver_Error_Kind__Label_Numeric_Forward_Not_Found);
+		Resolver_expect(resolver, match, error_kind);
 
 		node->integer_value = offset;
 		node->evaluation = Evaluation__Unresolved;
@@ -425,6 +425,8 @@ Resolver_expression_evaluate(Resolver *resolver, Expression_Node *node)
 
 	recursion_level -= 1;
 
+	assert_always_m(node->evaluation != Evaluation__None);
+
 	return;
 }
 
@@ -561,18 +563,14 @@ Resolver_relax_pass(Resolver *resolver)
 			// If the immediate fits in 12 bits, sign-extended, a single addi suffices.
 			// Otherwise, we need a lui + addi, for 8 bytes total.
 			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
-			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			B32 constant = expression->evaluation = Evaluation__Constant;
+			Resolver_expect(resolver, constant, Resolver_Error_Kind__Evaluation_Constant_Expected);
 			S64 immediate = expression->integer_value;
 
-			size_new = 24; // Worst-case for rv32 is 8.
-			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
-			{
-				size_new = 4;
-			}
-			else if (-(1LL << 31) <= immediate && immediate <= (1LL << 31) -1)
-			{
-				size_new = 8;
-			}
+			// TODO(low): since this is constant, it can be done at parse time, meaning that we even
+			// generate the required instructions at parse time, which would be ideal.
+			U8 instructions_count = LI_instructions_count(immediate);
+			size_new = instructions_count * INSTRUCTION_SIZE;
 		} break;
 		case Instruction_Kind__J:
 		{
@@ -591,7 +589,7 @@ Resolver_relax_pass(Resolver *resolver)
 			// jal has a 21-bit signed offset range. If the target is not within that range, than we need an
 			// auipc + jalr, for 8 bytes total.
 			S64 delta = (S64)expression->integer_value - statement->section_offset;
-			B32 range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
+			B32 range_in = S64_bits_range_in(delta, IMMEDIATE_NOMINAL_J_SIZE_BIT);
 			if (expression->evaluation <= Evaluation__Absolute || !range_in)
 			{
 				size_new = 8;
@@ -615,27 +613,47 @@ Resolver_relax_pass(Resolver *resolver)
 		case Instruction_Kind__BGTU: {} // fallthrough
 		case Instruction_Kind__BLEU:
 		{
+			// The behaviour of a branch instructions depends on the expression provided, and whether it's a
+			// symbol or a constant value. Remember that what will be executed by the CPU is jump at
+			// `offset - pc`.
+			//
+			// The rule is that if the assembler can prove that the target is in a 13-bit signed offset, a
+			// BRANCH relocation is emitted, otherwise a JAL relocation is emitted because the function is
+			// inverted and a JAL (`jal zero, offset`) instruction is placed.
+			//
+			// When there is a symbol, if it's a local label in the same section, we can compute its
+			// distance from the current statement, and we act accordingly. If it's a global symbol, this
+			// will be moved by the linker, as such we don't know its end size and we emit the JAL
+			// instruction. Same happens in case the expression evaluates to a constant: since we don't know
+			// the absolute value of PC at assembly time, and the linker can add more content to the
+			// section, it may well be that `constant - pc` won't fit. So, we conservatively expand it.
+			//
+			// If after our assembler attempt to expand the instruction, the offset won't fit at link time,
+			// the linker will error.
+			//
+			// Lastly, a BRANCH relocation is emitted only if relaxation is enabled.
 			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
-			// Conditional branches have a 4 KiB range (13-bit signed offset).
-			// If the target is within range:
-			//   bxx rs1, rs2, offset -> 4 bytes
-			// If the target is out of range, invert and jump:
-			//   bxx_inv rs1, rs2, +8; jal zero, offset -> 8 bytes  (if jal range suffices)
-			//   bxx_inv rs1, rs2, +12; auipc + jalr    -> 12 bytes (if beyond jal range too)
-			size_new = 12;
-			if (expression->evaluation >= Evaluation__Absolute)
+			B32 unresolved = Evaluation__unresolved(expression->evaluation);
+			if (unresolved)
 			{
-				S64 delta = (S64)expression->integer_value - (S64)statement->section_offset;
-				if (-(1 << 12) <= delta && delta <= (1 << 12) - 1)
-				{
-					size_new = 4;
-				}
-				else if (-(1 << 20) <= delta && delta <= (1 << 20) - 1)
+				Symbols_Table_Entry *entry = expression->symbols_table_entry;
+				B32 local = ELF_Symbol_bind_m(entry->elf.type_and_binding) == ELF_Symbol_Binding__Local;
+				Statement *statement_declaration = &resolver->statements->data[entry->index_statement];
+				B32 section_same = statement->section_index == statement_declaration->section_index;
+				S64 distance = (S64)statement->section_offset - (S64)statement_declaration->section_offset;
+				B32 range_in = S64_bits_range_in(distance, IMMEDIATE_NOMINAL_B_SIZE_BIT);
+				B32 expand = !local || !section_same || !range_in;
+				if (expand)
 				{
 					size_new = 8;
 				}
 			}
+			else
+			{
+				size_new = 8;
+			}
 		} break;
+		// TODO(low): remove this default.
 		default: {} break;
 		}
 
@@ -896,12 +914,20 @@ Resolver_encode(Resolver *resolver)
 		// We do some expression boilerplate handling since every instruction has at most one expression and
 		// doesn't allow difference between expression->evaluation == Evaluation__Unresolved symbols.
 		Expression_Node *expression = 0;
+		B32 absolute   = 0;
+		B32 unresolved = 0;
 		if (statement->expressions_count)
 		{
-			expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
+			U32 expression_index = statement->expressions_indexes[0];
+			expression = &resolver->expressions->data[expression_index];
+			if (expression->evaluation != Evaluation__None)
+			{
+				Resolver_expression_evaluate(resolver, expression);
+			}
 			Resolver_expect(resolver, expression->symbol_operand == 0, Resolver_Error_Kind__Instruction_Expression_Unresolved_Symbols);
-
-			if (expression->evaluation >= Evaluation__Absolute)
+			absolute   = Evaluation__absolute(expression->evaluation);
+			unresolved = Evaluation__unresolved(expression->evaluation);
+			if (absolute)
 			{
 				immediate = expression->integer_value;
 			}
@@ -935,12 +961,15 @@ Resolver_encode(Resolver *resolver)
 		// 2. Shift and shift wide instructions have different funct6/7 size on 64 bits, and have stricter
 		//    requirements on their expressions.
 
+		// TODO(urgent): check that when expansion happens, relocations are placed at the right offset, that may
+		// be shifted.
+
 		switch (instruction_kind)
 		{
 		case Instruction_Kind__LUI:       {} // fallthrough
 		case Instruction_Kind__AUIPC:
 		{
-			if (expression->evaluation == Evaluation__Unresolved)
+			if (unresolved)
 			{
 				Resolver_expect(resolver, expression->relocation_operator, Resolver_Error_Kind__Relocation_Operator_Expected);
 				Relocation_RISC_V relocation_kind = Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
@@ -958,6 +987,7 @@ Resolver_encode(Resolver *resolver)
 			Object_File_Section_write_instruction(section, encoding);
 		} break;
 
+		case Instruction_Kind__J:   {} // fallthrough, it's `jal 0, offset`.
 		case Instruction_Kind__JAL:
 		{
 			if (statement->flags & Statement_Flags__JAL_Register_Destination_Unset)
@@ -965,7 +995,7 @@ Resolver_encode(Resolver *resolver)
 				rd = 1; // ra
 			}
 
-			if (expression->evaluation == Evaluation__Unresolved)
+			if (unresolved)
 			{
 				ELF64_Relocation_Addend relocation =
 				{
@@ -974,6 +1004,11 @@ Resolver_encode(Resolver *resolver)
 					.addend = expression->integer_value,
 				};
 				Object_File_Section_relocation_write(section_relocation, &relocation);
+			}
+			else
+			{
+				B32 fits = S64_bits_range_in(expression->integer_value, IMMEDIATE_NOMINAL_J_SIZE_BIT);
+				Resolver_expect(resolver, fits, Resolver_Error_Kind__Immediate_Large);
 			}
 
 			U32 encoding = instruction_j_encode_m(rd, immediate, OPCODE_JAL);
@@ -998,7 +1033,12 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__BGTU: {} // fallthrough
 		case Instruction_Kind__BLEU:
 		{
-			if (expression->evaluation == Evaluation__Unresolved)
+			U8 size      = statement->size;
+			assert_always_m(size == 4 || size == 8);
+			B32 expanded = size == 8;
+			S64 immediate_first = immediate;
+
+			if (size == 4 && relax_enabled)
 			{
 				ELF64_Relocation_Addend relocation_branch =
 				{
@@ -1009,8 +1049,31 @@ Resolver_encode(Resolver *resolver)
 				Object_File_Section_relocation_write(section_relocation, &relocation_branch);
 			}
 
-			U32 encoding = instruction_b_encode_m(rs2, rs1, immediate, OPCODE_BRANCH, funct3);
+			// TODO(urgent): handle expansion.
+			if (expanded)
+			{
+				// Invert the operation by flipping the last bit.
+				funct3 ^= 1;
+				immediate_first = size;
+			}
+
+			U32 encoding = instruction_b_encode_m(rs2, rs1, immediate_first, OPCODE_BRANCH, funct3);
 			Object_File_Section_write_instruction(section, encoding);
+
+			if (expanded)
+			{
+				U32 encoding_jal = instruction_j_encode_m(0, immediate, OPCODE_JAL);
+				ELF64_Relocation_Addend relocation =
+				{
+					// Add instruction size because it is the instruction next to it.
+					.offset = statement->section_offset + 4,
+					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
+					.addend = expression->integer_value,
+				};
+
+				Object_File_Section_write_instruction(section, encoding_jal);
+				Object_File_Section_relocation_write(section_relocation, &relocation);
+			}
 		} break;
 
 		// Apart from small encoding different with stores, the logic of I and S format is the same, and thus
@@ -1051,7 +1114,7 @@ Resolver_encode(Resolver *resolver)
 				immediate = 1;
 			}
 
-			if (expression && expression->evaluation == Evaluation__Unresolved)
+			if (unresolved)
 			{
 				Relocation_RISC_V relocation_kind =
 					Relocation_RISC_V_from_Relocation_Operator(statement->relocation_operator, statement->instruction_format);
@@ -1064,6 +1127,11 @@ Resolver_encode(Resolver *resolver)
 				};
 				Object_File_Section_relocation_write(section_relocation, &relocation);
 
+			}
+			else
+			{
+				B32 fits = S64_bits_range_in(expression->integer_value, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
+				Resolver_expect(resolver, fits, Resolver_Error_Kind__Immediate_Large);
 			}
 
 			U32 encoding = instruction_i_encode_m(rd, rs1, immediate, opcode, funct3);
@@ -1078,7 +1146,7 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__SRLI:   {} // fallthrough
 		case Instruction_Kind__SRAI:   {} // fallthrough
 		{
-			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
 			B32 range_in = 0 <= immediate && immediate < 64; // Architecture bit size.
 			Resolver_expect(resolver, range_in, Resolver_Error_Kind__Shift_Amount_Invalid);
 
@@ -1090,7 +1158,7 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__SRLIW: {} // fallthrough
 		case Instruction_Kind__SRAIW:
 		{
-			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
 			U32 encoding = instruction_i_shift_wide_encode_m(rd, rs1, immediate, opcode, funct3, funct7);
 			Object_File_Section_write_instruction(section, encoding);
 		} break;
@@ -1117,7 +1185,7 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__SLTZ: {} // fallthrough
 		case Instruction_Kind__SGTZ:
 		{
-			if (expression && expression->evaluation == Evaluation__Unresolved)
+			if (unresolved)
 			{
 				assert_always_m(instruction_kind == Instruction_Kind__ADD);
 				ELF64_Relocation_Addend relocation =
@@ -1136,23 +1204,6 @@ Resolver_encode(Resolver *resolver)
 
 		// Pseudo-case instructions
 		// TODO: check
-		case Instruction_Kind__J:
-		{
-			if (expression->evaluation == Evaluation__Unresolved)
-			{
-				ELF64_Relocation_Addend relocation =
-				{
-					.offset = statement->section_offset,
-					.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, Relocation_RISC_V__JAL),
-					.addend = expression->integer_value,
-				};
-				Object_File_Section_relocation_write(section_relocation, &relocation);
-			}
-
-			U32 encoding = instruction_j_encode_m(0, immediate, OPCODE_JAL);
-			Object_File_Section_write_instruction(section, encoding);
-		} break;
-		// TODO: check
 		case Instruction_Kind__CALL:
 		case Instruction_Kind__TAIL:
 		{
@@ -1167,7 +1218,7 @@ Resolver_encode(Resolver *resolver)
 			U32 auipc_encoding = 0;
 			U32 jalr_encoding = 0;
 
-			if (expression->evaluation == Evaluation__Unresolved || !range_in)
+			if (unresolved || !range_in)
 			{
 				S64 upper = 0;
 				S64 lower = 0;
@@ -1215,22 +1266,97 @@ Resolver_encode(Resolver *resolver)
 		// TODO: check
 		case Instruction_Kind__LI:
 		{
+			// TODO(low): See other comments, this is redundant, unfortunately. This is very inefficient,
+			// although not many iterations.
+			U8 instructions_count = LI_instructions_count(immediate);
+			assert_always_m(instructions_count > 0 && instructions_count <= 8);
 
-			Resolver_expect(resolver, expression->evaluation >= Evaluation__Absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
+			// Peel phase: walk down the recursion, recording the low-12-bit tail
+			// at each level. We need the tails stored because emission replays
+			// them in reverse (bottom-up) after the base case has been emitted.
+			// Worst case on RV64 is 8 instructions, which bounds the peel depth
+			// at 3 (each peel contributes SLLI + ADDI = 2 instructions, atop a
+			// 2-instruction LUI + ADDIW base case).
+			S64 peel_tails[4];
+			U32 peels_count = 0;
+			S64 residual    = immediate;
 
-			if (-(1 << 11) <= immediate && immediate <= (1 << 11) - 1)
+			for (;;)
 			{
-				U32 encoding = instruction_i_encode_m(rd, 0, immediate, OPCODE_I_TYPE, FUNCT3_ADDI);
+				B32 range_i_s        = S64_bits_range_in(residual, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
+				B32 range_i_s_plus_u = S64_bits_range_in(residual,
+						IMMEDIATE_NOMINAL_I_S_SIZE_BIT + IMMEDIATE_NOMINAL_U_SIZE_BIT);
+
+				if (range_i_s || range_i_s_plus_u)
+				{
+					break;
+				}
+
+				S64 low_12 = (residual << 52) >> 52;
+				peel_tails[peels_count] = low_12;
+				peels_count += 1;
+
+				residual = (residual - low_12) >> 12;
+
+				assert_always_m(peels_count < 4 && "LI expansion exceeded worst case");
+			}
+
+			// Base case emission: `residual` now fits in either 12-bit or 32-bit
+			// signed range. Emit the corresponding 1 or 2 instructions.
+			B32 base_range_i_s = S64_bits_range_in(residual, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
+			if (base_range_i_s)
+			{
+				// Fits in 12-bit signed: single ADDI from x0.
+				U32 encoding = instruction_i_encode_m(rd, 0, residual,
+						OPCODE_I_TYPE, FUNCT3_ADDI);
 				Object_File_Section_write_instruction(section, encoding);
 			}
 			else
 			{
-				S32 upper = (immediate + 0x800) >> 12;
-				S32 lower = immediate & 0xFFF;
-				U32 lui_encoding = instruction_u_encode_m(rd, upper, OPCODE_LUI);
-				U32 addi_encoding = instruction_i_encode_m(rd, rd, lower, OPCODE_I_TYPE, FUNCT3_ADDI);
+				// Fits in 32-bit signed: LUI, plus ADDIW if the low 12 bits are
+				// non-zero. The LUI immediate is the residual with its low 12
+				// bits cleared; ADDIW then splices those 12 bits back in (sign-
+				// extended to 64 bits via the W-form semantics).
+				S64 base_low_12  = (residual << 52) >> 52;
+				S64 base_lui_imm = residual - base_low_12;
+
+				U32 lui_encoding = instruction_u_encode_m(rd, base_lui_imm, OPCODE_LUI);
 				Object_File_Section_write_instruction(section, lui_encoding);
-				Object_File_Section_write_instruction(section, addi_encoding);
+
+				if (base_low_12 != 0)
+				{
+					U32 addiw_encoding = instruction_i_encode_m(rd, rd, base_low_12,
+							OPCODE_I_TYPE, FUNCT3_ADDIW);
+					Object_File_Section_write_instruction(section, addiw_encoding);
+				}
+			}
+
+			// Replay phase: emit SLLI + ADDI for each peeled level, outermost last.
+			// At this point `rd` holds the base-case residual; each iteration shifts
+			// it left by 12 and adds the corresponding tail back in. ADDI (not ADDIW)
+			// because we're building a 64-bit value and ADDIW would discard the upper
+			// bits we just shifted into place.
+			U32 index = peels_count;
+			for (U32 i = peels_count; i > 0; i -= 1)
+			{
+				B32 break_should = i == 0;
+				if (break_should)
+				{
+					break;
+				}
+				S64 tail = peel_tails[i - 1];
+
+				U32 slli_encoding = instruction_i_encode_m(rd, rd, 12,
+						OPCODE_I_TYPE, FUNCT3_SLLI);
+				Object_File_Section_write_instruction(section, slli_encoding);
+
+				if (tail != 0)
+				{
+					U32 addi_encoding = instruction_i_encode_m(rd, rd, tail,
+							OPCODE_I_TYPE, FUNCT3_ADDI);
+					Object_File_Section_write_instruction(section, addi_encoding);
+				}
+				index -= 1;
 			}
 		} break;
 		// TODO: check
@@ -1240,14 +1366,14 @@ Resolver_encode(Resolver *resolver)
 			S64 upper = 0;
 			S64 lower = 0;
 
-			if (expression->evaluation >= Evaluation__Absolute)
+			if (absolute)
 			{
 				value = expression->integer_value;
 				upper = (value + 0x800) >> 12;
 				lower = value & 0xFFF;
 			}
 
-			if (expression->evaluation == Evaluation__Unresolved)
+			if (unresolved)
 			{
 				Relocation_RISC_V relocation_hi = Relocation_RISC_V__High_20;
 				ELF64_Relocation_Addend relocation =
