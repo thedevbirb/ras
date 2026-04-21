@@ -7,6 +7,7 @@ plan/
 *.old
 *.o
 nob
+riscv-vm/
 
 core
 

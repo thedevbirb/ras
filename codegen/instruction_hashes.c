@@ -113,7 +113,7 @@ make_safe(char *destination, const char *source)
 int
 main(void)
 {
-	size_t instruction_count =
+	size_t instructions_count =
 		sizeof(Instruction_Kind_strings) /
 		sizeof(Instruction_Kind_strings[0]);
 
@@ -128,7 +128,7 @@ main(void)
 	size_t instruction_index = 1;
 	for (;;)
 	{
-		B32 break_should = instruction_index >= instruction_count;
+		B32 break_should = instruction_index >= instructions_count;
 		if (break_should)
 		{
 			break;
@@ -170,7 +170,7 @@ main(void)
 	size_t outer_index = 1;
 	for (;;)
 	{
-		B32 break_outer = outer_index >= instruction_count;
+		B32 break_outer = outer_index >= instructions_count;
 		if (break_outer)
 		{
 			break;
@@ -179,7 +179,7 @@ main(void)
 		size_t inner_index = outer_index + 1;
 		for (;;)
 		{
-			B32 break_inner = inner_index >= instruction_count;
+			B32 break_inner = inner_index >= instructions_count;
 			if (break_inner)
 			{
 				break;
@@ -218,7 +218,7 @@ main(void)
 	size_t output_index = 1;
 	for (;;)
 	{
-		B32 break_should = output_index >= instruction_count;
+		B32 break_should = output_index >= instructions_count;
 		if (break_should)
 		{
 			break;
