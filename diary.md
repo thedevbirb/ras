@@ -177,6 +177,9 @@ need to recompute all expressions anyway.
 I'm essentially reverse engineering a lot of gas behaviour by feeding it some inputs and see how it
 behaves. In doing so, I've also found a couple of bugs to report!
 
+A RELAX relocation is not emitted when there is no symbol, but only an addend. For example `call 0`
+won't emit RELAX even if `.option relax` is set.
+
 # encoding
 
 Now I'm finally at the encoding stage. By this time, I'm quite confident in understand and reading
@@ -217,6 +220,11 @@ still better than nothing.
 - https://sourceware.org/cgit/binutils-htdocs/commit/?id=30b032c8ecd7b53d995058be3faf6c031e229de5
 - https://sourceware.org/binutils/docs/as/
 - https://github.com/riscv-non-isa/riscv-elf-psabi-doc
+- https://github.com/riscv-non-isa/riscv-asm-manual
+
+While this resources are helpful, sometimes implementations don't really match it. An example: if
+relaxation is enabled, `call` should emit a `R_RISCV_RELAX`. Fine, however in gnu gas `call 0`
+doesn't emit one. Why? You have to look at source code anyway.
 
 # Random
 
@@ -270,10 +278,13 @@ The following is a list of gotchas and quirks I have found while using `gas`, sp
 1. if you declare a label with `.local`, without defining it, it is marked as global.
 2. when assembling, it doesn't validate that `pcrel_lo` doesn't point to a defined label where
    `pcrel_hi` is used.
-3. The `li` instruction MUST accept a constant (not even an absolute expression!) which is okay but
-   seems a bit counterintuitive considering how flexible gas is elsewhere, sometimes. I understand
-   though that accepting an undefined symbol is problematic because on 64 bit you would not have a
-   way to express it via relocations.
+3. In some instructions, like LI, gas seems to accept only an expression that reduces to a constant
+   at parse time. However, this is not really true. While:
+   ```asm
+   li rd, label2 - label1
+   ```
+   Doesn't assemble, assigning that difference to a symbol `FOO` and then using `FOO` assembles.
+   Sometimes, this is really confusing.
 4. Writing `j global_2 - global_1` produces the following ELF relocation:
    ```
    Relocation section '.rela.text' at offset 0x1d0 contains 1 entry:
@@ -341,3 +352,13 @@ The following is a list of gotchas and quirks I have found while using `gas`, sp
    ```asm
    lui x1, %pcrel_hi(global_1)
    ```
+
+# General logs:
+
+
+Wed Apr 22 11:02:53 CEST 2026
+
+It's hard. It's genuinely hard. It's hard to allocate time where you don't code, but you design and
+understand, while maintaining the rigour and not chase the productiveness feeling. In practice,
+spending time designing and understanding is the most productive thing you can do, because design
+time is cheap, coding is inevitably slower, regardless of AI

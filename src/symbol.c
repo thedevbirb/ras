@@ -107,7 +107,7 @@ Symbols_Table_reserve(Symbols_Table *map, String8 key)
 	overwritten = entry->flags & Symbol_Flags__Written;
 
 	map->slots[map->count] = entry->index & ~(overwritten - 1);
-	map->count           += overwritten;
+	map->count            += overwritten;
 
 	entry->flags |= Symbol_Flags__Written;
 

@@ -1,3 +1,177 @@
+// Encodes all the instructions required during a LI pseudo-instruction. Pass `section = NULL` to count only; pass a
+// valid section pointer (with `rd` set) to additionally emit the encoded instructions.
+//
+// The algorithm proceeds by range analysis:
+//
+//   - If the value fits in a 12-bit signed range, a single ADDI suffices.
+//   - If it fits in a 32-bit signed range, it takes LUI alone (if the low 12 bits are zero) or LUI + ADDIW otherwise.
+//     ADDIW (not ADDI) is used because the result is meant to be a 32-bit sign-extended value.
+//
+// Otherwise, we peel the low 12 bits off as a sign-extended tail (to be spliced back with an ADDI later),
+// arithmetic-shift the remainder right by 12, and recurse on the upper portion. Each recursive level contributes one
+// SLLI (to shift the upper part back into place) plus one ADDI (to splice in the peeled 12 bits, if non-zero).
+//
+// Note: after the initial LUI + ADDIW builds the topmost 32-bit chunk, every subsequent low-bit insertion uses plain
+// ADDI, not ADDIW. ADDIW would discard the upper 32 bits we just shifted in.
+//
+// Example: li x1, 0x12345111333555
+//
+// Peeling (top-down analysis):
+//
+//   value = 0x12345111333555
+//     peel low 12 bits = 0x555, shift right by 12
+//   value = 0x12345111333
+//     peel low 12 bits = 0x333, shift right by 12
+//   value = 0x12345111
+//     fits in 32-bit signed -> LUI 0x12345, ADDIW 0x111
+//
+// Emission (bottom-up assembly, 6 instructions):
+//
+//   lui   ra, 0x12345    ; ra = 0x0000000012345000
+//   addiw ra, ra, 0x111  ; ra = 0x0000000012345111   <- base case
+//   slli  ra, ra, 12     ; ra = 0x0000012345111000
+//   addi  ra, ra, 0x333  ; ra = 0x0000012345111333   <- splice 0x333
+//   slli  ra, ra, 12     ; ra = 0x0012345111333000
+//   addi  ra, ra, 0x555  ; ra = 0x0012345111333555   <- splice 0x555
+//
+// The symmetry is the key insight: each level of peeling on the way down (shift right by 12, record a tail) becomes one
+// SLLI + ADDI pair on the way back up (shift left by 12, replay the tail). The base case at the bottom of the recursion
+// is the LUI (+ optional ADDIW) that seeds the topmost 32-bit chunk.
+//
+// Other minor optimizations are in place. In particular, the algorithm will also take into account additional trailing
+// zeros after shifting right by 12, so that numbers with many trailing zero don't need more instructions than needed.
+internal U8
+LI_instruction_encode(S64 immediate, Object_File_Section* section, U8 register_destination)
+{
+	U8  instructions_count = 0;
+	S64 immediate_low_12   = 0;
+	U32 index              = 0;
+
+	// Peeled chunks: for each level we store the shift amount AND the
+	// low-12-bit tail. Shifts are at least 12, but can be larger because
+	// trailing zero bits of the upper residual are absorbed into the next
+	// SLLI (folding runs of zeros for free). Worst case on RV64 is 3
+	// peels = 8 total instructions (LUI + ADDIW + 3 x (SLLI + ADDI)).
+	struct { U8 shift; S64 tail; } peels[4];
+	U32 peels_count = 0;
+
+	for (;;)
+	{
+		B32 range_i_s        = S64_bits_range_in(immediate, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
+		B32 range_i_s_plus_u = S64_bits_range_in(immediate, IMMEDIATE_NOMINAL_I_S_SIZE_BIT + IMMEDIATE_NOMINAL_U_SIZE_BIT);
+		B32 break_should     = range_i_s || range_i_s_plus_u;
+
+		if (range_i_s)
+		{
+			instructions_count += 1;
+			if (section)
+			{
+				// Single ADDI from x0.
+				U32 encoding = instruction_i_encode_m(register_destination, 0, immediate,
+						OPCODE_I_TYPE, FUNCT3_ADDI);
+				Object_File_Section_write_instruction(section, encoding);
+			}
+		}
+		else if (range_i_s_plus_u)
+		{
+			immediate_low_12 = (immediate << 52) >> 52;
+			B32 lui_suffices = immediate_low_12 == 0;
+			instructions_count += lui_suffices ? 1 : 2;
+			if (section)
+			{
+				// LUI, plus ADDIW if the low 12 bits are non-zero. The LUI
+				// immediate is `immediate` with its low 12 bits cleared;
+				// ADDIW splices them back in (sign-extended to 64 bits).
+				S64 immediate_lui = immediate - immediate_low_12;
+				U32 encoding_lui  = instruction_u_encode_m(register_destination, immediate_lui, OPCODE_LUI);
+				Object_File_Section_write_instruction(section, encoding_lui);
+				if (!lui_suffices)
+				{
+					U32 addiw_enc = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
+							OPCODE_I_TYPE, FUNCT3_ADDIW);
+					Object_File_Section_write_instruction(section, addiw_enc);
+				}
+			}
+		}
+		else
+		{
+			immediate_low_12 = (immediate << 52) >> 52;
+			// Here, we override immediate to repeat the algorithm the next iterations on a smaller number
+			// composed by the 54 highest bits. However, as we see below there might be more trailing zeros!
+			immediate        = (immediate - immediate_low_12) >> 12;
+
+			// Absorb trailing zero bits of the upper residual into this
+			// peel's SLLI. Each absorbed bit means the residual we recurse
+			// on is denser, potentially bottoming out in fewer iterations
+			// (e.g. a huge value like 0x8000000000000000 collapses to just
+			// ADDI + SLLI after this).
+			U8 trailing = count_trailing_zeros((U64)immediate);
+			U8 shift    = (12 + trailing);
+			immediate  >>= trailing;
+
+			// SLLI is always needed to shift the upper part into place;
+			// ADDI is only needed when the peeled tail is non-zero.
+			B32 addi_needed = (immediate_low_12 != 0);
+			instructions_count += 1 + (addi_needed ? 1 : 0);
+
+			if (section)
+			{
+				// Record (shift, tail) for later replay. No emission yet:
+				// the SLLI + (optional) ADDI can't be emitted until the
+				// upper residual has been materialized by the base case.
+				assert_always_m(peels_count < 4 && "LI expansion exceeded worst case");
+				peels[peels_count].shift = shift;
+				peels[peels_count].tail  = immediate_low_12;
+				peels_count += 1;
+			}
+		}
+
+		if (break_should)
+		{
+			break;
+		}
+		index += 1;
+		assert_always_m(index < 8 && "infinite loop");
+	}
+
+	// Replay phase: emit SLLI + optional ADDI for each peeled level in
+	// reverse order. `register_destination` already holds the base-case residual; each
+	// iteration shifts it left by the recorded amount (12 + absorbed
+	// trailing zeros) and splices the next tail back in (when non-zero).
+	// Plain ADDI (not ADDIW) is used because we're building a 64-bit
+	// value; ADDIW would discard the upper bits just shifted into place
+	// by SLLI.
+	if (section)
+	{
+		S32 peel_index = peels_count - 1;
+		for (;;)
+		{
+			B32 break_should = index < 0;
+			if (break_should)
+			{
+				break;
+			}
+
+			U8  shift = peels[peel_index].shift;
+			S64 tail  = peels[peel_index].tail;
+
+			U32 encoding_slli = instruction_i_encode_m(register_destination, register_destination, shift, OPCODE_I_TYPE, FUNCT3_SLLI);
+			Object_File_Section_write_instruction(section, encoding_slli);
+
+			if (tail != 0)
+			{
+				U32 encoding_addi = instruction_i_encode_m(register_destination, register_destination, tail, OPCODE_I_TYPE, FUNCT3_ADDI);
+				Object_File_Section_write_instruction(section, encoding_addi);
+			}
+
+			peel_index -= 1;
+		}
+	}
+
+	assert_always_m(instructions_count > 0);
+	return instructions_count;
+}
+
 void
 Resolver_error_set(Resolver *resolver, Resolver_Error_Kind kind)
 {
@@ -550,6 +724,7 @@ Resolver_relax_pass(Resolver *resolver)
 		case Directive_Kind__Asciz:          {} break;
 		case Directive_Kind__String:         {} break;
 		case Directive_Kind__Common:         {} break;
+		// These two should be handled again!
 		case Directive_Kind__Set:            {} break;
 		case Directive_Kind__Equality:       {} break;
 		case Directive_Kind__Option:         {} break;
@@ -563,37 +738,11 @@ Resolver_relax_pass(Resolver *resolver)
 			// If the immediate fits in 12 bits, sign-extended, a single addi suffices.
 			// Otherwise, we need a lui + addi, for 8 bytes total.
 			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
-			B32 constant = expression->evaluation = Evaluation__Constant;
-			Resolver_expect(resolver, constant, Resolver_Error_Kind__Evaluation_Constant_Expected);
+			B32 absolute = Evaluation__absolute(expression->evaluation);
+			Resolver_expect(resolver, absolute, Resolver_Error_Kind__Evaluation_Absolute_Expected);
 			S64 immediate = expression->integer_value;
-
-			// TODO(low): since this is constant, it can be done at parse time, meaning that we even
-			// generate the required instructions at parse time, which would be ideal.
-			U8 instructions_count = LI_instructions_count(immediate);
+			U8 instructions_count = LI_instruction_encode(immediate, 0, 0);
 			size_new = instructions_count * INSTRUCTION_SIZE;
-		} break;
-		case Instruction_Kind__J:
-		{
-			// Expands to `jal, x0, immediate`. In code, an expression->evaluation == Evaluation__Unresolved expression can be in place, and e JAL
-			// relocation is emitted.
-		} break;
-		case Instruction_Kind__TAIL:
-		{
-			// Same logic as CALL but uses zero instead of ra.
-			// jal zero, offset            -> 4 bytes (±1 MiB range)
-			// auipc t1, upper + jalr zero -> 8 bytes
-		} // fallthrough
-		case Instruction_Kind__CALL:
-		{
-			Expression_Node *expression = Resolver_statement_expression_evaluate_index(resolver, statement, 0);
-			// jal has a 21-bit signed offset range. If the target is not within that range, than we need an
-			// auipc + jalr, for 8 bytes total.
-			S64 delta = (S64)expression->integer_value - statement->section_offset;
-			B32 range_in = S64_bits_range_in(delta, IMMEDIATE_NOMINAL_J_SIZE_BIT);
-			if (expression->evaluation <= Evaluation__Absolute || !range_in)
-			{
-				size_new = 8;
-			}
 		} break;
 		case Instruction_Kind__BEQ:  {} // fallthrough
 		case Instruction_Kind__BNE:  {} // fallthrough
@@ -653,6 +802,15 @@ Resolver_relax_pass(Resolver *resolver)
 				size_new = 8;
 			}
 		} break;
+		// NOTE: While both TAIL and CALL could be reduced to one instruction at assembly time (e.g. `call 0`),
+		// this is not done in practice, and it is always expanded to a `auipc + jalr` pair. The reason is that
+		// both instructions should emit the (now preferred) relocation `CALL_PLT`, and when the linker reads
+		// it, it expects two instructions.
+		case Instruction_Kind__TAIL: {} break;
+		case Instruction_Kind__CALL: {} break;
+		// Expands to `jal, x0, immediate`. In code, an expression->evaluation == Evaluation__Unresolved
+		// expression can be in place, and e JAL relocation is emitted.
+		case Instruction_Kind__J:    {} break;
 		// TODO(low): remove this default.
 		default: {} break;
 		}
@@ -1049,7 +1207,6 @@ Resolver_encode(Resolver *resolver)
 				Object_File_Section_relocation_write(section_relocation, &relocation_branch);
 			}
 
-			// TODO(urgent): handle expansion.
 			if (expanded)
 			{
 				// Invert the operation by flipping the last bit.
@@ -1062,7 +1219,10 @@ Resolver_encode(Resolver *resolver)
 
 			if (expanded)
 			{
+				// NOTE: there might NOT be a symbol here, e.g. `beqz x1, 0`.
 				U32 encoding_jal = instruction_j_encode_m(0, immediate, OPCODE_JAL);
+				Symbols_Table_Entry *entry = expression->symbols_table_entry;
+				U32 symbol_index = entry ? entry->index : 0;
 				ELF64_Relocation_Addend relocation =
 				{
 					// Add instruction size because it is the instruction next to it.
@@ -1207,157 +1367,36 @@ Resolver_encode(Resolver *resolver)
 		case Instruction_Kind__CALL:
 		case Instruction_Kind__TAIL:
 		{
-			S64 delta = 0;
-			B32 range_in = 0;
-			if (expression->evaluation >= Evaluation__Absolute)
+			if (statement->flags & Statement_Flags__CALL_Register_Destination_Unset)
 			{
-				delta = (S64)expression->integer_value - (S64)statement->section_offset;
-				range_in = -(1 << 20) <= delta && delta <= (1 << 20) - 1;
+				rd = 1; // ra
 			}
 
-			U32 auipc_encoding = 0;
-			U32 jalr_encoding = 0;
 
-			if (unresolved || !range_in)
+			// FIX: blocked by symbol index being wrong, and care between the two instructions.
+
+			if (absolute)
 			{
-				S64 upper = 0;
-				S64 lower = 0;
-				if (expression->evaluation >= Evaluation__Absolute)
+				ELF64_Relocation_Addend relocation =
 				{
-					upper = ((S64)expression->integer_value + 0x800) >> 12;
-					lower = (S64)expression->integer_value & 0xFFF;
-				}
-
-				if (expression->evaluation == Evaluation__Unresolved)
-				{
-					Relocation_RISC_V relocation_kind = Relocation_RISC_V__Call;
-					ELF64_Relocation_Addend relocation =
-					{
-						.offset = statement->section_offset,
-						.info   = ELF64_Relocation_info_m(expression->symbols_table_entry->index, relocation_kind),
-						.addend = expression->integer_value,
-					};
-					Object_File_Section_relocation_write(section_relocation, &relocation);
-				}
-				else
-				{
-					auipc_encoding = instruction_u_encode_m(5, upper, OPCODE_AUIPC);
-					jalr_encoding = instruction_i_encode_m(
-						instruction_kind == Instruction_Kind__CALL ? 1 : 0,
-						5, lower, OPCODE_JALR, FUNCT3_JALR
-					);
-				}
-			}
-			else
-			{
-				U32 encoding = instruction_u_encode_m(instruction_kind == Instruction_Kind__CALL ? 1 : 0, delta, OPCODE_JAL);
-				Object_File_Section_write_instruction(section, encoding);
+					.offset = statement->section_offset,
+					.info   = ELF64_Relocation_info_m(0, Relocation_RISC_V__Call_PLT),
+					.addend = expression->integer_value,
+				};
 			}
 
-			if (auipc_encoding)
-			{
-				Object_File_Section_write_instruction(section, auipc_encoding);
-			}
-			if (jalr_encoding)
-			{
-				Object_File_Section_write_instruction(section, jalr_encoding);
-			}
+			U32 auipc_encoding = instruction_u_encode_m(rd, 0, OPCODE_AUIPC);
+			U32 jalr_encoding  = instruction_i_encode_m(rd, 0, 0, OPCODE_JALR, FUNCT3_JALR);
+
+			Object_File_Section_write_instruction(section, auipc_encoding);
+			Object_File_Section_write_instruction(section, jalr_encoding);
 		} break;
 		// TODO: check
 		case Instruction_Kind__LI:
 		{
 			// TODO(low): See other comments, this is redundant, unfortunately. This is very inefficient,
 			// although not many iterations.
-			U8 instructions_count = LI_instructions_count(immediate);
-			assert_always_m(instructions_count > 0 && instructions_count <= 8);
-
-			// Peel phase: walk down the recursion, recording the low-12-bit tail
-			// at each level. We need the tails stored because emission replays
-			// them in reverse (bottom-up) after the base case has been emitted.
-			// Worst case on RV64 is 8 instructions, which bounds the peel depth
-			// at 3 (each peel contributes SLLI + ADDI = 2 instructions, atop a
-			// 2-instruction LUI + ADDIW base case).
-			S64 peel_tails[4];
-			U32 peels_count = 0;
-			S64 residual    = immediate;
-
-			for (;;)
-			{
-				B32 range_i_s        = S64_bits_range_in(residual, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
-				B32 range_i_s_plus_u = S64_bits_range_in(residual,
-						IMMEDIATE_NOMINAL_I_S_SIZE_BIT + IMMEDIATE_NOMINAL_U_SIZE_BIT);
-
-				if (range_i_s || range_i_s_plus_u)
-				{
-					break;
-				}
-
-				S64 low_12 = (residual << 52) >> 52;
-				peel_tails[peels_count] = low_12;
-				peels_count += 1;
-
-				residual = (residual - low_12) >> 12;
-
-				assert_always_m(peels_count < 4 && "LI expansion exceeded worst case");
-			}
-
-			// Base case emission: `residual` now fits in either 12-bit or 32-bit
-			// signed range. Emit the corresponding 1 or 2 instructions.
-			B32 base_range_i_s = S64_bits_range_in(residual, IMMEDIATE_NOMINAL_I_S_SIZE_BIT);
-			if (base_range_i_s)
-			{
-				// Fits in 12-bit signed: single ADDI from x0.
-				U32 encoding = instruction_i_encode_m(rd, 0, residual,
-						OPCODE_I_TYPE, FUNCT3_ADDI);
-				Object_File_Section_write_instruction(section, encoding);
-			}
-			else
-			{
-				// Fits in 32-bit signed: LUI, plus ADDIW if the low 12 bits are
-				// non-zero. The LUI immediate is the residual with its low 12
-				// bits cleared; ADDIW then splices those 12 bits back in (sign-
-				// extended to 64 bits via the W-form semantics).
-				S64 base_low_12  = (residual << 52) >> 52;
-				S64 base_lui_imm = residual - base_low_12;
-
-				U32 lui_encoding = instruction_u_encode_m(rd, base_lui_imm, OPCODE_LUI);
-				Object_File_Section_write_instruction(section, lui_encoding);
-
-				if (base_low_12 != 0)
-				{
-					U32 addiw_encoding = instruction_i_encode_m(rd, rd, base_low_12,
-							OPCODE_I_TYPE, FUNCT3_ADDIW);
-					Object_File_Section_write_instruction(section, addiw_encoding);
-				}
-			}
-
-			// Replay phase: emit SLLI + ADDI for each peeled level, outermost last.
-			// At this point `rd` holds the base-case residual; each iteration shifts
-			// it left by 12 and adds the corresponding tail back in. ADDI (not ADDIW)
-			// because we're building a 64-bit value and ADDIW would discard the upper
-			// bits we just shifted into place.
-			U32 index = peels_count;
-			for (U32 i = peels_count; i > 0; i -= 1)
-			{
-				B32 break_should = i == 0;
-				if (break_should)
-				{
-					break;
-				}
-				S64 tail = peel_tails[i - 1];
-
-				U32 slli_encoding = instruction_i_encode_m(rd, rd, 12,
-						OPCODE_I_TYPE, FUNCT3_SLLI);
-				Object_File_Section_write_instruction(section, slli_encoding);
-
-				if (tail != 0)
-				{
-					U32 addi_encoding = instruction_i_encode_m(rd, rd, tail,
-							OPCODE_I_TYPE, FUNCT3_ADDI);
-					Object_File_Section_write_instruction(section, addi_encoding);
-				}
-				index -= 1;
-			}
+			LI_instruction_encode(immediate, section, rd);
 		} break;
 		// TODO: check
 		case Instruction_Kind__LA:

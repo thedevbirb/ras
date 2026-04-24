@@ -260,7 +260,7 @@ Parser_instruction_jal_parse(Parser *parser)
 	parser->statement_context->instruction_kind     = Instruction_Kind__JAL;
 	parser->statement_context->instruction_format   = Instruction_Format__J;
 
-	// Two possible forms: `jal rd, offset` or `jal offset`, where `rd` is implicitly `rd`.
+	// Two possible forms: `jal rd, offset` or `jal offset`, where `rd` is implicitly `ra`.
 
 	Parser_advance(parser);
 	Token *next = Parser_peek_next(parser);
@@ -275,6 +275,34 @@ Parser_instruction_jal_parse(Parser *parser)
 	else
 	{
 		parser->statement_context->flags |= Statement_Flags__JAL_Register_Destination_Unset;
+	}
+
+	Expression_Node *expression = Parser_expression_parse(parser);
+	parser->statement_context->expressions_indexes  = &expression->index;
+}
+
+// call symbol -> auipc ra, %pcrel_hi(symbol), + jalr ra, ra, %pcrel_lo(symbol)
+internal void
+Parser_instruction_call_parse(Parser *parser)
+{
+	parser->statement_context->instruction_kind     = Instruction_Kind__CALL;
+	parser->statement_context->instruction_format   = Instruction_Format__J;
+
+	// Two possible forms: `call rd, offset` or `call offset`, where `rd` is implicitly `ra`.
+
+	Parser_advance(parser);
+	Token *next = Parser_peek_next(parser);
+	if (next->kind == Token_Kind__Comma)
+	{
+		// `call rd, offset`
+		Parser_expect_register(parser);
+		Parser_advance(parser);
+		// Comma already checked
+		Parser_advance(parser);
+	}
+	else
+	{
+		parser->statement_context->flags |= Statement_Flags__CALL_Register_Destination_Unset;
 	}
 
 	Expression_Node *expression = Parser_expression_parse(parser);
@@ -475,19 +503,6 @@ Parser_instruction_la_parse(Parser *parser)
 	// Always auipc + addi (8 bytes) at assembly time. The linker may relax this further to a single gp-relative
 	// addi, but the assembler cannot know that.
 	parser->statement_context->size                 = 8;
-}
-
-// call offset -> auipc ra, offsetHi + jalr ra, ra, offsetLo
-// NOTE: Expansion is deferred to a later pass.
-internal void
-Parser_instruction_call_parse(Parser *parser)
-{
-	parser->statement_context->instruction_kind     = Instruction_Kind__CALL;
-	parser->statement_context->instruction_format   = Instruction_Format__Expandable;
-
-	Parser_advance(parser);
-	Expression_Node *expression = Parser_expression_parse(parser);
-	parser->statement_context->expressions_indexes  = &expression->index;
 }
 
 // tail offset -> auipc t1, offsetHi + jalr x0, t1, offsetLo

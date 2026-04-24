@@ -43,8 +43,8 @@ typedef enum Token_Kind
 	Token_Kind__Percentage,
 
 	Token_Kind__Label,
-	Token_Kind__Label_Numeric,                     // e.g. 1:
-	Token_Kind__Label_Numeric_Reference_Forward,   // e.g. 1f
+	Token_Kind__Label_Numeric,                    // e.g. 1:
+	Token_Kind__Label_Numeric_Reference_Forward,  // e.g. 1f
 	Token_Kind__Label_Numeric_Reference_Backward, // e.g. 1b
 	Token_Kind__Directive,
 
