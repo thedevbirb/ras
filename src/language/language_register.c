@@ -7,7 +7,7 @@ register_lookup(String8 string)
 	S32 result  = -1;
 	for (;;)
 	{
-		result = os_memory_match(string.data, (unsigned char *)register_map[index].name, string.count);
+		result = memory_match(string.data, (unsigned char *)register_map[index].name, string.count);
 		found = result == 0;
 		B32 break_should = index >= (S8)register_map_size || found;
 		if (break_should)

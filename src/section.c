@@ -16,7 +16,7 @@ ELF_Section_from_Directive_Kind(Directive_Kind kind)
 internal void
 Object_File_Section_initialize(Object_File_Section *section, ELF_Section section_index, Arena *arena)
 {
-	U8 *data = arena ? Arena_push_zero_m(arena) : 0;
+	U8 *data = arena ? (U8 *)Arena__push_zero_m(arena) : (U8 *)0;
 
 	String8 buffer =
 	{
@@ -39,7 +39,7 @@ Object_File_Section_initialize(Object_File_Section *section, ELF_Section section
 internal Object_File_Section *
 Object_File_Section_create_all(Arena *arena, U32 input_size)
 {
-	Object_File_Section *sections = Arena_push_array_m(arena, Object_File_Section, ELF_Section__COUNT);
+	Object_File_Section *sections = Arena__push_array_m(arena, Object_File_Section, ELF_Section__COUNT);
 
 	U32 index = 0;
 	for (;;)
@@ -54,7 +54,7 @@ Object_File_Section_create_all(Arena *arena, U32 input_size)
 		B32 section_empty = ELF_Section__None || index == ELF_Section__BSS;
 		if (!section_empty)
 		{
-			arena_dedicated = Arena_alloc_m(.reserve_size = input_size, .flags = Arena_Flags__No_Chain);
+			arena_dedicated = Arena__allocate_m(.reserve_size = input_size, .flags = Arena_Flags__Chaining_Disabled);
 		}
 
 		Object_File_Section_initialize(&sections[index], index, arena_dedicated);
@@ -91,7 +91,7 @@ Object_File_Section_align(Object_File_Section *section, U8 alignment)
 
 	padding = padding & ((alignment == 0) - 1);
 
-	Arena_push_array_m(section->arena, U8, padding);
+	Arena__push_array_m(section->arena, U8, padding);
 	section->offset += padding;
 	section->buffer.count += padding;
 
@@ -106,9 +106,9 @@ Object_File_Section_write_byte(Object_File_Section *section, U8 value, U64 count
 	U32 offset_old = section->offset;
 	U32 offset_new = offset_old + count;
 
-	Arena_push_array_m(section->arena, U8, count);
+	Arena__push_array_m(section->arena, U8, count);
 
-	os_memory_set(section->buffer.data + section->offset, value, count);
+	memory_fill(section->buffer.data + section->offset, value, count);
 	section->offset = offset_new;
 	section->buffer.count += count;
 	Object_File_Section_align(section, section->alignment);
@@ -123,7 +123,7 @@ Object_File_Section_write_instruction(Object_File_Section *section, U32 instruct
 	U32 offset_old = section->offset;
 	U32 offset_new = offset_old + sizeof(instruction_encoding);
 
-	U32 *value_pointer = Arena_push_struct_m(section->arena, U32);
+	U32 *value_pointer = Arena__push_struct_m(section->arena, U32);
 	*value_pointer = instruction_encoding;
 
 	section->offset = offset_new;
@@ -140,9 +140,9 @@ Object_File_Section_write_bytes(Object_File_Section *section, U8 *data, U64 coun
 	U32 offset_old = section->offset;
 	U32 offset_new = offset_old + count;
 
-	Arena_push_array_m(section->arena, U8, count);
+	Arena__push_array_m(section->arena, U8, count);
 
-	os_memory_copy(section->buffer.data + section->offset, data, count);
+	memory_copy(section->buffer.data + section->offset, data, count);
 	section->offset = offset_new;
 	section->buffer.count += count;
 	Object_File_Section_align(section, section->alignment);

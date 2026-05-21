@@ -15,7 +15,7 @@ Relocation_Operator_lookup(String8 relocation)
 		const char *target = Relocation_Operator_strings[index];
 		U8 target_size     = Relocation_Operator_strings_sizes[index];
 		U8 match_to_size   = min_m(relocation.count, target_size);
-		S32 match          = os_memory_match((void *)relocation.data, (void *)target, match_to_size);
+		S32 match          = memory_match((void *)relocation.data, (void *)target, match_to_size);
 		operator           = ~((match == 0) - 1) & index;
 
 		index += 1;

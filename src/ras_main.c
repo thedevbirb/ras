@@ -11,7 +11,6 @@
 #define label_numeric_max 10
 
 #include <base/base_include.h>
-#include <os/os_include.h>
 
 #include <generated/instruction_hashes.h>
 
@@ -31,7 +30,6 @@
 #include "resolver.h"
 
 #include <base/base_include.c>
-#include <os/os_include.c>
 
 #include "initialize.c"
 #include "utils.c"
@@ -95,13 +93,13 @@ main(int argument_count, char **argument_vector)
 	// say a web-server, where data comes in and out. Here, data is created and added as we go, and we need to keep
 	// it from the start diagnostics.
 
-	Arena *arena = Arena_alloc_m();
+	Arena *arena = Arena__allocate_m();
 
-	Arena *arena_statements = Arena_alloc_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
+	Arena *arena_statements = Arena__allocate_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
 	Statements statements;
 	Statements_initialize(&statements, arena_statements);
 
-	Arena *arena_expressions = Arena_alloc_m(.reserve_size = file_in_size, .flags = Arena_Flags__No_Chain);
+	Arena *arena_expressions = Arena__allocate_m(.reserve_size = file_in_size, .flags = Arena_Flags__No_Chain);
 	Expressions expressions;
 	Expressions_initialize(&expressions, arena_expressions);
 
@@ -109,7 +107,7 @@ main(int argument_count, char **argument_vector)
 	U8 *data_mmap = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
 	assert_always_m(data_mmap != MAP_FAILED && "failed to mmap file contents");
 	Input input = Input_new(file_in_size, arena);
-	os_memory_copy(input.data, data_mmap, file_in_size);
+	memory_copy(input.data, data_mmap, file_in_size);
 	munmap(data_mmap, file_in_size);
 
 	Symbols_Table symbols_table = {0};
@@ -119,7 +117,7 @@ main(int argument_count, char **argument_vector)
 	// using the `.section` directive, so I should change around this.
 	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
 
-	Statement *statement_context_parser = Arena_push_struct_m(arena, Statement);
+	Statement *statement_context_parser = Arena__push_struct_m(arena, Statement);
 
 	arguments_shift(&argument_count, &argument_vector);
 

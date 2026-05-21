@@ -82,7 +82,7 @@ Expressions_initialize(Expressions *expressions, Arena *arena)
 	*expressions = (Expressions)
 	{
 		.arena = arena,
-		.data  = (Expression_Node *)(Arena_push_zero_m(arena)),
+		.data  = (Expression_Node *)(Arena__push_zero_m(arena)),
 		.count = 0,
 	};
 	return;
@@ -91,7 +91,7 @@ Expressions_initialize(Expressions *expressions, Arena *arena)
 Expression_Node *
 Expressions_push_empty(Expressions *expressions)
 {
-	Expression_Node *node = Arena_push_struct_m(expressions->arena, Expression_Node);
+	Expression_Node *node = Arena__push_struct_m(expressions->arena, Expression_Node);
 	node->index           = expressions->count;
 	expressions->count   += 1;
 

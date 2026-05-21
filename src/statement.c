@@ -4,7 +4,7 @@ Statements_initialize(Statements *statements, Arena *arena)
 	*statements = (Statements)
 	{
 		.arena = arena,
-		.data  = (Statement *)(Arena_push_struct_m(arena, Statement)),
+		.data  = (Statement *)(Arena__push_struct_m(arena, Statement)),
 		.count = 1,
 	};
 	return;
@@ -17,7 +17,7 @@ Statements_push(Statements *statements, Statement statement)
 	assert_always_m(statement.kind);
 	assert_always_m((statement.instruction_kind && statement.directive_kind) == 0);
 
-	Statement *buffer = Arena_push_struct_m(statements->arena, Statement);
+	Statement *buffer = Arena__push_struct_m(statements->arena, Statement);
 	*buffer = statement;
 
 	statements->count += 1;

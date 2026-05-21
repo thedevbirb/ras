@@ -26,7 +26,7 @@ Lexer_new(Input *input, Arena *arena)
 {
 	U32 text_size = U32_cast_safe(input->count);
 	U8  *text = input->data;
-	U32 *line_start_indexes = Arena_push_array_m(arena, U32, input->count);
+	U32 *line_start_indexes = Arena__push_array_m(arena, U32, input->count);
 	Lexer lexer =
 	{
 		.text = text,
@@ -136,7 +136,7 @@ Lexer_tokenize(Lexer *lexer)
 {
 	// We overestimate using the file size. Consider doing at the start of the program and not here.
 	// Also here +1 to avoid index out of bounds, assuming ZII
-	Token *tokens   = Arena_push_array_m(lexer->arena, Token, lexer->text_size + 1);
+	Token *tokens   = Arena__push_array_m(lexer->arena, Token, lexer->text_size + 1);
 	U32 token_index = 0;
 
 	Token_Kind token_kind = Token_Kind__None;

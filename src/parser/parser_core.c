@@ -10,7 +10,7 @@ Parser_label_dot(Parser *parser)
 	String8 key =
 	{
 		// .D{statement_index}
-		.data = Arena_push_array_m(parser->arena, U8, string_characters_count),
+		.data = Arena__push_array_m(parser->arena, U8, string_characters_count),
 		.count = string_characters_count,
 	};
 
@@ -32,7 +32,7 @@ Parser_label_numeric_symbol_string(Parser *parser, U8 label_numeric)
 	U8 string_characters_count = 4 + digits_count;
 	String8 key =
 	{
-		.data = Arena_push_array_m(parser->arena, U8, string_characters_count),
+		.data = Arena__push_array_m(parser->arena, U8, string_characters_count),
 		.count = string_characters_count,
 	};
 
@@ -417,7 +417,7 @@ Parser_expression_parse_inner(Parser *parser, Binding_Power binding_power_minimu
 		Parser_advance(parser);
 
 		Expression_Node *right = Parser_expression_parse_inner(parser, next_power);
-		// Expression_Node *node  = Arena_push_struct_m(parser->arena, Expression_Node);
+		// Expression_Node *node  = Arena__push_struct_m(parser->arena, Expression_Node);
 		Expression_Node *node  = Expressions_push_empty(parser->expressions);
 
 		node->kind        = Expression_Kind__binary_from_Token_Kind(operator_kind);
@@ -545,7 +545,7 @@ Parser_parse(Parser *parser)
 				data_directive_size += 1;
 
 				// TODO: expand max number of expressions;
-				U32 *expressions_indexes = Arena_push_array_m(parser->arena, U32, 16);
+				U32 *expressions_indexes = Arena__push_array_m(parser->arena, U32, 16);
 				U32 expressions_count = 0;
 
 				// Format: .byte <expr_1> , ..., <expr_n>
@@ -713,7 +713,7 @@ Parser_parse(Parser *parser)
 				Parser_advance(parser);
 				Expression_Node *alignment_expression = Parser_expression_parse(parser);
 
-				U32 *expressions_indexes = Arena_push_array_m(parser->arena, U32, 2);
+				U32 *expressions_indexes = Arena__push_array_m(parser->arena, U32, 2);
 				expressions_indexes[0] = size_expression->index;
 				expressions_indexes[1] = alignment_expression->index;
 
@@ -727,11 +727,11 @@ Parser_parse(Parser *parser)
 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
 
 				String8 string = Parser_token_string(parser);
-				if (os_memory_match(string.data, "norelax", min_m(string.count, 7)) == 0)
+				if (memory_match(string.data, "norelax", min_m(string.count, 7)) == 0)
 				{
 					parser->flags |= Statement_Flags__Relax_Disabled;
 				}
-				else if (os_memory_match(string.data, "relax", min_m(string.count, 5)) == 0)
+				else if (memory_match(string.data, "relax", min_m(string.count, 5)) == 0)
 				{
 					parser->flags &= ~Statement_Flags__Relax_Disabled;
 				}

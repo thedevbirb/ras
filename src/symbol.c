@@ -4,9 +4,9 @@ Symbols_Table_initialize(Symbols_Table *map, Arena *arena)
 	map->arena    = arena;
 	map->capacity = 64;
 	map->count    = 0;
-	map->entries  = Arena_push_array_m(arena, Symbols_Table_Entry, map->capacity);
-	map->slots    = Arena_push_array_m(arena, U32, map->capacity);
-	os_memory_zero(map->entries, sizeof(Symbols_Table_Entry) * map->capacity);
+	map->entries  = Arena__push_array_m(arena, Symbols_Table_Entry, map->capacity);
+	map->slots    = Arena__push_array_m(arena, U32, map->capacity);
+	memory_zero(map->entries, sizeof(Symbols_Table_Entry) * map->capacity);
 }
 
 internal void
@@ -16,10 +16,10 @@ Symbols_Table_grow(Symbols_Table *map)
 
 	// We perform a copy of just the metadata and the pointers, not the heap allocated data.
 	Symbols_Table map_old;
-	os_memory_copy(&map_old, map, sizeof(Symbols_Table));
+	memory_copy(&map_old, map, sizeof(Symbols_Table));
 
-	Symbols_Table_Entry *entries_new = Arena_push_array_m(map->arena, Symbols_Table_Entry, capacity_new);
-	U32 *slots_new = Arena_push_array_m(map->arena, U32, capacity_new);
+	Symbols_Table_Entry *entries_new = Arena__push_array_m(map->arena, Symbols_Table_Entry, capacity_new);
+	U32 *slots_new = Arena__push_array_m(map->arena, U32, capacity_new);
 
 	map->entries   = entries_new;
 	map->slots     = slots_new;
@@ -70,7 +70,7 @@ Symbols_Table_get(Symbols_Table *map, String8 key)
 		empty = entry->flags == Symbol_Flags__None;
 		key_found = !empty
 			 && entry->key.count == key.count
-			 && os_memory_match(entry->key.data, key.data, key.count) == 0;
+			 && memory_match(entry->key.data, key.data, key.count) == 0;
 
 		break_should = empty || key_found;
 		if (break_should)

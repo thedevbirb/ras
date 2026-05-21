@@ -19,7 +19,7 @@ Input_new(U64 count, Arena *arena)
 {
 	assert_always_m(count < U64_max && "cannot allocate U64_max bytes");
 	U64 count_extra = count + Input_count_extra;
-	U8 *data = Arena_push_array_m(arena, U8, count_extra);
+	U8 *data = Arena__push_array_m(arena, U8, count_extra);
 
 	Input input =
 	{
