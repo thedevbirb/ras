@@ -108,7 +108,7 @@ typedef struct Parser Parser;
 struct Parser
 {
 	Arena          *arena;
-	Input          *input;
+	String8        *input;
 	Token          *tokens;
 	Statements     *statements;
 	Expressions    *expressions;
@@ -132,7 +132,7 @@ struct Parser
 };
 
 internal Parser
-Parser_new(Arena *arena, Input *input, Token *tokens, U32 token_count);
+Parser_new(Arena *arena, String8 *input, Token *tokens, U32 token_count);
 
 // It is a no-op if the end has been reached already.
 internal void

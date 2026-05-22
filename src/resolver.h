@@ -80,7 +80,7 @@ typedef struct Resolver Resolver;
 struct Resolver
 {
 	Arena         *arena;
-	Input         *input;
+	String8       *input;
 	Token         *tokens;
 	Statements    *statements;
 	Expressions   *expressions;

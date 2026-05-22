@@ -15,34 +15,33 @@
 #include <generated/instruction_hashes.h>
 
 #include "initialize.h"
-#include "primitives.h"
 #include "elf.h"
 
 #include "language/language_include.h"
-#include "symbol.h"
-#include "section.h"
+// #include "symbol.h"
+// #include "section.h"
 
 #include "diagnostic.h"
 #include "lexer.h"
-#include "expression.h"
-#include "statement.h"
-#include "parser/parser_include.h"
-#include "resolver.h"
+// #include "expression.h"
+// #include "statement.h"
+// #include "parser/parser_include.h"
+// #include "resolver.h"
 
 #include <base/base_include.c>
 
 #include "initialize.c"
 #include "utils.c"
 #include "language/language_include.c"
-#include "symbol.c"
-#include "section.c"
+// #include "symbol.c"
+// #include "section.c"
 
 #include "diagnostic.c"
 #include "lexer.c"
-#include "expression.c"
-#include "statement.c"
-#include "parser/parser_include.c"
-#include "resolver.c"
+// #include "expression.c"
+// #include "statement.c"
+// #include "parser/parser_include.c"
+// #include "resolver.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
@@ -61,7 +60,7 @@ arguments_shift(int *argument_count, char ***argument_vector)
 }
 
 void
-usage_print()
+usage_print(void)
 {
 		fprintf(stderr, "usage: ras <filepath_in> <filepath_out>\n");
 }
@@ -86,141 +85,154 @@ main(int argument_count, char **argument_vector)
 	struct stat file_in_statistics;
 	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
 	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
-	U32 file_in_size = U32_cast_safe((U64)file_in_statistics.st_size); // 4 GiB max size
-
-	// TODO: re-think allocations strategies. For this type of program, not all memory can be allocated upfront,
-	// because it varies too much with input size. Moreover, an assembler is not a "streaming" program, like let's
-	// say a web-server, where data comes in and out. Here, data is created and added as we go, and we need to keep
-	// it from the start diagnostics.
+	U64 file_in_size = ((U64)file_in_statistics.st_size);
 
 	Arena *arena = Arena__allocate_m();
+	U8 *input_data_mapped = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
+	assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");
+	String8 input = { .data = input_data_mapped, .count = file_in_size };
 
-	Arena *arena_statements = Arena__allocate_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
-	Statements statements;
-	Statements_initialize(&statements, arena_statements);
+	// Arena *arena_statements = Arena__allocate_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
+	// Statements statements;
+	// Statements_initialize(&statements, arena_statements);
+	//
+	// Arena *arena_expressions = Arena__allocate_m(.reserve_size = file_in_size, .flags = Arena_Flags__No_Chain);
+	// Expressions expressions;
+	// Expressions_initialize(&expressions, arena_expressions);
 
-	Arena *arena_expressions = Arena__allocate_m(.reserve_size = file_in_size, .flags = Arena_Flags__No_Chain);
-	Expressions expressions;
-	Expressions_initialize(&expressions, arena_expressions);
+	// Symbols_Table symbols_table = {0};
+	// Symbols_Table_initialize(&symbols_table, arena);
+	//
+	// // TODO: while some of them can be created in advance, in practice arbitrary sections can be created on demand
+	// // using the `.section` directive, so I should change around this.
+	// Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
+	//
+	// Statement *statement_context_parser = Arena__push_struct_m(arena, Statement);
 
-	// Ensure same lifetime between arena and file contents.
-	U8 *data_mmap = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
-	assert_always_m(data_mmap != MAP_FAILED && "failed to mmap file contents");
-	Input input = Input_new(file_in_size, arena);
-	memory_copy(input.data, data_mmap, file_in_size);
-	munmap(data_mmap, file_in_size);
+	// I think diagnostics should be provided as an argument to the tokenize function
+	// and track where things actually happen.
+	//
+	// It can be a struct comprising of a fixed list (most 64 errors, how many warnings tho, max 1024?) of errors,
+	// warnings and potentially hints.
 
-	Symbols_Table symbols_table = {0};
-	Symbols_Table_initialize(&symbols_table, arena);
-
-	// TODO: while some of them can be created in advance, in practice arbitrary sections can be created on demand
-	// using the `.section` directive, so I should change around this.
-	Object_File_Section *sections = Object_File_Section_create_all(arena, file_in_size);
-
-	Statement *statement_context_parser = Arena__push_struct_m(arena, Statement);
-
-	arguments_shift(&argument_count, &argument_vector);
-
-	Lexer lexer = Lexer_new(&input, arena);
-	Token_Array token_array = Lexer_tokenize(&lexer);
-
-	Lexer_Error lexer_error = token_array.error;
-	if (lexer_error.kind)
+	Diagnostics diagnostics =
 	{
-		Diagnostic diagnostic =
-		{
-			.input              = &input,
-			.file_in_path       = file_in_path,
-			.message_kind       = lexer_error_kind_messages[lexer_error.kind],
-			.line               = lexer_error.row_index + 1,
-			.column_index_begin = lexer_error.column_index_begin,
-			.column_index_end   = lexer_error.column_index_end,
-			.input_index_start  = token_array.line_start_indexes[lexer_error.row_index],
-		};
-
-		Diagnostic_print(&diagnostic);
-		exit(1);
-	}
-
-	Parser parser =
-	{
-		.arena          = arena,
-		.input          = &input,
-		.tokens         = token_array.tokens,
-		.statements     = &statements,
-		.symbols_table  = &symbols_table,
-		.expressions    = &expressions,
-
-		.statement_context = statement_context_parser,
-
-		.section_current_index = ELF_Section__Text,
-
-		.token_current = token_array.tokens[0],
-		.token_count   = token_array.token_count,
-		.token_index   = 0,
-		.end_reached   = 0 >= token_array.token_count
+		.errors   = Arena__push_array_m(arena, Diagnostic, DIAGNOSTICS_ERRORS_MAX),
+		.warnings = Arena__push_array_m(arena, Diagnostic, DIAGNOSTICS_WARNINGS_MAX),
 	};
 
-	Parser_parse(&parser);
-	Parser_Error parser_error = parser.error;
-	if (parser_error.kind)
+	Lexer lexer = {0};
+
+	Token_Xar tokens;
+	xar_initialize_m(&tokens, Token_Xar__shift_amount);
+
+	Lexer_Context lexer_context =
 	{
-		Diagnostic diagnostic =
-		{
-			.input              = &input,
-			.file_in_path       = file_in_path,
-			.message_kind       = Parser_Error_Kind_messages[parser_error.kind],
-			.line               = parser_error.row_index + 1,
-			.column_index_begin = parser_error.column_index_begin,
-			.column_index_end   = parser_error.column_index_end,
-			.input_index_start  = token_array.line_start_indexes[parser_error.row_index],
-		};
-
-		Diagnostic_print(&diagnostic);
-		exit(1);
-	}
-
-	Resolver resolver =
-	{
-		.arena         = arena,
-		.input         = &input,
-		.tokens        = token_array.tokens,
-		.statements    = &statements,
-		.symbols_table = &symbols_table,
-		.expressions   = &expressions,
-
-		.sections = sections,
-
-		.statement_current      = &statements.data[0],
-		.statement_index        = 0,
-		.statements_end_reached = 0 >= statements.count,
-
-		.error         = {0},
-		.sections_offset = {0},
-		.section_current_index = ELF_Section__Text,
+		.input       = &input,
+		.filename    = file_in_path,
+		.tokens      = &tokens,
+		.diagnostics = &diagnostics,
 	};
 
-	Resolver_relax(&resolver);
+	Lexer_tokenize(&lexer, arena, &lexer_context);
 
-	Resolver_Error resolver_error = resolver.error;
-	if (resolver_error.kind)
+	if (diagnostics.errors_count > 0)
 	{
-		Diagnostic diagnostic =
+		U8 index = 0;
+		for (;;)
 		{
-			.input              = &input,
-			.file_in_path       = file_in_path,
-			.message_kind       = Resolver_Error_Kind_messages[resolver_error.kind],
-			.line               = resolver_error.row_index + 1,
-			.column_index_begin = resolver_error.column_index_begin,
-			.column_index_end   = resolver_error.column_index_end,
-			.input_index_start  = token_array.line_start_indexes[resolver_error.row_index],
-		};
+			Diagnostic *d = &diagnostics.errors[index];
+			Diagnostic__print(d, &input);
 
-		Diagnostic_print(&diagnostic);
+			index += 1;
+			if (index >= diagnostics.errors_count)
+			{
+				break;
+			}
+		}
 		exit(1);
+
 	}
 
-	Resolver_encode(&resolver);
+	// Parser parser =
+	// {
+	// 	.arena          = arena,
+	// 	.input          = &input,
+	// 	.tokens         = token_array.tokens,
+	// 	.statements     = &statements,
+	// 	.symbols_table  = &symbols_table,
+	// 	.expressions    = &expressions,
+	//
+	// 	.statement_context = statement_context_parser,
+	//
+	// 	.section_current_index = ELF_Section__Text,
+	//
+	// 	.token_current = token_array.tokens[0],
+	// 	.token_count   = token_array.token_count,
+	// 	.token_index   = 0,
+	// 	.end_reached   = 0 >= token_array.token_count
+	// };
+	//
+	// Parser_parse(&parser);
+	// Parser_Error parser_error = parser.error;
+	// if (parser_error.kind)
+	// {
+	// 	Diagnostic diagnostic =
+	// 	{
+	// 		.input              = &input,
+	// 		.file_in_path       = file_in_path,
+	// 		.message_kind       = Parser_Error_Kind_messages[parser_error.kind],
+	// 		.line               = parser_error.row_index + 1,
+	// 		.column_index_begin = parser_error.column_index_begin,
+	// 		.column_index_end   = parser_error.column_index_end,
+	// 		.input_index_start  = token_array.line_start_indexes[parser_error.row_index],
+	// 	};
+	//
+	// 	Diagnostic_print(&diagnostic);
+	// 	exit(1);
+	// }
+	//
+	// Resolver resolver =
+	// {
+	// 	.arena         = arena,
+	// 	.input         = &input,
+	// 	.tokens        = token_array.tokens,
+	// 	.statements    = &statements,
+	// 	.symbols_table = &symbols_table,
+	// 	.expressions   = &expressions,
+	//
+	// 	.sections = sections,
+	//
+	// 	.statement_current      = &statements.data[0],
+	// 	.statement_index        = 0,
+	// 	.statements_end_reached = 0 >= statements.count,
+	//
+	// 	.error         = {0},
+	// 	.sections_offset = {0},
+	// 	.section_current_index = ELF_Section__Text,
+	// };
+	//
+	// Resolver_relax(&resolver);
+	//
+	// Resolver_Error resolver_error = resolver.error;
+	// if (resolver_error.kind)
+	// {
+	// 	Diagnostic diagnostic =
+	// 	{
+	// 		.input              = &input,
+	// 		.file_in_path       = file_in_path,
+	// 		.message_kind       = Resolver_Error_Kind_messages[resolver_error.kind],
+	// 		.line               = resolver_error.row_index + 1,
+	// 		.column_index_begin = resolver_error.column_index_begin,
+	// 		.column_index_end   = resolver_error.column_index_end,
+	// 		.input_index_start  = token_array.line_start_indexes[resolver_error.row_index],
+	// 	};
+	//
+	// 	Diagnostic_print(&diagnostic);
+	// 	exit(1);
+	// }
+	//
+	// Resolver_encode(&resolver);
 
 	// TODO: write file.
 

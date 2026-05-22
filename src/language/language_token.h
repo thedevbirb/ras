@@ -7,6 +7,7 @@ typedef enum Token_Kind
 
 	Token_Kind__Dot,
 	Token_Kind__Comma,
+	Token_Kind__Semicolon,
 
 	Token_Kind__Parenthesis_Left,
 	Token_Kind__Parenthesis_Right,

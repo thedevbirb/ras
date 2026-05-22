@@ -73,6 +73,18 @@ struct Statement
 	Statement_Flags flags;
 };
 
+// With 2**12 = 4096 base elements and 14 chunks, we have ~67M capacity;
+#define Statements_Xar__shift_amount 12
+
+typedef struct Statements_Xar Statements_Xar;
+struct Statements_Xar
+{
+	Xar_Metadata metadata;
+	Xar_Header   header;
+	Statement   *chunks[14];
+};
+assert_static_m(sizeof(Statements_Xar) % 64 == 0, Statements_Xar__size_check);
+
 
 typedef struct Statements Statements;
 struct Statements

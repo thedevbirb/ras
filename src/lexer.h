@@ -73,72 +73,60 @@ struct Token
 	U32        size;
 	Token_Kind kind;
 };
+
+#define Token_Xar__shift_amount 12
+typedef struct Token_Xar Token_Xar;
+struct Token_Xar
+{
+	Xar_Metadata metadata;
+	Xar_Header   header;
+	Token       *chunks[14];
+};
+
+
 // assert_static_m(sizeof(struct Token) == 20, size_of_Token);
 //
-typedef struct Lexer_Error Lexer_Error;
-struct Lexer_Error
-{
-	Lexer_Error_Kind kind;
-
-	U32 row_index;
-	U32 column_index_begin;
-	U32 column_index_end;
-};
-
-
-typedef struct Token_Array Token_Array;
-struct Token_Array
-{
-	Token      *tokens;
-	U32        *line_start_indexes; // FIX: missing count for this?
-	U32         token_count;
-	Lexer_Error error;
-};
-
 typedef struct Lexer Lexer;
 struct Lexer
 {
-	U8  *text;
-	U32 *line_start_indexes;
-	Arena *arena;
-
-	Lexer_Error error;
-	U32  text_size;
 	U32  index;
 	U32  index_before;
 	U32  column_index;
 	U32  column_index_before;
+	U32  line_start_index;
 	U32  row_index;
 	B32  end_reached;
 	U8   current;
 };
 
-Lexer
-Lexer_new(Input *input, Arena *arena);
+typedef struct Lexer_Context Lexer_Context;
+struct Lexer_Context
+{
+	const String8 *input;
+	const char    *filename;
+	Token_Xar     *tokens;
+	Diagnostics   *diagnostics;
+};
+
 
 // It is a no-op if the end has been reached already.
 internal void
-Lexer_advance(Lexer *lexer);
-
-
-// It is a no-op if the end has been reached already.
-internal void
-Lexer_advance_newline(Lexer *lexer);
+Lexer_advance(Lexer *lexer, const String8 *input);
 
 internal U8 *
-Lexer_peek_next(Lexer *lexer);
+Lexer_peek_next(Lexer *lexer, const String8 *input);
 
 internal String8
-Lexer_string(Lexer *lexer);
+Lexer_string_under_cursor(Lexer *lexer, const String8 *input);
 
 internal void
-Lexer_error_set(Lexer *lexer, Lexer_Error_Kind kind);
+Lexer_error_set(Lexer *lexer, const char *filename, Diagnostics *diagnostic, Lexer_Error_Kind kind);
 
 internal void
-Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind);
+Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnostic *diagnostic);
 
-internal Token_Array
-Lexer_tokenize(Lexer *lexer);
+internal void
+Lexer_tokenize(Lexer *lexer, Arena *arena, Lexer_Context *context);
 
 #endif // LEXER_H
 
