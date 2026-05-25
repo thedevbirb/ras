@@ -63,6 +63,17 @@ global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
 };
 
+// This token information doesn't tell from which file it comes, because it assumes a single file.
+
+typedef struct Token_2 Token_2;
+struct Token_2
+{
+	U64         numerical_value; // No float support yet.
+	String8     content;
+	Token_Kind  kind;
+};
+
+
 typedef struct Token Token;
 struct Token
 {
@@ -80,7 +91,7 @@ struct Token_Xar
 {
 	Xar_Metadata metadata;
 	Xar_Header   header;
-	Token       *chunks[14];
+	Token_2     *chunks[14];
 };
 
 

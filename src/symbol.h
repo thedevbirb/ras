@@ -98,5 +98,64 @@ Symbols_Table_get(Symbols_Table *map, String8 key);
 Symbols_Table_Entry *
 Symbols_Table_reserve(Symbols_Table *map, String8 key);
 
+typedef struct Symbol_Ref Symbol_Ref;
+struct Symbol_Ref
+{
+	ELF64_Symbol  elf;
+	// The index of the `Statements` structure where this symbol has been declared, or zero is unknown.
+	U32	      index_statement;
+	// The index in the Symbols_Table.entries in which this entry has been inserted.
+	U32           index;
+	Symbol_Flags  flags;
+};
+
+
+// Usage:
+//   // 1. Define your concrete types with matching sizes:
+  typedef struct Symbol Symbol;
+  struct Symbol
+  {
+          String8     key;
+          Symbol_Ref *data;
+  };
+//
+typedef struct Symbols_Trie Symbols_Trie;
+struct Symbols_Trie
+{
+	String8       *key;
+	Symbol_Ref    *value;
+	Symbols_Trie  *children[4];
+};
+
+typedef Hash_Trie_Chunk_List_Opaque Symbols_Trie_Chunk_List;
+//
+//
+//   typedef struct HT_Chunk HT_Chunk;
+//   typedef struct HT_Chunk_List HT_Chunk_List;
+//   struct HT_Chunk_List
+//   {
+//           U64       count;
+//           HT_Chunk  *first;
+//           HT_Chunk  *last;
+//   };
+//
+//   // 2. Use macros to get type-checked opaque-pointer casts:
+//   HT_Trie *root = 0;
+//   HT_Chunk_List chunks = {0};
+//
+//   String8  key = { .data = (U8 *)"foo", .count = 3 };
+//   HT_Value val = { .key = key, .data = some_data };
+//   hash_trie_get_or_create_m
+//   (
+//           HT_Trie,
+//	     arena,
+//	     &chunks,
+//	     &root,
+//	     hash,
+//	     &val
+//   );
+//
+//   HT_Trie *found = hash_trie_get_m(HT_Trie, root, hash, key);
+
 #endif // SYMBOL_H
 

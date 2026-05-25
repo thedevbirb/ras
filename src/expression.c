@@ -5,19 +5,19 @@ Binding_Power_from_Token_Kind(Token_Kind kind)
 
 	switch (kind)
 	{
-	case Token_Kind__Logical_Or:    { result = Binding_Power__Logical_Or;     } break;
-	case Token_Kind__Logical_And:   { result = Binding_Power__Logical_And;    } break;
+	case Token_Kind__Pipe_2:    { result = Binding_Power__Logical_Or;     } break;
+	case Token_Kind__Ampersand_2:   { result = Binding_Power__Logical_And;    } break;
 	case Token_Kind__Pipe:          { result = Binding_Power__Bitwise_Or;     } break;
 	case Token_Kind__Caret:         { result = Binding_Power__Bitwise_Xor;    } break;
 	case Token_Kind__Ampersand:     { result = Binding_Power__Bitwise_And;    } break;
-	case Token_Kind__Equal:
-	case Token_Kind__Equal_Not:     { result = Binding_Power__Equality;       } break;
-	case Token_Kind__Less_Than:
-	case Token_Kind__Greater_Than:
+	case Token_Kind__Equal_2:
+	case Token_Kind__Equal_Bang:     { result = Binding_Power__Equality;       } break;
+	case Token_Kind__Less:
+	case Token_Kind__Greater:
 	case Token_Kind__Less_Equal:
 	case Token_Kind__Greater_Equal: { result = Binding_Power__Comparison;     } break;
-	case Token_Kind__Shift_Left:
-	case Token_Kind__Shift_Right:   { result = Binding_Power__Shift;          } break;
+	case Token_Kind__Less_2:
+	case Token_Kind__Greater_2:   { result = Binding_Power__Shift;          } break;
 	case Token_Kind__Plus:
 	case Token_Kind__Minus:         { result = Binding_Power__Additive;       } break;
 	case Token_Kind__Star:
@@ -44,16 +44,16 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind)
 	case Token_Kind__Pipe:          { result = Expression_Kind__Bitwise_Or;    } break;
 	case Token_Kind__Caret:         { result = Expression_Kind__Bitwise_Xor;   } break;
 	case Token_Kind__Ampersand:     { result = Expression_Kind__Bitwise_And;   } break;
-	case Token_Kind__Shift_Left:    { result = Expression_Kind__Shift_Left;    } break;
-	case Token_Kind__Shift_Right:   { result = Expression_Kind__Shift_Right;   } break;
-	case Token_Kind__Equal:         { result = Expression_Kind__Equal;         } break;
-	case Token_Kind__Equal_Not:     { result = Expression_Kind__Not_Equal;     } break;
-	case Token_Kind__Less_Than:     { result = Expression_Kind__Less_Than;     } break;
+	case Token_Kind__Less_2:    { result = Expression_Kind__Shift_Left;    } break;
+	case Token_Kind__Greater_2:   { result = Expression_Kind__Shift_Right;   } break;
+	case Token_Kind__Equal_2:         { result = Expression_Kind__Equal;         } break;
+	case Token_Kind__Equal_Bang:     { result = Expression_Kind__Not_Equal;     } break;
+	case Token_Kind__Less:     { result = Expression_Kind__Less_Than;     } break;
 	case Token_Kind__Less_Equal:    { result = Expression_Kind__Less_Equal;    } break;
-	case Token_Kind__Greater_Than:  { result = Expression_Kind__Greater_Than;  } break;
+	case Token_Kind__Greater:  { result = Expression_Kind__Greater_Than;  } break;
 	case Token_Kind__Greater_Equal: { result = Expression_Kind__Greater_Equal; } break;
-	case Token_Kind__Logical_And:   { result = Expression_Kind__Logical_And;   } break;
-	case Token_Kind__Logical_Or:    { result = Expression_Kind__Logical_Or;    } break;
+	case Token_Kind__Ampersand_2:   { result = Expression_Kind__Logical_And;   } break;
+	case Token_Kind__Pipe_2:    { result = Expression_Kind__Logical_Or;    } break;
 	default:                        {} break;
 	}
 

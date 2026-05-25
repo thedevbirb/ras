@@ -362,3 +362,45 @@ It's hard. It's genuinely hard. It's hard to allocate time where you don't code,
 understand, while maintaining the rigour and not chase the productiveness feeling. In practice,
 spending time designing and understanding is the most productive thing you can do, because design
 time is cheap, coding is inevitably slower, regardless of AI
+
+
+Fri May 22 16:01:36 CEST 2026
+
+Updating again this diary after I decided to take a break and look into the job market. Happy to be
+back again to coding. I want to complete this project, and while not add every feature, I want it to
+be extensible and forward-thinking. Examples: macro support and include directives even if not
+implemented right away should be thought of.
+
+Now, on my c_layer I also have very powerful primitives that will help me to overcome some of the
+previous challenges, such as handling verious unbounded collections like symbol/section table etc.
+
+For the lexer I don't know whether I should keep the tokens streams or not. If I keep it, a
+thought regarding include directives: I should probably save tokens in a linked list of Token_Xar,
+where each node corresponds to the current file.
+Suppose I have a.s that includes b.s. Then my chain would look like Tokens_A -> Tokens_B -> Token_A.
+If I don't keep it, like llvm mc and gas, it means the parser invokes it every time to get the next
+token.
+I think for a line-based assembler it makes sense, and the lexer becomes so generic it is easy to
+retrofit also for other projects.
+
+I still need to go back to design again. It's very hard.
+
+Sun May 24 12:38:38 CEST 2026
+
+Ok the lexer now yields one token at a time. This has some downstream consequences on the parser. In
+particular, the parser will invoke the lexer to parser statements and fill every information while
+doing so (string table, symbol table, etc). As such, the parser will have its own context containing
+such tables that are preserved across calls.
+The parser returns when the input has ended or when an #include-like directive is found. As such,
+there should be a "parser driver" (in LLVM there is the concept or a source manager) that opens
+input files and preserves call stacks. In our case, it should manage the stack of lexers, mmap
+files, and resume.
+While I might not support such directives, and so no parser driver, it will still influence the
+parser API.
+
+Similarly, I should take into account macro usage:
+https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_node/as_107.html, although I won't support it for
+now. First, it implies keeping a small map of macro names with macro information, provided to the
+parser context. Then, the parser should switch to an alternate input source, provided in the macro
+information itself. Then, how to handle recursive expansion? Again, as a Lexer stack.
+I can think of the Lexer cursor as my current stack frame.

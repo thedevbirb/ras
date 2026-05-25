@@ -18,14 +18,14 @@
 #include "elf.h"
 
 #include "language/language_include.h"
-// #include "symbol.h"
+#include "symbol.h"
 // #include "section.h"
 
 #include "diagnostic.h"
 #include "lexer.h"
 // #include "expression.h"
-// #include "statement.h"
-// #include "parser/parser_include.h"
+#include "statement.h"
+#include "parser/parser_include.h"
 // #include "resolver.h"
 
 #include <base/base_include.c>
@@ -40,7 +40,7 @@
 #include "lexer.c"
 // #include "expression.c"
 // #include "statement.c"
-// #include "parser/parser_include.c"
+#include "parser/parser_include.c"
 // #include "resolver.c"
 
 // Two's complement.
@@ -123,18 +123,26 @@ main(int argument_count, char **argument_vector)
 
 	Lexer lexer = {0};
 
-	Token_Xar tokens;
-	xar_initialize_m(&tokens, Token_Xar__shift_amount);
+	Symbols_Trie            symbols_trie            = {0};
+	Symbols_Trie_Chunk_List symbols_trie_chunk_list = {0};
 
-	Lexer_Context lexer_context =
+	Statements_Xar statements = {0};
+	xar_initialize_m(&statements, 12);
+
+	String8 filename = String8__from_cstring(file_in_path);
+
+	Parser_2 parser =
 	{
-		.input       = &input,
-		.filename    = file_in_path,
-		.tokens      = &tokens,
-		.diagnostics = &diagnostics,
+		.filename                = filename,
+		.lexer                   = &lexer,
+		.diagnostics             = &diagnostics,
+		.symbols_trie            = &symbols_trie,
+		.symbols_trie_chunk_list = &symbols_trie_chunk_list,
 	};
 
-	Lexer_tokenize(&lexer, arena, &lexer_context);
+
+	Parser_2__parse(&parser, &input, arena, &statements);
+
 
 	if (diagnostics.errors_count > 0)
 	{
@@ -151,7 +159,6 @@ main(int argument_count, char **argument_vector)
 			}
 		}
 		exit(1);
-
 	}
 
 	// Parser parser =
