@@ -21,17 +21,28 @@ LE_U8_number_character_is(U8 character)
 	return result;
 }
 
+internal U8 *
+Lexer_peek_next(Lexer *lexer)
+{
+	U8 *result = 0;
+	if (!lexer->end_reached)
+	{
+		result = &lexer->input->data[lexer->index + 1];
+	}
+	return result;
+}
+
 // It is a no-op if the end has been reached already.
 internal void
-Lexer_advance(Lexer *lexer, const String8 *input)
+Lexer_advance(Lexer *lexer)
 {
 	B32 newline_reached = lexer->current == '\n';
 
-	lexer->end_reached   = input->count == 0 || lexer->index + 1 >= input->count;
+	lexer->end_reached   = lexer->input->count == 0 || lexer->index + 1 >= lexer->input->count;
 	lexer->index        += !lexer->end_reached;
 	lexer->row_index    += !lexer->end_reached && newline_reached;
 	lexer->column_index += !lexer->end_reached;
-	lexer->current       = input->data[lexer->index];
+	lexer->current       = lexer->input->data[lexer->index];
 
 	if (newline_reached && !lexer->end_reached)
 	{
@@ -40,67 +51,18 @@ Lexer_advance(Lexer *lexer, const String8 *input)
 	}
 
 	// An index pointing out of bounds is of no-one's help.
-	assert_always_m(lexer->index < input->count);
+	assert_always_m(lexer->index < lexer->input->count);
 	assert_always_m(lexer->end_reached == 0 || lexer->end_reached == 1);
 
 	return;
 }
 
 internal void
-Lexer_advance_to_newline(Lexer *lexer, const String8 *input)
+Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error)
 {
-	for (;;)
+	if (!condition && !lexer->error)
 	{
-		B32 break_should = lexer->current == '\n' || lexer->end_reached;
-		Lexer_advance(lexer, input);
-		if (break_should)
-		{
-			break;
-		}
-	}
-}
-
-internal U8 *
-Lexer_peek_next(Lexer *lexer, const String8 *input)
-{
-	U8 *result = 0;
-	if (!lexer->end_reached)
-	{
-		result = &input->data[lexer->index + 1];
-	}
-	return result;
-}
-
-internal String8
-Lexer_string_under_cursor(Lexer *lexer, const String8 *input)
-{
-	String8 string =
-	{
-		.data  = input->data  + lexer->index_before,
-		.count = lexer->index - lexer->index_before,
-	};
-	return string;
-}
-
-internal void
-Lexer_diagnostic_fill(Lexer *lexer, Diagnostic *diagnostic, Lexer_Error_Kind kind)
-{
-	diagnostic->message_kind       = lexer_error_kind_messages[kind];
-	diagnostic->row_index          = lexer->row_index;
-	diagnostic->column_index_begin = lexer->column_index_before;
-	diagnostic->column_index_end   = lexer->column_index;
-	diagnostic->input_index_start  = lexer->line_start_index;
-	diagnostic->variant            = (U32)kind;
-
-	return;
-}
-
-internal void
-Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnostic *diagnostic)
-{
-	if (!condition && diagnostic->variant == 0)
-	{
-		Lexer_diagnostic_fill(lexer, diagnostic, error_kind);
+		lexer->error = error;
 	}
 	return;
 }
@@ -133,14 +95,14 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 		}
 //
 // 		// Snapshot indexes before processing a token to determine its size.
-// 		lexer->index_before        = lexer->index;
+// 		token_index_start        = lexer->index;
 // 		lexer->column_index_before = lexer->column_index;
 //
 // 		// NOTE: should maintain the logical order of Token_Kind enumeration.
 // 		switch (lexer->current)
 // 		{
-// 		case ' ' : { Lexer_advance(lexer, input); } break;
-// 		case '\t': { Lexer_advance(lexer, input); } break;
+// 		case ' ' : { Lexer_advance(lexer); } break;
+// 		case '\t': { Lexer_advance(lexer); } break;
 //
 // 		// NOTE: no multi-line comment support (yet).
 // 		case '#':
@@ -155,37 +117,37 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					break;
 // 				}
 //
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 //
 // 		} break;
 //
-// 		case ',' : { token_kind = Token_Kind__Comma;             Lexer_advance(lexer, input); } break;
-// 		case ';' : { token_kind = Token_Kind__Semicolon;         Lexer_advance(lexer, input); } break;
-// 		case '(' : { token_kind = Token_Kind__Parenthesis_Left;  Lexer_advance(lexer, input); } break;
-// 		case ')' : { token_kind = Token_Kind__Parenthesis_Right; Lexer_advance(lexer, input); } break;
-// 		case '+' : { token_kind = Token_Kind__Plus;              Lexer_advance(lexer, input); } break;
-// 		case '-' : { token_kind = Token_Kind__Minus;             Lexer_advance(lexer, input); } break;
-// 		case '*' : { token_kind = Token_Kind__Star;              Lexer_advance(lexer, input); } break;
-// 		case '/' : { token_kind = Token_Kind__Slash;             Lexer_advance(lexer, input); } break;
-// 		case '~' : { token_kind = Token_Kind__Tilde;             Lexer_advance(lexer, input); } break;
-// 		case '^' : { token_kind = Token_Kind__Caret;             Lexer_advance(lexer, input); } break;
-// 		case '\n': { token_kind = Token_Kind__Newline;           Lexer_advance(lexer, input); } break;
+// 		case ',' : { token_kind = Token_Kind__Comma;             Lexer_advance(lexer); } break;
+// 		case ';' : { token_kind = Token_Kind__Semicolon;         Lexer_advance(lexer); } break;
+// 		case '(' : { token_kind = Token_Kind__Parenthesis_Left;  Lexer_advance(lexer); } break;
+// 		case ')' : { token_kind = Token_Kind__Parenthesis_Right; Lexer_advance(lexer); } break;
+// 		case '+' : { token_kind = Token_Kind__Plus;              Lexer_advance(lexer); } break;
+// 		case '-' : { token_kind = Token_Kind__Minus;             Lexer_advance(lexer); } break;
+// 		case '*' : { token_kind = Token_Kind__Star;              Lexer_advance(lexer); } break;
+// 		case '/' : { token_kind = Token_Kind__Slash;             Lexer_advance(lexer); } break;
+// 		case '~' : { token_kind = Token_Kind__Tilde;             Lexer_advance(lexer); } break;
+// 		case '^' : { token_kind = Token_Kind__Caret;             Lexer_advance(lexer); } break;
+// 		case '\n': { token_kind = Token_Kind__Newline;           Lexer_advance(lexer); } break;
 //
 // 		case '>':
 // 		{
 // 			token_kind = Token_Kind__Greater;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached)
 // 			{
 // 				if (lexer->current == '>')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					token_kind = Token_Kind__Greater_2;
 // 				}
 // 				else if (lexer->current == '=')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					token_kind = Token_Kind__Greater_Equal;
 // 				}
 // 			}
@@ -193,17 +155,17 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 		case '<':
 // 		{
 // 			token_kind = Token_Kind__Less;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached)
 // 			{
 // 				if (lexer->current == '>')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					token_kind = Token_Kind__Less_2;
 // 				}
 // 				else if (lexer->current == '=')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					token_kind = Token_Kind__Less_Equal;
 // 				}
 // 			}
@@ -212,50 +174,50 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 		case '=':
 // 		{
 // 			token_kind = Token_Kind__Equal;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached && lexer->current == '=')
 // 			{
 // 				token_kind = Token_Kind__Equal_2;
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 // 		} break;
 //
 // 		case '!':
 // 		{
 // 			token_kind = Token_Kind__Bang;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached && lexer->current == '=')
 // 			{
 // 				token_kind = Token_Kind__Equal_Bang;
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 // 		} break;
 //
 // 		case '|':
 // 		{
 // 			token_kind = Token_Kind__Pipe;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached && lexer->current == '|')
 // 			{
 // 				token_kind = Token_Kind__Pipe_2;
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 // 		} break;
 // 		case '&':
 // 		{
 // 			token_kind = Token_Kind__Ampersand;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached && lexer->current == '&')
 // 			{
 // 				token_kind = Token_Kind__Ampersand_2;
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 // 		} break;
 //
 // 		case '%':
 // 		{
 // 			token_kind = Token_Kind__Percentage;
-// 			Lexer_advance(lexer, input);
+// 			Lexer_advance(lexer);
 // 			if (!lexer->end_reached && U8_ascii_letter_is(lexer->current))
 // 			{
 // 				token_kind = Token_Kind__Relocation_Prefix;
@@ -266,20 +228,20 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 			U32 token_index_previous = tokens->header.count - (tokens->header.count > 0);
 // 			Token *token_previous    = xar_get_m(tokens, token_index_previous);
 //
-// 			Lexer_expect(lexer, token_previous->kind == Token_Kind__Label, Lexer_Error_Kind__Character_Unexpected, &error);
-// 			Lexer_advance(lexer, input);
+// 			Lexer_expect(lexer, token_previous->kind == Token_Kind__Label, Lexer_Error_Kind__Character_Unexpected);
+// 			Lexer_advance(lexer);
 // 		} break;
 //
 // 		case '\'':
 // 		{
 // 			B32 result = 0;
 //
-// 			Lexer_advance(lexer, input);
-// 			Lexer_expect(lexer, !lexer->end_reached, Lexer_Error_Kind__Character_Literal_Unterminated, &error);
+// 			Lexer_advance(lexer);
+// 			Lexer_expect(lexer, !lexer->end_reached, Lexer_Error_Kind__Character_Literal_Unterminated);
 //
 // 			if (lexer->current == '\\')
 // 			{
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 				U8 character = lexer->current;
 //
 // 				B32 hex_prefix = character == 'x';
@@ -289,17 +251,17 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 				if (hex_prefix)
 // 				{
 // 					// We read up to two more characters.
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					U8 value = hex_table[lexer->current];
-// 					Lexer_expect(lexer, value != hex_table_sentinel_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
+// 					Lexer_expect(lexer, value != hex_table_sentinel_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
 // 					result = value;
 //
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					value = hex_table[lexer->current];
 // 					if (value != hex_table_sentinel_invalid)
 // 					{
 // 						result = result * 16 + value;
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 // 				}
 // 				else if (octal_prefix)
@@ -307,24 +269,24 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					// We read up to two more characters, and the current digit counts.
 // 					result = digit;
 //
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					if (lexer->current - '0' < 8)
 // 					{
 // 						result = result * 8 + (lexer->current - '0');
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 //
 // 					if (lexer->current - '0' < 8)
 // 					{
 // 						result = result * 8 + (lexer->current - '0');
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 // 				}
 // 				else
 // 				{
 // 					result = escape_table[character];
-// 					Lexer_expect(lexer, result != escape_value_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
-// 					Lexer_advance(lexer, input);
+// 					Lexer_expect(lexer, result != escape_value_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
+// 					Lexer_advance(lexer);
 // 				}
 // 			}
 // 			else if (lexer->current == '\n')
@@ -334,11 +296,11 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 			else
 // 			{
 // 				result = lexer->current;
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 // 			}
 //
-// 			Lexer_expect(lexer, lexer->current == '\'', Lexer_Error_Kind__Character_Literal_Unterminated, &error);
-// 			Lexer_advance(lexer, input);
+// 			Lexer_expect(lexer, lexer->current == '\'', Lexer_Error_Kind__Character_Literal_Unterminated);
+// 			Lexer_advance(lexer);
 //
 // 			token_kind = Token_Kind__Char_Literal;
 // 			numerical_value = result;
@@ -358,7 +320,7 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 				{
 // 					break;
 // 				}
-// 				Lexer_advance(lexer, input);
+// 				Lexer_advance(lexer);
 //
 // 				U8 character = lexer->current;
 //
@@ -367,14 +329,14 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					escaping_started = 0;
 //
 // 					U8 valid = escape_valid_table[character];
-// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
+// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Escape_Sequence_Invalid);
 //
 // 					B32 hex_prefix = character == 'x';
 //
 // 					// We don't parse it but we ensure at least there is another following character.
 // 					if (hex_prefix)
 // 					{
-// 						U8 *next = Lexer_peek_next(lexer, input);
+// 						U8 *next = Lexer_peek_next(lexer);
 // 						B32 invalid = next && hex_table[*next] == hex_table_sentinel_invalid;
 //
 // 						// We create a raw version for better diagnostic of an invalid escape
@@ -403,7 +365,7 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 				}
 // 			}
 //
-// 			Lexer_expect(lexer, quote_ending_found, Lexer_Error_Kind__String_Literal_Unterminated, &error);
+// 			Lexer_expect(lexer, quote_ending_found, Lexer_Error_Kind__String_Literal_Unterminated);
 //
 // 			token_kind = Token_Kind__String_Literal;
 // 		} break;
@@ -421,11 +383,11 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					{
 // 						break;
 // 					}
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					invalid = !LE_U8_identifier_is(lexer->current);
 // 				}
 //
-// 				String8 token_string = Lexer_string_under_cursor(lexer, input);
+// 				String8 token_string = Lexer_string_under_cursor(lexer);
 // 				Directive_Kind directive_kind = Directive_Kind__from_String8(token_string);
 //
 // 				// This gives a good hint that lexing assembly comes with some pain.
@@ -451,17 +413,17 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 			else if (U8_ascii_digit_is(lexer->current))
 // 			{
 // 				U8 digit = lexer->current;
-// 				U8 *next = Lexer_peek_next(lexer, input);
+// 				U8 *next = Lexer_peek_next(lexer);
 //
 // 				token_kind = Token_Kind__Number;
 //
 // 				if (digit == '0' && next && *next == 'x')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					U64 result = 0;
 // 					for (;;)
 // 					{
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 						U8 value = hex_table[lexer->current];
 // 						if (lexer->end_reached || value >= 16)
 // 						{
@@ -471,16 +433,16 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					}
 //
 // 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Hex_Literal_Invalid, &error);
+// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Hex_Literal_Invalid);
 // 					numerical_value = result;
 // 				}
 // 				else if (digit == '0' && next && *next == 'b')
 // 				{
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					U64 result = 0;
 // 					for (;;)
 // 					{
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 						U8 value = (U8)(lexer->current - '0');
 // 						if (lexer->end_reached || value >= 2)
 // 						{
@@ -490,16 +452,16 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					}
 //
 // 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Binary_Literal_Invalid, &error);
+// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Binary_Literal_Invalid);
 // 					numerical_value = result;
 // 				}
 // 				else if (digit == '0' && next && U8_ascii_digit_is(*next))
 // 				{	// Octal
-// 					Lexer_advance(lexer, input);
+// 					Lexer_advance(lexer);
 // 					U64 result = 0;
 // 					for (;;)
 // 					{
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 						U8 value = (U8)(lexer->current - '0');
 // 						if (lexer->end_reached || value >= 8)
 // 						{
@@ -509,7 +471,7 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 					}
 //
 // 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Octal_Literal_Invalid, &error);
+// 					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Octal_Literal_Invalid);
 // 					numerical_value = result;
 // 				}
 // 				else
@@ -524,29 +486,29 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 						}
 // 						result = result * 10 + value;
 // 						numerical_value = result;
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 //
 // 					// This also gives a good hint that lexing assembly comes with some pain.
 // 					if (lexer->current == ':')
 // 					{
 // 						token_kind = Token_Kind__Label_Numeric;
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 // 					else if (lexer->current == 'f')
 // 					{
 // 						token_kind = Token_Kind__Label_Numeric_Reference_Forward;
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 // 					else if (lexer->current == 'b')
 // 					{
 // 						token_kind = Token_Kind__Label_Numeric_Reference_Backward;
-// 						Lexer_advance(lexer, input);
+// 						Lexer_advance(lexer);
 // 					}
 // 					else
 // 					{
 // 						B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-// 						Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Literal_Invalid, &error);
+// 						Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Literal_Invalid);
 // 					}
 // 				}
 // 			}
@@ -560,7 +522,7 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 		} break;
 // 		}
 //
-// 		B32 loop_infinite_avoided = lexer->index_before < lexer->index || lexer->end_reached || error.variant;
+// 		B32 loop_infinite_avoided = token_index_start < lexer->index || lexer->end_reached || error.variant;
 // 		assert_always_m(loop_infinite_avoided && "infinite loop edge case");
 //
 // 		if (token_kind && !error.variant)
@@ -572,10 +534,10 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // 			*token = (Token)
 // 			{
 // 				.numerical_value = numerical_value,
-// 				.index           = lexer->index_before,
+// 				.index           = token_index_start,
 // 				.row_index       = lexer->row_index,
 // 				.column_index    = lexer->column_index_before,
-// 				.size            = (U32)(lexer->index - lexer->index_before),
+// 				.size            = (U32)(lexer->index - token_index_start),
 // 				.kind            = token_kind,
 // 			};
 //
@@ -595,46 +557,44 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnosti
 // }
 
 internal Token_2
-Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
+Lexer_lex(Lexer *lexer)
 {
-	lexer->end_reached = lexer->index + 1 >= input->count;
-	lexer->current     = lexer->end_reached ? 0 : input->data[lexer->index];
+	// TODO: a bit unsure about settings this to zero.
+	lexer->error       = 0;
+	lexer->end_reached = lexer->index + 1 >= lexer->input->count;
+	lexer->current     = lexer->end_reached ? 0 : lexer->input->data[lexer->index];
 
 	Token_2 token = {0};
 
-	Diagnostic error = {0};
+	U64 token_index_start = lexer->index;
 
 	for (;;)
 	{
-		B32 break_should_lexer = token.kind || lexer->end_reached || error.variant;
+		B32 break_should_lexer = token.kind || lexer->end_reached || lexer->error;
 		if (break_should_lexer)
 		{
 			break;
 		}
 
-		// Snapshot indexes before processing a token to determine its size.
-		lexer->index_before        = lexer->index;
-		lexer->column_index_before = lexer->column_index;
+		token_index_start = lexer->index;
 
+		// A token cannot start with a zero byte.
 		U8 start = lexer->end_reached ? 0 : lexer->current;
-
-		// NOTE: should maintain the logical order of Token_Kind enumeration.
 		switch (start)
 		{
 		case  0  : { token.kind = Token_Kind__None; } break;
 
-		case ' ' : { Lexer_advance(lexer, input); } break;
-		case '\t': { Lexer_advance(lexer, input); } break;
+		case ' ' : { Lexer_advance(lexer); } break;
+		case '\t': { Lexer_advance(lexer); } break;
 
-			   // NOTE: no multi-line comment support (yet).
+		// NOTE: no multi-line comment support (yet).
 		case '#':
 		{
 			for (;;)
 			{
-				// We don't want to count extra newline tokens because of comments.
+				Lexer_advance(lexer);
 				B32 newline_reached = lexer->current == '\n';
 				B32 break_should_comment = newline_reached || lexer->end_reached;
-				Lexer_advance(lexer, input);
 				if (break_should_comment)
 				{
 					break;
@@ -642,34 +602,34 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 			}
 		} break;
 
-		case '%' : { token.kind = Token_Kind__Percentage;        Lexer_advance(lexer, input); } break;
-		case ',' : { token.kind = Token_Kind__Comma;             Lexer_advance(lexer, input); } break;
-		case ':' : { token.kind = Token_Kind__Colon;             Lexer_advance(lexer, input); } break;
-		case ';' : { token.kind = Token_Kind__Semicolon;         Lexer_advance(lexer, input); } break;
-		case '(' : { token.kind = Token_Kind__Parenthesis_Left;  Lexer_advance(lexer, input); } break;
-		case ')' : { token.kind = Token_Kind__Parenthesis_Right; Lexer_advance(lexer, input); } break;
-		case '+' : { token.kind = Token_Kind__Plus;              Lexer_advance(lexer, input); } break;
-		case '-' : { token.kind = Token_Kind__Minus;             Lexer_advance(lexer, input); } break;
-		case '*' : { token.kind = Token_Kind__Star;              Lexer_advance(lexer, input); } break;
-		case '/' : { token.kind = Token_Kind__Slash;             Lexer_advance(lexer, input); } break;
-		case '~' : { token.kind = Token_Kind__Tilde;             Lexer_advance(lexer, input); } break;
-		case '^' : { token.kind = Token_Kind__Caret;             Lexer_advance(lexer, input); } break;
-		case '\n': { token.kind = Token_Kind__Newline;           Lexer_advance(lexer, input); } break;
+		case '%' : { token.kind = Token_Kind__Percentage;        Lexer_advance(lexer); } break;
+		case ',' : { token.kind = Token_Kind__Comma;             Lexer_advance(lexer); } break;
+		case ':' : { token.kind = Token_Kind__Colon;             Lexer_advance(lexer); } break;
+		case ';' : { token.kind = Token_Kind__Semicolon;         Lexer_advance(lexer); } break;
+		case '(' : { token.kind = Token_Kind__Parenthesis_Left;  Lexer_advance(lexer); } break;
+		case ')' : { token.kind = Token_Kind__Parenthesis_Right; Lexer_advance(lexer); } break;
+		case '+' : { token.kind = Token_Kind__Plus;              Lexer_advance(lexer); } break;
+		case '-' : { token.kind = Token_Kind__Minus;             Lexer_advance(lexer); } break;
+		case '*' : { token.kind = Token_Kind__Star;              Lexer_advance(lexer); } break;
+		case '/' : { token.kind = Token_Kind__Slash;             Lexer_advance(lexer); } break;
+		case '~' : { token.kind = Token_Kind__Tilde;             Lexer_advance(lexer); } break;
+		case '^' : { token.kind = Token_Kind__Caret;             Lexer_advance(lexer); } break;
+		case '\n': { token.kind = Token_Kind__Newline;           Lexer_advance(lexer); } break;
 
 		case '>':
 		{
 			token.kind = Token_Kind__Greater;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached)
 			{
 				if (lexer->current == '>')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					token.kind = Token_Kind__Greater_2;
 				}
 				else if (lexer->current == '=')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					token.kind = Token_Kind__Greater_Equal;
 				}
 			}
@@ -677,17 +637,17 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 		case '<':
 		{
 			token.kind = Token_Kind__Less;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached)
 			{
 				if (lexer->current == '>')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					token.kind = Token_Kind__Less_2;
 				}
 				else if (lexer->current == '=')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					token.kind = Token_Kind__Less_Equal;
 				}
 			}
@@ -695,53 +655,53 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 		case '=':
 		{
 			token.kind = Token_Kind__Equal;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached && lexer->current == '=')
 			{
 				token.kind = Token_Kind__Equal_2;
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 			}
 		} break;
 		case '!':
 		{
 			token.kind = Token_Kind__Bang;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached && lexer->current == '=')
 			{
 				token.kind = Token_Kind__Equal_Bang;
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 			}
 		} break;
 		case '|':
 		{
 			token.kind = Token_Kind__Pipe;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached && lexer->current == '|')
 			{
 				token.kind = Token_Kind__Pipe_2;
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 			}
 		} break;
 		case '&':
 		{
 			token.kind = Token_Kind__Ampersand;
-			Lexer_advance(lexer, input);
+			Lexer_advance(lexer);
 			if (!lexer->end_reached && lexer->current == '&')
 			{
 				token.kind = Token_Kind__Ampersand_2;
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 			}
 		} break;
 		case '\'':
 		{
 			B32 result = 0;
 
-			Lexer_advance(lexer, input);
-			Lexer_expect(lexer, !lexer->end_reached, Lexer_Error_Kind__Character_Literal_Unterminated, &error);
+			Lexer_advance(lexer);
+			Lexer_expect(lexer, !lexer->end_reached, Lexer_Error_Kind__Character_Literal_Unterminated);
 
 			if (lexer->current == '\\')
 			{
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 				U8 character = lexer->current;
 
 				B32 hex_prefix = character == 'x';
@@ -751,17 +711,17 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 				if (hex_prefix)
 				{
 					// We read up to two more characters.
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					U8 value = hex_table[lexer->current];
-					Lexer_expect(lexer, value != hex_table_sentinel_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
+					Lexer_expect(lexer, value != hex_table_sentinel_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
 					result = value;
 
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					value = hex_table[lexer->current];
 					if (value != hex_table_sentinel_invalid)
 					{
 						result = result * 16 + value;
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 					}
 				}
 				else if (octal_prefix)
@@ -769,38 +729,38 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					// We read up to two more characters, and the current digit counts.
 					result = digit;
 
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					if (lexer->current - '0' < 8)
 					{
 						result = result * 8 + (lexer->current - '0');
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 					}
 
 					if (lexer->current - '0' < 8)
 					{
 						result = result * 8 + (lexer->current - '0');
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 					}
 				}
 				else
 				{
 					result = escape_table[character];
-					Lexer_expect(lexer, result != escape_value_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
-					Lexer_advance(lexer, input);
+					Lexer_expect(lexer, result != escape_value_invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
+					Lexer_advance(lexer);
 				}
 			}
 			else if (lexer->current == '\n')
 			{
-				Lexer_diagnostic_fill(lexer, &error, Lexer_Error_Kind__Character_Literal_Multiline_Unsupported);
+				Lexer_expect(lexer, 0, Lexer_Error_Kind__Escape_Sequence_Invalid);
 			}
 			else
 			{
 				result = lexer->current;
-				Lexer_advance(lexer, input);
+				Lexer_advance(lexer);
 			}
 
-			Lexer_expect(lexer, lexer->current == '\'', Lexer_Error_Kind__Character_Literal_Unterminated, &error);
-			Lexer_advance(lexer, input);
+			Lexer_expect(lexer, lexer->current == '\'', Lexer_Error_Kind__Character_Literal_Unterminated);
+			Lexer_advance(lexer);
 
 			token.kind = Token_Kind__Char_Literal;
 			token.numerical_value = result;
@@ -812,11 +772,10 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 			U8 escaping_started             = 0;
 			U8 quote_ending_found           = 0;
 			B32 break_should_double_quote   = 0;
-			U32 escape_started_column_index = 0;
 			for (;;)
 			{
-				Lexer_advance(lexer, input);
-				break_should_double_quote = quote_ending_found || lexer->end_reached || error.variant;
+				Lexer_advance(lexer);
+				break_should_double_quote = quote_ending_found || lexer->end_reached || lexer->error;
 				if (break_should_double_quote)
 				{
 					break;
@@ -829,31 +788,22 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					escaping_started = 0;
 
 					U8 valid = escape_valid_table[character];
-					Lexer_expect(lexer, valid, Lexer_Error_Kind__Escape_Sequence_Invalid, &error);
+					Lexer_expect(lexer, valid, Lexer_Error_Kind__Escape_Sequence_Invalid);
 
 					B32 hex_prefix = character == 'x';
 
 					// We don't parse it but we ensure at least there is another following character.
 					if (hex_prefix)
 					{
-						U8 *next = Lexer_peek_next(lexer, input);
+						U8 *next = Lexer_peek_next(lexer);
 						B32 invalid = next && hex_table[*next] == hex_table_sentinel_invalid;
 
-						// We create a raw version for better diagnostic of an invalid escape
-						// sequence within a longer string.
-						if (invalid)
-						{
-							Lexer_diagnostic_fill(lexer, &error, Lexer_Error_Kind__Escape_Sequence_Invalid);
-							error.column_index_begin = escape_started_column_index;
-							error.column_index_end   = lexer->column_index + 1;
-						}
-
+						Lexer_expect(lexer, !invalid, Lexer_Error_Kind__Escape_Sequence_Invalid);
 					}
 				}
 				else if (character == '\\')
 				{
 					escaping_started = 1;
-					escape_started_column_index = lexer->column_index;
 				}
 				else if (character == '\"')
 				{
@@ -861,11 +811,11 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 				}
 				else if (character == '\n')
 				{	// NOTE: it may make sense to introduce a flag that changes this behaviour.
-					Lexer_diagnostic_fill(lexer, &error, Lexer_Error_Kind__String_Multiline_Unsupported);
+					Lexer_expect(lexer, 0, Lexer_Error_Kind__String_Multiline_Unsupported);
 				}
 			}
 
-			Lexer_expect(lexer, quote_ending_found, Lexer_Error_Kind__String_Literal_Unterminated, &error);
+			Lexer_expect(lexer, quote_ending_found, Lexer_Error_Kind__String_Literal_Unterminated);
 
 			token.kind = Token_Kind__String_Literal;
 		} break;
@@ -873,7 +823,6 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 		{
 			if (LE_U8_identifier_start_is(lexer->current))
 			{
-				U8 character_start = lexer->current;
 				B32 break_should_identifier = 0;
 				B32 invalid = 0;
 				for (;;)
@@ -883,7 +832,7 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					{
 						break;
 					}
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					invalid = !LE_U8_identifier_is(lexer->current);
 				}
 				token.kind = Token_Kind__Identifier;
@@ -892,17 +841,17 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 			else if (U8_ascii_digit_is(lexer->current))
 			{
 				U8 digit = lexer->current;
-				U8 *next = Lexer_peek_next(lexer, input);
+				U8 *next = Lexer_peek_next(lexer);
 
 				token.kind = Token_Kind__Number;
 
 				if (digit == '0' && next && *next == 'x')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					U64 result = 0;
 					for (;;)
 					{
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 						U8 value = hex_table[lexer->current];
 						if (lexer->end_reached || value >= 16)
 						{
@@ -912,16 +861,16 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					}
 
 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Hex_Literal_Invalid, &error);
+					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Hex_Literal_Invalid);
 					token.numerical_value = result;
 				}
 				else if (digit == '0' && next && *next == 'b')
 				{
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					U64 result = 0;
 					for (;;)
 					{
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 						U8 value = (U8)(lexer->current - '0');
 						if (lexer->end_reached || value >= 2)
 						{
@@ -931,16 +880,16 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					}
 
 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Binary_Literal_Invalid, &error);
+					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Binary_Literal_Invalid);
 					token.numerical_value = result;
 				}
 				else if (digit == '0' && next && U8_ascii_digit_is(*next))
 				{	// Octal
-					Lexer_advance(lexer, input);
+					Lexer_advance(lexer);
 					U64 result = 0;
 					for (;;)
 					{
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 						U8 value = (U8)(lexer->current - '0');
 						if (lexer->end_reached || value >= 8)
 						{
@@ -950,7 +899,7 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 					}
 
 					B32 valid = lexer->end_reached || numeric_suffix_table[lexer->current];
-					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Octal_Literal_Invalid, &error);
+					Lexer_expect(lexer, valid, Lexer_Error_Kind__Numeric_Octal_Literal_Invalid);
 					token.numerical_value = result;
 				}
 				else
@@ -965,14 +914,14 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 						}
 						result = result * 10 + value;
 						token.numerical_value = result;
-						Lexer_advance(lexer, input);
+						Lexer_advance(lexer);
 					}
 				}
 			}
 			else
 			{
 				// NOTE: decide on whether erroring after a while bunch on invalid tokens are read.
-				Lexer_diagnostic_fill(lexer, &error, Lexer_Error_Kind__Character_Unexpected);
+				Lexer_expect(lexer, 0, Lexer_Error_Kind__Character_Unexpected);
 			}
 
 
@@ -980,18 +929,12 @@ Lexer_lex(Lexer *lexer, const String8 *input, Diagnostics *diagnostics)
 		}
 	}
 
-	B32 loop_infinite_avoided = lexer->index_before < lexer->index || lexer->end_reached || error.variant;
+	assert_always_m(token_index_start <= lexer->index);
+	B32 loop_infinite_avoided = token_index_start < lexer->index || lexer->end_reached || lexer->error;
 	assert_always_m(loop_infinite_avoided && "infinite loop edge case");
 
-	if (token.kind)
-	{
-		token.content = Lexer_string_under_cursor(lexer, input);
-	}
-
-	if (error.variant)
-	{
-		Diagnostics__push_error(diagnostics, &error);
-	}
+	token.index = token_index_start;
+	token.size  = lexer->index - token_index_start;
 
 	return token;
 }

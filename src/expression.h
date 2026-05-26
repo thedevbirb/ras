@@ -168,19 +168,24 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 
-// Assumption: the underlying arena is used only for storing expressions.
+#ifndef Expressions__xar_chunks
+#define Expressions__xar_chunks 14
+#endif
+
+// Assumes first expression is a sentinel expression.
 typedef struct Expressions Expressions;
 struct Expressions
 {
-	Arena *arena;
-	Expression_Node *data;
-	U32 count;
+	Xar_Metadata     metadata;
+	Xar_Header       header;
+	Expression_Node *chunks[Expressions__xar_chunks];
 };
 
-void
-Expressions_initialize(Expressions *expressions, Arena *arena);
+// MUST be called.
+internal void
+Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount);
 
 Expression_Node *
-Expressions_push_empty(Expressions *expressions);
+Expressions_push_empty(Expressions *expressions, Arena *arena);
 
 #endif // EXPRESSION_H

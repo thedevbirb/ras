@@ -23,7 +23,7 @@
 
 #include "diagnostic.h"
 #include "lexer.h"
-// #include "expression.h"
+#include "expression.h"
 #include "statement.h"
 #include "parser/parser_include.h"
 // #include "resolver.h"
@@ -38,8 +38,8 @@
 
 #include "diagnostic.c"
 #include "lexer.c"
-// #include "expression.c"
-// #include "statement.c"
+#include "expression.c"
+#include "statement.c"
 #include "parser/parser_include.c"
 // #include "resolver.c"
 
@@ -121,7 +121,7 @@ main(int argument_count, char **argument_vector)
 		.warnings = Arena__push_array_m(arena, Diagnostic, DIAGNOSTICS_WARNINGS_MAX),
 	};
 
-	Lexer lexer = {0};
+	Lexer lexer = { .input = &input };
 
 	Symbols_Trie            symbols_trie            = {0};
 	Symbols_Trie_Chunk_List symbols_trie_chunk_list = {0};
@@ -131,17 +131,30 @@ main(int argument_count, char **argument_vector)
 
 	String8 filename = String8__from_cstring(file_in_path);
 
+	Expressions expressions = {0};
+	Expressions__initialize(&expressions, arena, 12);
+
+	Statement_Expressions_Xar statement_expressions = {0};
+	xar_initialize_m(&statement_expressions, 12);
+
 	Parser_2 parser =
 	{
-		.filename                = filename,
-		.lexer                   = &lexer,
-		.diagnostics             = &diagnostics,
-		.symbols_trie            = &symbols_trie,
-		.symbols_trie_chunk_list = &symbols_trie_chunk_list,
+		.filename                  = filename,
+		.input                     = input,
+		.lexer                     = &lexer,
+		.expressions               = &expressions,
+		.diagnostics               = &diagnostics,
+		.symbols_trie              = &symbols_trie,
+		.symbols_trie_chunk_list   = &symbols_trie_chunk_list,
+		.statement_expressions     = &statement_expressions,
 	};
 
 
-	Parser_2__parse(&parser, &input, arena, &statements);
+	for (;;)
+	{
+		Statement statement = Parser_2__statement(&parser, arena);
+		break;
+	}
 
 
 	if (diagnostics.errors_count > 0)

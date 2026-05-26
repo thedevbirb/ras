@@ -5,8 +5,8 @@ Diagnostic__print(Diagnostic *diagnostic, String8 *input)
 
 	U32 line = diagnostic->row_index += 1;
 
-	fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", diagnostic->filename, line, diagnostic->column_index_begin);
-	fprintf(stderr, "%s\n",   diagnostic->message_kind);
+	fprintf(stderr, "\x1B[1m%*.s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", String8__varg(diagnostic->filename), line, diagnostic->column_index_begin);
+	fprintf(stderr, "%*.s\n",   String8__varg(diagnostic->message_kind));
 	fprintf(stderr, "%5d | ", line);
 
 	U64 index = diagnostic->input_index_start;

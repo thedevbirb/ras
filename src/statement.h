@@ -30,7 +30,8 @@ struct Statement
 {
 	// The list of parsed expressions that occurred in this statement.
 	// If its an instruction, once evaluated it would yield its immediate.
-	U32 *expressions_indexes;
+	U32 expressions_index_start;
+	U32 expressions_count;
 
 	// The symbol defined by the statement, if any.
 	Symbols_Table_Entry *s_symbol;
@@ -40,7 +41,6 @@ struct Statement
 	// If this is a numeric label definition, it is its number.
 	U8  label_numeric_value;
 
-	U32 expressions_count;
 	// The list of tokens that make the statement.
 	U32 token_index_begin;
 	// Included
@@ -84,6 +84,18 @@ struct Statements_Xar
 	Statement   *chunks[14];
 };
 assert_static_m(sizeof(Statements_Xar) % 64 == 0, Statements_Xar__size_check);
+
+// A tracker to write expressions indexes used by statements.
+//
+// Each statement contains a starting offset and a count of expressions.
+typedef struct Statement_Expressions_Xar Statement_Expressions_Xar;
+struct Statement_Expressions_Xar
+{
+	Xar_Metadata metadata;
+	Xar_Header   header;
+	U32         *chunks[14];
+};
+
 
 
 typedef struct Statements Statements;

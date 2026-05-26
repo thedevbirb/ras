@@ -43,24 +43,24 @@ typedef enum Lexing_Error_Kind
 }
 Lexer_Error_Kind;
 
-global const char *lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
+global const String8 lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 {
-	[Lexer_Error_Kind__None]                                    = "",
-	[Lexer_Error_Kind__String_Multiline_Unsupported]            = "multiline strings are not supported",
-	[Lexer_Error_Kind__String_Literal_Unterminated]             = "string literal unterminated",
-	[Lexer_Error_Kind__Escape_Sequence_Invalid]                 = "escape sequence invalid",
-	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = "multiline character literals are not supported",
-	[Lexer_Error_Kind__Character_Literal_Empty]                 = "empty character literal",
-	[Lexer_Error_Kind__Character_Literal_Multiple]              = "character literal contains multiple characters",
-	[Lexer_Error_Kind__Character_Literal_Escape_Invalid]        = "character literal contains invalid escape",
-	[Lexer_Error_Kind__Character_Literal_Unterminated]          = "character literal untermindated",
-	[Lexer_Error_Kind__Numeric_Literal_Invalid]                 = "numerical literal is invalid",
-	[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid]             = "numerical hex literal is invalid",
-	[Lexer_Error_Kind__Numeric_Octal_Literal_Invalid]           = "numerical octal literal is invalid",
-	[Lexer_Error_Kind__Numeric_Binary_Literal_Invalid]          = "numerical binary literal is invalid",
-	[Lexer_Error_Kind__Escape_Sequence_Unterminated]            = "escape sequence unterminated",
-	[Lexer_Error_Kind__Label_Directive_Invalid]                 = "invalid label or directive",
-	[Lexer_Error_Kind__Character_Unexpected]                    = "unexpected character",
+	[Lexer_Error_Kind__None]                                    = String8__literal(""),
+	[Lexer_Error_Kind__String_Multiline_Unsupported]            = String8__literal("multiline strings are not supported"),
+	[Lexer_Error_Kind__String_Literal_Unterminated]             = String8__literal("string literal unterminated"),
+	[Lexer_Error_Kind__Escape_Sequence_Invalid]                 = String8__literal("escape sequence invalid"),
+	[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported] = String8__literal("multiline character literals are not supported"),
+	[Lexer_Error_Kind__Character_Literal_Empty]                 = String8__literal("empty character literal"),
+	[Lexer_Error_Kind__Character_Literal_Multiple]              = String8__literal("character literal contains multiple characters"),
+	[Lexer_Error_Kind__Character_Literal_Escape_Invalid]        = String8__literal("character literal contains invalid escape"),
+	[Lexer_Error_Kind__Character_Literal_Unterminated]          = String8__literal("character literal untermindated"),
+	[Lexer_Error_Kind__Numeric_Literal_Invalid]                 = String8__literal("numerical literal is invalid"),
+	[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid]             = String8__literal("numerical hex literal is invalid"),
+	[Lexer_Error_Kind__Numeric_Octal_Literal_Invalid]           = String8__literal("numerical octal literal is invalid"),
+	[Lexer_Error_Kind__Numeric_Binary_Literal_Invalid]          = String8__literal("numerical binary literal is invalid"),
+	[Lexer_Error_Kind__Escape_Sequence_Unterminated]            = String8__literal("escape sequence unterminated"),
+	[Lexer_Error_Kind__Label_Directive_Invalid]                 = String8__literal("invalid label or directive"),
+	[Lexer_Error_Kind__Character_Unexpected]                    = String8__literal("unexpected character"),
 };
 
 // This token information doesn't tell from which file it comes, because it assumes a single file.
@@ -69,7 +69,9 @@ typedef struct Token_2 Token_2;
 struct Token_2
 {
 	U64         numerical_value; // No float support yet.
-	String8     content;
+	U64         index;
+
+	U32         size;
 	Token_Kind  kind;
 };
 
@@ -100,6 +102,10 @@ struct Token_Xar
 typedef struct Lexer Lexer;
 struct Lexer
 {
+	const String8 *input;
+
+	Lexer_Error_Kind error;
+
 	U32  index;
 	U32  index_before;
 	U32  column_index;
@@ -110,34 +116,24 @@ struct Lexer
 	U8   current;
 };
 
-typedef struct Lexer_Context Lexer_Context;
-struct Lexer_Context
-{
-	const String8 *input;
-	const char    *filename;
-	Token_Xar     *tokens;
-	Diagnostics   *diagnostics;
-};
-
-
 // It is a no-op if the end has been reached already.
 internal void
-Lexer_advance(Lexer *lexer, const String8 *input);
+Lexer_advance(Lexer *lexer);
 
 internal U8 *
-Lexer_peek_next(Lexer *lexer, const String8 *input);
+Lexer_peek_next(Lexer *lexer);
 
 internal String8
-Lexer_string_under_cursor(Lexer *lexer, const String8 *input);
+Lexer_string_under_cursor(Lexer *lexer);
 
 internal void
 Lexer_error_set(Lexer *lexer, const char *filename, Diagnostics *diagnostic, Lexer_Error_Kind kind);
 
 internal void
-Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind, Diagnostic *diagnostic);
+Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind);
 
-internal void
-Lexer_tokenize(Lexer *lexer, Arena *arena, Lexer_Context *context);
+internal Token_2
+Lexer_lex(Lexer *lexer);
 
 #endif // LEXER_H
 

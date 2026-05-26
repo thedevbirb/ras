@@ -12,8 +12,8 @@
 typedef struct Diagnostic Diagnostic;
 struct Diagnostic
 {
-	const char  *filename;
-	const char  *message_kind;
+	String8      filename;
+	String8      message_kind;
 	U32          row_index;
 	U32          column_index_begin;
 	U32          column_index_end;
@@ -34,8 +34,11 @@ struct Diagnostics
 internal void
 Diagnostics__push_error(Diagnostics *diagnostics, Diagnostic *error)
 {
-	diagnostics->errors[diagnostics->errors_count] = *error;
-	diagnostics->errors_count += 1;
+	if (diagnostics->errors_count < DIAGNOSTICS_ERRORS_MAX)
+	{
+		diagnostics->errors[diagnostics->errors_count] = *error;
+		diagnostics->errors_count += 1;
+	}
 	return;
 }
 
