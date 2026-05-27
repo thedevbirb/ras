@@ -188,12 +188,11 @@ Parser_2__statement(Parser_2 *parser, Arena *arena);
 //
 // internal U8
 // Parser_expect_register(Parser *parser);
+
+// Non-recursive Pratt parser implementation for parsing an expression.
 //
-// // TODO: deprecate expression flags from these methods.
-//
-// // Core Pratt parser loop. Parses an expression where all binary operators
-// // must have binding power strictly greater than binding_power_minimum.
-// // All operators are left-associative (the <= comparison ensures this).
+// All binary operators must have binding power strictly greater than `binding_power_minimum`. All operators are
+// left-associated, with the `<=` comparison ensuring it.
 internal Expression_Node *
 Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power binding_power_minimum);
 //

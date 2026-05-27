@@ -70,6 +70,9 @@ main(int argument_count, char **argument_vector)
 {
 	Initialize();
 
+	Thread_Context *thread_context = Thread_Context_alloc();
+	Thread_Context_select(thread_context);
+
 	arguments_shift(&argument_count, &argument_vector);
 	if (argument_count < 2)
 	{

@@ -438,24 +438,25 @@ Parser_advance(Parser_2 *parser)
 // 	return left;
 // }
 
-typedef struct Expression_Frame Expression_Frame;
-struct Expression_Frame
-{
-	Expression_Node  *node;
-	Expression_Frame *next;
-	Binding_Power     binding_power_minimum;
-	B32               right_side;
-	U32               right_parenthesis_expected;
-};
-
 internal Expression_Node *
 Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power binding_power_minimum)
 {
+	// A stack of expression parsing frames.
+	typedef struct Frame Frame;
+	struct Frame
+	{
+		Frame            *next;
+		Expression_Node  *node;
+		Binding_Power     binding_power_minimum;
+		B32               is_right_side_of_next;
+		U32               right_parenthesis_expected;
+	};
+
+	Arena_Temporary scratch = Arena__scratch_begin_m(arena, 1);
+
 	Expression_Node *result = 0;
 	// Use scratch arena for frames.
-	Expression_Frame *frame = Arena__push_struct_m(arena, Expression_Frame);
-
-	// 1 + 2
+	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
 
 	for (;;)
 	{
@@ -485,9 +486,9 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 
 			Parser_advance(parser);
 
-			Expression_Frame *frame_new = Arena__push_struct_m(arena, Expression_Frame);
+			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
 			frame_new->binding_power_minimum = Binding_Power__Unary;
-			frame_new->right_side = 1;
+			frame_new->is_right_side_of_next = 1;
 			SLL_stack_push_n_m(frame, frame_new, next);
 			// Expression_Node *operand = Parser_expression_parse_inner(parser, Binding_Power__Unary);
 			// node->index_left = operand->index;
@@ -532,7 +533,7 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 				// SLL_stack_pop_n_m(frame, next);
 				frame->right_parenthesis_expected -= 1;
 			}
-			if (frame->next && frame->right_side)
+			if (frame->next && frame->is_right_side_of_next)
 			{
 				frame->next->node->index_right = frame->node->index;
 			}
@@ -558,10 +559,10 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 			frame->node->index_left = left->index;
 
 			// Prepare new frame
-			Expression_Frame *frame_new = Arena__push_struct_m(arena, Expression_Frame);
+			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
 			frame_new->binding_power_minimum = next_power;
 			// Set that the current frame is the right side of the previous operator
-			frame_new->right_side = 1;
+			frame_new->is_right_side_of_next = 1;
 			SLL_stack_push_n_m(frame, frame_new, next);
 		}
 
@@ -582,7 +583,7 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		// 	result = frame->node;
 		// }
 		//
-		// if (!frame->next || !frame->next->right_side)
+		// if (!frame->next || !frame->next->is_right_side_of_next)
 		// {
 		// 	SLL_stack_pop_n_m(frame, next);
 		// }
@@ -597,8 +598,7 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 
 	result = frame->node;
 
-	// Deallocate this from scratch arena.
-
+	Arena_Temporary__end(scratch);
 	return result;
 }
 
