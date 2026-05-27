@@ -441,7 +441,8 @@ Parser_advance(Parser_2 *parser)
 internal Expression_Node *
 Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power binding_power_minimum)
 {
-	// A stack of expression parsing frames.
+	// A stack of expression frames. Each sub-expression creates a frame associated to it.
+	// When the sub-expression is parsed, the frame should be popped.
 	typedef struct Frame Frame;
 	struct Frame
 	{
@@ -449,22 +450,20 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		Expression_Node  *node;
 		Binding_Power     binding_power_minimum;
 		B32               is_right_side_of_next;
+		B32               null_denotation_parsed;
 		U32               right_parenthesis_expected;
+
 	};
 
-	Arena_Temporary scratch = Arena__scratch_begin_m(arena, 1);
+	Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
 	Expression_Node *result = 0;
-	// Use scratch arena for frames.
 	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
 
 	for (;;)
 	{
 		Expression_Node *left  = 0;
-		// Parser_expect(parser, !parser->end_reached, Parser_Error_Kind__Expression_Unexpected_End);
-		// Parser_expect(parser, recursion_level <= 8, Parser_Error_Kind__Expression_Recursion_Max);
-
-		Token_2 token          = parser->token_current;
+		Token_2 token = parser->token_current;
 
 		switch (token.kind)
 		{
@@ -473,6 +472,7 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 			frame->node                = Expressions_push_empty(parser->expressions, arena);
 			frame->node->kind          = Expression_Kind__Number_Literal;
 			frame->node->integer_value = token.numerical_value;
+			frame->null_denotation_parsed = 1;
 
 			Parser_advance(parser);
 		} break;
@@ -483,56 +483,77 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		{
 			frame->node = Expressions_push_empty(parser->expressions, arena);
 			frame->node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
-
-			Parser_advance(parser);
+			frame->null_denotation_parsed = 1;
 
 			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
 			frame_new->binding_power_minimum = Binding_Power__Unary;
 			frame_new->is_right_side_of_next = 1;
+
 			SLL_stack_push_n_m(frame, frame_new, next);
-			// Expression_Node *operand = Parser_expression_parse_inner(parser, Binding_Power__Unary);
-			// node->index_left = operand->index;
+			Parser_advance(parser);
 			continue;
 		} break;
 
 		case Token_Kind__Parenthesis_Left:
 		{
-			// Parser_advance(parser);
-			// Expression_Node *inner = Parser_expression_parse_inner(parser, Binding_Power__None);
-			//
-			// Parser_expect_token(parser, Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Parenthesis_Right_Expected);
-			// Parser_advance(parser);
-			//
-			// node = inner;
+			// A parenthesis is added for signaling the start of a prioritized sub-expression.
+			// We don't need to create a new frame here, because previous logic has already created one.
+			// We want to mark the start of a prioritized sub-expression, by setting the minimum binding
+			// power to zero, and we keep track of the number of left parenthesis we find, so that if
+			// something like `(((5)))` is found, we peel off all right parenthesis accordingly.
 
-			// TODO: how to expect right parenthesis?
+			assert_always_m(frame->node == 0);
 
-			Parser_advance(parser);
 			frame->right_parenthesis_expected += 1;
 			frame->binding_power_minimum = Binding_Power__None;
 
+			Parser_advance(parser);
 			continue;
 		} break;
 
 		default:
 		{
-				// Parser_error_set(parser, Parser_Error_Kind__Expression_Unexpected_Token);
+			// TODO: replace with Parser_expect.
+			assert_always_m(frame->null_denotation_parsed);
 		} break;
 		}
 
 		Token_Kind token_kind    = parser->token_current.kind;
 		Binding_Power next_power = Binding_Power_from_Token_Kind(token_kind);
 
+		// If `next_power` is greater than `binding_power_minimum`, it means that the current node should on the
+		// left of what's coming.
+		//
+		// Consider the example `4 - 3 * 5`. When 3 is parsed, it will have `Binding_Power__Additive` associated
+		// to it. The `next_power` will be `Binding_Power__Multiplicative`, which means 3 is actually the left
+		// node of `*`, in fact our tree should look as follows:
+		//
+		//               -
+		//             4   *
+		//                3 5
+		//
+		// Otherwise we've reached the end of our sub-expression and we can pop the frame.
+
 		B32 pop = next_power <= binding_power_minimum || parser->end_reached || parser->error;
 		if (pop)
 		{
-			if (frame->right_parenthesis_expected > 0)
+			// Peel off all the parenthesis for the current frame. For example, (((5))) is a single frame
+			// with 3 right parethesis expected.
+			for (;;)
 			{
+				if (frame->right_parenthesis_expected == 0)
+				{
+					break;
+				}
+
+				// TODO: replace with Parser_expect.
 				assert_always_m(token_kind == Token_Kind__Parenthesis_Right);
-				// Parser_expect(parser, token_kind == Token_Kind__Parenthesis_Right, Parser_Error_Kind__Expression_Parenthesis_Right_Expected);
-				// SLL_stack_pop_n_m(frame, next);
 				frame->right_parenthesis_expected -= 1;
+				Parser_advance(parser);
+				token_kind = parser->token_current.kind;
+
 			}
+
 			if (frame->next && frame->is_right_side_of_next)
 			{
 				frame->next->node->index_right = frame->node->index;
@@ -540,14 +561,13 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 
 			if (!frame->next)
 			{
+				// Save the result before popping the last frame.
 				result = frame->node;
 			}
 			SLL_stack_pop_n_m(frame, next);
 		}
 		else
 		{
-			// Important to advance _after_ we have the right binding power otherwise we might tokens subsequent to
-			// the expression, like commas.
 			Parser_advance(parser);
 
 			// frame->node becomes left
@@ -566,37 +586,13 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 			SLL_stack_push_n_m(frame, frame_new, next);
 		}
 
-		// Expression_Node *node  = Arena__push_struct_m(parser->arena, Expression_Node);
-		// Expression_Node *node  = Expressions_push_empty(parser->expressions);
-		// Expression_Node *right = Parser_expression_parse_inner(parser, next_power);
-		//
-		// node->kind        = Expression_Kind__binary_from_Token_Kind(token_kind);
-		// node->index_left  = left->index;
-		// node->index_right = right->index;
-		//
-		// assert_always_m(node->kind);
-		//
-		// left = node;
-
-		// if (!frame->next)
-		// {
-		// 	result = frame->node;
-		// }
-		//
-		// if (!frame->next || !frame->next->is_right_side_of_next)
-		// {
-		// 	SLL_stack_pop_n_m(frame, next);
-		// }
-
-		B32 break_should = frame->next == 0;
+		B32 break_should = frame == 0 || parser->error;
 		if (break_should)
 		{
 			break;
 		}
 
 	}
-
-	result = frame->node;
 
 	Arena_Temporary__end(scratch);
 	return result;
@@ -1195,6 +1191,7 @@ Parser_2__statement(Parser_2 *parser, Arena *arena)
 			expressions_count += 1;
 
 			S64 result = Expression__evaluate(parser->expressions, expression->index, arena);
+			printf("result %d", result);
 
 			B32 token_newline = parser->token_current.kind == Token_Kind__Newline;
 			B32 token_comma   = parser->token_current.kind == Token_Kind__Comma;
