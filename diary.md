@@ -404,3 +404,56 @@ now. First, it implies keeping a small map of macro names with macro information
 parser context. Then, the parser should switch to an alternate input source, provided in the macro
 information itself. Then, how to handle recursive expansion? Again, as a Lexer stack.
 I can think of the Lexer cursor as my current stack frame.
+
+Mon May 25 11:40:08 CEST 2026
+
+Pivoting again with the design. I wonder whether I should do fragments as well. Keeping an in-memory
+IR for both tokens and statements sounded "simple" but at the cost of high memory usage and its
+quite unnecessary. I mainly wanted to expose the ability to create such list of IR elements, but for
+a binary using it is overkill.
+Again, as with lexing, parsing could return one statement at a time.
+
+Diagnostics are an interesting design problem because it creates tension with creating an
+efficient program. Both can coexist, but they tend to go in different directions. On one hand,
+diagnostics benefit from knowing as much as possible: one of the first design principles I employed
+in the assembler is to _never_ lose intermediate information between steps; it has already been
+computed, and not keeping it is a waste. At the same time, in an efficient program you want to do
+the minimum necessary and not use too much memory. Diagnostics often require a lot of context, hence
+memory. Again, I think both can be achieved but it's not trivial.
+
+I have to fix APIs, or this design process never ends. I think it makes sense to have the some logic
+components being very pure i.e. CPU only sprints, with particular control flow delegated elsewhere.
+Let's start with the lexer. The lexer should be the dumbest pipe ever. Read from an input, return
+a token and/or an error. The token information contains an the index offset where it has been found
+in the source, its size in bytes, and the token kind. For a token, an error enumeration is enough
+information to tell where something went wrong.
+Both token and error should be set on error. Why? Because when an error has been encountered we were
+trying to lex a token, and we report how far we went along with what token it was. The starting and
+ending of the partial token naturally encodes the underline-with-caret portion of text we want to
+highlight.
+
+Parsing is way more articulated, because a lot of side-effects can happen. A reasonable mental model
+is that a parser produces statements, and reading statements produces _some_ side-effects.
+I don't want know whether we want ALL side-effects to happen. Let's think for example about include
+directives. That's not the job of the parser I think to open the new file. However, it's part of the
+parser job to start filling the various tables, and ensure the produced statement is well-formed.
+
+Tue May 26 11:44:28 CEST 2026
+
+Today I'm tackling the challenge of making a completely non-recursive pratt parser. I think it's a
+nice one, and something I could write a blog + live coding video of it.
+Then, I'm thinking about moving risc-v specific-stuff in a separate folder, and scaffolding a first
+interface. Again, I don't plan to support any other backend anytime soon, but I think it's good
+practice to think about which stuff is architecture or OS specific.
+
+The core of the non-recursive pratt parser is done, and it works. Very happy with it.
+
+Wed May 27 12:08:10 CEST 2026
+
+Scratch arenas, declared in thread-local storage are very cool. With them, you can essentially get
+more customizable stacks along with the one we're stuck with. I was a bit unsure about having
+something that allocates not visible in a function signature, but this is the wrong framing: we
+don't mark function that use stack memory in a special way. It's implicit. For scratch arenas, it
+should be the same: it's just memory we can always use at any time, no matter what, and that will be
+freed at the end of the scope. It's up to the caller to set it up so that it can be already
+reserved or with whatever guarantee might be needed.
