@@ -457,3 +457,28 @@ don't mark function that use stack memory in a special way. It's implicit. For s
 should be the same: it's just memory we can always use at any time, no matter what, and that will be
 freed at the end of the scope. It's up to the caller to set it up so that it can be already
 reserved or with whatever guarantee might be needed.
+
+I've thought a lot about diagnostics. Compiler diagnostics are a true art. There is very good
+engineering behind it. I decided that I want to have a Source_Manager (the name sounds so OOP,
+bleah) that tracks where each source of text, that can be a file, a macro, or whatever buffer, is
+defined.
+Tokens will have logical offsets, and sources will have a starting logical offset. This would allow
+the code of being agnostic of what happens behind the buffers at very little cost.
+
+I also discovered about a maybe better way for a String8 primitive which is compatible also with C
+strings, and requires creating them with always a null terminator, and pointing them to the
+beginning of source, with the previous position providing the header. The memory cost is negligible.
+I'm not sure however whether to make it the default string type here.
+
+Thu May 28 17:33:42 CEST 2026
+
+Done a bit of diagnostic refactory, inspired partly to what llvm does. In general if you remove C++
+madness llvm is generally packed with good ideas.
+Once again I find very important the principle of treating errors as values as much as possible and
+to avoid as much as possible creating custom codepaths for errors. In something like a parser errors
+can happen so damn often and it's way better to track the error, fill with zero/sentinel values and
+go forward until you manage the error where you want. I think it's fine to assert states! But don't
+pollute codepaths.
+Another lesson, which I don't follow often though, it's to not find a nice API immediately. Write
+code, write logic, think in terms of data. Then, and only then, find the right interfaces or
+abstractions that remove code deduplication, if necessary.

@@ -1,9 +1,6 @@
 #ifndef PARSER_CORE_H
 #define PARSER_CORE_H
 
-#define expression_recursion_max 8
-
-
 typedef enum Parser_Error_Kind
 {
 	Parser_Error_Kind__None,
@@ -30,7 +27,7 @@ typedef enum Parser_Error_Kind
 	Parser_Error_Kind__Expression_Identifier_Undefined,
 	Parser_Error_Kind__Expression_Relocation_Syntax_Invalid,
 	Parser_Error_Kind__Expression_Kind_Unknown,
-	Parser_Error_Kind__Expression_Recursion_Max,
+	Parser_Error_Kind__Expression_Null_Denotation_Expected,
 	Parser_Error_Kind__Relocation_Operator_Invalid,
 	Parser_Error_Kind__Relocation_Instruction_Missing,
 	Parser_Error_Kind__Relocation_Instruction_Invalid,
@@ -76,7 +73,7 @@ global const String8 Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
 	[Parser_Error_Kind__Expression_Identifier_Undefined]       = String8__literal("undefined identifier are not allowed in this expression"),
 	[Parser_Error_Kind__Expression_Relocation_Syntax_Invalid]  = String8__literal("invalid relocation syntax), expected %<relocation>(<expression>)"),
 	[Parser_Error_Kind__Expression_Kind_Unknown]               = String8__literal("unknown expression kind"),
-	[Parser_Error_Kind__Expression_Recursion_Max]              = String8__literal("max recursion reached for expression: " stringify_m(expression_recursion_max)),
+	[Parser_Error_Kind__Expression_Null_Denotation_Expected]   = String8__literal("expected number, symbol or unary operator"),
 	[Parser_Error_Kind__Relocation_Operator_Invalid]           = String8__literal("relocation operator invalid"),
 	[Parser_Error_Kind__Relocation_Instruction_Missing]        = String8__literal("relocation operator can be used only within an instruction"),
 	[Parser_Error_Kind__Relocation_Instruction_Invalid]        = String8__literal("relocation operator cannot be with this instruction"),
@@ -106,8 +103,8 @@ struct Parser_Error
 typedef struct Parser_2 Parser_2;
 struct Parser_2
 {
-	String8                  filename;
-	String8                  input;
+	Source_Manager            *source_manager;
+	Source                    *source_current;
 
 	Lexer                     *lexer;
 	Diagnostics               *diagnostics;

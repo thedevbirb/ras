@@ -63,6 +63,14 @@ global const String8 lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Unexpected]                    = String8__literal("unexpected character"),
 };
 
+typedef struct Lexer_Error Lexer_Error;
+struct Lexer_Error
+{
+	U64 index;
+	Lexer_Error_Kind kind;
+};
+
+
 // This token information doesn't tell from which file it comes, because it assumes a single file.
 
 typedef struct Token_2 Token_2;
@@ -76,16 +84,16 @@ struct Token_2
 };
 
 
-typedef struct Token Token;
-struct Token
-{
-	U64        numerical_value; // No float support yet.
-	U32        index;
-	U32        row_index;
-	U32        column_index;
-	U32        size;
-	Token_Kind kind;
-};
+// typedef struct Token Token;
+// struct Token
+// {
+// 	U64        numerical_value; // No float support yet.
+// 	U32        index;
+// 	U32        row_index;
+// 	U32        column_index;
+// 	U32        size;
+// 	Token_Kind kind;
+// };
 
 #define Token_Xar__shift_amount 12
 typedef struct Token_Xar Token_Xar;
@@ -102,19 +110,17 @@ struct Token_Xar
 typedef struct Lexer Lexer;
 struct Lexer
 {
-	const String8 *input;
+	const Source *source;
 
-	Lexer_Error_Kind error;
+	U64  index;
 
-	U32  index;
-	U32  index_before;
-	U32  column_index;
-	U32  column_index_before;
-	U32  line_start_index;
-	U32  row_index;
+	Lexer_Error error;
 	B32  end_reached;
 	U8   current;
 };
+
+internal void
+Lexer__source_set(Lexer *lexer, const Source *source);
 
 // It is a no-op if the end has been reached already.
 internal void

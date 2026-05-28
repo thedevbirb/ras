@@ -14,6 +14,7 @@
 
 #include <generated/instruction_hashes.h>
 
+#include "source_manager.h"
 #include "initialize.h"
 #include "elf.h"
 
@@ -80,20 +81,26 @@ main(int argument_count, char **argument_vector)
 		exit(1);
 	}
 
-	const char *file_in_path = argument_vector[0];
-	printf("file_in_path: %s\n", file_in_path);
-	int file_in_descriptor = open(file_in_path, O_RDONLY);
-	assert_always_m(file_in_descriptor > 0 && "failed to find input file");
+	String8 filename = String8__from_cstring(argument_vector[0]);
+	printf("filename: %s\n", filename.data);
+	int file_descriptor = open((char *)filename.data, O_RDONLY);
+	assert_always_m(file_descriptor > 0 && "failed to find input file");
 
 	struct stat file_in_statistics;
-	assert_always_m(fstat(file_in_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
+	assert_always_m(fstat(file_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
 	assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
-	U64 file_in_size = ((U64)file_in_statistics.st_size);
+	U64 file_in_size = (U64)file_in_statistics.st_size;
 
 	Arena *arena = Arena__allocate_m();
-	U8 *input_data_mapped = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_in_descriptor, 0);
+	U8 *input_data_mapped = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
 	assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");
+
 	String8 input = { .data = input_data_mapped, .count = file_in_size };
+
+	Source_Manager source_manager = {0};
+	xar_initialize_m(&source_manager, 6);
+	Source *source = xar_push_m(&source_manager, arena);
+	Source__initialize(source, input, filename, arena);
 
 	// Arena *arena_statements = Arena__allocate_m(.reserve_size = file_in_size * 8, .flags = Arena_Flags__No_Chain);
 	// Statements statements;
@@ -118,21 +125,16 @@ main(int argument_count, char **argument_vector)
 	// It can be a struct comprising of a fixed list (most 64 errors, how many warnings tho, max 1024?) of errors,
 	// warnings and potentially hints.
 
-	Diagnostics diagnostics =
-	{
-		.errors   = Arena__push_array_m(arena, Diagnostic, DIAGNOSTICS_ERRORS_MAX),
-		.warnings = Arena__push_array_m(arena, Diagnostic, DIAGNOSTICS_WARNINGS_MAX),
-	};
+	Diagnostics diagnostics = Diagnostics__new(arena);
 
-	Lexer lexer = { .input = &input };
+	Lexer lexer = {0};
+	Lexer__source_set(&lexer, source);
 
 	Symbols_Trie            symbols_trie            = {0};
 	Symbols_Trie_Chunk_List symbols_trie_chunk_list = {0};
 
 	Statements_Xar statements = {0};
 	xar_initialize_m(&statements, 12);
-
-	String8 filename = String8__from_cstring(file_in_path);
 
 	Expressions expressions = {0};
 	Expressions__initialize(&expressions, arena, 12);
@@ -142,8 +144,8 @@ main(int argument_count, char **argument_vector)
 
 	Parser_2 parser =
 	{
-		.filename                  = filename,
-		.input                     = input,
+		.source_manager            = &source_manager,
+		.source_current            = source,
 		.lexer                     = &lexer,
 		.expressions               = &expressions,
 		.diagnostics               = &diagnostics,
@@ -160,16 +162,16 @@ main(int argument_count, char **argument_vector)
 	}
 
 
-	if (diagnostics.errors_count > 0)
+	if (diagnostics.count > 0)
 	{
 		U8 index = 0;
 		for (;;)
 		{
-			Diagnostic *d = &diagnostics.errors[index];
-			Diagnostic__print(d, &input);
+			Diagnostic *d = &diagnostics.data[index];
+			Diagnostic__print(d);
 
 			index += 1;
-			if (index >= diagnostics.errors_count)
+			if (index >= diagnostics.count)
 			{
 				break;
 			}
@@ -203,7 +205,7 @@ main(int argument_count, char **argument_vector)
 	// 	Diagnostic diagnostic =
 	// 	{
 	// 		.input              = &input,
-	// 		.file_in_path       = file_in_path,
+	// 		.filename       = filename,
 	// 		.message_kind       = Parser_Error_Kind_messages[parser_error.kind],
 	// 		.line               = parser_error.row_index + 1,
 	// 		.column_index_begin = parser_error.column_index_begin,
@@ -243,7 +245,7 @@ main(int argument_count, char **argument_vector)
 	// 	Diagnostic diagnostic =
 	// 	{
 	// 		.input              = &input,
-	// 		.file_in_path       = file_in_path,
+	// 		.filename       = filename,
 	// 		.message_kind       = Resolver_Error_Kind_messages[resolver_error.kind],
 	// 		.line               = resolver_error.row_index + 1,
 	// 		.column_index_begin = resolver_error.column_index_begin,

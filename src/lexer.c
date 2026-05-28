@@ -27,7 +27,7 @@ Lexer_peek_next(Lexer *lexer)
 	U8 *result = 0;
 	if (!lexer->end_reached)
 	{
-		result = &lexer->input->data[lexer->index + 1];
+		result = &lexer->source->input.data[lexer->index + 1];
 	}
 	return result;
 }
@@ -36,33 +36,26 @@ Lexer_peek_next(Lexer *lexer)
 internal void
 Lexer_advance(Lexer *lexer)
 {
-	B32 newline_reached = lexer->current == '\n';
-
-	lexer->end_reached   = lexer->input->count == 0 || lexer->index + 1 >= lexer->input->count;
+	lexer->end_reached   = lexer->source->input.count == 0 || lexer->index + 1 >= lexer->source->input.count;
 	lexer->index        += !lexer->end_reached;
-	lexer->row_index    += !lexer->end_reached && newline_reached;
-	lexer->column_index += !lexer->end_reached;
-	lexer->current       = lexer->input->data[lexer->index];
-
-	if (newline_reached && !lexer->end_reached)
-	{
-		lexer->column_index = 0;
-		lexer->line_start_index = lexer->index;
-	}
+	lexer->current       = lexer->source->input.data[lexer->index];
 
 	// An index pointing out of bounds is of no-one's help.
-	assert_always_m(lexer->index < lexer->input->count);
-	assert_always_m(lexer->end_reached == 0 || lexer->end_reached == 1);
+	assert_always_m(lexer->index < lexer->source->input.count);
 
 	return;
 }
 
 internal void
-Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error)
+Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind)
 {
-	if (!condition && !lexer->error)
+	if (!condition && !lexer->error.kind)
 	{
-		lexer->error = error;
+		lexer->error = (Lexer_Error)
+		{
+			.index = lexer->index,
+			.kind  = error_kind,
+		};
 	}
 	return;
 }
@@ -75,10 +68,10 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error)
 // 	Token_Xar      *tokens      = context->tokens;
 // 	Diagnostics    *diagnostics = context->diagnostics;
 //
-// 	lexer->end_reached = lexer->index >= input->count;
+// 	lexer->end_reached = lexer->index >= source->input.count;
 // 	if (!lexer->end_reached)
 // 	{
-// 		lexer->current = input->data[lexer->index];
+// 		lexer->current = source->input.data[lexer->index];
 // 	}
 //
 // 	Token_Kind token_kind = Token_Kind__None;
@@ -556,13 +549,22 @@ Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error)
 // 	return;
 // }
 
+internal void
+Lexer__source_set(Lexer *lexer, const Source *source)
+{
+	lexer->source = source;
+	lexer->index = 0;
+
+	return;
+}
+
 internal Token_2
 Lexer_lex(Lexer *lexer)
 {
 	// TODO: a bit unsure about settings this to zero.
-	lexer->error       = 0;
-	lexer->end_reached = lexer->index + 1 >= lexer->input->count;
-	lexer->current     = lexer->end_reached ? 0 : lexer->input->data[lexer->index];
+	assert_always_m(lexer->error.kind == 0);
+	lexer->end_reached = lexer->index + 1 >= lexer->source->input.count;
+	lexer->current     = lexer->end_reached ? 0 : lexer->source->input.data[lexer->index];
 
 	Token_2 token = {0};
 
@@ -570,7 +572,7 @@ Lexer_lex(Lexer *lexer)
 
 	for (;;)
 	{
-		B32 break_should_lexer = token.kind || lexer->end_reached || lexer->error;
+		B32 break_should_lexer = token.kind || lexer->end_reached || lexer->error.kind;
 		if (break_should_lexer)
 		{
 			break;
@@ -775,7 +777,7 @@ Lexer_lex(Lexer *lexer)
 			for (;;)
 			{
 				Lexer_advance(lexer);
-				break_should_double_quote = quote_ending_found || lexer->end_reached || lexer->error;
+				break_should_double_quote = quote_ending_found || lexer->end_reached || lexer->error.kind;
 				if (break_should_double_quote)
 				{
 					break;
@@ -930,7 +932,7 @@ Lexer_lex(Lexer *lexer)
 	}
 
 	assert_always_m(token_index_start <= lexer->index);
-	B32 loop_infinite_avoided = token_index_start < lexer->index || lexer->end_reached || lexer->error;
+	B32 loop_infinite_avoided = token_index_start < lexer->index || lexer->end_reached || lexer->error.kind;
 	assert_always_m(loop_infinite_avoided && "infinite loop edge case");
 
 	token.index = token_index_start;

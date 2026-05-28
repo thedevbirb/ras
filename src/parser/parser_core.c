@@ -513,8 +513,33 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 
 		default:
 		{
-			// TODO: replace with Parser_expect.
-			assert_always_m(frame->null_denotation_parsed);
+			// Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
+			// its diagnostic.
+			frame->node = Expressions_push_empty(parser->expressions, arena);
+			if (!parser->error)
+			{
+				parser->error = Parser_Error_Kind__Expression_Null_Denotation_Expected;
+				// Mark error.
+				Source *source = parser->source_current;
+
+				U64 index            = token.index;
+				U64 row_index        = Source_Lines__search(&source->lines, index);
+				U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
+				U64 column_index     = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
+				U64 location         = Source__location(source, index);
+
+				Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
+
+				diagnostic->source_manager   = parser->source_manager;
+				diagnostic->filename         = parser->source_current->name;
+				diagnostic->line             = source->input.data + line_start_index;
+				diagnostic->location         = location;
+				diagnostic->row_index        = row_index;
+				diagnostic->column_index     = column_index;
+				diagnostic->message          = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
+
+				diagnostic->ranges[0] = (Vec2_U32){ token.index - line_start_index, token.index + token.size - line_start_index };
+			}
 		} break;
 		}
 
@@ -524,11 +549,11 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		// If `next_power` is greater than `binding_power_minimum`, it means that the current node should on the
 		// left of what's coming.
 		//
-		// Consider the example `4 - 3 * 5`. When 3 is parsed, it will have `Binding_Power__Additive` associated
+		// Consider the example `4 + 3 * 5`. When 3 is parsed, it will have `Binding_Power__Additive` associated
 		// to it. The `next_power` will be `Binding_Power__Multiplicative`, which means 3 is actually the left
 		// node of `*`, in fact our tree should look as follows:
 		//
-		//               -
+		//               +
 		//             4   *
 		//                3 5
 		//
@@ -586,7 +611,7 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 			SLL_stack_push_n_m(frame, frame_new, next);
 		}
 
-		B32 break_should = frame == 0 || parser->error;
+		B32 break_should = frame == 0;
 		if (break_should)
 		{
 			break;
@@ -1103,18 +1128,41 @@ Parser_2__parse(Parser_2 *parser, String8 *input, Arena *arena, Statements_Xar *
 internal void
 Parser_expect(Parser_2 *parser, B32 condition, Parser_Error_Kind error_kind)
 {
-	if (!condition)
-	{
-		Diagnostic error =
-		{
-			.filename     = parser->filename,
-			.message_kind = Parser_Error_Kind_messages[error_kind],
-
-			.variant      = (U32)error_kind,
-		};
-		// Parser_error_set(parser, error_kind);
-	}
+	// if (!condition)
+	// {
+	// 	Diagnostic error =
+	// 	{
+	// 		.filename     = parser->filename,
+	// 		.message_kind = Parser_Error_Kind_messages[error_kind],
+	//
+	// 		.variant      = (U32)error_kind,
+	// 	};
+	// 	// Parser_error_set(parser, error_kind);
+	// }
 	return;
+}
+
+internal Diagnostic *
+Parser__push_diagnostic_from_index(Parser_2 *parser, U64 index)
+{
+	Source *source = parser->source_current;
+
+	U64 row_index        = Source_Lines__search(&source->lines, index);
+	U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
+	U64 column_index = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
+	U64 location     = Source__location(source, index);
+
+
+	Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
+
+	diagnostic->source_manager   = parser->source_manager;
+	diagnostic->filename         = parser->source_current->name;
+	diagnostic->line             = source->input.data + line_start_index;
+	diagnostic->location         = location;
+	diagnostic->row_index        = row_index;
+	diagnostic->column_index     = column_index;
+
+	return diagnostic;
 }
 
 // Maybe find statement boundary?
@@ -1134,83 +1182,103 @@ Parser_2__statement(Parser_2 *parser, Arena *arena)
 
 	Directive_Kind directive_kind = 0;
 
+	String8 input = parser->source_current->input;
 
-	Token_2 token = Lexer_lex(parser->lexer);
-	// TODO: Token_Kind encoded as U32 bitflags and a Token_Kind__EOS flag.
-	B32 break_should = token.kind == Token_Kind__None;
-	//        || token.kind == Token_Kind__Newline
-	// || token.kind == Token_Kind__Semicolon;
-	const char *token_str = Token_Kind_strings[token.kind];
-	printf("%s ", token_str);
+	Lexer *lexer = parser->lexer;
 
-	switch (token.kind)
+
+	for (;;)
 	{
-	case Token_Kind__Newline:
-	{
-		// end of statement found
-	} break;
-	// Instructions, directives and label start with an identifier. We have to discriminate further.
-	case Token_Kind__Identifier:
-	{
-
-		B32 dot_start = parser->input.data[token.index] == '.';
-
-		if (dot_start)
+		Token_2 token = Lexer_lex(lexer);
+		if (lexer->error.kind)
 		{
-			String8 string = { .data = parser->input.data + token.index, .count = token.size };
-			directive_kind = Directive_Kind__from_String8(string);
+			Diagnostic *diagnostic = Parser__push_diagnostic_from_index(parser, parser->lexer->error.index);
+			diagnostic->message = lexer_error_kind_messages[parser->lexer->error.kind];
 		}
-	} break;
-	default: {} break;
-	}
 
-	U8 data_directive_size = 0;
-	switch (directive_kind)
-	{
-	case Directive_Kind__None: {} break;
-
-	case Directive_Kind__Word_Double: { data_directive_size += 4; } // fallthrough
-	case Directive_Kind__Word:        { data_directive_size += 2; } // fallthrough
-	case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
-	case Directive_Kind__Byte:
-	{
-		data_directive_size += 1;
-
-		U32 expressions_index_start = parser->statement_expressions->header.count;
-		U32 expressions_count = 0;
-
-
-		// Format: .byte <expr_1> , ..., <expr_n>
-		for (;;)
+		B32 break_should = token.kind == Token_Kind__None
+			        || token.kind == Token_Kind__Newline
+				|| lexer->error.kind
+				|| parser->error;
+		if (break_should)
 		{
-			Parser_advance(parser);
+			break;
+		}
 
-			Expression_Node *expression = Parser_expression_parse(parser, arena);
-			U32 *expression_index = xar_push_m(parser->statement_expressions, arena);
-			*expression_index = expression->index;
-			expressions_count += 1;
+		switch (token.kind)
+		{
+		// Instructions, directives and label start with an identifier. We have to discriminate further.
+		case Token_Kind__Identifier:
+		{
 
-			S64 result = Expression__evaluate(parser->expressions, expression->index, arena);
-			printf("result %d", result);
+			B32 dot_start = input.data[token.index] == '.';
 
-			B32 token_newline = parser->token_current.kind == Token_Kind__Newline;
-			B32 token_comma   = parser->token_current.kind == Token_Kind__Comma;
-
-			// Parser_expect(parser, token_comma || token_newline, Parser_Error_Kind__Directive_Data_Invalid);
-
-			B32 break_should_directive = parser->error || parser->end_reached || token_newline;
-			if (break_should_directive)
+			if (dot_start)
 			{
-				break;
+				String8 string =
+				{
+					.data  = &input.data[token.index],
+					.count = token.size,
+				};
+				directive_kind = Directive_Kind__from_String8(string);
 			}
+		} break;
+		default: {} break;
 		}
 
-		statement.expressions_index_start = expressions_index_start;
-		statement.expressions_count       = expressions_count;
-		statement.size                    = data_directive_size * expressions_count;
+		U8 data_directive_size = 0;
+		switch (directive_kind)
+		{
+		case Directive_Kind__None: {} break;
 
-		data_directive_size = 0;
-	} break;
+		case Directive_Kind__Word_Double: { data_directive_size += 4; } // fallthrough
+		case Directive_Kind__Word:        { data_directive_size += 2; } // fallthrough
+		case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
+		case Directive_Kind__Byte:
+		{
+			data_directive_size += 1;
+
+			U32 expressions_index_start = parser->statement_expressions->header.count;
+			U32 expressions_count = 0;
+
+
+			// Format: .byte <expr_1> , ..., <expr_n>
+			B32 token_newline = 0;
+			B32 token_comma   = 0;
+			for (;;)
+			{
+				Parser_advance(parser);
+
+				Expression_Node *expression = Parser_expression_parse(parser, arena);
+				U32 *expression_index = xar_push_m(parser->statement_expressions, arena);
+				*expression_index = expression->index;
+				expressions_count += 1;
+
+				if (!parser->error)
+				{
+					S64 result = Expression__evaluate(parser->expressions, expression->index, arena);
+					printf("result %d", result);
+
+					token_newline = parser->token_current.kind == Token_Kind__Newline;
+					token_comma   = parser->token_current.kind == Token_Kind__Comma;
+				}
+
+				// Parser_expect(parser, token_comma || token_newline, Parser_Error_Kind__Directive_Data_Invalid);
+
+				B32 break_should_directive = parser->error || parser->end_reached || token_newline;
+				if (break_should_directive)
+				{
+					break;
+				}
+			}
+
+			statement.expressions_index_start = expressions_index_start;
+			statement.expressions_count       = expressions_count;
+			statement.size                    = data_directive_size * expressions_count;
+
+			data_directive_size = 0;
+		} break;
+	}
 // 			case Directive_Kind__String: {} // fallthrough
 // 			case Directive_Kind__Asciz:  { string_size += 1; /* Add null-termination */ } // fallthrough
 // 			case Directive_Kind__Ascii:
