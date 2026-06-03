@@ -132,15 +132,16 @@ struct Evaluation_Frame
 
 
 internal S64
-Expression__evaluate(Expressions *expressions, U32 index, Arena *arena)
+expression_evaluate(Expressions *expressions, U32 index)
 {
-	Evaluation_Frame *frame = Arena__push_struct_m(arena, Evaluation_Frame);
+	Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+	Evaluation_Frame *frame = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
 	frame->node = xar_get_m(expressions, index);
 	S64 result_end = 0;
 
 	for (;;)
 	{
-		if (frame == 0)
+		if (frame == 0) // or error
 		{
 			break;
 		}
@@ -149,7 +150,7 @@ Expression__evaluate(Expressions *expressions, U32 index, Arena *arena)
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Right_Evaluated;
-			Evaluation_Frame *frame_new = Arena__push_struct_m(arena, Evaluation_Frame);
+			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
 			frame_new->node = xar_get_m(expressions, frame->node->index_right);
 			SLL_stack_push_n_m(frame, frame_new, next);
 			continue;
@@ -159,7 +160,7 @@ Expression__evaluate(Expressions *expressions, U32 index, Arena *arena)
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Left_Evaluated;
-			Evaluation_Frame *frame_new = Arena__push_struct_m(arena, Evaluation_Frame);
+			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
 			frame_new->node = xar_get_m(expressions, frame->node->index_left);
 			SLL_stack_push_n_m(frame, frame_new, next);
 			continue;
@@ -189,6 +190,8 @@ Expression__evaluate(Expressions *expressions, U32 index, Arena *arena)
 			SLL_stack_pop_m(frame);
 		}
 	}
+
+	Arena__scratch_end_m(scratch);
 
 	return result_end;
 }

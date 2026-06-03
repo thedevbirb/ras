@@ -60,7 +60,7 @@ String8_byte_size_escaped(String8 string)
 					// E.g. \x1a
 					//         ^--- cursor is here
 					U8 character_inner = string.data[index];
-					if (hex_table[character_inner] != hex_table_sentinel_invalid)
+					if (hex_table[character_inner] != hex_table_invalid)
 					{
 						index += 1;
 					}

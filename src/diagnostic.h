@@ -1,53 +1,6 @@
 #ifndef DIAGNOSTIC_H
 #define DIAGNOSTIC_H
 
-#ifndef DIAGNOSTICS_ERRORS_MAX
-#define DIAGNOSTICS_ERRORS_MAX 64
-#endif
-
-#ifndef DIAGNOSTICS_WARNINGS_MAX
-#define DIAGNOSTICS_WARNINGS_MAX 128
-#endif
-
-#if 0
-/// Represents a single fixit, a replacement of one range of text with another.
-class SMFixIt {
-  SMRange Range;
-
-  std::string Text;
-
-public:
-  LLVM_ABI SMFixIt(SMRange R, const Twine &Replacement);
-
-  SMFixIt(SMLoc Loc, const Twine &Replacement)
-      : SMFixIt(SMRange(Loc, Loc), Replacement) {}
-
-  StringRef getText() const { return Text; }
-  SMRange getRange() const { return Range; }
-
-  bool operator<(const SMFixIt &Other) const {
-    if (Range.Start.getPointer() != Other.Range.Start.getPointer())
-      return Range.Start.getPointer() < Other.Range.Start.getPointer();
-    if (Range.End.getPointer() != Other.Range.End.getPointer())
-      return Range.End.getPointer() < Other.Range.End.getPointer();
-    return Text < Other.Text;
-  }
-};
-
-/// Instances of this class encapsulate one diagnostic report, allowing
-/// printing to a raw_ostream as a caret diagnostic.
-class SMDiagnostic {
-  const SourceMgr *SM = nullptr;
-  SMLoc Loc;
-  std::string Filename;
-  int LineNo = 0;
-  int ColumnNo = 0;
-  SourceMgr::DiagKind Kind = SourceMgr::DK_Error;
-  std::string Message, LineContents;
-  std::vector<std::pair<unsigned, unsigned>> Ranges;
-  SmallVector<SMFixIt, 4> FixIts;
-#endif
-
 typedef enum Diagnostic_Kind
 {
 	Diagnostic_Kind__Error,
@@ -64,62 +17,43 @@ struct Diagnostic_Fix
 	String8  text;
 };
 
-
+// A singly-linked double-ended list (queue) of diagnostics. I've chosen a queue because I just want to append
+// them as we go, with only a very light container struct to manage them.
 
 typedef struct Diagnostic Diagnostic;
 struct Diagnostic
 {
-	Source_Manager *source_manager;
-	String8         filename;
+	Diagnostic     *next;
 	String8         message;
-	U8             *line;
-	U64             location;
-	U32             row_index;
-	U32             column_index;
+	// Logical location where the diagnostic has been emitted.
+	U32             location;
+	// Squiggly ('~') ranges to put under the line of the provided logical location.
 	Vec2_U32        ranges[4];
+	// Additional lines with text fixes.
 	Diagnostic_Fix  fixes[4];
+	Diagnostic_Kind kind;
 };
 
-typedef struct Diagnostics Diagnostics;
-struct Diagnostics
+// TODO: may need to support:
+//
+// 1. Configuration, e.g. transform warning in errors.
+// 2. Maybe counter of errors to abort on too many of them?
+typedef struct Diagnostic_List Diagnostic_List;
+struct Diagnostic_List
 {
-	Diagnostic *data;
-	U8          count;
+	Diagnostic *first;
+	Diagnostic *last;
+	U32         count;
 };
 
-Diagnostics
-Diagnostics__new(Arena *arena)
-{
-	Diagnostic *data = Arena__push_array_m(arena, Diagnostic, 256);
-	Diagnostics result =
-	{
-		.data = data,
-	};
-	return result;
-}
-
-
-// If maximum is reached, the last slot will be overwritten.
-internal Diagnostic *
-Diagnostics__push(Diagnostics *diagnostics)
-{
-	Diagnostic *result = 0;
-	if (diagnostics->count == U8_max + 1)
-	{
-		result = &diagnostics->data[U8_max];
-		memory_zero_struct(result);
-	}
-	else
-	{
-		result = &diagnostics->data[diagnostics->count];
-		diagnostics->count += 1;
-	}
-
-	return result;
-}
-
+// TODO: support multiple sources.
 internal void
-Diagnostic__print(Diagnostic *diagnostic);
+diagnostic_print
+(
+	Diagnostic *diagnostic,
+	Source     *source,
+	Arena      *arena
+);
 
 #endif // DIAGNOSTIC_H
 

@@ -1,7 +1,7 @@
 internal void
 Initialize_hex_table(void)
 {
-	memory_fill((void *)hex_table, hex_table_sentinel_invalid, sizeof(hex_table));
+	memory_fill((void *)hex_table, hex_table_invalid, sizeof(hex_table));
 
 	hex_table['0'] = 0x00;
 	hex_table['1'] = 0x01;

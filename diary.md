@@ -482,3 +482,24 @@ pollute codepaths.
 Another lesson, which I don't follow often though, it's to not find a nice API immediately. Write
 code, write logic, think in terms of data. Then, and only then, find the right interfaces or
 abstractions that remove code deduplication, if necessary.
+
+I feel like I'm stealing ideas, but in practice I don't know whether I can get around fragments.
+They're just too handy as a concept, since there is some data you can write right away and parsing
+time and other were you want to add placeholders.
+
+Fri May 29 10:53:29 CEST 2026
+
+Studying fragments has been interesting. In order for them to really work, they need to encode a
+statement IR. The reason is, a fragment must capture information about a variable-size
+statement/instruction, so that it can be re-evaluated during relaxation. As such, if I want a
+statement IR it would look like a fragment prototype. So I think I can have both.
+GNU as fragments include a `fr_literal` field which is the bytes that will contain the encoding.
+Those are allocated based on the instruction worst size, and then written / modified as new
+information is obtained. For example a large `beq` becoming a `bne` is overwritten by flipping the
+`funct3` bit and so on. GAS `frag` structure is probably a good starting point.
+
+Write the most procedural, data oriented and dumb code you can possibly code. It will be the most
+fast, readable, efficient and reusable you will write. Semantics and meaning come from usage. Don't
+see hierarchies where there aren't meant to be. The program needs to transform data, that's it. The
+rest is cruft to adhere to a mental model, of which the program, your goal, and your users, don't
+care about.

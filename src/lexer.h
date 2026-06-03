@@ -63,14 +63,6 @@ global const String8 lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Unexpected]                    = String8__literal("unexpected character"),
 };
 
-typedef struct Lexer_Error Lexer_Error;
-struct Lexer_Error
-{
-	U64 index;
-	Lexer_Error_Kind kind;
-};
-
-
 // This token information doesn't tell from which file it comes, because it assumes a single file.
 
 typedef struct Token_2 Token_2;
@@ -84,17 +76,6 @@ struct Token_2
 };
 
 
-// typedef struct Token Token;
-// struct Token
-// {
-// 	U64        numerical_value; // No float support yet.
-// 	U32        index;
-// 	U32        row_index;
-// 	U32        column_index;
-// 	U32        size;
-// 	Token_Kind kind;
-// };
-
 #define Token_Xar__shift_amount 12
 typedef struct Token_Xar Token_Xar;
 struct Token_Xar
@@ -104,42 +85,44 @@ struct Token_Xar
 	Token_2     *chunks[14];
 };
 
+typedef struct LEX_Configuration LEX_Configuration;
+struct LEX_Configuration
+{
+	U8 data;
+};
+
 
 // assert_static_m(sizeof(struct Token) == 20, size_of_Token);
 //
-typedef struct Lexer Lexer;
-struct Lexer
-{
-	const Source *source;
-
-	U64  index;
-
-	Lexer_Error error;
-	B32  end_reached;
-	U8   current;
-};
-
-internal void
-Lexer__source_set(Lexer *lexer, const Source *source);
-
-// It is a no-op if the end has been reached already.
-internal void
-Lexer_advance(Lexer *lexer);
-
-internal U8 *
-Lexer_peek_next(Lexer *lexer);
-
-internal String8
-Lexer_string_under_cursor(Lexer *lexer);
-
-internal void
-Lexer_error_set(Lexer *lexer, const char *filename, Diagnostics *diagnostic, Lexer_Error_Kind kind);
-
-internal void
-Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind);
-
-internal Token_2
-Lexer_lex(Lexer *lexer);
+// typedef struct Lexer Lexer;
+// struct Lexer
+// {
+// 	Diagnostic_List  *diagnostics;
+// 	Source_Manager   *source_manager;
+// 	// The current source file being lexed.
+// 	Source *source;
+// 	// The next index to be read in the source input.
+// 	U64  next_to_read_index;
+// };
+//
+// internal void
+// Lexer__source_set(Lexer *lexer, const Source *source);
+//
+// // It is a no-op if the end has been reached already.
+// internal void
+// Lexer_advance(Lexer *lexer);
+//
+// internal U8 *
+// Lexer_peek_next(Lexer *lexer);
+//
+// internal String8
+// Lexer_string_under_cursor(Lexer *lexer);
+//
+// internal void
+// Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind);
+//
+// internal Token_2
+// Lexer_lex(Lexer *lexer);
 
 #endif // LEXER_H
 

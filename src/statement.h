@@ -73,6 +73,72 @@ struct Statement
 	Statement_Flags flags;
 };
 
+// These two enums are machine dependent.
+
+// typedef enum Statement_2_Type
+// {
+// 	Statement_2_Type__None,
+// 	Statement_2_Type__COUNT,
+// }
+// Statement_2_Type;
+//
+// typedef enum Statement_2_Subtype
+// {
+// 	Statement_2_Subtype__None,
+// 	Statement_2_Subtype__COUNT,
+// }
+// Statement_2_Subtype;
+//
+// typedef struct Instruction Instruction;
+// struct Instruction
+// {
+// 	U64 location;
+// 	U8 *encoding;
+// 	U32 expression_index;
+//
+// 	U8  size_min;
+// 	U8  size_variable;
+// };
+//
+// typedef struct Directive Directive;
+// struct Directive
+// {
+// 	U64 location;
+// 	U8 *encoding;
+// 	U32 expression_index;
+// 	U8 expression_count;
+// };
+//
+//
+//
+// typedef struct Statement_2 Statement_2;
+// struct Statement_2
+// {
+// 	U8 *encoding;
+// 	U64 location;
+//
+// 	U32 expression_index;
+// 	U32 size_min;
+// 	// Can contain more detailed information, including directive type.
+// 	U32 subtype;
+//
+// 	U16 relocation_type;
+// 	U16 relocation_info;
+//
+// 	// Worst size for this statement.
+// 	U8 encoding_size;
+// 	// Maybe this count can't be reduced to U8, meaning there is a limit on how many
+// 	// expressions can't be resolved immediately at assembly time.
+// 	U8 expression_count;
+// 	U8  size_variable;
+//
+// 	// Very high-level information like if this is machine dependent, or a fill-instruction etc.
+// 	U8 type;
+// };
+//
+// assert_static_m(sizeof(Statement_2) == 32, Statement_2__sizeof_check);
+
+
 // With 2**12 = 4096 base elements and 14 chunks, we have ~67M capacity;
 #define Statements_Xar__shift_amount 12
 

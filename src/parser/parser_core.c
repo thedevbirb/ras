@@ -52,15 +52,20 @@
 // It is a no-op if the end has been reached already.
 // NOTE: this could be dropped, along with `token_current` etc. but we keep it for now for compatibility with existing
 // code.
-internal void
-Parser_advance(Parser_2 *parser)
-{
-	Token_2 token = Lexer_lex(parser->lexer);
-	parser->end_reached       = token.kind == 0;
-	parser->token_current     = token;
-
-	return;
-}
+// internal void
+// Parser_advance(Parser_2 *parser)
+// {
+// 	Token_2 token = Lexer_lex(parser->lexer);
+// 	if (parser->lexer->error.kind)
+// 	{
+// 		Diagnostic *diagnostic = Parser__push_diagnostic_from_index(parser, parser->lexer->error.index);
+// 		diagnostic->message = lexer_error_kind_messages[parser->lexer->error.kind];
+// 	}
+// 	parser->end_reached       = token.kind == 0;
+// 	parser->token_current     = token;
+//
+// 	return;
+// }
 //
 // internal Token *
 // Parser_peek_next(Parser *parser)
@@ -439,10 +444,21 @@ Parser_advance(Parser_2 *parser)
 // }
 
 internal Expression_Node *
-Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power binding_power_minimum)
+expression_parse
+(
+	Source          *source,
+	Diagnostic_List *diagnostics,
+	Expressions     *expressions,
+	Arena           *arena,
+	U32             *index,
+	Binding_Power    binding_power_minimum
+)
 {
 	// A stack of expression frames. Each sub-expression creates a frame associated to it.
 	// When the sub-expression is parsed, the frame should be popped.
+	//
+	// A frame should have a node attached. An exception to this is when a new frame is created due to a left
+	// parenthesis, because it defers creating such node.
 	typedef struct Frame Frame;
 	struct Frame
 	{
@@ -451,140 +467,152 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		Binding_Power     binding_power_minimum;
 		B32               is_right_side_of_next;
 		B32               null_denotation_parsed;
-		U32               right_parenthesis_expected;
 
 	};
 
+	typedef struct Parenthesis_Frame Parenthesis_Frame;
+	struct Parenthesis_Frame
+	{
+		Parenthesis_Frame *next;
+		U32 index;
+	};
+
+
 	Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
+
+	Token_2 token = {0};
+	Diagnostic *error = 0;
+	*index = min_m(*index, source->count);
 
 	Expression_Node *result = 0;
 	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
+	frame->node  = Expressions_push_empty(expressions, arena);
+
+	token = token_read(source, *index, diagnostics, arena);
+	*index = token.index + token.size;
+	Parenthesis_Frame *parenthesis_frame = 0;
 
 	for (;;)
 	{
-		Expression_Node *left  = 0;
-		Token_2 token = parser->token_current;
+		// Iterate until we pop the last frame.
 
+		// Start by reading a null-denotation. We mark we've done this process be setting
+		// `frame->null_denotation_parsed = 1`.
+		//
+		// Every branch advances the current token since it has its own custom logic.
 		switch (token.kind)
 		{
 		case Token_Kind__Number:
 		{
-			frame->node                = Expressions_push_empty(parser->expressions, arena);
 			frame->node->kind          = Expression_Kind__Number_Literal;
 			frame->node->integer_value = token.numerical_value;
 			frame->null_denotation_parsed = 1;
 
-			Parser_advance(parser);
+			token = token_read(source, *index, diagnostics, arena);
+			*index = token.index + token.size;
 		} break;
 
 		case Token_Kind__Minus:
 		case Token_Kind__Tilde:
 		case Token_Kind__Bang:
 		{
-			frame->node = Expressions_push_empty(parser->expressions, arena);
+			// unary_operator <expression>
 			frame->node->kind = Expression_Kind_from_unary_Token_Kind(token.kind);
 			frame->null_denotation_parsed = 1;
 
 			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+			frame_new->node = Expressions_push_empty(expressions, arena);
 			frame_new->binding_power_minimum = Binding_Power__Unary;
 			frame_new->is_right_side_of_next = 1;
 
-			SLL_stack_push_n_m(frame, frame_new, next);
-			Parser_advance(parser);
+			token = token_read(source, *index, diagnostics, arena);
+			*index = token.index + token.size;
+
+			SLL_stack_push_m(frame, frame_new);
 			continue;
 		} break;
 
 		case Token_Kind__Parenthesis_Left:
 		{
-			// A parenthesis is added for signaling the start of a prioritized sub-expression.
-			// We don't need to create a new frame here, because previous logic has already created one.
-			// We want to mark the start of a prioritized sub-expression, by setting the minimum binding
-			// power to zero, and we keep track of the number of left parenthesis we find, so that if
-			// something like `(((5)))` is found, we peel off all right parenthesis accordingly.
+			// ( <expression> )
+			Parenthesis_Frame *parenthesis_frame_new = Arena__push_struct_m(scratch.arena, Parenthesis_Frame);
+			parenthesis_frame_new->index = token.index;
+			SLL_stack_push_m(parenthesis_frame, parenthesis_frame_new);
 
-			assert_always_m(frame->node == 0);
-
-			frame->right_parenthesis_expected += 1;
-			frame->binding_power_minimum = Binding_Power__None;
-
-			Parser_advance(parser);
+			token = token_read(source, *index, diagnostics, arena);
+			*index = token.index + token.size;
 			continue;
 		} break;
 
 		default:
 		{
-			// Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
-			// its diagnostic.
-			frame->node = Expressions_push_empty(parser->expressions, arena);
-			if (!parser->error)
+			if (!frame->null_denotation_parsed)
 			{
-				parser->error = Parser_Error_Kind__Expression_Null_Denotation_Expected;
-				// Mark error.
-				Source *source = parser->source_current;
+				// Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
+				// its diagnostic.
+				frame->node = Expressions_push_empty(expressions, arena);
+				U32 location = source->start_offset_logical + token.index;
 
-				U64 index            = token.index;
-				U64 row_index        = Source_Lines__search(&source->lines, index);
-				U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
-				U64 column_index     = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
-				U64 location         = Source__location(source, index);
-
-				Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
-
-				diagnostic->source_manager   = parser->source_manager;
-				diagnostic->filename         = parser->source_current->name;
-				diagnostic->line             = source->input.data + line_start_index;
-				diagnostic->location         = location;
-				diagnostic->row_index        = row_index;
-				diagnostic->column_index     = column_index;
-				diagnostic->message          = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
-
-				diagnostic->ranges[0] = (Vec2_U32){ token.index - line_start_index, token.index + token.size - line_start_index };
+				error = Arena__push_struct_m(arena, Diagnostic);
+				error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
+				error->location = location;
+				error->ranges[0] = (Vec2_U32){{ location, location + token.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 			}
 		} break;
 		}
 
-		Token_Kind token_kind    = parser->token_current.kind;
-		Binding_Power next_power = Binding_Power_from_Token_Kind(token_kind);
-
-		// If `next_power` is greater than `binding_power_minimum`, it means that the current node should on the
-		// left of what's coming.
+		// The `binding_power_minimum` is used to describe precedence. Operator tokens have an associated power
+		// that is transferred to the next null denotation to preserve context.
 		//
-		// Consider the example `4 + 3 * 5`. When 3 is parsed, it will have `Binding_Power__Additive` associated
-		// to it. The `next_power` will be `Binding_Power__Multiplicative`, which means 3 is actually the left
-		// node of `*`, in fact our tree should look as follows:
+		// Consider the example `4 + 3 * 5`. When 3 is parsed, we want to remember that it is currently the
+		// right side of an additive operation. When we peek the next token, that will be a star, that will have
+		// an associated multiplicative power, which is higher. This means 3 should be "absorbed" i.e.,
+		// considered the left node of start. As such, the tree should look as follows.
 		//
 		//               +
 		//             4   *
 		//                3 5
 		//
-		// Otherwise we've reached the end of our sub-expression and we can pop the frame.
+		// If we consider `4 + 3 - 5` instead, now the minus sign has the same additive power, which means that
+		// `4 + 3` concludes an expression, and the current expression frame can be popped.
+		//
+		// Unary operators have the highest binding power so that they mark the end of an expression
+		// immediately. Consider `-4 + 3`, when the plus sign is read the minimum binding power would be unary,
+		// so we know that the expression is completed.
+		//
+		// From this, we can understand that parenthesis are simply tokens with zero binding power, used to
+		// conclude expressions. If we had `(4 + 3) * 5`, reading the right parenthesis after 3, where the
+		// former has zero binding power, would conclude reading the expression `4 + 3`.
 
-		B32 pop = next_power <= binding_power_minimum || parser->end_reached || parser->error;
+		Binding_Power next_power = Binding_Power_from_Token_Kind(token.kind);
+		B32 pop = next_power <= binding_power_minimum || *index >= source->count;
 		if (pop)
 		{
-			// Peel off all the parenthesis for the current frame. For example, (((5))) is a single frame
-			// with 3 right parethesis expected.
-			for (;;)
+			if (token.kind == Token_Kind__Parenthesis_Right)
 			{
-				if (frame->right_parenthesis_expected == 0)
+				if (!parenthesis_frame)
 				{
-					break;
+					error = Arena__push_struct_m(arena, Diagnostic);
+					error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
+					error->location = source->start_offset_logical + token.index;
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 				}
-
-				// TODO: replace with Parser_expect.
-				assert_always_m(token_kind == Token_Kind__Parenthesis_Right);
-				frame->right_parenthesis_expected -= 1;
-				Parser_advance(parser);
-				token_kind = parser->token_current.kind;
-
+				else
+				{
+					SLL_stack_pop_m(parenthesis_frame);
+				}
+				token = token_read(source, *index, diagnostics, arena);
+				*index = token.index + token.size;
 			}
 
-			if (frame->next && frame->is_right_side_of_next)
+			if (frame->is_right_side_of_next)
 			{
+				assert_always_m(frame->next);
 				frame->next->node->index_right = frame->node->index;
 			}
 
-			if (!frame->next)
+			if (!frame->next || error)
 			{
 				// Save the result before popping the last frame.
 				result = frame->node;
@@ -593,25 +621,26 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 		}
 		else
 		{
-			Parser_advance(parser);
-
-			// frame->node becomes left
-			left = frame->node;
+			// <expression> binary_operator <expression>
+			Expression_Node *left = frame->node;
 
 			// Set central node.
-			frame->node = Expressions_push_empty(parser->expressions, arena);
-			frame->node->kind = Expression_Kind__binary_from_Token_Kind(token_kind);
+			frame->node = Expressions_push_empty(expressions, arena);
+			frame->node->kind = Expression_Kind__binary_from_Token_Kind(token.kind);
 			frame->node->index_left = left->index;
+
+			token = token_read(source, *index, diagnostics, arena);
+			*index = token.index + token.size;
 
 			// Prepare new frame
 			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+			frame_new->node = Expressions_push_empty(expressions, arena);
 			frame_new->binding_power_minimum = next_power;
-			// Set that the current frame is the right side of the previous operator
 			frame_new->is_right_side_of_next = 1;
-			SLL_stack_push_n_m(frame, frame_new, next);
+			SLL_stack_push_m(frame, frame_new);
 		}
 
-		B32 break_should = frame == 0;
+		B32 break_should = frame == 0 || error;
 		if (break_should)
 		{
 			break;
@@ -619,19 +648,16 @@ Parser_expression_parse_inner_2(Parser_2 *parser, Arena *arena, Binding_Power bi
 
 	}
 
+	if (parenthesis_frame)
+	{
+		error = Arena__push_struct_m(arena, Diagnostic);
+		error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Unclosed];
+		error->location = source->start_offset_logical + parenthesis_frame->index;
+		SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
+	}
+
 	Arena_Temporary__end(scratch);
 	return result;
-}
-
-//
-//
-// // Entry point. Parses an expression starting at the token_current parser position.
-// // Advances the parser past consumed tokens. On error, error->kind is nonzero.
-Expression_Node *
-Parser_expression_parse(Parser_2 *parser, Arena *arena)
-{
-	Expression_Node *node = Parser_expression_parse_inner_2(parser, arena, Binding_Power__None);
-	return node;
 }
 
 //
@@ -1099,71 +1125,71 @@ Parser_expression_parse(Parser_2 *parser, Arena *arena)
 ///   ::= EndOfStatement
 ///   ::= Label* Directive ...Operands... EndOfStatement
 ///   ::= Label* Identifier OperandList* EndOfStatement
-internal void
-Parser_2__parse(Parser_2 *parser, String8 *input, Arena *arena, Statements_Xar *statements)
-{
-	for (;;)
-	{
-		Token_2 token = Lexer_lex(parser->lexer);
-		B32 break_should = token.kind == 0;
-		const char *token_str = Token_Kind_strings[token.kind];
-		printf("%s ", token_str);
-		if (break_should)
-		{
-			break;
-		}
-
-		switch (token.kind)
-		{
-		case Token_Kind__Identifier:
-		{
-			// B32 directive_is = token.content.data[0] == '.';
-		} break;
-		default: {} break;
-		}
-
-	}
-}
-
-internal void
-Parser_expect(Parser_2 *parser, B32 condition, Parser_Error_Kind error_kind)
-{
-	// if (!condition)
-	// {
-	// 	Diagnostic error =
-	// 	{
-	// 		.filename     = parser->filename,
-	// 		.message_kind = Parser_Error_Kind_messages[error_kind],
-	//
-	// 		.variant      = (U32)error_kind,
-	// 	};
-	// 	// Parser_error_set(parser, error_kind);
-	// }
-	return;
-}
-
-internal Diagnostic *
-Parser__push_diagnostic_from_index(Parser_2 *parser, U64 index)
-{
-	Source *source = parser->source_current;
-
-	U64 row_index        = Source_Lines__search(&source->lines, index);
-	U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
-	U64 column_index = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
-	U64 location     = Source__location(source, index);
-
-
-	Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
-
-	diagnostic->source_manager   = parser->source_manager;
-	diagnostic->filename         = parser->source_current->name;
-	diagnostic->line             = source->input.data + line_start_index;
-	diagnostic->location         = location;
-	diagnostic->row_index        = row_index;
-	diagnostic->column_index     = column_index;
-
-	return diagnostic;
-}
+// internal void
+// Parser_2__parse(Parser_2 *parser, String8 *input, Arena *arena, Statements_Xar *statements)
+// {
+// 	for (;;)
+// 	{
+// 		Token_2 token = Lexer_lex(parser->lexer);
+// 		B32 break_should = token.kind == 0;
+// 		const char *token_str = Token_Kind_strings[token.kind];
+// 		printf("%s ", token_str);
+// 		if (break_should)
+// 		{
+// 			break;
+// 		}
+//
+// 		switch (token.kind)
+// 		{
+// 		case Token_Kind__Identifier:
+// 		{
+// 			// B32 directive_is = token.content.data[0] == '.';
+// 		} break;
+// 		default: {} break;
+// 		}
+//
+// 	}
+// }
+//
+// internal void
+// Parser_expect(Parser_2 *parser, B32 condition, Parser_Error_Kind error_kind)
+// {
+// 	// if (!condition)
+// 	// {
+// 	// 	Diagnostic error =
+// 	// 	{
+// 	// 		.filename     = parser->filename,
+// 	// 		.message_kind = Parser_Error_Kind_messages[error_kind],
+// 	//
+// 	// 		.variant      = (U32)error_kind,
+// 	// 	};
+// 	// 	// Parser_error_set(parser, error_kind);
+// 	// }
+// 	return;
+// }
+//
+// internal Diagnostic *
+// Parser__push_diagnostic_from_index(Parser_2 *parser, U64 index)
+// {
+// 	Source *source = parser->source_current;
+//
+// 	U64 row_index        = Source_Lines__search(&source->lines, index);
+// 	U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
+// 	U64 column_index = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
+// 	U64 location     = Source__location(source, index);
+//
+//
+// 	Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
+//
+// 	diagnostic->source_manager   = parser->source_manager;
+// 	diagnostic->filename         = parser->source_current->name;
+// 	diagnostic->line             = source->input.data + line_start_index;
+// 	diagnostic->location         = location;
+// 	diagnostic->row_index        = row_index;
+// 	diagnostic->column_index     = column_index;
+//
+// 	return diagnostic;
+// }
 
 // Maybe find statement boundary?
 // Giving good diagnostics now it's harder because I can't reference past tokens.
@@ -1176,30 +1202,32 @@ Parser__push_diagnostic_from_index(Parser_2 *parser, U64 index)
 ///   ::= Label* Directive ...Operands... EndOfStatement
 ///   ::= Label* Identifier OperandList* EndOfStatement
 internal Statement
-Parser_2__statement(Parser_2 *parser, Arena *arena)
+statement_read
+(
+	Source          *source,
+	U32              index,
+	Diagnostic_List *diagnostics,
+	Expressions     *expressions,
+	Arena           *arena
+)
 {
 	Statement statement = {0};
-
 	Directive_Kind directive_kind = 0;
 
-	String8 input = parser->source_current->input;
+	Token_2 token = {0};
 
-	Lexer *lexer = parser->lexer;
+	B32 error = 0;
 
 
 	for (;;)
 	{
-		Token_2 token = Lexer_lex(lexer);
-		if (lexer->error.kind)
-		{
-			Diagnostic *diagnostic = Parser__push_diagnostic_from_index(parser, parser->lexer->error.index);
-			diagnostic->message = lexer_error_kind_messages[parser->lexer->error.kind];
-		}
+		token = token_read(source, index, diagnostics, arena);
+		index = token.index + token.size;
 
-		B32 break_should = token.kind == Token_Kind__None
-			        || token.kind == Token_Kind__Newline
-				|| lexer->error.kind
-				|| parser->error;
+		B32 break_should = statement.kind
+			        || token.kind == Token_Kind__None
+				|| token.kind == Token_Kind__Error
+				|| error;
 		if (break_should)
 		{
 			break;
@@ -1207,17 +1235,19 @@ Parser_2__statement(Parser_2 *parser, Arena *arena)
 
 		switch (token.kind)
 		{
+		// no-op, continue;
+		case Token_Kind__Newline: {} break;
 		// Instructions, directives and label start with an identifier. We have to discriminate further.
 		case Token_Kind__Identifier:
 		{
 
-			B32 dot_start = input.data[token.index] == '.';
+			B32 dot_start = source->data[token.index] == '.';
 
 			if (dot_start)
 			{
 				String8 string =
 				{
-					.data  = &input.data[token.index],
+					.data  = &source->data[token.index],
 					.count = token.size,
 				};
 				directive_kind = Directive_Kind__from_String8(string);
@@ -1238,7 +1268,7 @@ Parser_2__statement(Parser_2 *parser, Arena *arena)
 		{
 			data_directive_size += 1;
 
-			U32 expressions_index_start = parser->statement_expressions->header.count;
+			U32 expressions_index_start = expressions->header.count;
 			U32 expressions_count = 0;
 
 
@@ -1247,25 +1277,18 @@ Parser_2__statement(Parser_2 *parser, Arena *arena)
 			B32 token_comma   = 0;
 			for (;;)
 			{
-				Parser_advance(parser);
-
-				Expression_Node *expression = Parser_expression_parse(parser, arena);
-				U32 *expression_index = xar_push_m(parser->statement_expressions, arena);
+				Expression_Node *expression = expression_parse(source, diagnostics, expressions, arena, &index, 0);
+				U32 *expression_index = xar_push_m(expressions, arena);
 				*expression_index = expression->index;
 				expressions_count += 1;
 
-				if (!parser->error)
-				{
-					S64 result = Expression__evaluate(parser->expressions, expression->index, arena);
-					printf("result %d", result);
+				S64 result = expression_evaluate(expressions, expression->index);
+				printf("result %d", result);
 
-					token_newline = parser->token_current.kind == Token_Kind__Newline;
-					token_comma   = parser->token_current.kind == Token_Kind__Comma;
-				}
+				token_newline = token.kind == Token_Kind__Newline;
+				token_comma   = token.kind == Token_Kind__Comma;
 
-				// Parser_expect(parser, token_comma || token_newline, Parser_Error_Kind__Directive_Data_Invalid);
-
-				B32 break_should_directive = parser->error || parser->end_reached || token_newline;
+				B32 break_should_directive = error || index >= source->count || token_newline;
 				if (break_should_directive)
 				{
 					break;

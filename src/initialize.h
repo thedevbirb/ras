@@ -2,7 +2,7 @@
 #define INITIALIZE_H
 
 global U8 hex_table[256];
-global U8 hex_table_sentinel_invalid = 0xFF;
+global U8 hex_table_invalid = 0xFF;
 
 internal void
 Initialize_hex_table(void);
