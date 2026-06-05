@@ -1,5 +1,19 @@
 // TODO: this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
+internal B32
+U8__octal_prefix(U8 byte)
+{
+	B32 result = '0' <= byte && byte < '4';
+	return result;
+}
+
+internal B32
+U8__octal(U8 byte)
+{
+	B32 result = '0' <= byte && byte < '7';
+	return result;
+}
+
 internal U32
 hash_FNV_1a(String8 string)
 {
@@ -23,16 +37,38 @@ hash_FNV_1a(String8 string)
 	return hash;
 }
 
+internal U64
+commas_until_newline(U8 *data, U64 count)
+{
+	U64 result  = 0;
+	U64 index   = 0;
+	U8  current = 0;
+	for (;;)
+	{
+		if (current == '\n' || index >= count)
+		{
+			break;
+		}
+		current = data[index];
+		result += current == ',';
+		index += 1;
+	}
+	return result;
+}
+
 // Returns the size of the literal string, as if were a byte slice, escaping characters.
 // Assumes a string with valid escape sequences.
 //
 // Example: String8.data = [",\,n,h,e,l,l,o,\,n,"] -> 7
 internal U32
-String8_byte_size_escaped(String8 string)
+String8__escaped_size(String8 string)
 {
+	assert_always_m(string.count >= 2);
 	U32 size = 0;
 	U32 index = 1;
 	U32 count = string.count - 2; // No ".
+	U8 *data = string.data;
+
 	for (;;)
 	{
 		B32 break_should = index >= count;
@@ -43,49 +79,45 @@ String8_byte_size_escaped(String8 string)
 
 		size += 1;
 
-		U8 character_outer = string.data[index];
-		if (character_outer == '\\')
+		if (data[index] == '\\')
 		{
 			index += 1;
-			U8 character_escaped = string.data[index];
-			B32 hex_prefix   = character_escaped == 'x';
-			B32 octal_prefix = 0 <= character_escaped - '0' && character_escaped - '0' < 8;
-
-				if (hex_prefix)
+			if (data[index] == 'x')
+			{
+				// E.g. \x1a
+				//       ^--- cursor is here
+				// We know from lexing the first one is guaranteed to be valid
+				index += 2;
+				// E.g. \x1a
+				//         ^--- cursor is here
+				if (hex_table[data[index]] != hex_table_invalid)
 				{
-					// E.g. \x1a
-					//       ^--- cursor is here
-					// We know from lexing the first one is guaranteed to be valid
-					index += 2;
-					// E.g. \x1a
-					//         ^--- cursor is here
-					U8 character_inner = string.data[index];
-					if (hex_table[character_inner] != hex_table_invalid)
-					{
-						index += 1;
-					}
+					index += 1;
 				}
-				else if (octal_prefix)
+			}
+			else if (U8__octal_prefix(data[index]))
+			{
+				// E.g. \377
+				//       ^--- cursor is here
+				index += 1;
+				if (U8__octal(data[index]))
 				{
 					// E.g. \377
-					//       ^--- cursor is here
+					//        ^--- cursor is here
 					index += 1;
-					U8 character_inner = string.data[index];
-					if (character_inner - '0' < 8)
-					{
-						index += 1;
-					}
+				}
 
-					character_inner = string.data[index];
-					if (character_inner - '0' < 8)
-					{
-						index += 1;
-					}
-				}
-				else
+				if (U8__octal(data[index]))
 				{
-					index += 2;
+					// E.g. \377
+					//         ^--- cursor is here
+					index += 1;
 				}
+			}
+			else
+			{
+				index += 2;
+			}
 		}
 		else
 		{
@@ -94,6 +126,100 @@ String8_byte_size_escaped(String8 string)
 	}
 
 	return size;
+}
+
+internal void
+bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
+{
+	U32  index         = 0;
+	U32  bytes_written = 0;
+	U8  *data = text.data;
+
+	for (;;)
+	{
+		B32 break_should = bytes_written >= write_max;
+		if (break_should)
+		{
+			break;
+		}
+
+		U8 byte = 0;
+
+		if (data[index] == '\\')
+		{
+			index += 1;
+			if (data[index] == 'x')
+			{
+				// E.g. \x1a
+				//       ^--- cursor is here
+				index += 1;
+				// E.g. \x1a
+				//        ^--- cursor is here
+				byte = data[index];
+				index += 1;
+				U8 value = hex_table[data[index]];
+				if (value != hex_table_invalid)
+				{
+					// E.g. \x1a
+					//         ^--- cursor is here
+					byte = byte * 16 + data[index];
+					index += 1;
+				}
+			}
+			else if (U8__octal_prefix(data[index]))
+			{
+				// E.g. \377
+				//       ^--- cursor is here
+				byte = data[index];
+				index += 1;
+				if (U8__octal(data[index]))
+				{
+					// E.g. \377
+					//        ^--- cursor is here
+					byte = byte * 8 + data[index];
+					index += 1;
+				}
+				if (U8__octal(data[index]))
+				{
+					// E.g. \377
+					//         ^--- cursor is here
+					byte = byte * 8 + data[index];
+					index += 1;
+				}
+			}
+			else
+			{
+				byte = escape_table[data[index]];
+				assert_always_m(byte != escape_value_invalid);
+				index += 2;
+			}
+		}
+		else
+		{
+			byte = data[index];
+		}
+
+
+		out[bytes_written] = byte;
+		bytes_written += 1;
+	}
+
+	return;
+}
+
+// TODO: actually modify this for U64, it has been retrofitted from U32 implementation.
+internal U64
+FNV_hash(String8 key)
+{
+	U64 hash = 2166136261ull;
+
+	for (U64 i = 0; i < key.count; i++)
+	{
+		hash ^= key.data[i];
+		hash *= 16777619ull;
+	}
+
+	return hash;
 }
 
 internal U8

@@ -139,6 +139,9 @@ expression_evaluate(Expressions *expressions, U32 index)
 	frame->node = xar_get_m(expressions, index);
 	S64 result_end = 0;
 
+	// TODO: optimize to not re-evaluate constant expressions every time.
+	// TODO: complete evaluation with symbols.
+
 	for (;;)
 	{
 		if (frame == 0) // or error
@@ -170,23 +173,44 @@ expression_evaluate(Expressions *expressions, U32 index)
 		{
 			Expression_Node *left  = xar_get_m(expressions, frame->node->index_left);
 			Expression_Node *right = xar_get_m(expressions, frame->node->index_right);
-			S64 result = operation_evaluate(frame->node->kind, left->integer_value, right->integer_value);
-			frame->node->integer_value = result;
-			result_end = result;
+			if (left->kind == Expression_Kind__Constant && right->kind == Expression_Kind__Constant)
+			{
+				S64 result = operation_evaluate(frame->node->kind, left->integer_value, right->integer_value);
+				frame->node->integer_value = result;
+				frame->node->evaluation = Evaluation__Constant;
+				result_end = result;
+			}
+			else
+			{
+				// TODO: actually check symbols.
+				frame->node->evaluation = Evaluation__Unresolved;
+			}
 			SLL_stack_pop_m(frame);
 		}
 		else if (frame->node->index_right)
 		{
 			Expression_Node *right = xar_get_m(expressions, frame->node->index_right);
-			S64 result = unary_evaluate(frame->node->kind, right->integer_value);
-			frame->node->integer_value = result;
-			result_end = result;
+			if (right->kind == Expression_Kind__Constant)
+			{
+				S64 result = unary_evaluate(frame->node->kind, right->integer_value);
+				frame->node->integer_value = result;
+				frame->node->evaluation = Evaluation__Constant;
+				result_end = result;
+			}
+			else
+			{
+				// TODO: actually check symbols.
+				frame->node->evaluation = Evaluation__Unresolved;
+			}
 			SLL_stack_pop_m(frame);
 		}
 		else
 		{
+			// Leaf reached.
 			assert_always_m(frame->node->index_left == 0);
 			result_end = frame->node->integer_value;
+			// TODO: actually check symbols.
+
 			SLL_stack_pop_m(frame);
 		}
 	}

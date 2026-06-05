@@ -67,10 +67,10 @@ LE_U8_number_character_is(U8 character)
 // We don't want annoying codepaths because I read past one, so I assume the past one is zero.
 // This simplifies a lot of check, where the last character being zero is already enough of a check.
 internal Token_2
-token_read
+token_peek
 (
 	Source          *source,
-	U64             start_index,
+	U32              index_current,
 	Diagnostic_List *diagnostics,
 	Arena           *arena
 )
@@ -84,8 +84,8 @@ token_read
 
 	Token_2 token = {0};
 
-	start_index = min_m(start_index, count);
-	U64   index = start_index;
+	U32 start_index = min_m(index_current, count);
+	U64 index = start_index;
 
 	// Read until we find a token, or we end the input i.e. index >= count;
 	// Newlines mark the end of a token.
@@ -518,8 +518,9 @@ token_read
 
 		if (token.kind)
 		{
-			token.index = start_index;
-			token.size  = index - start_index;
+			token.index    = start_index;
+			token.location = source->start_offset_logical + start_index;
+			token.size     = index - start_index;
 		}
 
 		if (token.kind || index >= count)
@@ -532,6 +533,19 @@ token_read
 		}
 	}
 
-
 	return token;
+}
+
+internal Token_2
+token_next
+(
+	Source          *source,
+	U32             *index_current,
+	Diagnostic_List *diagnostics,
+	Arena           *arena
+)
+{
+	Token_2 result = token_peek(source, *index_current, diagnostics, arena);
+	*index_current = result.index + result.size;
+	return result;
 }

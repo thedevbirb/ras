@@ -63,13 +63,12 @@ global const String8 lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
 	[Lexer_Error_Kind__Character_Unexpected]                    = String8__literal("unexpected character"),
 };
 
-// This token information doesn't tell from which file it comes, because it assumes a single file.
-
 typedef struct Token_2 Token_2;
 struct Token_2
 {
 	U64         numerical_value; // No float support yet.
-	U64         index;
+	U32         location;
+	U32         index;
 
 	U32         size;
 	Token_Kind  kind;

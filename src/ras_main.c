@@ -19,13 +19,15 @@
 #include "elf.h"
 
 #include "language/language_include.h"
+#include "fragment.h"
+#include "fixup.h"
 #include "symbol.h"
-// #include "section.h"
+#include "section.h"
 
 #include "diagnostic.h"
 #include "lexer.h"
 #include "expression.h"
-#include "statement.h"
+// #include "statement.h"
 #include "parser/parser_include.h"
 // #include "resolver.h"
 
@@ -35,12 +37,12 @@
 #include "utils.c"
 #include "language/language_include.c"
 // #include "symbol.c"
-// #include "section.c"
+#include "section.c"
 
 #include "diagnostic.c"
 #include "lexer.c"
 #include "expression.c"
-#include "statement.c"
+// #include "statement.c"
 #include "parser/parser_include.c"
 // #include "resolver.c"
 
@@ -105,16 +107,37 @@ main(int argument_count, char **argument_vector)
 		.count = input.count,
 		.name_count = filename.count,
 	};
+	U32 source_index = 0;
 
-	Symbols_Trie            symbols_trie            = {0};
-	Symbols_Trie_Chunk_List symbols_trie_chunk_list = {0};
+	// ----
+	// Sections_Table creation
+	// ---
+
+	Sections_Table *sections_table = Sections_Table__default();
+	Sections_Table__add_common(sections_table);
+	Section *section = Sections_Table__get(sections_table, String8__literal(".text"));
+
+	Symbols_Table *symbols_table = Arena__push_struct_m(arena, Symbols_Table);
+	symbols_table->chunks_local  = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
+	symbols_table->chunks_global = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
+	symbols_table->chunks_weak   = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
 
 	Expressions expressions = {0};
 	Expressions__initialize(&expressions, arena, 12);
 
 	Diagnostic_List diagnostics = {0};
 
-	Statement statement = statement_read(&source, 0, &diagnostics, &expressions, arena);
+	statement_read
+		(
+			arena,
+			&source,
+			&source_index,
+			&section,
+			&diagnostics,
+			&expressions,
+			sections_table,
+			symbols_table
+		);
 
 	if (diagnostics.first)
 	{

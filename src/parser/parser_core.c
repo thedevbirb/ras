@@ -450,7 +450,7 @@ expression_parse
 	Diagnostic_List *diagnostics,
 	Expressions     *expressions,
 	Arena           *arena,
-	U32             *index,
+	U32             *index_next,
 	Binding_Power    binding_power_minimum
 )
 {
@@ -474,22 +474,22 @@ expression_parse
 	struct Parenthesis_Frame
 	{
 		Parenthesis_Frame *next;
-		U32 index;
+		U32 location;
 	};
 
 
 	Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
-	Token_2 token = {0};
+	U32 index = min_m(*index_next, source->count);
+	Token_2 token = token_next(source, &index, diagnostics, arena);
 	Diagnostic *error = 0;
-	*index = min_m(*index, source->count);
+
 
 	Expression_Node *result = 0;
 	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
 	frame->node  = Expressions_push_empty(expressions, arena);
+	frame->node->location = token.location;
 
-	token = token_read(source, *index, diagnostics, arena);
-	*index = token.index + token.size;
 	Parenthesis_Frame *parenthesis_frame = 0;
 
 	for (;;)
@@ -504,12 +504,12 @@ expression_parse
 		{
 		case Token_Kind__Number:
 		{
-			frame->node->kind          = Expression_Kind__Number_Literal;
+			frame->node->kind          = Expression_Kind__Constant;
 			frame->node->integer_value = token.numerical_value;
+			frame->node->evaluation    = Evaluation__Constant;
 			frame->null_denotation_parsed = 1;
 
-			token = token_read(source, *index, diagnostics, arena);
-			*index = token.index + token.size;
+			token = token_next(source, &index, diagnostics, arena);
 		} break;
 
 		case Token_Kind__Minus:
@@ -522,11 +522,11 @@ expression_parse
 
 			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
 			frame_new->node = Expressions_push_empty(expressions, arena);
+			frame_new->node->location = token.location;
 			frame_new->binding_power_minimum = Binding_Power__Unary;
 			frame_new->is_right_side_of_next = 1;
 
-			token = token_read(source, *index, diagnostics, arena);
-			*index = token.index + token.size;
+			token = token_next(source, &index, diagnostics, arena);
 
 			SLL_stack_push_m(frame, frame_new);
 			continue;
@@ -536,11 +536,10 @@ expression_parse
 		{
 			// ( <expression> )
 			Parenthesis_Frame *parenthesis_frame_new = Arena__push_struct_m(scratch.arena, Parenthesis_Frame);
-			parenthesis_frame_new->index = token.index;
+			parenthesis_frame_new->location = token.location;
 			SLL_stack_push_m(parenthesis_frame, parenthesis_frame_new);
 
-			token = token_read(source, *index, diagnostics, arena);
-			*index = token.index + token.size;
+			token = token_next(source, &index, diagnostics, arena);
 			continue;
 		} break;
 
@@ -551,12 +550,12 @@ expression_parse
 				// Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
 				// its diagnostic.
 				frame->node = Expressions_push_empty(expressions, arena);
-				U32 location = source->start_offset_logical + token.index;
+				frame->node->location = token.location;
 
 				error = Arena__push_struct_m(arena, Diagnostic);
 				error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
-				error->location = location;
-				error->ranges[0] = (Vec2_U32){{ location, location + token.size }};
+				error->location = token.location;
+				error->ranges[0] = (Vec2_U32){{ token.location, token.location + token.size }};
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 			}
 		} break;
@@ -586,7 +585,7 @@ expression_parse
 		// former has zero binding power, would conclude reading the expression `4 + 3`.
 
 		Binding_Power next_power = Binding_Power_from_Token_Kind(token.kind);
-		B32 pop = next_power <= binding_power_minimum || *index >= source->count;
+		B32 pop = next_power <= binding_power_minimum || index >= source->count;
 		if (pop)
 		{
 			if (token.kind == Token_Kind__Parenthesis_Right)
@@ -595,15 +594,14 @@ expression_parse
 				{
 					error = Arena__push_struct_m(arena, Diagnostic);
 					error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
-					error->location = source->start_offset_logical + token.index;
+					error->location = token.location;
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 				}
 				else
 				{
 					SLL_stack_pop_m(parenthesis_frame);
 				}
-				token = token_read(source, *index, diagnostics, arena);
-				*index = token.index + token.size;
+				token = token_next(source, &index, diagnostics, arena);
 			}
 
 			if (frame->is_right_side_of_next)
@@ -629,12 +627,12 @@ expression_parse
 			frame->node->kind = Expression_Kind__binary_from_Token_Kind(token.kind);
 			frame->node->index_left = left->index;
 
-			token = token_read(source, *index, diagnostics, arena);
-			*index = token.index + token.size;
+			token = token_next(source, &index, diagnostics, arena);
 
 			// Prepare new frame
 			Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
 			frame_new->node = Expressions_push_empty(expressions, arena);
+			frame_new->node->location = token.location;
 			frame_new->binding_power_minimum = next_power;
 			frame_new->is_right_side_of_next = 1;
 			SLL_stack_push_m(frame, frame_new);
@@ -652,7 +650,7 @@ expression_parse
 	{
 		error = Arena__push_struct_m(arena, Diagnostic);
 		error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Unclosed];
-		error->location = source->start_offset_logical + parenthesis_frame->index;
+		error->location = parenthesis_frame->location;
 		SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 	}
 
@@ -1176,7 +1174,7 @@ expression_parse
 // 	U64 row_index        = Source_Lines__search(&source->lines, index);
 // 	U64 line_start_index = *(U64 *)xar_get_m(&source->lines, row_index);
 // 	U64 column_index = index - *(U64 *)xar_get_m(&source->lines, row_index) - 1;
-// 	U64 location     = Source__location(source, index);
+// 	U32 location     = Source__location(source, index);
 //
 //
 // 	Diagnostic *diagnostic = Diagnostics__push(parser->diagnostics);
@@ -1201,31 +1199,30 @@ expression_parse
 ///   ::= EndOfStatement
 ///   ::= Label* Directive ...Operands... EndOfStatement
 ///   ::= Label* Identifier OperandList* EndOfStatement
-internal Statement
+internal void
 statement_read
 (
-	Source          *source,
-	U32              index,
-	Diagnostic_List *diagnostics,
-	Expressions     *expressions,
-	Arena           *arena
+	Arena                   *arena,
+	Source                  *source,
+	U32                     *source_index,
+	Section                 *section,
+	Diagnostic_List         *diagnostics,
+	Expressions             *expressions,
+	Sections_Table          *sections_table,
+	Symbols_Table           *symbols_table
 )
 {
-	Statement statement = {0};
-	Directive_Kind directive_kind = 0;
-
-	Token_2 token = {0};
-
-	B32 error = 0;
-
+	Directive_Kind directive_kind  =  0;
+	B32            null_terminated =  0;
+	Token_2        token           = {0};
+	B32            error           =  0;
 
 	for (;;)
 	{
-		token = token_read(source, index, diagnostics, arena);
-		index = token.index + token.size;
+		token = token_next(source, source_index, diagnostics, arena);
 
-		B32 break_should = statement.kind
-			        || token.kind == Token_Kind__None
+		B32 break_should = // statement.type
+			        token.kind == Token_Kind__None
 				|| token.kind == Token_Kind__Error
 				|| error;
 		if (break_should)
@@ -1266,61 +1263,63 @@ statement_read
 		case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
 		case Directive_Kind__Byte:
 		{
+			// TODO: finish this, it is a non-trivial directive to handle.
 			data_directive_size += 1;
 
 			U32 expressions_index_start = expressions->header.count;
-			U32 expressions_count = 0;
+			String8 subsource = String8__skip(String8__new(source->data, source->count), *source_index);
+			U32 expressions_count = 1 + commas_until_newline(subsource.data, subsource.count);
 
+			U8 *data = Fragment_List__push_fixed(&section->fragment_list, section->arena, token.location, expressions_count * data_directive_size);
 
 			// Format: .byte <expr_1> , ..., <expr_n>
 			B32 token_newline = 0;
 			B32 token_comma   = 0;
 			for (;;)
 			{
-				Expression_Node *expression = expression_parse(source, diagnostics, expressions, arena, &index, 0);
-				U32 *expression_index = xar_push_m(expressions, arena);
-				*expression_index = expression->index;
+				Expression_Node *expression = expression_parse(source, diagnostics, expressions, arena, source_index, 0);
 				expressions_count += 1;
 
 				S64 result = expression_evaluate(expressions, expression->index);
-				printf("result %d", result);
+				printf("result %lld", result);
 
 				token_newline = token.kind == Token_Kind__Newline;
 				token_comma   = token.kind == Token_Kind__Comma;
 
-				B32 break_should_directive = error || index >= source->count || token_newline;
+				B32 break_should_directive = error || *source_index >= source->count || token_newline;
 				if (break_should_directive)
 				{
 					break;
 				}
 			}
 
-			statement.expressions_index_start = expressions_index_start;
-			statement.expressions_count       = expressions_count;
-			statement.size                    = data_directive_size * expressions_count;
-
-			data_directive_size = 0;
+			// statement.expressions_index = expressions_index_start;
+			// statement.expressions_count = expressions_count;
+			// statement.size              = data_directive_size * expressions_count;
 		} break;
-	}
-// 			case Directive_Kind__String: {} // fallthrough
-// 			case Directive_Kind__Asciz:  { string_size += 1; /* Add null-termination */ } // fallthrough
-// 			case Directive_Kind__Ascii:
-// 			{
-// 				Parser_advance(parser);
-// 				Parser_expect_token(parser, Token_Kind__String_Literal, Parser_Error_Kind__String_Literal_Expected);
-// 				String8 ascii_text = Parser_token_string(parser);
-//
-// 				// We cannot emit bytes in the section yet, but we have to count the size of it.
-// 				// NOTE: from lexing stage, we already know the string is well-formed.
-// 				U32 size = String8_byte_size_escaped(ascii_text);
-// 				string_size += size;
-//
-// 				parser->statement_context->size = string_size;
-// 				string_size = 0;
-//
-// 				Parser_advance(parser);
-//
-// 			} break;
+		case Directive_Kind__String: {} // fallthrough
+		case Directive_Kind__Asciz:  { null_terminated = 1; /* Add null-termination */ } // fallthrough
+		case Directive_Kind__Ascii:
+		{
+			token = token_next(source, source_index, diagnostics, arena);
+			if (token.kind != Token_Kind__String)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location = source->start_offset_logical + token.index;
+				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+			}
+
+			// Can be of the form `"\nhello\n", so with quotes and optional escaped characters.
+			String8 text = { .data = &source->data[token.index], .count = token.size };
+			text = String8__skip(text, 1);
+			text = String8__chop(text, 1);
+			U32 size_escaped = String8__escaped_size(text) + !!null_terminated;
+
+			U8 *data = Fragment_List__push_fixed(&section->fragment_list, section->arena, token.location, size_escaped);
+			bytes_escaped_fill(text, data, size_escaped);
+
+			token = token_next(source, source_index, diagnostics, arena);
+		} break;
 // 			case Directive_Kind__Section:
 // 			{
 // 				Parser_advance(parser);
@@ -1339,20 +1338,29 @@ statement_read
 // 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
 // 				Parser_advance(parser);
 // 			} break;
-// 			case Directive_Kind__Local:
-// 			{
-// 				Parser_advance(parser);
-// 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
-//
-// 				String8 key = Parser_token_string(parser);
-// 				Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
-//
-// 				assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
-// 				B32 demoted = ELF_Symbol_bind_m(entry->elf.type_and_binding) > ELF_Symbol_Binding__Local;
-// 				Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
-//
-// 				Parser_advance(parser);
-// 			} break;
+		case Directive_Kind__Local:
+		{
+			token = token_next(source, source_index, diagnostics, arena);
+			if (token.kind != Token_Kind__Identifier)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location = source->start_offset_logical + token.index;
+				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+			}
+
+			String8 key = { .data = &source->data[token.index], .count = token.size };
+			U64 hash = FNV_hash(key);
+
+
+			// Symbol_Ref *symbol = Arena__push_struct_m(arena, Symbol_Ref);
+			// Symbols_Trie *node = hash_trie_get_or_create_m(Symbols_Trie, arena, symbols_trie_chunk_list, &symbols_trie, hash, symbol);
+
+			// assert_always_m(ELF_Symbol_Binding__Local == 0 && "wrong assumption on local binding value");
+			// B32 demoted = ELF_Symbol_bind_m(entry->elf.type_and_binding) > ELF_Symbol_Binding__Local;
+			// Parser_expect(parser, !demoted, Parser_Error_Kind__Symbol_Demoted);
+
+			token = token_next(source, source_index, diagnostics, arena);
+		} break;
 // 			case Directive_Kind__Globl: {} // fallthrough
 // 			case Directive_Kind__Global:
 // 			{
@@ -1384,34 +1392,34 @@ statement_read
 //
 // 				Symbols_Table_Entry *entry = Parser_symbol_declare(parser, key);
 //
-// 				parser->statement_context->s_symbol = entry;
-// 				parser->statement_context->expressions_indexes = &expression->index;
-// 				parser->statement_context->expressions_count   = 1;
+// 				parser->statement_s_symbol = entry;
+// 				parser->statement_expressions_indexes = &expression->index;
+// 				parser->statement_expressions_count   = 1;
 // 			} break;
 // 			case Directive_Kind__Zero:
 // 			{
 // 				Parser_advance(parser);
 // 				Expression_Node *expression = Parser_expression_parse(parser);
 //
-// 				parser->statement_context->expressions_indexes = &expression->index;
-// 				parser->statement_context->expressions_count   = 1;
+// 				parser->statement_expressions_indexes = &expression->index;
+// 				parser->statement_expressions_count   = 1;
 // 			} break;
 // 			case Directive_Kind__Align:
 // 			{
-// 				parser->statement_context->flags |= Statement_Flags__Size_Variable;
+// 				parser->statement_flags |= Statement_Flags__Size_Variable;
 // 			} // fallthrough, same parsing.
 // 			case Directive_Kind__Skip:
 // 			{
 // 				Parser_advance(parser);
 // 				Expression_Node *expression = Parser_expression_parse(parser);
-// 				parser->statement_context->expressions_indexes = &expression->index;
-// 				parser->statement_context->expressions_count = 1;
+// 				parser->statement_expressions_indexes = &expression->index;
+// 				parser->statement_expressions_count = 1;
 //
 // 				if (parser->token_current.kind == Token_Kind__Comma)
 // 				{
 // 					Expression_Node *expression_second = Parser_expression_parse(parser);
-// 					parser->statement_context->expressions_indexes[1] = expression_second->index;
-// 					parser->statement_context->expressions_count = 2;
+// 					parser->statement_expressions_indexes[1] = expression_second->index;
+// 					parser->statement_expressions_count = 2;
 // 				}
 // 			} break;
 // 			case Directive_Kind__Common:
@@ -1444,9 +1452,9 @@ statement_read
 // 				expressions_indexes[0] = size_expression->index;
 // 				expressions_indexes[1] = alignment_expression->index;
 //
-// 				parser->statement_context->s_symbol = entry;
-// 				parser->statement_context->expressions_indexes = expressions_indexes;
-// 				parser->statement_context->expressions_count = 2;
+// 				parser->statement_s_symbol = entry;
+// 				parser->statement_expressions_indexes = expressions_indexes;
+// 				parser->statement_expressions_count = 2;
 // 			} break;
 // 			case Directive_Kind__Option:
 // 			{
@@ -1479,9 +1487,10 @@ statement_read
 // 			} break;
 // 			}
 //
-// 			parser->statement_context->section_index      = parser->section_current_index;
+// 			parser->statement_section_index      = parser->section_current_index;
+		}
 	}
 
-	printf("\n");
-	return statement;
+
+	return;
 }

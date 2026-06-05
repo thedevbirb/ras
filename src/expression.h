@@ -8,13 +8,15 @@ typedef enum Expression_Kind
 	Expression_Kind__None,
 
 	// Leaf nodes
-	Expression_Kind__Number_Literal,
-	Expression_Kind__Char_Literal,
-	Expression_Kind__Identifier,
-	Expression_Kind__Label_Numeric_Reference_Forward,
-	Expression_Kind__Label_Numeric_Reference_Backward,
-	Expression_Kind__Current_Address,   // .
-	Expression_Kind__Relocation,        // %hi(expr), %lo(expr), etc.
+	Expression_Kind__Constant,
+	Expression_Kind__Symbol,
+	// Expression_Kind__Number,
+	// Expression_Kind__Char_Literal,
+	// Expression_Kind__Identifier,
+	// Expression_Kind__Label_Numeric_Reference_Forward,
+	// Expression_Kind__Label_Numeric_Reference_Backward,
+	// Expression_Kind__Current_Address,   // .
+	// Expression_Kind__Relocation,        // %hi(expr), %lo(expr), etc.
 
 	// Unary operators
 	Expression_Kind__Negate,            // -x
@@ -51,25 +53,25 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
-B32
-Expression_Kind_leaf_is(Expression_Kind kind)
-{
-	B32 result = kind == Expression_Kind__Number_Literal
-	          || kind == Expression_Kind__Char_Literal
-	          || kind == Expression_Kind__Identifier
-	          || kind == Expression_Kind__Label_Numeric_Reference_Forward
-	          || kind == Expression_Kind__Label_Numeric_Reference_Backward
-	          || kind == Expression_Kind__Current_Address;
-	return result;
-}
+// B32
+// Expression_Kind_leaf_is(Expression_Kind kind)
+// {
+// 	B32 result = kind == Expression_Kind__Number_Literal
+// 	          || kind == Expression_Kind__Char_Literal
+// 	          || kind == Expression_Kind__Identifier
+// 	          || kind == Expression_Kind__Label_Numeric_Reference_Forward
+// 	          || kind == Expression_Kind__Label_Numeric_Reference_Backward
+// 	          || kind == Expression_Kind__Current_Address;
+// 	return result;
+// }
 
-B32
-Expression_Kind_constant_is(Expression_Kind kind)
-{
-	B32 result = kind == Expression_Kind__Number_Literal
-		  || kind == Expression_Kind__Char_Literal;
-	return result;
-}
+// B32
+// Expression_Kind_constant_is(Expression_Kind kind)
+// {
+// 	B32 result = kind == Expression_Kind__Number_Literal
+// 		  || kind == Expression_Kind__Char_Literal;
+// 	return result;
+// }
 
 // The evaluation status of an `Expression_Node`. The higher, the stricter, with zero being not evaluated at all.
 typedef enum Evaluation
@@ -121,23 +123,22 @@ Evaluation__unresolved(Evaluation evaluation)
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
+	U64 location;
 	S64 integer_value;
-	Symbols_Table_Entry *symbols_table_entry;
-	Symbols_Table_Entry *symbol_operand;
+	Symbol_Ref *symbols_table_entry;
+	Symbol_Ref *symbol_operand;
 
 	U32 index;
 	U32 index_left;
 	U32 index_right;
 
 	// Useful for later finding symbols etc.
-	U32 token_index;
-
-	Relocation_Operator relocation_operator;
+	// U32 token_index;
+	//
+	// Relocation_Operator relocation_operator;
 
 	Expression_Kind  kind;
 	Evaluation evaluation;
-
-	U8 label_numeric_value;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.

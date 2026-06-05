@@ -25,53 +25,53 @@ Statement_Flags;
 //
 // An in-memory representation of parsed assembly statement, which can be either an instruction, a directive, or a label
 // definition.
-typedef struct Statement Statement;
-struct Statement
-{
-	// The list of parsed expressions that occurred in this statement.
-	// If its an instruction, once evaluated it would yield its immediate.
-	U32 expressions_index_start;
-	U32 expressions_count;
-
-	// The symbol defined by the statement, if any.
-	Symbols_Table_Entry *s_symbol;
-
-	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
-	// U32 label_symbol_slot;
-	// If this is a numeric label definition, it is its number.
-	U8  label_numeric_value;
-
-	// The list of tokens that make the statement.
-	U32 token_index_begin;
-	// Included
-	U32 token_index_end;
-
-	Instruction_Kind    instruction_kind;
-	Directive_Kind      directive_kind;
-
-	Relocation_Operator relocation_operator;
-
-	U8  instruction_format; // R, I, S, B, ...
-	U8  register_destination;
-	U8  register_source_1;
-	U8  register_source_2;
-
-	// Relaxation-related fields. These fields can change during relaxation process.
-
-	// The offset in the object file section where this statement is written to.
-	U32 section_offset;
-	// The size of the statement, as it would be written in the object file section. Note that a directive will have
-	// size zero.
-	U32 size;
-
-	// End of relaxation-related fields.
-
-	// The index of the object file section this statement belongs to.
-	U8  section_index;
-	Statement_Kind kind;
-
-	Statement_Flags flags;
-};
+// typedef struct Statement Statement;
+// struct Statement
+// {
+// 	// The list of parsed expressions that occurred in this statement.
+// 	// If its an instruction, once evaluated it would yield its immediate.
+// 	U32 expressions_index_start;
+// 	U32 expressions_count;
+//
+// 	// The symbol defined by the statement, if any.
+// 	Symbols_Table_Entry *s_symbol;
+//
+// 	// If this is a label definition, this represents the slot of the Symbols_Table where this symbol is saved.
+// 	// U32 label_symbol_slot;
+// 	// If this is a numeric label definition, it is its number.
+// 	U8  label_numeric_value;
+//
+// 	// The list of tokens that make the statement.
+// 	U32 token_index_begin;
+// 	// Included
+// 	U32 token_index_end;
+//
+// 	Instruction_Kind    instruction_kind;
+// 	Directive_Kind      directive_kind;
+//
+// 	Relocation_Operator relocation_operator;
+//
+// 	U8  instruction_format; // R, I, S, B, ...
+// 	U8  register_destination;
+// 	U8  register_source_1;
+// 	U8  register_source_2;
+//
+// 	// Relaxation-related fields. These fields can change during relaxation process.
+//
+// 	// The offset in the object file section where this statement is written to.
+// 	U32 section_offset;
+// 	// The size of the statement, as it would be written in the object file section. Note that a directive will have
+// 	// size zero.
+// 	U32 size;
+//
+// 	// End of relaxation-related fields.
+//
+// 	// The index of the object file section this statement belongs to.
+// 	U8  section_index;
+// 	Statement_Kind kind;
+//
+// 	Statement_Flags flags;
+// };
 
 // These two enums are machine dependent.
 
@@ -92,7 +92,7 @@ struct Statement
 // typedef struct Instruction Instruction;
 // struct Instruction
 // {
-// 	U64 location;
+// 	U32 location;
 // 	U8 *encoding;
 // 	U32 expression_index;
 //
@@ -103,41 +103,43 @@ struct Statement
 // typedef struct Directive Directive;
 // struct Directive
 // {
-// 	U64 location;
+// 	U32 location;
 // 	U8 *encoding;
 // 	U32 expression_index;
 // 	U8 expression_count;
 // };
 //
 //
-//
+
+// The statement IR. A complete representation of the statement data.
 // typedef struct Statement_2 Statement_2;
 // struct Statement_2
 // {
+// 	U32 location;
 // 	U8 *encoding;
-// 	U64 location;
 //
-// 	U32 expression_index;
-// 	U32 size_min;
+// 	U64 *expressions_indexes;
+//
+// 	// If this statement defines a symbol.
+// 	Symbol_Ref *symbol;
+//
+// 	// Worst size for this statement
+// 	U32 encoding_size_max;
 // 	// Can contain more detailed information, including directive type.
 // 	U32 subtype;
 //
 // 	U16 relocation_type;
 // 	U16 relocation_info;
 //
-// 	// Worst size for this statement.
-// 	U8 encoding_size;
-// 	// Maybe this count can't be reduced to U8, meaning there is a limit on how many
-// 	// expressions can't be resolved immediately at assembly time.
-// 	U8 expression_count;
-// 	U8  size_variable;
-//
+// 	U16 expressions_count;
+// 	// How much the statement encoding can grow in size. Fixed size is then `encoding_size_max -
+// 	// encoding_size_variable`.
+// 	U8 encoding_size_variable;
 // 	// Very high-level information like if this is machine dependent, or a fill-instruction etc.
+// 	// Whether this is a statement, directive, or label.
 // 	U8 type;
 // };
-//
-// assert_static_m(sizeof(Statement_2) == 32, Statement_2__sizeof_check);
-
+// assert_static_m(sizeof(Statement_2) == 48, Statement_2__sizeof_check);
 
 // With 2**12 = 4096 base elements and 14 chunks, we have ~67M capacity;
 #define Statements_Xar__shift_amount 12

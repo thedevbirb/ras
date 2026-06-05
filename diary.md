@@ -503,3 +503,21 @@ fast, readable, efficient and reusable you will write. Semantics and meaning com
 see hierarchies where there aren't meant to be. The program needs to transform data, that's it. The
 rest is cruft to adhere to a mental model, of which the program, your goal, and your users, don't
 care about.
+
+Thu Jun  4 14:29:43 CEST 2026
+
+Yesteday I completed part of the refactoring towards more procedural code. Now I'm reading about
+fragments in GNU as. Fragments are organized as a linked-list, and divided per section, meaning that
+there is a linked-list per section. Moreover, each section has its own arena so that memory is
+contiguous during relaxation, where each section frag is read a lot of times.
+
+I'm understanding more about how to use arena allocators. In particular I should strive to create an
+arena for data of the same type, for example an arena for the symbol table, an arena for the
+sections, an arena for expressions etc. This makes data more contiguous and at the same time makes
+lifetime management fairly clear. This is something I kinda nailed in the beginning by accident but
+then I deleted it.
+
+Fri Jun  5 14:22:05 CEST 2026
+
+I'm implementing a lot of GNU as ideas right now, and while some of that C code might look arcaic is
+really packed with good ideas.
