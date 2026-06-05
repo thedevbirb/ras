@@ -1320,24 +1320,20 @@ statement_read
 
 			token = token_next(source, source_index, diagnostics, arena);
 		} break;
-// 			case Directive_Kind__Section:
-// 			{
-// 				Parser_advance(parser);
-//
-// 				// FIX: `.section` can be used to create new sections so limiting to the ones that can
-// 				// be a standalone directive is not desiderable. Moreover, the syntax is more complex
-// 				// because it is like:
-// 				// ```asm
-// 				// .section .<section>, "<flags>", @<type>
-// 				// ```
-// 				String8 string_section        = Parser_token_string(parser);
-// 				Directive_Kind section_kind   = Directive_Kind__from_String8(string_section);
-// 				ELF_Section section_index     = ELF_Section_from_Directive_Kind(section_kind);
-// 				parser->section_current_index = section_index;
-//
-// 				Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
-// 				Parser_advance(parser);
-// 			} break;
+		case Directive_Kind__Section:
+		{
+			// Syntax: `.section name [, "flags"[, @type[, argument...]]]`
+			token = token_next(source, source_index, diagnostics, arena);
+			String8 name = String8__new(source->data + token.index, token.size);
+
+			String8 string_section        = Parser_token_string(parser);
+			Directive_Kind section_kind   = Directive_Kind__from_String8(string_section);
+			ELF_Section section_index     = ELF_Section_from_Directive_Kind(section_kind);
+			parser->section_current_index = section_index;
+
+			Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
+			Parser_advance(parser);
+		} break;
 		case Directive_Kind__Local:
 		{
 			token = token_next(source, source_index, diagnostics, arena);

@@ -16,7 +16,7 @@
 
 #include "source_manager.h"
 #include "initialize.h"
-#include "elf.h"
+#include "object/object_include.h"
 
 #include "language/language_include.h"
 #include "fragment.h"

@@ -114,67 +114,72 @@ struct ELF_Section_Header
 
 /* Legal values for type (section type).  */
 
-typedef U8 ELF_Section_Header_Type;
+typedef U32 ELF_Section_Header_Type;
 
-#define ELF_Section_Header_Type__None          0                /* Section header table entry unused */
-#define ELF_Section_Header_Type__Program_Data          1                /* Program data */
-#define ELF_Section_Header_Type__Symbols_Table          2                /* Symbol table */
-#define ELF_Section_Header_Type__Strings_Table          3                /* String table */
-#define ELF_Section_Header_Type__Relocations_Addends          4                /* Relocation entries with addends */
-#define ELF_Section_Header_Type__Symbols_Hash_Table          5                /* Symbol hash table */
-#define ELF_Section_Header_Type__Dynamic_Linking          6                /* Dynamic linking information */
-#define ELF_Section_Header_Type__Notes          7                /* Notes */
-#define ELF_Section_Header_Type__No_Data          8                /* Program space with no data (bss) */
-#define ELF_Section_Header_Type__Relocations                  9                /* Relocation entries, no addends */
-#define ELF_Section_Header_Type__SHLIB          10                /* Reserved */
-#define ELF_Section_Header_Type__DYNSYM          11                /* Dynamic linker symbol table */
-#define ELF_Section_Header_Type__INIT_ARRAY          14                /* Array of constructors */
-#define ELF_Section_Header_Type__FINI_ARRAY          15                /* Array of destructors */
-#define ELF_Section_Header_Type__PREINIT_ARRAY 16                /* Array of pre-constructors */
-#define ELF_Section_Header_Type__GROUP          17                /* Section group */
-#define ELF_Section_Header_Type__Symbols_Table_ELF_Section_IndexDX  18                /* Extended section indices */
-#define ELF_Section_Header_Type__RelocationsR          19            /* RelocationsR relative relocations */
-#define        ELF_Section_Header_Type__NUM                  20                /* Number of defined types.  */
-#define ELF_Section_Header_Type__LOOS          0x60000000        /* Start OS-specific.  */
-#define ELF_Section_Header_Type__GNU_ATTRIBUTES 0x6ffffff5        /* Object attributes.  */
-#define ELF_Section_Header_Type__GNU_Symbols_Hash_Table          0x6ffffff6        /* GNU-style hash table.  */
-#define ELF_Section_Header_Type__GNU_LIBLIST          0x6ffffff7        /* Prelink library list */
-#define ELF_Section_Header_Type__CHECKSUM          0x6ffffff8        /* Checksum for DSO content.  */
-#define ELF_Section_Header_Type__LOSUNW          0x6ffffffa        /* Sun-specific low bound.  */
-#define ELF_Section_Header_Type__SUNW_move          0x6ffffffa
-#define ELF_Section_Header_Type__SUNW_COMDAT   0x6ffffffb
-#define ELF_Section_Header_Type__SUNW_syminfo  0x6ffffffc
-#define ELF_Section_Header_Type__GNU_verdef          0x6ffffffd        /* Version definition section.  */
-#define ELF_Section_Header_Type__GNU_verneed          0x6ffffffe        /* Version needs section.  */
-#define ELF_Section_Header_Type__GNU_versym          0x6fffffff        /* Version symbol table.  */
-#define ELF_Section_Header_Type__HISUNW          0x6fffffff        /* Sun-specific high bound.  */
-#define ELF_Section_Header_Type__HIOS          0x6fffffff        /* End OS-specific type */
-#define ELF_Section_Header_Type__LOPROC          0x70000000        /* Start of processor-specific */
-#define ELF_Section_Header_Type__HIPROC          0x7fffffff        /* End of processor-specific */
-#define ELF_Section_Header_Type__LOUSER          0x80000000        /* Start of application-specific */
-#define ELF_Section_Header_Type__HIUSER          0x8fffffff        /* End of application-specific */
+#define ELF_Section_Header_Type__None                             0 /* Section header table entry unused */
+#define ELF_Section_Header_Type__Program_Data                     1 /* Program data */
+#define ELF_Section_Header_Type__Symbols_Table                    2 /* Symbol table */
+#define ELF_Section_Header_Type__Strings_Table                    3 /* String table */
+#define ELF_Section_Header_Type__Relocations_Addends              4 /* Relocation entries with addends */
+#define ELF_Section_Header_Type__Symbols_Hash_Table               5 /* Symbol hash table */
+#define ELF_Section_Header_Type__Dynamic_Linking                  6 /* Dynamic linking information */
+#define ELF_Section_Header_Type__Notes                            7 /* Notes */
+#define ELF_Section_Header_Type__No_Data                          8 /* Program space with no data (bss) */
+#define ELF_Section_Header_Type__Relocations                      9 /* Relocation entries, no addends */
+#define ELF_Section_Header_Type__SHLIB                           10 /* Reserved */
+#define ELF_Section_Header_Type__DYNSYM                          11 /* Dynamic linker symbol table */
+#define ELF_Section_Header_Type__INIT_ARRAY                      14 /* Array of constructors */
+#define ELF_Section_Header_Type__FINI_ARRAY                      15 /* Array of destructors */
+#define ELF_Section_Header_Type__PREINIT_ARRAY                   16 /* Array of pre-constructors */
+#define ELF_Section_Header_Type__GROUP                           17 /* Section group */
+#define ELF_Section_Header_Type__SYMTAB_SHNDX                    18 /* Extended section indices */
+#define ELF_Section_Header_Type__RelocationsR                    19 /* RelocationsR relative relocations */
+#define ELF_Section_Header_Type__NUM                             20 /* Number of defined types.  */
+#define ELF_Section_Header_Type__LOOS                    0x60000000 /* Start OS-specific.  */
+#define ELF_Section_Header_Type__GNU_ATTRIBUTES          0x6ffffff5 /* Object attributes.  */
+#define ELF_Section_Header_Type__GNU_Symbols_Hash_Table  0x6ffffff6 /* GNU-style hash table.  */
+#define ELF_Section_Header_Type__GNU_LIBLIST             0x6ffffff7 /* Prelink library list */
+#define ELF_Section_Header_Type__CHECKSUM                0x6ffffff8 /* Checksum for DSO content.  */
+#define ELF_Section_Header_Type__LOSUNW                  0x6ffffffa /* Sun-specific low bound.  */
+#define ELF_Section_Header_Type__SUNW_move               0x6ffffffa
+#define ELF_Section_Header_Type__SUNW_COMDAT             0x6ffffffb
+#define ELF_Section_Header_Type__SUNW_syminfo            0x6ffffffc
+#define ELF_Section_Header_Type__GNU_verdef              0x6ffffffd /* Version definition section.  */
+#define ELF_Section_Header_Type__GNU_verneed             0x6ffffffe /* Version needs section.  */
+#define ELF_Section_Header_Type__GNU_versym              0x6fffffff /* Version symbol table.  */
+#define ELF_Section_Header_Type__HISUNW                  0x6fffffff /* Sun-specific high bound.  */
+#define ELF_Section_Header_Type__HIOS                    0x6fffffff /* End OS-specific type */
+#define ELF_Section_Header_Type__LOPROC                  0x70000000 /* Start of processor-specific */
+#define ELF_Section_Header_Type__HIPROC                  0x7fffffff /* End of processor-specific */
+#define ELF_Section_Header_Type__LOUSER                  0x80000000 /* Start of application-specific */
+#define ELF_Section_Header_Type__HIUSER                  0x8fffffff /* End of application-specific */
 
-/* Legal values for flags (section flags).  */
+// Custom added
+#define ELF_Section_Header_Type__Invalid                 0xffffffff
 
-#define SHF_WRITE             (1 << 0)        /* Writable */
-#define SHF_ALLOC             (1 << 1)        /* Occupies memory during execution */
-#define SHF_EXECINSTR             (1 << 2)        /* Executable */
-#define SHF_MERGE             (1 << 4)        /* Might be merged */
-#define SHF_STRINGS             (1 << 5)        /* Contains nul-terminated strings */
-#define SHF_INFO_LINK             (1 << 6)        /* `info' contains ELF_Section_Header_Type_ index */
-#define SHF_LINK_ORDER             (1 << 7)        /* Preserve order after combining */
-#define SHF_OS_NONCONFORMING (1 << 8)        /* Non-standard OS specific handling
-                                           required */
-#define SHF_GROUP             (1 << 9)        /* Section is member of a group.  */
-#define SHF_TLS                     (1 << 10)        /* Section hold thread-local data.  */
-#define SHF_COMPRESSED             (1 << 11)        /* Section with compressed data. */
-#define SHF_MASKOS             0x0ff00000        /* OS-specific.  */
-#define SHF_MASKPROC             0xf0000000        /* Processor-specific */
-#define SHF_GNU_RETAIN             (1 << 21)  /* Not to be GCed by linker.  */
-#define SHF_ORDERED             (1 << 30)        /* Special ordering requirement
-                                           (Solaris).  */
-#define SHF_EXCLUDE             (1U << 31)        /* Section is excluded unless
-                                           referenced or allocated (Solaris).*/
+/* Legal values for sh_flags (section flags).  */
+
+typedef U32 ELF_Section_Header_Flags;
+
+#define ELF_Section_Header_Flags__WRITE               (1 << 0)     /* Writable */
+#define ELF_Section_Header_Flags__ALLOC               (1 << 1)     /* Occupies memory during execution */
+#define ELF_Section_Header_Flags__EXECINSTR           (1 << 2)     /* Executable */
+#define ELF_Section_Header_Flags__MERGE               (1 << 4)     /* Might be merged */
+#define ELF_Section_Header_Flags__STRINGS             (1 << 5)     /* Contains nul-terminated strings */
+#define ELF_Section_Header_Flags__INFO_LINK           (1 << 6)     /* `sh_info' contains SHT index */
+#define ELF_Section_Header_Flags__LINK_ORDER          (1 << 7)     /* Preserve order after combining */
+#define ELF_Section_Header_Flags__OS_NONCONFORMING    (1 << 8)     /* Non-standard OS specific handling required */
+#define ELF_Section_Header_Flags__GROUP               (1 << 9)     /* Section is member of a group.  */
+#define ELF_Section_Header_Flags__TLS                 (1 << 10)    /* Section hold thread-local data.  */
+#define ELF_Section_Header_Flags__COMPRESSED          (1 << 11)    /* Section with compressed data. */
+#define ELF_Section_Header_Flags__MASKOS              0x0ff00000   /* OS-specific.  */
+#define ELF_Section_Header_Flags__MASKPROC            0xf0000000   /* Processor-specific */
+#define ELF_Section_Header_Flags__GNU_RETAIN          (1 << 21)    /* Not to be GCed by linker.  */
+#define ELF_Section_Header_Flags__ORDERED             (1 << 30)    /* Special ordering requirement (Solaris).  */
+#define ELF_Section_Header_Flags__EXCLUDE             (1U << 31)   /* Section is excluded unless referenced or allocated (Solaris).*/
+
+// Custom added
+#define ELF_Section_Header_Flags__Invalid             0xffffffff
 
 /* Section compression header.  Used when SHF_COMPRESSED is set.  */
 

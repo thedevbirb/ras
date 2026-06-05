@@ -10,6 +10,7 @@ nob
 riscv-vm/
 
 core
+!src/core
 
 !README.md
 !diary.md
