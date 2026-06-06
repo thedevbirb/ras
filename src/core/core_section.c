@@ -167,7 +167,7 @@
 internal B32
 Section__zero_is(Section *s)
 {
-	B32 result = memory_match_struct(s, &Section__zero);
+	B32 result = memory_match_struct(s, &Section__zero) == 0;
 	return result;
 }
 
@@ -289,7 +289,7 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name)
 		{
 			.arena = Arena__allocate_m(),
 			.name  = name,
-			.index = 0,
+			.index = sections_table->index_next,
 		};
 		sections_table->index_next += 1;
 	}

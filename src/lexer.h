@@ -74,7 +74,6 @@ struct Token_2
 	Token_Kind  kind;
 };
 
-
 #define Token_Xar__shift_amount 12
 typedef struct Token_Xar Token_Xar;
 struct Token_Xar

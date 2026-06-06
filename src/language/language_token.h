@@ -14,6 +14,8 @@ typedef enum Token_Kind
 	Token_Kind__Semicolon,
 	Token_Kind__Colon,
 
+	Token_Kind__At,
+
 	Token_Kind__Parenthesis_Left,
 	Token_Kind__Parenthesis_Right,
 

@@ -14,37 +14,22 @@
 
 #include <generated/instruction_hashes.h>
 
-#include "source_manager.h"
-#include "initialize.h"
 #include "object/object_include.h"
 
 #include "language/language_include.h"
-#include "fragment.h"
-#include "fixup.h"
-#include "symbol.h"
-#include "section.h"
-
-#include "diagnostic.h"
+#include "core/core_include.h"
+#include "syntax/syntax_include.h"
 #include "lexer.h"
-#include "expression.h"
-// #include "statement.h"
 #include "parser/parser_include.h"
-// #include "resolver.h"
+// #include "core/core_resolver.h"
 
 #include <base/base_include.c>
 
-#include "initialize.c"
-#include "utils.c"
-#include "language/language_include.c"
-// #include "symbol.c"
-#include "section.c"
-
-#include "diagnostic.c"
+#include "core/core_include.c"
 #include "lexer.c"
-#include "expression.c"
-// #include "statement.c"
+#include "language/language_include.c"
 #include "parser/parser_include.c"
-// #include "resolver.c"
+// #include "core/core_resolver.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);

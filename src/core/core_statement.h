@@ -1,5 +1,5 @@
-#ifndef STATEMENT_H
-#define STATEMENT_H
+#ifndef CORE_STATEMENT_H
+#define CORE_STATEMENT_H
 
 // TODO: this is a bit redundant with Instruction_Kind and Directive_Kind. Ideally we would not have this tag.
 typedef U8 Statement_Kind;
@@ -186,6 +186,6 @@ Statements_initialize(Statements *statements, Arena *arena);
 internal Statement *
 Statements_push(Statements *statements, Statement statement);
 
-#endif // STATEMENT_H
+#endif // CORE_STATEMENT_H
 
 

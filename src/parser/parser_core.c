@@ -1221,6 +1221,7 @@ statement_read
 	{
 		token = token_next(source, source_index, diagnostics, arena);
 
+		// TODO: when to exist?
 		B32 break_should = // statement.type
 			        token.kind == Token_Kind__None
 				|| token.kind == Token_Kind__Error
@@ -1233,7 +1234,7 @@ statement_read
 		switch (token.kind)
 		{
 		// no-op, continue;
-		case Token_Kind__Newline: {} break;
+		case Token_Kind__Newline: { continue; } break;
 		// Instructions, directives and label start with an identifier. We have to discriminate further.
 		case Token_Kind__Identifier:
 		{
@@ -1305,12 +1306,13 @@ statement_read
 			if (token.kind != Token_Kind__String)
 			{
 				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location = source->start_offset_logical + token.index;
+				diagnostic->location = token.location;
 				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
 
 			// Can be of the form `"\nhello\n", so with quotes and optional escaped characters.
-			String8 text = { .data = &source->data[token.index], .count = token.size };
+			String8 text = String8__new(&source->data[token.index], token.size);
 			text = String8__skip(text, 1);
 			text = String8__chop(text, 1);
 			U32 size_escaped = String8__escaped_size(text) + !!null_terminated;
@@ -1325,14 +1327,67 @@ statement_read
 			// Syntax: `.section name [, "flags"[, @type[, argument...]]]`
 			token = token_next(source, source_index, diagnostics, arena);
 			String8 name = String8__new(source->data + token.index, token.size);
+			Section *section_new = Sections_Table__get_or_default(sections_table, name);
 
-			String8 string_section        = Parser_token_string(parser);
-			Directive_Kind section_kind   = Directive_Kind__from_String8(string_section);
-			ELF_Section section_index     = ELF_Section_from_Directive_Kind(section_kind);
-			parser->section_current_index = section_index;
+			token = token_next(source, source_index, diagnostics, arena);
+			if (token.kind == Token_Kind__Comma)
+			{
+				// Read flags.
+				token = token_next(source, source_index, diagnostics, arena);
+				if (token.kind != Token_Kind__String)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location = token.location;
+					diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+				String8 text    = String8__new(&source->data[token.index], token.size);
+				String8 content = token_string_content(text);
+				ELF_Section_Header_Flags flags = ELF_Section_Header_Flags__parse(content);
 
-			Parser_expect(parser, section_index != 0, Parser_Error_Kind__Directive_Section_Argument_Invalid);
-			Parser_advance(parser);
+				if (flags == ELF_Section_Header_Flags__Invalid)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location = token.location;
+					diagnostic->message  = String8__literal("invalid section flags, expected: " ELF_Section_Header_Flags__cstring);
+					diagnostic->ranges[0] = (Vec2_U32){{ token.location, token.location + token.size }};
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+
+				// TODO: are they ORed? Or overwritten?
+				section_new->flags = flags;
+				token = token_next(source, source_index, diagnostics, arena);
+			}
+
+			if (token.kind == Token_Kind__Comma)
+			{
+				// Parse type.
+				token = token_next(source, source_index, diagnostics, arena);
+				if (token.kind != Token_Kind__At)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location   = token.location;
+					diagnostic->message    = String8__literal("invalid section type syntax, expected @type");
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+				token = token_next(source, source_index, diagnostics, arena);
+				String8 text    = String8__new(&source->data[token.index], token.size);
+				String8 content = token_string_content(text);
+				ELF_Section_Header_Type type = ELF_Section_Header_Type__from_String8(content);
+				if (type == ELF_Section_Header_Type__Invalid)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location   = token.location;
+					diagnostic->message    = String8__literal("invalid section type");
+					diagnostic->ranges[0] = (Vec2_U32){{ token.location, token.location + token.size }};
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+				section_new->type = type;
+				token = token_next(source, source_index, diagnostics, arena);
+			}
+
+
+			section = section_new;
 		} break;
 		case Directive_Kind__Local:
 		{
@@ -1342,6 +1397,7 @@ statement_read
 				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 				diagnostic->location = source->start_offset_logical + token.index;
 				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
 
 			String8 key = { .data = &source->data[token.index], .count = token.size };
@@ -1485,6 +1541,7 @@ statement_read
 //
 // 			parser->statement_section_index      = parser->section_current_index;
 		}
+		break;
 	}
 
 

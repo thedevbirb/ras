@@ -1,5 +1,5 @@
-#ifndef FIXUP_H
-#define FIXUP_H
+#ifndef CORE_FIXUP_H
+#define CORE_FIXUP_H
 
 typedef struct Fixup Fixup;
 struct Fixup
@@ -24,5 +24,5 @@ struct Fixup_List
 };
 
 
-#endif // FIXUP_H
+#endif // CORE_FIXUP_H
 

@@ -1,5 +1,5 @@
-#ifndef SOURCE_H
-#define SOURCE_H
+#ifndef CORE_SOURCE_H
+#define CORE_SOURCE_H
 
 // Scan backward to find the greatest index whose value is greater than or equal the given needle.
 //
@@ -46,5 +46,5 @@ struct Source
 	U32 origin_offset_logical;
 };
 
-#endif // SOURCE_H
+#endif // CORE_SOURCE_H
 

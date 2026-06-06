@@ -1,5 +1,5 @@
-#ifndef INITIALIZE_H
-#define INITIALIZE_H
+#ifndef CORE_INITIALIZE_H
+#define CORE_INITIALIZE_H
 
 global U8 hex_table[256];
 global U8 hex_table_invalid = 0xFF;
@@ -24,5 +24,5 @@ Initialize_escape_table(void);
 internal void
 Initialize(void);
 
-#endif // INITIALIZE_H
+#endif // CORE_INITIALIZE_H
 

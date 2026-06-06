@@ -127,6 +127,7 @@ token_peek
 		case '/' : { token.kind = Token_Kind__Slash;             index += 1; } break;
 		case '~' : { token.kind = Token_Kind__Tilde;             index += 1; } break;
 		case '^' : { token.kind = Token_Kind__Caret;             index += 1; } break;
+		case '@' : { token.kind = Token_Kind__At;                index += 1; } break;
 		case '\n': { token.kind = Token_Kind__Newline;           index += 1; } break;
 
 		case '>':

@@ -1,5 +1,5 @@
-#ifndef EXPRESSION_H
-#define EXPRESSION_H
+#ifndef CORE_EXPRESSION_H
+#define CORE_EXPRESSION_H
 
 // After the parser processes an item, it ALWAYS advances.
 
@@ -189,4 +189,4 @@ Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount)
 Expression_Node *
 Expressions_push_empty(Expressions *expressions, Arena *arena);
 
-#endif // EXPRESSION_H
+#endif // CORE_EXPRESSION_H

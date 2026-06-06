@@ -1,5 +1,5 @@
-#ifndef SYMBOL_H
-#define SYMBOL_H
+#ifndef CORE_SYMBOL_H
+#define CORE_SYMBOL_H
 
 // typedef enum Symbol_Flags
 // {
@@ -148,5 +148,5 @@ struct Symbols_Table
 };
 
 
-#endif // SYMBOL_H
+#endif // CORE_SYMBOL_H
 

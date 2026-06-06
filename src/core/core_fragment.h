@@ -1,5 +1,5 @@
-#ifndef FRAGMENT_H
-#define FRAGMENT_H
+#ifndef CORE_FRAGMENT_H
+#define CORE_FRAGMENT_H
 
 typedef struct Fragment Fragment;
 struct Fragment
@@ -83,5 +83,5 @@ Fragment_List__push_variable(Fragment_List *fragments, Arena *arena, U32 size_ma
 }
 
 
-#endif // FRAGMENT_H
+#endif // CORE_FRAGMENT_H
 

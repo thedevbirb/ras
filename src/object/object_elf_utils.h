@@ -1,7 +1,8 @@
 #ifndef OBJECT_ELF_UTILS_H
 #define OBJECT_ELF_UTILS_H
 
-global const String8 ELF_Section_Header_Flags__string = String8__literal("aeowxEGMST");
+#define ELF_Section_Header_Flags__cstring  "aeowxEGMST"
+global const String8 ELF_Section_Header_Flags__string8 = String8__literal(ELF_Section_Header_Flags__cstring);
 
 // TODO: incomplete compared to what GNU as does.
 internal ELF_Section_Header_Flags
@@ -74,6 +75,43 @@ ELF_Section_Header_Flags__parse
 		}
 
 		index += 1;
+	}
+
+	return result;
+}
+
+internal U32
+ELF_Section_Header_Type__from_String8(String8 string)
+{
+	ELF_Section_Header_Type result = 0;
+
+	if      (String8__match_exact(string, String8__literal("progbits")))
+	{
+		result = ELF_Section_Header_Type__Program_Data;
+	}
+	else if (String8__match_exact(string, String8__literal("nobits")))
+	{
+		result = ELF_Section_Header_Type__No_Data;
+	}
+	else if (String8__match_exact(string, String8__literal("note")))
+	{
+		result = ELF_Section_Header_Type__Notes;
+	}
+	else if (String8__match_exact(string, String8__literal("init_array")))
+	{
+		result = ELF_Section_Header_Type__INIT_ARRAY;
+	}
+	else if (String8__match_exact(string, String8__literal("fini_array")))
+	{
+		result = ELF_Section_Header_Type__FINI_ARRAY;
+	}
+	else if (String8__match_exact(string, String8__literal("preinit_array")))
+	{
+		result = ELF_Section_Header_Type__PREINIT_ARRAY;
+	}
+	else
+	{
+		result = ELF_Section_Header_Type__Invalid;
 	}
 
 	return result;

@@ -1,5 +1,5 @@
-#ifndef SECTION_H
-#define SECTION_H
+#ifndef CORE_SECTION_H
+#define CORE_SECTION_H
 
 
 // TODO: make some stuff into elf if applicable
@@ -120,7 +120,10 @@ struct Section
 	Fragment_List  fragment_list;
 	Fixup_List     fixup_list;
 	String8        name;
-	ELF_Section    index;
+	U32            index;
+	U32            flags;
+	U32            type;
+	// TODO: unsupported yet.
 	U8             alignment;
 
 };
@@ -193,4 +196,4 @@ Sections_Table__add_common(Sections_Table *);
 // U32
 // Object_File_Section_relocation_write(Object_File_Section *section, ELF64_Relocation_Addend *relocation);
 
-#endif // SECTION_H
+#endif // CORE_SECTION_H

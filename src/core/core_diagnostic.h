@@ -1,5 +1,5 @@
-#ifndef DIAGNOSTIC_H
-#define DIAGNOSTIC_H
+#ifndef CORE_DIAGNOSTIC_H
+#define CORE_DIAGNOSTIC_H
 
 typedef enum Diagnostic_Kind
 {
@@ -55,5 +55,5 @@ diagnostic_print
 	Arena      *arena
 );
 
-#endif // DIAGNOSTIC_H
+#endif // CORE_DIAGNOSTIC_H
 
