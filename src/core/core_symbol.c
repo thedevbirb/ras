@@ -115,7 +115,7 @@
 // }
 
 
-Symbols_Trie *
+internal Symbols_Trie *
 symbols_trie_chunk_list_push(Arena *arena, Symbols_Trie_Chunk_List *chunks, U64 capacity)
 {
 	if (chunks->last == 0 || chunks->last->count >= chunks->last->capacity)
@@ -135,19 +135,19 @@ symbols_trie_chunk_list_push(Arena *arena, Symbols_Trie_Chunk_List *chunks, U64 
 	return result;
 }
 
-Symbols_Trie *
-symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 key)
+internal Symbols_Trie *
+symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
 {
 	Symbols_Trie *result = 0;
-	Symbols_Trie **trie_current = &trie;
+	Symbols_Trie *trie_current = trie;
 	U64 hash_shifted = hash;
 	for (;;)
 	{
-		B32 trie_current_zero = *trie_current == 0;
-		B32 found = !trie_current_zero && (*trie_current)->key && String8__match_exact(*(*trie_current)->key, key);
+		B32 trie_current_zero = trie_current == 0;
+		B32 found = !trie_current_zero && String8__match_exact(trie_current->name, name);
 		if (found)
 		{
-			result = *trie_current;
+			result = trie_current;
 		}
 
 		B32 break_should = trie_current_zero || found;
@@ -156,34 +156,36 @@ symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 key)
 			break;
 		}
 
-		trie_current = &(*trie_current)->children[(hash_shifted >> 62)];
+		trie_current = trie_current->children[(hash_shifted >> 62)];
 		hash_shifted = hash_shifted << 2;
 	}
 
 	return result;
 }
 
-Symbols_Trie *
-symbols_trie_get_or_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **trie_ptr, U64 hash, Symbols_Trie_Value *value)
+// NOTE: we need a reference to the root pointer so that in case it's null we can change it.
+internal Symbols_Trie *
+symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, String8 name)
 {
 	B32 initialized = 0;
 	B32 match = 0;
 
-	Symbols_Trie **trie_current = trie_ptr;
+	U64 hash = FNV_hash(name);
+
+	Symbols_Trie **trie_current = root;
 	U64 hash_shifted = hash;
 	for (;;)
 	{
 		if (*trie_current == 0)
 		{
 			Symbols_Trie *trie_new = symbols_trie_chunk_list_push(arena, chunks, Symbols_Trie_Chunk__capacity_default);
-			trie_new->key = &value->key;
-			trie_new->value = value;
+			trie_new->name = name;
 			memory_zero_array(trie_new->children);
 			*trie_current = trie_new;
 			initialized = 1;
 		}
 
-		if (!initialized && (*trie_current)->key && String8__match_exact(*(*trie_current)->key, value->key))
+		if (!initialized && String8__match_exact((*trie_current)->name, name))
 		{
 			match = 1;
 		}
@@ -199,4 +201,11 @@ symbols_trie_get_or_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbol
 	}
 
 	return *trie_current;
+}
+
+internal Symbol_Ref *
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
+{
+	Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, name);
+	return &node->symbol;
 }

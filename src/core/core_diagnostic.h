@@ -6,9 +6,47 @@ typedef enum Diagnostic_Kind
 	Diagnostic_Kind__Error,
 	Diagnostic_Kind__Warning,
 	Diagnostic_Kind__Hint,
+	Diagnostic_Kind__Note,
 	Diagnostic_Kind__COUNT,
 }
 Diagnostic_Kind;
+
+typedef enum Diagnostic_ANSI_Color
+{
+	Diagnostic_ANSI_Color_Default = 39,
+	Diagnostic_ANSI_Color_Red     = 31,
+	Diagnostic_ANSI_Color_Green   = 32,
+	Diagnostic_ANSI_Color_Yellow  = 33,
+	Diagnostic_ANSI_Color_Blue    = 34,
+	Diagnostic_ANSI_Color_Magenta = 35,
+	Diagnostic_ANSI_Color_Cyan    = 36,
+}
+Diagnostic_ANSI_Color;
+
+typedef struct Diagnostic_Style Diagnostic_Style;
+struct Diagnostic_Style
+{
+	Diagnostic_ANSI_Color color;
+	B32                   bold;
+};
+
+internal const char *diagnostic_labels[] =
+{
+	[Diagnostic_Kind__Error]   = "error",
+	[Diagnostic_Kind__Warning] = "warning",
+	[Diagnostic_Kind__Hint]    = "hint",
+	[Diagnostic_Kind__Note]    = "note",
+};
+
+internal Diagnostic_Style diagnostic_styles[] =
+{
+	[Diagnostic_Kind__Error]   = { .color = Diagnostic_ANSI_Color_Red,     .bold = 1 },
+	[Diagnostic_Kind__Warning] = { .color = Diagnostic_ANSI_Color_Yellow,  .bold = 1 },
+	[Diagnostic_Kind__Hint]    = { .color = Diagnostic_ANSI_Color_Magenta, .bold = 1 },
+	[Diagnostic_Kind__Note]    = { .color = Diagnostic_ANSI_Color_Cyan,    .bold = 1 },
+};
+
+global const Diagnostic_Style Diagnostic_Style__default_bold = { .color = Diagnostic_ANSI_Color_Default, .bold = 1 };
 
 typedef struct Diagnostic_Fix Diagnostic_Fix;
 struct Diagnostic_Fix

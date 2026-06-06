@@ -1,4 +1,38 @@
 internal void
+set_color(FILE *f, Diagnostic_Style s)
+{
+	if (s.bold)
+	{
+		fprintf(f, "\x1B[1;%um", s.color);
+	}
+	else
+	{
+		fprintf(f, "\x1B[%um", s.color);
+	}
+}
+
+internal void
+reset_color(FILE *f)
+{
+	fprintf(f, "\x1B[0m");
+}
+
+internal void
+print_recap_line(U8 *name, U32 line_number, U32 column_number, Diagnostic_Kind kind)
+{
+	set_color(stderr, Diagnostic_Style__default_bold);
+	fprintf(stderr, "%s:%d:%d:", name, line_number, column_number);
+	reset_color(stderr);
+	fprintf(stderr, " ");
+	set_color(stderr, diagnostic_styles[kind]);
+	fprintf(stderr, "%s:", diagnostic_labels[kind]);
+	reset_color(stderr);
+	fprintf(stderr, " ");
+}
+
+
+// TODO: support multiple sources.
+internal void
 diagnostic_print
 (
 	Diagnostic *diagnostic,
@@ -36,6 +70,7 @@ diagnostic_print
 			if (source->data[index] == '\n')
 			{
 				source->line_start_indexes[counter] = index + 1;
+				counter += 1;
 			}
 			index += 1;
 		}
@@ -46,26 +81,24 @@ diagnostic_print
 	U32 line_number   = row_index    + 1;
 	U32 column_number = column_index + 1;
 
-	U32 line_start_index      = source->line_start_indexes[row_index];
-
-	U32 index = 0;
-	// for (;;)
-	// {
-	// 	if (source->data[index] == '\n' || index >= source->count)
-	// 	{
-	// 		break;
-	// 	}
-	// 	index += 1;
-	// }
-	// line_characters_count = index + 1;
+	U32 line_start_index = source->line_start_indexes[row_index];
 	U8 *line = &source->data[line_start_index];
 
-	fprintf(stderr, "\x1B[1m%s:%d:%d:\x1B[0m \x1B[1;31merror:\x1B[0m ", source->name, line_number, column_number);
-	fprintf(stderr, "%s\n",  diagnostic->message.data);
+	print_recap_line(source->name, line_number, column_number, diagnostic->kind);
+	if (diagnostic->kind <= Diagnostic_Kind__Warning)
+	{
+		set_color(stderr, Diagnostic_Style__default_bold);
+		fprintf(stderr, "%s\n",  diagnostic->message.data);
+		reset_color(stderr);
+	}
+	else
+	{
+		fprintf(stderr, "%s\n",  diagnostic->message.data);
+	}
 	fprintf(stderr, "%5d | ", line_number);
 
 	U32 newline_index = 0;
-	index = 0;
+	U32 index = 0;
 	for (;;)
 	{
 		U8 character = line[index];
@@ -82,6 +115,8 @@ diagnostic_print
 	fprintf(stderr, "      | ");
 	index = 0;
 	U8 character = ' ';
+
+	set_color(stderr, (Diagnostic_Style){ .color = Diagnostic_ANSI_Color_Green, .bold = 1 });
 	for (;;)
 	{
 		if (index == newline_index)
@@ -96,18 +131,20 @@ diagnostic_print
 
 		for (U32 j = 0; character == ' ' && j < array_count_m(diagnostic->ranges); j++)
 		{
+			// Ranges are locations
 			Vec2_U32 range = diagnostic->ranges[j];
-			if (contains_U32(range, index))
+			if (contains_U32(range, source->start_offset_logical + line_start_index + index))
 			{
 				character = '~';
 			}
 		}
 
-		fprintf(stderr, "\x1B[1;31m%c\x1B[0m", character);
+		fputc(character, stderr);
 
 		index += 1;
 		character = ' ';
 	}
+	reset_color(stderr);
 	fprintf(stderr, "\n");
 
 	return;

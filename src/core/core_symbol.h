@@ -102,21 +102,23 @@ typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
 	ELF64_Symbol  elf;
+	// Where it has been defined, if known.
+	U32 location;
 };
 
 
 typedef struct Symbol Symbol;
 struct Symbol
 {
-	String8     key;
-	Symbol_Ref *value;
+	String8     name;
+	Symbol_Ref  value;
 };
 
 typedef struct Symbols_Trie Symbols_Trie;
 struct Symbols_Trie
 {
-	String8       *key;
-	Symbol        *value;
+	String8       name;
+	Symbol_Ref     symbol;
 	Symbols_Trie  *children[4];
 };
 
@@ -128,6 +130,8 @@ struct Symbols_Trie_Chunk
 	U64 count;
 	U64 capacity;
 };
+
+#define Symbols_Trie_Chunk__capacity_default 4096
 
 typedef struct Symbols_Trie_Chunk_List Symbols_Trie_Chunk_List;
 struct Symbols_Trie_Chunk_List
@@ -142,9 +146,7 @@ struct Symbols_Table
 {
 	Arena        *arena;
 	Symbols_Trie *root;
-	Symbols_Trie_Chunk_List *chunks_local;
-	Symbols_Trie_Chunk_List *chunks_global;
-	Symbols_Trie_Chunk_List *chunks_weak;
+	Symbols_Trie_Chunk_List *chunks;
 };
 
 

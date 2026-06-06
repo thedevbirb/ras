@@ -102,10 +102,10 @@ main(int argument_count, char **argument_vector)
 	Sections_Table__add_common(sections_table);
 	Section *section = Sections_Table__get(sections_table, String8__literal(".text"));
 
-	Symbols_Table *symbols_table = Arena__push_struct_m(arena, Symbols_Table);
-	symbols_table->chunks_local  = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
-	symbols_table->chunks_global = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
-	symbols_table->chunks_weak   = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
+	Arena *arena_symbols_table = Arena__allocate_m();
+	Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
+	symbols_table->arena = arena_symbols_table;
+	symbols_table->chunks = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
 
 	Expressions expressions = {0};
 	Expressions__initialize(&expressions, arena, 12);
@@ -117,7 +117,7 @@ main(int argument_count, char **argument_vector)
 			arena,
 			&source,
 			&source_index,
-			&section,
+			section,
 			&diagnostics,
 			&expressions,
 			sections_table,
