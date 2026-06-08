@@ -41,9 +41,9 @@ diagnostic_print
 	Arena      *arena
 )
 {
+	// Fill those indexes lazily if it hasn't been done already.
 	if (!source->line_start_indexes)
 	{
-		// Fill it
 		U32 index   = 0;
 		U32 counter = 1;
 		for (;;)
@@ -76,13 +76,11 @@ diagnostic_print
 		}
 	}
 
-	U32 row_index    = floor_search(source->line_start_indexes, source->line_start_count, diagnostic->location);
-	U32 column_index = diagnostic->location - source->start_offset_logical - source->line_start_indexes[row_index];
-	U32 line_number   = row_index    + 1;
-	U32 column_number = column_index + 1;
-
+	U32 row_index        = floor_search(source->line_start_indexes, source->line_start_count, diagnostic->location);
 	U32 line_start_index = source->line_start_indexes[row_index];
-	U8 *line = &source->data[line_start_index];
+	U32 column_index     = diagnostic->location - source->start_offset_logical - line_start_index;
+	U32 line_number      = row_index    + 1;
+	U32 column_number    = column_index + 1;
 
 	print_recap_line(source->name, line_number, column_number, diagnostic->kind);
 	if (diagnostic->kind <= Diagnostic_Kind__Warning)
@@ -97,6 +95,8 @@ diagnostic_print
 	}
 	fprintf(stderr, "%5d | ", line_number);
 
+	// Print the actual line
+	U8 *line = &source->data[line_start_index];
 	U32 newline_index = 0;
 	U32 index = 0;
 	for (;;)
@@ -112,10 +112,10 @@ diagnostic_print
 		index += 1;
 	}
 
+	// Print the caret and the ranges.
 	fprintf(stderr, "      | ");
 	index = 0;
 	U8 character = ' ';
-
 	set_color(stderr, (Diagnostic_Style){ .color = Diagnostic_ANSI_Color_Green, .bold = 1 });
 	for (;;)
 	{
@@ -132,8 +132,8 @@ diagnostic_print
 		for (U32 j = 0; character == ' ' && j < array_count_m(diagnostic->ranges); j++)
 		{
 			// Ranges are locations
-			Vec2_U32 range = diagnostic->ranges[j];
-			if (contains_U32(range, source->start_offset_logical + line_start_index + index))
+			Range1_U32 range = diagnostic->ranges[j];
+			if (Range1_U32__contains(range, source->start_offset_logical + line_start_index + index))
 			{
 				character = '~';
 			}

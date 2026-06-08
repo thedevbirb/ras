@@ -92,7 +92,8 @@ token_peek
 
 	for (;;)
 	{
-		U8 start = data[index];
+		start_index = index;
+		U8 start = data[start_index];
 		switch (start)
 		{
 		// A token cannot start with a zero byte.
@@ -537,16 +538,17 @@ token_peek
 	return token;
 }
 
-internal Token_2
+internal void
 token_next
 (
-	Source          *source,
-	U32             *index_current,
+	Token_Cursor    *cursor,
 	Diagnostic_List *diagnostics,
 	Arena           *arena
 )
 {
-	Token_2 result = token_peek(source, *index_current, diagnostics, arena);
-	*index_current = result.index + result.size;
-	return result;
+	cursor->current = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+	if (cursor->current.kind != Token_Kind__None)
+	{
+		cursor->source_index = cursor->current.index + cursor->current.size;
+	}
 }

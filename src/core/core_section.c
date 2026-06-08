@@ -167,7 +167,7 @@
 internal B32
 Section__zero_is(Section *s)
 {
-	B32 result = memory_match_struct(s, &Section__zero) == 0;
+	B32 result = memory_match_struct(s, &Section__zero);
 	return result;
 }
 
@@ -220,24 +220,24 @@ Sections_Trie__get(Sections_Trie *trie, U64 hash, String8 name)
 }
 
 Sections_Trie *
-Sections_Trie__get_or_default(Sections_Trie *trie, Arena *arena, Sections_Trie_Chunk_List *chunks, U64 hash, String8 name)
+Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, Sections_Trie_Chunk_List *chunks, U64 hash, String8 name)
 {
 	B32 initialized = 0;
 	B32 match = 0;
 
-	Sections_Trie *trie_current = trie;
+	Sections_Trie **trie_current = root;
 	U64 hash_shifted = hash;
 	for (;;)
 	{
-		if (trie_current == 0)
+		if (*trie_current == 0)
 		{
 			Sections_Trie *trie_new = Sections_Trie_Chunk_List__push(chunks, arena, Sections_Trie_Chunk__capacity_default);
 			memory_zero_array(trie_new->children);
-			trie_current = trie_new;
+			*trie_current = trie_new;
 			initialized = 1;
 		}
 
-		if (!initialized && String8__match_exact(trie_current->section.name, name))
+		if (!initialized && String8__match_exact((*trie_current)->section.name, name))
 		{
 			match = 1;
 		}
@@ -248,11 +248,11 @@ Sections_Trie__get_or_default(Sections_Trie *trie, Arena *arena, Sections_Trie_C
 			break;
 		}
 
-		trie_current = trie_current->children[(hash_shifted >> 62)];
+		trie_current = &(*trie_current)->children[(hash_shifted >> 62)];
 		hash_shifted = hash_shifted << 2;
 	}
 
-	return trie_current;
+	return *trie_current;
 }
 
 
@@ -276,23 +276,33 @@ Sections_Table__get(Sections_Table *sections_table, String8 name)
 	return result;
 }
 
+// Return the section or create one with appropriate defaults, meaning:
+//
+// 1. Set the provided name.
+// 2. Set the section index field.
+// 3. Add an empty fragment to it.
 internal Section *
 Sections_Table__get_or_default(Sections_Table *sections_table, String8 name)
 {
 	U64 hash = FNV_hash(name);
-	Sections_Trie *trie = Sections_Trie__get_or_default(sections_table->root, sections_table->arena, sections_table->chunks, hash, name);
+	Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, sections_table->chunks, hash, name);
 
 	B32 zero_is = Section__zero_is(&trie->section);
 	if (zero_is)
 	{
+		Arena *arena = Arena__allocate_m();
 		trie->section = (Section)
 		{
-			.arena = Arena__allocate_m(),
+			.arena = arena,
 			.name  = name,
 			.index = sections_table->index_next,
 		};
 		sections_table->index_next += 1;
+		Fragment *fragment = Arena__push_struct_m(arena, Fragment);
+		Fragment_List *fragment_list = &trie->section.fragment_list;
+		SLL_queue_push_m(fragment_list->first, fragment_list->last, fragment);
 	}
+
 
 	return &trie->section;
 }
@@ -306,6 +316,7 @@ Sections_Table__add_common(Sections_Table *sections_table)
 	String8 data = String8__literal(".data");
 	String8 bss  = String8__literal(".bss");
 
+	// TODO: modify flags etc.
 	Sections_Table__get_or_default(sections_table, nil);
 	Sections_Table__get_or_default(sections_table, text);
 	Sections_Table__get_or_default(sections_table, data);

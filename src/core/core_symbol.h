@@ -1,50 +1,55 @@
 #ifndef CORE_SYMBOL_H
 #define CORE_SYMBOL_H
 
-// typedef enum Symbol_Flags
-// {
-// 	Symbol_Flags__None                       = 0 << 0,
-//
-// 	/* Whether the symbol is a local_symbol.  */
-// 	Symbol_Flags__Local                      = 1 << 0,
-//
-// 	/* Weather symbol has been written.  */
-// 	Symbol_Flags__Written                    = 1 << 1,
-//
-// 	/* Whether symbol value has been completely resolved (used during final pass over symbol table).  */
-// 	Symbol_Flags__Resolved                   = 1 << 2,
-//
-// 	/* Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).  */
-// 	Symbol_Flags__Resolving                  = 1 << 3,
-//
-// 	/* Whether the symbol value is used in a reloc.  This is used to ensure that symbols used in relocs are written
-// 	 * out, even if they are local and would otherwise not be.  */
-// 	// TODO(high): actually use this, for example in branches.
-// 	Symbol_Flags__Relocation                 = 1 << 4,
-//
-// 	/* Whether the symbol is used as an operand or in an expression.
-// 	   NOTE:  Not all the backends keep this information accurate; backends which use this bit are responsible for
-// 	   setting it when a symbol is used in backend routines.  */
-// 	Symbol_Flags__Used                       = 1 << 5,
-//
-// 	/* Whether the symbol can be re-defined.  */
-// 	Symbol_Flags__Volatile                   = 1 << 6 ,
-//
-// 	/* Whether the symbol is a forward reference, and whether such has
-// 	   been determined.  */
-// 	Symbol_Flags__Forward_Reference          = 1 << 7,
-// 	Symbol_Flags__Forward_Reference_Resolved = 1 << 8,
-//
-// 	/* Whether the symbol has been marked to be removed by a .symver
-// 	   directive.  */
-// 	Symbol_Flags__Removed                    = 1 << 9,
-//
-// 	// Whether the symbol has been declared using a label or directive.
-// 	Symbol_Flags__Declared                   = 1 << 10,
-//
-// 	Symbol_Flags__Dot                        = 1 << 11,
-// }
-// Symbol_Flags;
+// TODO: review some of this variants, they're taken from GAS but not always used.
+typedef enum Symbol_Flags
+{
+	Symbol_Flags__None                       = 0 << 0,
+
+	/* Whether the symbol is a local_symbol.  */
+	Symbol_Flags__Local                      = 1 << 0,
+
+	/* Weather symbol has been written.  */
+	Symbol_Flags__Written                    = 1 << 1,
+
+	/* Whether symbol value has been completely resolved (used during final pass over symbol table).  */
+	Symbol_Flags__Resolved                   = 1 << 2,
+
+	/* Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).  */
+	Symbol_Flags__Resolving                  = 1 << 3,
+
+	/* Whether the symbol value is used in a reloc.  This is used to ensure that symbols used in relocs are written
+	 * out, even if they are local and would otherwise not be.  */
+	// TODO(high): actually use this, for example in branches.
+	Symbol_Flags__Relocation                 = 1 << 4,
+
+	/* Whether the symbol is used as an operand or in an expression.
+	   NOTE:  Not all the backends keep this information accurate; backends which use this bit are responsible for
+	   setting it when a symbol is used in backend routines.  */
+	Symbol_Flags__Used                       = 1 << 5,
+
+	/* Whether the symbol can be re-defined.  */
+	Symbol_Flags__Volatile                   = 1 << 6 ,
+
+	/* Whether the symbol is a forward reference, and whether such has
+	   been determined.  */
+	Symbol_Flags__Forward_Reference          = 1 << 7,
+	Symbol_Flags__Forward_Reference_Resolved = 1 << 8,
+
+	/* Whether the symbol has been marked to be removed by a .symver
+	   directive.  */
+	Symbol_Flags__Removed                    = 1 << 9,
+
+	// Whether the symbol has been declared using a label or directive.
+	Symbol_Flags__Declared                   = 1 << 10,
+
+	Symbol_Flags__Dot                        = 1 << 11,
+
+	// Whether this symbol has been replaced with another `.set` directive, and as such it should NOT be written in
+	// the object file, but should be kept because some fixups depends on it.
+	Symbol_Flags__Redefined                   = 1 << 12,
+}
+Symbol_Flags;
 //
 // // ELF64_Symbol table (.symtab) content invariants:
 // //
@@ -102,8 +107,11 @@ typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
 	ELF64_Symbol  elf;
-	// Where it has been defined, if known.
-	U32 location;
+	// Where the symbol has been declared.
+	U64 location;
+	// The index of the expression which defines its value, if known.
+	U32 expression_index;
+	Symbol_Flags flags;
 };
 
 
@@ -118,8 +126,8 @@ typedef struct Symbols_Trie Symbols_Trie;
 struct Symbols_Trie
 {
 	String8       name;
-	Symbol_Ref     symbol;
-	Symbols_Trie  *children[4];
+	Symbol_Ref    symbol;
+	Symbols_Trie *children[4];
 };
 
 typedef struct Symbols_Trie_Chunk Symbols_Trie_Chunk;

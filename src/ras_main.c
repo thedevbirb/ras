@@ -92,11 +92,6 @@ main(int argument_count, char **argument_vector)
 		.count = input.count,
 		.name_count = filename.count,
 	};
-	U32 source_index = 0;
-
-	// ----
-	// Sections_Table creation
-	// ---
 
 	Sections_Table *sections_table = Sections_Table__default();
 	Sections_Table__add_common(sections_table);
@@ -107,19 +102,24 @@ main(int argument_count, char **argument_vector)
 	symbols_table->arena = arena_symbols_table;
 	symbols_table->chunks = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
 
+	Arena *arena_fixups = Arena__allocate_m();
+	Fixups *fixups = Arena__push_struct_m(arena_fixups, Fixups);
+	fixups->arena = arena_fixups;
+
 	Expressions expressions = {0};
 	Expressions__initialize(&expressions, arena, 12);
 
 	Diagnostic_List diagnostics = {0};
 
+	Token_Cursor cursor = { .source = &source, .source_index = 0 };
 	statement_read
 		(
 			arena,
-			&source,
-			&source_index,
+			&cursor,
 			section,
 			&diagnostics,
 			&expressions,
+			fixups,
 			sections_table,
 			symbols_table
 		);

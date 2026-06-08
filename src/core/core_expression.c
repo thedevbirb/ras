@@ -130,7 +130,6 @@ struct Evaluation_Frame
 	Evaluation_Frame_State state;
 };
 
-
 internal S64
 expression_evaluate(Expressions *expressions, U32 index)
 {
@@ -148,68 +147,85 @@ expression_evaluate(Expressions *expressions, U32 index)
 		{
 			break;
 		}
+		Expression_Node *node = frame->node;
 
-		if (frame->node->index_right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
+		// NOTE: at the moment we iterate by looking on whether the right or left field are set. This approach
+		// works but it isn't super friendly to progressive folding of expression as new information comes
+		//
+		// For example, if a
+
+		if (node->index_right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Right_Evaluated;
 			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-			frame_new->node = xar_get_m(expressions, frame->node->index_right);
+			frame_new->node = xar_get_m(expressions, node->index_right);
 			SLL_stack_push_n_m(frame, frame_new, next);
 			continue;
 		}
 
-		if (frame->node->index_left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
+		if (node->index_left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Left_Evaluated;
 			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-			frame_new->node = xar_get_m(expressions, frame->node->index_left);
+			frame_new->node = xar_get_m(expressions, node->index_left);
 			SLL_stack_push_n_m(frame, frame_new, next);
 			continue;
 		}
 
-		if (frame->node->index_right && frame->node->index_left)
+		if (node->index_right && node->index_left)
 		{
-			Expression_Node *left  = xar_get_m(expressions, frame->node->index_left);
-			Expression_Node *right = xar_get_m(expressions, frame->node->index_right);
+			Expression_Node *left  = xar_get_m(expressions, node->index_left);
+			Expression_Node *right = xar_get_m(expressions, node->index_right);
+
+			// example: (symbol1 + 2) * (symbol2 + 4) =
+
 			if (left->kind == Expression_Kind__Constant && right->kind == Expression_Kind__Constant)
 			{
-				S64 result = operation_evaluate(frame->node->kind, left->integer_value, right->integer_value);
-				frame->node->integer_value = result;
-				frame->node->evaluation = Evaluation__Constant;
+				S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
+				node->integer_value = result;
+				node->evaluation = Evaluation__Constant;
 				result_end = result;
 			}
 			else
 			{
 				// TODO: actually check symbols.
-				frame->node->evaluation = Evaluation__Unresolved;
+				node->evaluation = Evaluation__Unresolved;
 			}
 			SLL_stack_pop_m(frame);
 		}
-		else if (frame->node->index_right)
+		else if (node->index_right)
 		{
-			Expression_Node *right = xar_get_m(expressions, frame->node->index_right);
+			Expression_Node *right = xar_get_m(expressions, node->index_right);
 			if (right->kind == Expression_Kind__Constant)
 			{
-				S64 result = unary_evaluate(frame->node->kind, right->integer_value);
-				frame->node->integer_value = result;
-				frame->node->evaluation = Evaluation__Constant;
+				S64 result = unary_evaluate(node->kind, right->integer_value);
+				node->integer_value = result;
+				node->evaluation = Evaluation__Constant;
 				result_end = result;
 			}
 			else
 			{
-				// TODO: actually check symbols.
-				frame->node->evaluation = Evaluation__Unresolved;
+				// Absorb it.
+				node->evaluation = Evaluation__Unresolved;
+				node->symbol     = right->symbol;
 			}
 			SLL_stack_pop_m(frame);
 		}
 		else
 		{
 			// Leaf reached.
-			assert_always_m(frame->node->index_left == 0);
-			result_end = frame->node->integer_value;
-			// TODO: actually check symbols.
+			assert_always_m(node->index_left == 0);
+
+			Symbol_Ref *symbol = node->symbol;
+			if (symbol && symbol->elf.section_index ==  ELF_Section_Index__Absolute)
+			{
+				node->integer_value = symbol->elf.value;
+			}
+
+			result_end = node->integer_value;
+
 
 			SLL_stack_pop_m(frame);
 		}

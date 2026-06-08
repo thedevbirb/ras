@@ -13,7 +13,7 @@ floor_search(U32 *data, U32 count, U32 needle)
 
 	for (;;)
 	{
-		B32 break_should = start < needle || index == 0;
+		B32 break_should = start <= needle || index == 0;
 		if (break_should)
 		{
 			break;

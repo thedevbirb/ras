@@ -74,6 +74,26 @@ struct Token_2
 	Token_Kind  kind;
 };
 
+typedef struct Token_Cursor Token_Cursor;
+struct Token_Cursor
+{
+	Source *source;
+	Token_2 current;
+	U32     source_index;
+};
+
+internal String8
+Token_Cursor__text(Token_Cursor *cursor)
+{
+	String8 result =
+	{
+		.data  = &cursor->source->data[cursor->current.index],
+		.count =  cursor->current.size
+	};
+	return result;
+}
+
+
 #define Token_Xar__shift_amount 12
 typedef struct Token_Xar Token_Xar;
 struct Token_Xar

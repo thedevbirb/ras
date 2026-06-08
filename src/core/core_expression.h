@@ -74,6 +74,7 @@ Expression_Kind;
 // }
 
 // The evaluation status of an `Expression_Node`. The higher, the stricter, with zero being not evaluated at all.
+// This ordering is important for comparisons, so changing it will break related code.
 typedef enum Evaluation
 {
 	Evaluation__None       = 0,
@@ -125,7 +126,7 @@ struct Expression_Node
 {
 	U64 location;
 	S64 integer_value;
-	Symbol_Ref *symbols_table_entry;
+	Symbol_Ref *symbol;
 	Symbol_Ref *symbol_operand;
 
 	U32 index;
