@@ -1,6 +1,8 @@
 #ifndef CORE_DIAGNOSTIC_H
 #define CORE_DIAGNOSTIC_H
 
+global String8 Diagnostic__previous_declaration_String8 = String8__literal("previous declaration is here");
+
 typedef enum Diagnostic_Kind
 {
 	Diagnostic_Kind__Error,

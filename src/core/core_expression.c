@@ -218,10 +218,13 @@ expression_evaluate(Expressions *expressions, U32 index)
 			// Leaf reached.
 			assert_always_m(node->index_left == 0);
 
-			Symbol_Ref *symbol = node->symbol;
-			if (symbol && symbol->elf.section_index ==  ELF_Section_Index__Absolute)
+			if (node->kind != Expression_Kind__Constant)
 			{
-				node->integer_value = symbol->elf.value;
+				Symbol_Ref *symbol = node->symbol;
+				if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)
+				{
+					node->integer_value = symbol->elf.value;
+				}
 			}
 
 			result_end = node->integer_value;

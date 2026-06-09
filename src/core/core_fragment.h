@@ -103,7 +103,7 @@ internal U8 *
 Fragment_List__push_fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat, S64 pattern, U8 size)
 {
 	U8 *data = Fragment_List__push(fragments, arena, location, size);
-	memory_copy(data, (U8 *)pattern, size);
+	memory_copy(data, (U8 *)&pattern, size);
 
 	Fragment *fragment = fragments->last;
 	fragment->offset   = repeat;

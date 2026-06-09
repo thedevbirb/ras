@@ -479,9 +479,7 @@ expression_parse
 
 	Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
-	token_next(cursor, diagnostics, arena);
 	Diagnostic *error = 0;
-
 
 	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
 	frame->node  = Expressions_push_empty(expressions, arena);
@@ -1228,18 +1226,23 @@ statement_read
 )
 {
 
+	U32 source_index_start = cursor->source_index;
 	token_next(cursor, diagnostics, arena);
+
+	B32 progress = 1;
+	B32 error =  0;
 
 	for (;;)
 	{
 		Directive_Kind directive_kind  =  0;
 		B32            null_terminated =  0;
-		B32            error           =  0;
 
 		// TODO: when to exist?
+		progress = source_index_start < cursor->source_index;
 		B32 break_should = cursor->current.kind == Token_Kind__None
 				|| cursor->current.kind == Token_Kind__Error
 				|| error;
+		assert_always_m((progress || break_should) && "infinite loop detected");
 		if (break_should)
 		{
 			break;
@@ -1266,6 +1269,7 @@ statement_read
 					.count = cursor->current.size,
 				};
 				directive_kind = Directive_Kind__from_String8(string);
+				assert_always_m(directive_kind && "machine-dependent directives not yet implemented");
 			}
 
 			Token_2 next = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
@@ -1290,7 +1294,7 @@ statement_read
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->kind       = Diagnostic_Kind__Note;
 					diagnostic->location   = symbol->location;
-					diagnostic->message    = String8__literal("previous declaration is here");
+					diagnostic->message    = Diagnostic__previous_declaration_String8;
 					diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
@@ -1302,13 +1306,23 @@ statement_read
 
 
 		} break;
-		default: {} break;
+		default:
+		{
+			// Sort of catch-all
+			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+			diagnostic->location   = cursor->current.location;
+			diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
+			diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			error = 1;
+		} break;
 		}
 
 		U8   data_directive_size = 0;
-		U8  *fill_size           = 0;
-		S64 *fill_pattern        = 0;
-
+		U8   fill_size           = 0;
+		B32  fill_size_set       = 0;
+		S64  fill_pattern        = 0;
+		B32  fill_pattern_set    = 0;
 
 		switch (directive_kind)
 		{
@@ -1498,7 +1512,7 @@ statement_read
 				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 				diagnostic->kind       = Diagnostic_Kind__Note;
 				diagnostic->location   = symbol->location;
-				diagnostic->message    = String8__literal("previous declaration is here");
+				diagnostic->message    = Diagnostic__previous_declaration_String8;
 				diagnostic->ranges[0] = (Range1_U32){{ symbol->location, symbol->location + name.count }};
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
@@ -1575,15 +1589,18 @@ statement_read
 		} break;
 		case Directive_Kind__Zero:
 		{
-			*fill_pattern = 0;
+			fill_pattern     = 0;
+			fill_pattern_set = 1;
 		} // fallthrough
 		case Directive_Kind__Space:
 		{
-			*fill_size = 1;
+			fill_size     = 1;
+			fill_size_set = 1;
 		} // fallthrough
 		case Directive_Kind__Skip:
 		{
-			*fill_size = 1;
+			fill_size     = 1;
+			fill_size_set = 1;
 		} // fallthrough
 		case Directive_Kind__Fill:
 		{
@@ -1606,12 +1623,12 @@ statement_read
 				SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
 			}
 
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind == Token_Kind__Comma && !fill_size)
+			if (cursor->current.kind == Token_Kind__Comma && !fill_size_set)
 			{
 				// Read size
+				token_next(cursor, diagnostics, arena);
 				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				*fill_size = expression_evaluate(expressions, size_expression->index);
+				fill_size = expression_evaluate(expressions, size_expression->index);
 				if (repeat_expression->evaluation != Evaluation__Constant)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -1619,15 +1636,14 @@ statement_read
 					diagnostic->message  = String8__literal("constant expression expected");
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
-
-				token_next(cursor, diagnostics, arena);
 			}
 
-			if (cursor->current.kind == Token_Kind__Comma && !fill_pattern)
+			if (cursor->current.kind == Token_Kind__Comma && !fill_pattern_set)
 			{
 				// Read value
+				token_next(cursor, diagnostics, arena);
 				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				*fill_pattern = expression_evaluate(expressions, value_expression->index);
+				fill_pattern = expression_evaluate(expressions, value_expression->index);
 				if (repeat_expression->evaluation != Evaluation__Constant)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -1635,10 +1651,8 @@ statement_read
 					diagnostic->message  = String8__literal("constant expression expected");
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
-
-				token_next(cursor, diagnostics, arena);
 			}
-			Fragment_List__push_fill(&section->fragment_list, arena, location_start, repeat, *fill_pattern, *fill_size);
+			Fragment_List__push_fill(&section->fragment_list, arena, location_start, repeat, fill_pattern, fill_size);
 		} break;
 		default: {} break;
 
