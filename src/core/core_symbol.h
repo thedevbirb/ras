@@ -106,9 +106,10 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+	Fragment *fragment;
 	ELF64_Symbol  elf;
 	// Where the symbol has been declared.
-	U64 location;
+	U32 location;
 	// The index of the expression which defines its value, if known.
 	U32 expression_index;
 	Symbol_Flags flags;

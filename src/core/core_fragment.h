@@ -21,7 +21,9 @@ struct Fragment
 	U32 offset;
 	U32 location;
 	U32 size_fixed;
+	U32 subtype;
 	U8  size_variable;
+	U8  type;
 	Fragment_Kind  kind;
 };
 assert_static_m(sizeof(Fragment) % 8 == 0, Fragment__sizeof_check);
@@ -72,15 +74,16 @@ Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 si
 }
 
 internal U8 *
-Fragment_List__push_fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 size)
+Fragment_List__fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 size)
 {
 	U8 *data = Fragment_List__push(fragments, arena, location, size);
 	fragments->last->size_fixed += size;
 	return data;
 }
 
+
 internal U8 *
-Fragment_List__push_variable(Fragment_List *fragments, Arena *arena, U32 location, U32 size_max, U32 size_variable)
+Fragment_List__variable(Fragment_List *fragments, Arena *arena, U32 location, U32 size_max, U32 size_variable)
 {
 	U8 *data = Fragment_List__push(fragments, arena, location, size_max);
 	fragments->last->size_variable = size_variable;
@@ -100,10 +103,24 @@ Fragment_List__push_variable(Fragment_List *fragments, Arena *arena, U32 locatio
 // 1. It's fine if `size` is passed as zero if it cannot be decided immediately, e.g. `.zero label2-label1`. However,
 // make sure you create an appropriate fixup.
 internal U8 *
-Fragment_List__push_fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat, S64 pattern, U8 size)
+Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat, S64 pattern, U8 size)
 {
-	U8 *data = Fragment_List__push(fragments, arena, location, size);
-	memory_copy(data, (U8 *)&pattern, size);
+	assert_always_m(size <= 8);
+	U8  size_capped = min_m(size, sizeof(pattern));
+	U32 write_size = repeat * size_capped;
+	U8 *data = Fragment_List__push(fragments, arena, location, write_size);
+
+	U32 index = 0;
+	for (;;)
+	{
+		if (index >= repeat)
+		{
+			break;
+		}
+		memory_copy(data, (U8 *)&pattern, size_capped);
+		index += 1;
+		data = data + size_capped;
+	}
 
 	Fragment *fragment = fragments->last;
 	fragment->offset   = repeat;
@@ -117,6 +134,44 @@ Fragment_List__push_fill(Fragment_List *fragments, Arena *arena, U32 location, U
 	return 0;
 }
 
+internal void
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U8 alignment, U8 pattern, U8 size_max)
+{
+	// NOTE: double check more precisely how GNU as overloads some fields, and then decide whether to keep the same
+	// layout or not.
+	// TODO: GNU as does some special handling of the absolute section. Since no variable-sized data exist on the
+	// absolute section, it can be expanded to match the required alignment right away.
+
+	U8 *data = Fragment_List__push(fragments, arena, location, size_max);
+	data[0] = pattern;
+
+	Fragment *fragment = fragments->last;
+	fragment->size_fixed    = 1;
+	fragment->size_variable = 1;
+	fragment->type          = Fragment_Kind__Align;
+	// NOTE: these are overloaded fields I don't know if I should keep.
+	fragment->subtype       = size_max;
+	fragment->offset        = alignment;
+
+	// We have to create another fragment since variable data seal it.
+	fragment = Arena__push_struct_m(arena, Fragment);
+	fragment->location = location;
+	SLL_queue_push_m(fragments->first, fragments->last, fragment);
+	fragments->count += 1;
+
+	return;
+}
+
 
 #endif // CORE_FRAGMENT_H
 
+// char *
+// frag_var (relax_stateT type, size_t max_chars, size_t var,
+// 	  relax_substateT subtype, symbolS *symbol, offsetT offset,
+// 	  char *opcode)
+
+
+      // char *p;
+      //
+      // p = frag_var (rs_align, 1, 1, max, NULL, alignment, NULL);
+      // *p = fill_character;

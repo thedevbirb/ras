@@ -230,9 +230,7 @@ struct ELF64_Symbol
         U8  visibility;
         U16 section_index;
 
-        // For labels: offset within the section (section-relative address).
-        // For .equ: the constant value.
-        // For undefined symbols: 0.
+        // NOTE: for labels, this is offset within the fragment.
         S64 value;
         U64 size;
 };

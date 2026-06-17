@@ -264,16 +264,7 @@ Symbols_Table__last(Symbols_Table *symbols_table)
 internal Symbol_Ref *
 Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
 {
-	Symbols_Trie *last = Symbols_Table__last(symbols_table);
 	Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, name);
-	// ELF-SPECIFIC: Update string table offset field.
-	if (node->symbol.elf.string_table_offset == 0)
-	{
-		if (last)
-		{
-			node->symbol.elf.string_table_offset = last->symbol.elf.string_table_offset + last->name.count;
-		}
-	}
 
 	return &node->symbol;
 }

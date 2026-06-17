@@ -58,7 +58,7 @@ int main(int argc, char **argv)
 			"-Werror=shadow",
 			"-Werror=incompatible-pointer-types",
 			"-Werror=int-conversion",
-			"-Werror=parenthesis",
+			"-Werror=parentheses",
 			"-I.",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",

@@ -3,6 +3,14 @@
 
 // After the parser processes an item, it ALWAYS advances.
 
+// This can be used both for parsing information and evaluation information.
+//
+// Consider the expression `1 + 2`, which creates a tree rooted in `+`.
+// Such root node will have `Expression_Kind__Add` regarding parsing information,
+// since the token underlying the node contains a plus sign.
+// However, when the expression is evaluated the root can be folded to a constant expression
+// which value is `3`, and so we would track it as a `Expression_Kind__Constant` expression.
+// The use of this enumeration for evaluation purposes is akin to GNU as `operatorT`.
 typedef enum Expression_Kind
 {
 	Expression_Kind__None,
@@ -75,71 +83,62 @@ Expression_Kind;
 
 // The evaluation status of an `Expression_Node`. The higher, the stricter, with zero being not evaluated at all.
 // This ordering is important for comparisons, so changing it will break related code.
-typedef enum Evaluation
-{
-	Evaluation__None       = 0,
-	// Contains unresolved symbols that will be patched at link time.
-	Evaluation__Unresolved = 1,
-	// Involves symbols that can be resolved at assembly time.
-	Evaluation__Absolute   = 2,
-	// Only involves constant-time arithmetic.
-	Evaluation__Constant   = 3,
-}
-Evaluation;
+// typedef enum Evaluation
+// {
+// 	Evaluation__None       = 0,
+// 	// Contains unresolved symbols that will be patched at link time.
+// 	Evaluation__Unresolved = 1,
+// 	// Involves symbols that can be resolved at assembly time.
+// 	Evaluation__Absolute   = 2,
+// 	// Only involves constant-time arithmetic.
+// 	Evaluation__Constant   = 3,
+// }
+// Evaluation;
+//
+// // TODO(medium): use these instead of direct checks.
+// internal B32
+// Evaluation__absolute(Evaluation evaluation)
+// {
+// 	assert_always_m(evaluation <= Evaluation__Constant);
+// 	B32 result = evaluation >= Evaluation__Absolute;
+// 	return result;
+// }
+//
+// // TODO(medium): use these instead of direct checks.
+// internal B32
+// Evaluation__unresolved(Evaluation evaluation)
+// {
+// 	assert_always_m(evaluation <= Evaluation__Constant);
+// 	B32 result = evaluation != Evaluation__None && evaluation <= Evaluation__Unresolved;
+// 	return result;
+// }
 
-// TODO(medium): use these instead of direct checks.
-internal B32
-Evaluation__absolute(Evaluation evaluation)
-{
-	assert_always_m(evaluation <= Evaluation__Constant);
-	B32 result = evaluation >= Evaluation__Absolute;
-	return result;
-}
-
-// TODO(medium): use these instead of direct checks.
-internal B32
-Evaluation__unresolved(Evaluation evaluation)
-{
-	assert_always_m(evaluation <= Evaluation__Constant);
-	B32 result = evaluation != Evaluation__None && evaluation <= Evaluation__Unresolved;
-	return result;
-}
-
-// A parsed expression, which can be evaluated.
-//
-// The expression contains, among other fields, enough information to emit proper relocations after an unresolved
-// evaluation. This includes a "main" symbol fields and additional "operand" symbol field, along with an addend and the
-// operation kind.
-//
-// Example evaluation:
-//
-// Consider the expression `label_1 + 2`, with the node being `+`. After evaluation, the addend will be set to `2`,
-// while the symbol field will be set to `label_1`.
-//
-// Consider the expression `(global_1 + 2) - (global_2 + 1)`, with the examined being `-`. After evaluation, the addend
-// will be to `1`, the two symbol fields will be set.
-//
-// The expression contains indexes referring to the list of `Expressions` it is contained, and where its children, if
-// any, are placed.
+// An `Expression_Node` contains information about both a parsed expression and its evaluation, where the latter can
+// mutate as more information is providing during multiple evaluation rounds, like during the relaxation process.
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
+	// The location across sources where this expression started.
+	// With a binary operation like `1 + 2`, the location would point to `1`.
 	U64 location;
+
+	// Evaluation-related fields, in a relocation friendly format.
 	S64 integer_value;
 	Symbol_Ref *symbol;
 	Symbol_Ref *symbol_operand;
+	Expression_Kind  kind;
 
+	// Parsing-related fields. These indexes are the positions inside the `Expressions` Xar.
 	U32 index;
 	U32 index_left;
 	U32 index_right;
+	Expression_Kind  evaluation;
 
 	// Useful for later finding symbols etc.
 	// U32 token_index;
 	//
 	// Relocation_Operator relocation_operator;
 
-	Expression_Kind  kind;
-	Evaluation evaluation;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.

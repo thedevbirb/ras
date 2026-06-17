@@ -112,6 +112,7 @@ unary_evaluate(Expression_Kind kind, S64 a)
 	return result;
 }
 
+// I think this can be dropped and we can use Expression_Kind in the evaluation for that.
 typedef enum Evaluation_Frame_State
 {
 	Evaluation_Frame_State__None             = 0 << 0,
@@ -141,6 +142,7 @@ expression_evaluate(Expressions *expressions, U32 index)
 	// TODO: optimize to not re-evaluate constant expressions every time.
 	// TODO: complete evaluation with symbols.
 
+	// TODO: avoid continue?
 	for (;;)
 	{
 		if (frame == 0) // or error
@@ -148,6 +150,13 @@ expression_evaluate(Expressions *expressions, U32 index)
 			break;
 		}
 		Expression_Node *node = frame->node;
+
+		if (node->evaluation == Expression_Kind__Constant)
+		{
+			result_end = node->integer_value;
+			SLL_stack_pop_m(frame);
+			continue;
+		}
 
 		// NOTE: at the moment we iterate by looking on whether the right or left field are set. This approach
 		// works but it isn't super friendly to progressive folding of expression as new information comes
@@ -179,19 +188,40 @@ expression_evaluate(Expressions *expressions, U32 index)
 			Expression_Node *left  = xar_get_m(expressions, node->index_left);
 			Expression_Node *right = xar_get_m(expressions, node->index_right);
 
+			// Rethink evaluation model which still keeps the parsed information?
+			// Example: I can set a label difference to a constant if they belong to the same frag.
+
 			// example: (symbol1 + 2) * (symbol2 + 4) =
 
 			if (left->kind == Expression_Kind__Constant && right->kind == Expression_Kind__Constant)
 			{
 				S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
 				node->integer_value = result;
-				node->evaluation = Evaluation__Constant;
+				node->evaluation = Expression_Kind__Constant;
 				result_end = result;
 			}
-			else
+			else if (left->kind == Expression_Kind__Symbol && right->kind == Expression_Kind__Symbol)
 			{
-				// TODO: actually check symbols.
-				node->evaluation = Evaluation__Unresolved;
+				B32 same_fragment = left->symbol->fragment          == right->symbol->fragment;
+				B32 same_section  = left->symbol->elf.section_index == right->symbol->elf.section_index;
+				B32 subtract      = node->kind                      == Expression_Kind__Subtract;
+				// same_fragment implies same_section
+				assert_always_m(!same_section || same_fragment && "same fragment but different section shouldn't be possible");
+
+				if (same_fragment && subtract)
+				{
+					// Fold to constant.
+					node->evaluation    = Expression_Kind__Constant;
+				}
+				if (subtract && same_section)
+				{
+					node->integer_value = left->symbol->elf.value - right->symbol->elf.value;
+				}
+				else
+				{
+					node->symbol         = left->symbol;
+					node->symbol_operand = right->symbol;
+				}
 			}
 			SLL_stack_pop_m(frame);
 		}
@@ -202,13 +232,13 @@ expression_evaluate(Expressions *expressions, U32 index)
 			{
 				S64 result = unary_evaluate(node->kind, right->integer_value);
 				node->integer_value = result;
-				node->evaluation = Evaluation__Constant;
+				node->evaluation = Expression_Kind__Constant;
 				result_end = result;
 			}
 			else
 			{
 				// Absorb it.
-				node->evaluation = Evaluation__Unresolved;
+				node->evaluation = node->kind;
 				node->symbol     = right->symbol;
 			}
 			SLL_stack_pop_m(frame);
@@ -217,19 +247,16 @@ expression_evaluate(Expressions *expressions, U32 index)
 		{
 			// Leaf reached.
 			assert_always_m(node->index_left == 0);
+			assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
 
-			if (node->kind != Expression_Kind__Constant)
+			Symbol_Ref *symbol = node->symbol;
+			if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)
 			{
-				Symbol_Ref *symbol = node->symbol;
-				if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)
-				{
-					node->integer_value = symbol->elf.value;
-				}
+				node->evaluation = Expression_Kind__Constant;
+				node->integer_value = symbol->elf.value;
 			}
 
 			result_end = node->integer_value;
-
-
 			SLL_stack_pop_m(frame);
 		}
 	}

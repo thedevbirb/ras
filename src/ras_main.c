@@ -79,7 +79,7 @@ main(int argument_count, char **argument_vector)
 	U64 file_in_size = (U64)file_in_statistics.st_size;
 
 	Arena *arena = Arena__allocate_m();
-	U8 *input_data_mapped = mmap(NULL, file_in_size, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
+	U8 *input_data_mapped = mmap_file(file_descriptor, file_in_size);
 	assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");
 
 	String8 input = { .data = input_data_mapped, .count = file_in_size };

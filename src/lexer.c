@@ -345,9 +345,9 @@ token_peek
 					{
 						U32 error_index = 0;
 						index += 1;
-						B32 invalid_first = hex_table[index] == hex_table_invalid;
+						B32 invalid_first = hex_table[data[index]] == hex_table_invalid;
 						error_index = invalid_first  ? index : error_index;
-						B32 invalid_second = hex_table[index] == hex_table_invalid;
+						B32 invalid_second = hex_table[data[index]] == hex_table_invalid;
 						error_index = invalid_second ? index : error_index;
 
 						if (error_index)

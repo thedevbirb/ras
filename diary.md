@@ -517,7 +517,86 @@ sections, an arena for expressions etc. This makes data more contiguous and at t
 lifetime management fairly clear. This is something I kinda nailed in the beginning by accident but
 then I deleted it.
 
+It's much easier to create the perfect data structure to solve a problem, and much easier to use.
+For example, if a linked list is allocated from a single arena, then elements will be as contiguous
+as in an array, with no pointer chasing penalties, because you can iterate sequentially. It grows
+precisely as you need without reallocation costs or overestimated capacity. And you can still get
+O(1) by saving pointers instead of indexes in case your problem allows you to.
+
 Fri Jun  5 14:22:05 CEST 2026
 
 I'm implementing a lot of GNU as ideas right now, and while some of that C code might look arcaic is
 really packed with good ideas.
+
+Sat Jun  6 15:39:24 CEST 2026
+
+I'm on track, and I feel productive. It's good.
+
+Mon Jun  8 10:32:52 CEST 2026
+
+A very interesting challenge of an assembler, or a compiler, it to being able to manage invalid
+input as you process, recover from it while tracking errors and continuing. From this point of view,
+you have no other choice that treating errors as data and values, and avoid as much as you can
+different codepaths for errors, but rather having the same codepaths plus an additional error
+tracker. Later, where appropriate, or in a place where doing more control flow is suited, you handle
+them.
+
+GNU as fragments are just a brilliant concept that works wonderfully well, because it is the perfect
+data structure created for a problem.
+
+New unexpected, but rational behaviour found. The `.set` directive creates snapshots of a symbols if
+redefined multiple times, however it still points to the last definition. Example:
+```asm
+.set BASE, .
+# other stuff 1
+.set BASE, .
+```
+If code in between references the first occurrence `BASE` than that symbol node pointer is used and
+kept. It also holds for forward references.
+
+Tue Jun  9 13:21:12 CEST 2026
+
+Found a bug in GNU as:
+```asm
+label2:
+call foo
+label1:
+.align label2-label1
+```
+
+Leads to
+```text
+• ⟳ 13ms ~/personal/assembler ❯ riscv64-unknown-elf-as ./examples/test.s -o ./examples/test.o                                                                                                                                                                     main
+./examples/test.s: Assembler messages:
+./examples/test.s:4: Warning: alignment too large: 63 assumed
+
+riscv64-unknown-elf-as: out of memory allocating 9223372036854841460 bytes
+```
+
+I have a better view of constant vs absolute vs unresolved:
+
+1. A difference between labels of the same fragment (therefore also same section) can be folded into
+   a constant safely
+2. A difference between labels from different fragments, meaning that some expandible instruction is
+   in between, would result into an absolute expression, and after relaxation is completed it is
+   folded into a constant.
+3. A difference between labels from different sections, or between symbols from the undefined
+   section, is unresolved.
+
+Note that all of this isn't related to local vs global, which is merely a matter of visibility.
+
+Also, .set etc accept only an absolute expression, according to the definition above. So .set baz,
+foo-bar where foo and bar are globals within .text section is okay, but .set baz, foo-pronto where
+pronto is not defined it's not accepted because it would be unresolved.
+
+So constant/absolute and unresolved must be determined by checking the symbols.
+
+Wed Jun 17 18:46:31 CEST 2026
+
+Long break due to family. Added initial .align support. I need to think about how to test the
+assembler. Recent posts by Ryan Fleury made me way less bullish about unit testing and alike. While
+an assembler can be indeed very edge-case oriented, it makes sense to be skeptical about generating
+huge amount of edge-testing code. It's something that is often overlook but writing the right way to
+test a specific software is important, and every software is different so something different should
+be built each time. Similar to writing the perfect data structures to resolve your problem and not
+rely on glueing together off the shelf solutions.

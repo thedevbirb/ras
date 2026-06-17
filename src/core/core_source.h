@@ -23,6 +23,7 @@ floor_search(U32 *data, U32 count, U32 needle)
 		start = data[index];
 	}
 
+	assert_always_m(index == 0 || index < count);
 	return index;
 }
 

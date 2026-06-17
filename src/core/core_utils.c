@@ -1,5 +1,14 @@
 // TODO: this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
+// Panics on failure. Overallocates by 8 bytes to allow not checking always bounds.
+internal U8 *
+mmap_file(S32 file_descriptor, U64 file_in_size)
+{
+	U8 *result = mmap(NULL, file_in_size + 8, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
+	assert_always_m(result != MAP_FAILED && "failed to mmap file contents");
+	return result;
+}
+
 internal B32
 U8__octal_prefix(U8 byte)
 {
