@@ -538,6 +538,7 @@ token_peek
 	return token;
 }
 
+// TODO: maybe return the token AND update the cursor?
 internal void
 token_next
 (

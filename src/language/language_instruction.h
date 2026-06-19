@@ -681,4 +681,54 @@ global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__C
 #define ENCODING_PAUSE  0x0100000F
 #define ENCODING_TSO    0x8330000F
 
+typedef enum RISCV_Instruction_Class
+{
+	RISCV_Instruction_Class__None,
+	RISCV_Instruction_Class__COUNT,
+}
+RISCV_Instruction_Class;
+
+#define OP_arguments_m(...) ((U16[]){ __VA_ARGS__, 0 })
+
+// This structure holds information for a particular instruction.
+//
+// From GNU as, adapted.
+typedef struct RISCV_Opcode RISCV_Opcode;
+struct RISCV_Opcode
+{
+	// The name of the instruction.
+	const char *name;
+
+	// The requirement of xlen for the instruction, 0 if no requirement. For example, it can be 32/64 in case of
+	// 32/64-bit only instruction.
+	U32 length_requirement;
+
+	// Class to which this instruction belongs.  Used to decide whether or not this instruction is legal in the
+	// current -march context.
+	RISCV_Instruction_Class instruction_class;
+
+	// A 16-bit, null-terminated array describing the arguments for this instruction.
+	U16 *arguments;
+
+	// The basic opcode for the instruction.  When assembling, this opcode is modified by the arguments to produce
+	// the actual opcode that is used.  If pinfo is INSN_MACRO, then this is 0.
+	//
+	// NOTE: this field, like `mask`, are U64 in GNU as. However, no >32-bit instructions exist at the moment if I'm
+	// not mistaken, so let's just use that.
+	U32 match;
+
+	// If pinfo is not INSN_MACRO, then this is a bit mask for the relevant portions of the opcode when
+	// disassembling.  If the actual opcode anded with the match field equals the opcode field, then we have found
+	// the correct instruction.  If pinfo is INSN_MACRO, then this field is the macro identifier.
+	U32 mask;
+
+	// A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
+	B32 (*match_function) (RISCV_Opcode *opcode, U32 word);
+
+	// For a macro, this is INSN_MACRO.  Otherwise, it is a collection of bits describing the instruction, notably
+	// any relevant hazard information.
+	U64 info;
+};
+
+
 #endif // LANGUAGE_INSTRUCTION_H

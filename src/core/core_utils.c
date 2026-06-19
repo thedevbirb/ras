@@ -263,7 +263,7 @@ S64_bits_range_in(S64 signed_integer, U8 bits)
 {
 	S64 limit_low  = -(1LL << (bits - 1));
 	S64 limit_high =  (1LL << (bits - 1)) - 1;
-	B32 result = - limit_low < signed_integer && signed_integer && limit_high;
+	B32 result = limit_low <= signed_integer && signed_integer <= limit_high;
 	return result;
 }
 

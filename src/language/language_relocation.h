@@ -67,8 +67,8 @@ global const B32 Relocation_Operator_high_20[Relocation_Operator__COUNT] =
 	[Relocation_Operator__tls_gd_pcrel_hi] = 1,
 };
 
-Relocation_Operator
-Relocation_Operator_lookup(String8 relocation);
+// Relocation_Operator
+// Relocation_Operator_lookup(String8 relocation);
 
 // Distinguishes between [not S-type] and [S-type].
 //

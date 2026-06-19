@@ -68,7 +68,7 @@ struct Diagnostic
 	// Logical location where the diagnostic has been emitted.
 	U32             location;
 	// Squiggly ('~') ranges to put under the line of the provided logical location.
-	Range1_U32        ranges[4];
+	Range1_U32      ranges[4];
 	// Additional lines with text fixes.
 	Diagnostic_Fix  fixes[4];
 	Diagnostic_Kind kind;

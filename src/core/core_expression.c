@@ -139,13 +139,11 @@ expression_evaluate(Expressions *expressions, U32 index)
 	frame->node = xar_get_m(expressions, index);
 	S64 result_end = 0;
 
-	// TODO: optimize to not re-evaluate constant expressions every time.
-	// TODO: complete evaluation with symbols.
-
 	// TODO: avoid continue?
+
 	for (;;)
 	{
-		if (frame == 0) // or error
+		if (frame == 0 || !frame->node->kind) // or error
 		{
 			break;
 		}
@@ -155,35 +153,24 @@ expression_evaluate(Expressions *expressions, U32 index)
 		{
 			result_end = node->integer_value;
 			SLL_stack_pop_m(frame);
-			continue;
 		}
-
-		// NOTE: at the moment we iterate by looking on whether the right or left field are set. This approach
-		// works but it isn't super friendly to progressive folding of expression as new information comes
-		//
-		// For example, if a
-
-		if (node->index_right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
+		else if (node->index_right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Right_Evaluated;
 			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
 			frame_new->node = xar_get_m(expressions, node->index_right);
 			SLL_stack_push_n_m(frame, frame_new, next);
-			continue;
 		}
-
-		if (node->index_left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
+		else if (node->index_left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
 		{
 			// We have to evaluate the inner expression
 			frame->state |= Evaluation_Frame_State__Left_Evaluated;
 			Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
 			frame_new->node = xar_get_m(expressions, node->index_left);
 			SLL_stack_push_n_m(frame, frame_new, next);
-			continue;
 		}
-
-		if (node->index_right && node->index_left)
+		else if (node->index_right && node->index_left)
 		{
 			Expression_Node *left  = xar_get_m(expressions, node->index_left);
 			Expression_Node *right = xar_get_m(expressions, node->index_right);
@@ -206,13 +193,14 @@ expression_evaluate(Expressions *expressions, U32 index)
 				B32 same_section  = left->symbol->elf.section_index == right->symbol->elf.section_index;
 				B32 subtract      = node->kind                      == Expression_Kind__Subtract;
 				// same_fragment implies same_section
-				assert_always_m(!same_section || same_fragment && "same fragment but different section shouldn't be possible");
+				assert_always_m(!same_section || same_fragment && "same fragment but different section");
 
 				if (same_fragment && subtract)
 				{
 					// Fold to constant.
 					node->evaluation    = Expression_Kind__Constant;
 				}
+
 				if (subtract && same_section)
 				{
 					node->integer_value = left->symbol->elf.value - right->symbol->elf.value;

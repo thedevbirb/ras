@@ -600,3 +600,51 @@ huge amount of edge-testing code. It's something that is often overlook but writ
 test a specific software is important, and every software is different so something different should
 be built each time. Similar to writing the perfect data structures to resolve your problem and not
 rely on glueing together off the shelf solutions.
+
+Thu Jun 18 15:07:58 CEST 2026
+
+Starting to look into basic arithmetic I instruction support in this new iteration. I see that GNU
+as sometimes can be overly strict. Consider the example:
+
+```asm
+label1:
+nop
+label2:
+addi x1, x0, label2-label1
+```
+
+The example above doesn't assemble with the following error (GNU assembler (GNU Binutils) 2.45):
+
+```text
+Error: illegal operands `addi x1,x0,label2-label1'
+```
+
+However those are local labels in the same fragment, so their difference is always constant
+regardless of linking, and should equal 4. GNU as internally probably checks that it's either
+a constant, a symbol in the absolute section, or requires that the `%lo` relocation operator is
+provided. In the first two cases, it then checks that it fits in 12 bits, otherwise it errors.
+If `%lo` is provided and the symbol is a constant, then there is a direct resolution which doesn't
+emit a relocation.
+
+TIL that GNU as features a mini-DSL of format characters that specify how instructions should be
+parsed. For example, `lw` is encoded as `d,o(s)` which means "destination register, offset (source
+register). Offset can be optional, however. Not a big surprise that, as extensions were added over
+time, this has become a bit overloaded. I don't think reasoning over that giant `switch` at
+`riscv_ip` is easy. I think some form of it makes sense, though. I don't know whether format
+chars are it.
+
+Reading about the `.insn` directive and that is another DSL embedded in the assembler :D. It
+essentially translates to the format char DSL for later parsing, which is nice. I will not support
+it but it helps knowing about it.
+
+Tables should go in .c files instead of header files. My bad.
+
+Fri Jun 19 12:07:38 CEST 2026
+
+Once again, I'm surprised how many smart solutions there are in GNU gas. I'm getting a bit more fond
+of the format chars for encoding arbitrary instructions. It may not be perfect, but then I see the
+shit ton of instructions, edge case etc GAS handles. Pure respect! It also encodes different
+variants for the same instruction quite elegantly.
+
+I'm considering my own encoding table variant, but I want to use String16 with enumerations instead
+of chars. I think less shenanigans are involved although you get a bigger table.

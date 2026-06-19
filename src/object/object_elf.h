@@ -3540,23 +3540,29 @@ typedef struct
  *   S_Type = S-Type instruction encoding (12-bit immediate, split field)
  */
 
-typedef U8 Relocation_RISC_V;
+// TLS: Thread Local Storage
+// GOT: Global Offset Table
+// TP:  Thread Pointer
+// PC:  Program Counter
 
-#define Relocation_RISC_V__None                                           0
-#define Relocation_RISC_V__32_Bit                                         1
-#define Relocation_RISC_V__64_Bit                                         2
-#define Relocation_RISC_V__Relative                                       3
-#define Relocation_RISC_V__Copy                                           4
-#define Relocation_RISC_V__Jump_Slot                                      5
-#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Module_32           6
-#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Module_64           7
-#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32         8
-#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64         9
-#define Relocation_RISC_V__TLS_Thread_Pointer_Relative_32                10
-#define Relocation_RISC_V__TLS_Thread_Pointer_Relative_64                11
-#define Relocation_RISC_V__TLS_Descriptor                                12
-#define Relocation_RISC_V__Branch                                        16
-#define Relocation_RISC_V__JAL                                           17
+// U16 is large enough for all relocation types across all targets.
+typedef U16 Relocation_RISC_V;
+
+#define Relocation_RISC_V__None                                            0
+#define Relocation_RISC_V__32_Bit                                          1
+#define Relocation_RISC_V__64_Bit                                          2
+#define Relocation_RISC_V__Relative                                        3
+#define Relocation_RISC_V__Copy                                            4
+#define Relocation_RISC_V__Jump_Slot                                       5
+#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Module_32            6
+#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Module_64            7
+#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32          8
+#define Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64          9
+#define Relocation_RISC_V__TLS_Thread_Pointer_Relative_32                 10
+#define Relocation_RISC_V__TLS_Thread_Pointer_Relative_64                 11
+#define Relocation_RISC_V__TLS_Descriptor                                 12
+#define Relocation_RISC_V__Branch                                         16
+#define Relocation_RISC_V__JAL                                            17
 #define Relocation_RISC_V__Call                                           18
 #define Relocation_RISC_V__Call_PLT                                       19
 #define Relocation_RISC_V__GOT_High_20                                    20

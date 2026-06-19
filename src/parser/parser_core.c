@@ -443,14 +443,21 @@
 // 	return left;
 // }
 
+// NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
+// common ground for it if it makes sense.
+//
+// Machine-dependent code should be noted with the best effort.
 internal Expression_Node *
 expression_parse
 (
-	Arena           *arena,
-	Token_Cursor    *cursor,
-	Expressions     *expressions,
-	Symbols_Table   *symbols_table,
-	Diagnostic_List *diagnostics
+	Arena              *arena,
+	Token_Cursor       *cursor,
+	Expressions        *expressions,
+	Symbols_Table      *symbols_table,
+	Diagnostic_List    *diagnostics,
+	// Machine-dependent
+	U16                *relocation_out,
+	Instruction_Format  instruction_format
 )
 {
 	// A stack of expression frames. Each sub-expression creates a frame associated to it.
@@ -522,6 +529,48 @@ expression_parse
 
 			token_next(cursor, diagnostics, arena);
 		} break;
+
+		// RISC-V specific: % for relocation
+		case Token_Kind__Percentage:
+		{
+			assert_always_m(relocation_out && "relocation_out should be set");
+
+			token_next(cursor, diagnostics, arena);
+			String8 relocation_operator_text = Token_Cursor__text(cursor);
+			U16 relocation_type = Relocation_RISC_V__lookup(relocation_operator_text, instruction_format);
+
+			if (*relocation_out != Relocation_RISC_V__None)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = cursor->current.location;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Multiple];
+				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			if (relocation_type == Relocation_RISC_V__None)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = cursor->current.location;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Invalid];
+				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			*relocation_out = relocation_type;
+
+			Token_2 parenthesis_token_maybe = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+			if (parenthesis_token_maybe.kind != Token_Kind__Parenthesis_Left)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = parenthesis_token_maybe.location;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Expected];
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			// We'll go through the left parenthesis case in the next iteration.
+			continue;
+		}
 
 		case Token_Kind__Minus:
 		case Token_Kind__Tilde:
@@ -1235,16 +1284,17 @@ statement_read
 
 	for (;;)
 	{
-		Directive_Kind directive_kind  =  0;
-		B32            null_terminated =  0;
+		Directive_Kind directive_kind         = 0;
+		U32            instruction_hash       = 0;
+		B32            null_terminated_string = 0;
 
 		// TODO: when to exist?
 		progress = source_index_start < cursor->source_index;
-		B32 break_should = cursor->current.kind == Token_Kind__None
-				|| cursor->current.kind == Token_Kind__Error
-				|| error;
-		assert_always_m((progress || break_should) && "infinite loop detected");
-		if (break_should)
+		B32 break_should_outer = cursor->current.kind == Token_Kind__None
+				      || cursor->current.kind == Token_Kind__Error
+				      || error;
+		assert_always_m((progress || break_should_outer) && "infinite loop detected");
+		if (break_should_outer)
 		{
 			break;
 		}
@@ -1260,30 +1310,24 @@ statement_read
 		case Token_Kind__Identifier:
 		{
 
-			B32 dot_start = cursor->source->data[cursor->current.index] == '.';
+			String8 identifier = Token_Cursor__text(cursor);
+			B32 dot_start = identifier.data[0] == '.';
 
 			if (dot_start)
 			{
-				String8 string =
-				{
-					.data  = &cursor->source->data[cursor->current.index],
-					.count = cursor->current.size,
-				};
-				directive_kind = Directive_Kind__from_String8(string);
+				directive_kind = Directive_Kind__from_String8(identifier);
 				assert_always_m(directive_kind && "machine-dependent directives not yet implemented");
 			}
 
 			Token_2 next = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
-			if (next.kind == Token_Kind__Colon)
+			B32 label_found = next.kind == Token_Kind__Colon;
+			if (label_found)
 			{
-				// label found
-				String8 name = Token_Cursor__text(cursor);
-				Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+				Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
 				ELF64_Symbol elf_empty = {0};
 				B32 empty = memory_match_struct(&symbol->elf, &elf_empty);
 				if (!empty)
 				{
-					// TODO: these diagnostics are broken.
 					{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->location   = cursor->current.location;
@@ -1296,7 +1340,7 @@ statement_read
 					diagnostic->kind       = Diagnostic_Kind__Note;
 					diagnostic->location   = symbol->location;
 					diagnostic->message    = Diagnostic__previous_declaration_String8;
-					diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
+					diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + identifier.count }};
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
 				}
@@ -1305,18 +1349,164 @@ statement_read
 				token_next(cursor, diagnostics, arena);
 			}
 
-
+			B32 instruction_expected = !label_found && !directive_kind;
+			if (instruction_expected)
+			{
+				instruction_hash = hash_FNV_1a(identifier);
+			}
 		} break;
 		default:
 		{
 			// Sort of catch-all
 			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 			diagnostic->location   = cursor->current.location;
-			diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
+			diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Line_Invalid];
 			diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
 			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			error = 1;
 		} break;
+		}
+
+		U16 relocation = 0;
+
+		// Instruction_Encoding instruction_encoding = Instruction_Encoding_table[instruction_kind];
+		// U8 opcode             = instruction_encoding.opcode;
+		// U8 funct3             = instruction_encoding.funct3;
+		// U8 funct7             = instruction_encoding.funct7;
+		// U8 instruction_flags  = instruction_encoding.flags;
+
+		switch (instruction_hash)
+		{
+		default:
+		{
+
+			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+			diagnostic->location   = cursor->current.location;
+			diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Instruction_Unknown];
+			diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			error = 1;
+		} break;
+		case 0: {} break;
+
+ 		// I-type (arithmetic)
+ 		case HASH_addi:
+		{
+			// TODO: I need to start creating some more ergonomic ways of expecting and handling
+			// diagnostics. Moreover, when junk is found, I should go until the end of the line and
+			// continue. However I don't want go-to shenanigans to achieve so.
+			//
+			// I think doing any special handling is probably dumb and adds combinatoric explosion
+			// Diagnostics should be reported whenever there is an error, without carrying to much context.
+			// Whether to display multiple errors on the same line is a diagnostic rendering problem, and
+			// should not be a corcern here.
+			//
+			// Then, after a syntactically complete statement I should ensure that indeed an EOS is found,
+			// and advance until so, with a diagnostic.
+
+			U32 location_begin = cursor->current.location;
+
+			token_next(cursor, diagnostics, arena);
+			U8 register_destination = register_lookup(Token_Cursor__text(cursor));
+			if (register_destination == register_invalid)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = cursor->current.location;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
+				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			// NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
+			Token_2 token_before_comma = cursor->current;
+			token_next(cursor, diagnostics, arena);
+			if (cursor->current.kind == Token_Kind__Comma)
+			{
+				token_next(cursor, diagnostics, arena);
+			}
+			else
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = token_before_comma.location + token_before_comma.size;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+
+			U8 register_source = register_lookup(Token_Cursor__text(cursor));
+			if (register_source == register_invalid)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = cursor->current.location;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
+				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			token_before_comma = cursor->current;
+			token_next(cursor, diagnostics, arena);
+			if (cursor->current.kind == Token_Kind__Comma)
+			{
+				token_next(cursor, diagnostics, arena);
+			}
+			else
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location   = token_before_comma.location + token_before_comma.size;
+				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			U32 location_expression_begin = cursor->current.location;
+			Expression_Node *expression   = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, &relocation, Instruction_Format__I);
+			U32 location_expression_end   = cursor->current.location;
+			S64 result = expression_evaluate(expressions, expression->index);
+
+			if (expression->evaluation == Expression_Kind__Constant)
+			{
+				B32 fits = S64_bits_range_in(result, 12);
+				if (!fits)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location   = cursor->current.location;
+					diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
+					diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					result = 0;
+				}
+			}
+			else
+			{
+				U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
+				Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+
+				fixup->expression_index = expression->index;
+				fixup->fragment         = section->fragment_list.last;
+				fixup->encoding_offset  = fixup_encoding_base_offset;
+				// NOTE: the relocation type encodes information on where to set the resolved
+				// value.
+				fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
+				fixup->size             = 4;
+
+				SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+				result = 0;
+			}
+
+			U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);
+			data[0] = 0; // TODO fill
+		} break;
+
+
+// 			// I-type (arithmetic)
+// 			case HASH_addi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ADDI);                  } break;
+// 			case HASH_slti:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLTI);                  } break;
+// 			case HASH_sltiu:     { Parser_instruction_I_parse(parser, Instruction_Kind__SLTIU);                 } break;
+// 			case HASH_xori:      { Parser_instruction_I_parse(parser, Instruction_Kind__XORI);                  } break;
+// 			case HASH_ori:       { Parser_instruction_I_parse(parser, Instruction_Kind__ORI);                   } break;
+// 			case HASH_andi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ANDI);                  } break;
+// 			case HASH_slli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLLI);                  } break;
+// 			case HASH_srli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRLI);                  } break;
+// 			case HASH_srai:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRAI);                  } break;
 		}
 
 		U8   data_directive_size = 0;
@@ -1349,7 +1539,7 @@ statement_read
 			U32 index = 0;
 			for (;;)
 			{
-				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 
 				S64 result = expression_evaluate(expressions, expression->index);
 				if (expression->evaluation != Expression_Kind__Constant)
@@ -1392,7 +1582,7 @@ statement_read
 			// statement.size              = data_directive_size * expressions_count;
 		} break;
 		case Directive_Kind__String: {} // fallthrough
-		case Directive_Kind__Asciz:  { null_terminated = 1; /* Add null-termination */ } // fallthrough
+		case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
 		case Directive_Kind__Ascii:
 		{
 			token_next(cursor, diagnostics, arena);
@@ -1408,7 +1598,7 @@ statement_read
 			String8 text = Token_Cursor__text(cursor);
 			text = String8__skip(text, 1);
 			text = String8__chop(text, 1);
-			U32 size_escaped = String8__escaped_size(text) + !!null_terminated;
+			U32 size_escaped = String8__escaped_size(text) + !!null_terminated_string;
 
 			U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, size_escaped);
 			bytes_escaped_fill(text, data, size_escaped);
@@ -1590,7 +1780,7 @@ statement_read
 				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
-			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 			symbol->expression_index = expression->index;
 
 			S64 result = expression_evaluate(expressions, expression->index);
@@ -1624,9 +1814,9 @@ statement_read
 		{
 			// .fill repeat [, size [, value ]].
 			token_next(cursor, diagnostics, arena);
-			U64 location_start = cursor->current.location;
+			U64 location_begin = cursor->current.location;
 
-			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 			S64 repeat = expression_evaluate(expressions, repeat_expression->index);
 			if (repeat_expression->evaluation != Expression_Kind__Constant)
 			{
@@ -1643,7 +1833,7 @@ statement_read
 				// Read size
 				token_next(cursor, diagnostics, arena);
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 				U64 location_expression_end   = cursor->current.location;
 				fill_size = expression_evaluate(expressions, size_expression->index);
 				if (size_expression->evaluation != Expression_Kind__Constant)
@@ -1680,7 +1870,7 @@ statement_read
 			{
 				// Read value
 				token_next(cursor, diagnostics, arena);
-				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 				fill_pattern = expression_evaluate(expressions, value_expression->index);
 				if (value_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1690,7 +1880,7 @@ statement_read
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 			}
-			Fragment_List__fill(&section->fragment_list, arena, location_start, repeat, fill_pattern, fill_size);
+			Fragment_List__fill(&section->fragment_list, arena, location_begin, repeat, fill_pattern, fill_size);
 		} break;
 		case Directive_Kind__Align:
 		{
@@ -1703,13 +1893,13 @@ statement_read
 			// For this expression, note that a label difference is allowed but there should be no expansion
 			// between them. Probably a good way to check is making sure both are defined within the same
 			// fragment
-			U32 location_start = cursor->current.location;
+			U32 location_begin = cursor->current.location;
 			U8  pattern   = 0;
 			U8  bytes_max = 0;
 			U8  alignment = 0;
 
 			token_next(cursor, diagnostics, arena);
-			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 			S64 alignment_evaluation = expression_evaluate(expressions, alignment_expression->index);
 
 			alignment = (U8)alignment_evaluation;
@@ -1730,7 +1920,7 @@ statement_read
 				token_next(cursor, diagnostics, arena);
 
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 				U64 location_expression_end   = cursor->current.location;
 
 				S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
@@ -1760,7 +1950,7 @@ statement_read
 				// Read bytes_max
 				token_next(cursor, diagnostics, arena);
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
 				U64 location_expression_end   = cursor->current.location;
 				S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
 				if (bytes_max_expression->evaluation != Expression_Kind__Constant)
@@ -1797,7 +1987,7 @@ statement_read
 				}
 			}
 
-			Fragment_List__align(&section->fragment_list, arena, location_start, alignment, pattern, bytes_max);
+			Fragment_List__align(&section->fragment_list, arena, location_begin, alignment, pattern, bytes_max);
 		} break;
 // 			case Directive_Kind__Common:
 // 			{
@@ -1866,6 +2056,32 @@ statement_read
 //
 // 			parser->statement_section_index      = parser->section_current_index;
 		default: {} break;
+		}
+
+		// Find end of line junk
+		U32 junk_location_begin = cursor->current.location;
+		U32 junk_location_end   = 0;
+		for (;;)
+		{
+			Token_Kind kind = cursor->current.kind;
+			B32 break_should = kind == Token_Kind__None
+				|| kind == Token_Kind__Newline
+				|| kind == Token_Kind__Semicolon;
+			if (break_should)
+			{
+				break;
+			}
+			junk_location_end = cursor->current.location + cursor->current.size;
+			token_next(cursor, diagnostics, arena);
+		}
+
+		if (junk_location_end)
+		{
+			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+			diagnostic->location   = cursor->current.location;
+			diagnostic->message    = String8__literal("junk found at the end of line");
+			diagnostic->ranges[0]  = (Range1_U32){{ junk_location_begin, junk_location_end }};
+			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 		}
 	}
 

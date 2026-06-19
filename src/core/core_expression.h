@@ -120,6 +120,10 @@ struct Expression_Node
 {
 	// The location across sources where this expression started.
 	// With a binary operation like `1 + 2`, the location would point to `1`.
+	//
+	// TODO: this should be an U32. Then, would it make sense to save a range instead?
+	// Perhaps it would be better to have a location for the root token, like '+' in this case,
+	// and then a range containing the whole expresion.
 	U64 location;
 
 	// Evaluation-related fields, in a relocation friendly format.
