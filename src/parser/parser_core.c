@@ -558,12 +558,22 @@ expression_parse
 			}
 
 			*relocation_out = relocation_type;
+			// TODO: check based on the current instruction info.
+			if (*relocation_out != Relocation_RISC_V__Low_12_I_Type)
+			{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->location   = cursor->current.location;
+					diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Invalid];
+					diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
 
-			Token_2 parenthesis_token_maybe = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
-			if (parenthesis_token_maybe.kind != Token_Kind__Parenthesis_Left)
+
+			token_next(cursor, diagnostics, arena);
+			if (cursor->current.kind != Token_Kind__Parenthesis_Left)
 			{
 				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = parenthesis_token_maybe.location;
+				diagnostic->location   = cursor->current.location;
 				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Expected];
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}

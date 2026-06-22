@@ -648,3 +648,84 @@ variants for the same instruction quite elegantly.
 
 I'm considering my own encoding table variant, but I want to use String16 with enumerations instead
 of chars. I think less shenanigans are involved although you get a bigger table.
+
+Sat Jun 20 14:26:18 CEST 2026
+
+Probably writing good old fashioned advice, but go slow to go fast. Maybe I would have been faster
+if I forced myself to read most of GNU as code before starting at all.
+
+Decided to go again over GNU as with a debugger while reading a single line and see what it does
+with `addi x1, x0, %lo(1234)`. Commit used: `fb7b22bbeac9f26043f3aa92228c6ade7e2ea232`. Log:
+
+1. Identify it's an instruction because there is an identifier at the beginning of the line.
+2. Using the opcode hash table, return the pointer to the first entry in the encoding table. It
+   might be of an invalid extension, no worries about that.
+3. Iter until a valid encoding can be tried, taking into account provided information with
+   `riscv_multi_subset_supports`.
+4. Start encoding using the format char `d,s,j`.
+5. When `j` is found, the possible immediate relocation is immediately set to a low 12 bit I type
+   variant. It will be overwritten. However, also a `p` which indicates all the possible strings after the `%` sign for
+   I-type instruction (5 variants) is set to `percent_op_itype`.
+6. Jump to `alu_op` label to parse a "small" expression. So when parsing the possible relocation
+   types are already known. The result will be written into an output pointer, which is NOT
+   zero-initialized like other pieces of memory.
+7. Inside `my_getSmallExpression` if first tries to parse relocation with the `parse_relocation`
+   function being invoked. It returns true is a matching relocation is found and writes the result
+   to `imm_reloc`. Essentially the first part of this instruction finds the start of the expression
+   itself, taking into account possible relocation operators. This first part sets also whether
+   we've found a relocation operator as bool (size_t though) and returns it.
+    a. Then it checks the content inside the parenthesis cannot be a register, good call.
+    b. Then the actual parse expression function is invoked: `my_getExpression`, with the beginning
+    of the expression, in this case `(1234)`. This is called "crux".
+8. Inside `my_getExpression` there is a difference between "deferred" expressions or not. I don't
+   know exactly what it means yet but in practice when this is called it is true if `force_reloc`
+   is set, which is the case when the relocation would be `BFD_RELOC_RISCV_GOT_HI20`.
+9. Now, the main `expr` routine is called, defined in `expr.c` so mostly agnostic of the
+   target. Notice that `expression` is actually a macro defined in `expr.h` which sets the mode to
+   "normal". The pratt parser code starts.
+10. Once we get out of `my_getSmallExpression`, we do NOT try to normalize already to a 12-bit
+    number _because the relocation operator is still not resolved_. In this case we simply exit
+    after some checks.
+11. NOTE: the `expr` routine has _NO relocation operator support_. This means _ANY relocation
+    operator MUST be at the beginning of an expression_. For example `addi x1, x0, 1 + %lo(1234)` is
+    invalid but `addi x1, x0, %lo(1234) + 1` is valid. Another detail is that since `expr` is called
+    with the input `(1234) + 1`, so it is immediately resolved with value `1235`, meaning that a
+    relocation operator in practice doesn't have any precendence, and it would have been equivalent
+    to write `%lo(1234 + 1)`.
+12. After all of this, `append_insn` is called to write the encoding bytes into the appropriate
+    fragment. There is a custom branch in case a relocation is met, distinguishing with different
+    relocation types.
+    a. Apart for some special relocation types, an `howto` structure is filled from a table, which
+    contains all informations on how to deal with a particular relocation. See `elfxx-riscv.c`
+    `howto_table`.
+    b. A fixup is created, the size of the fixup is the size of the relocation which, for instructions,
+    is 4 bytes by default, like the default instruction size, and the relocation type is provided as
+    well. Since the expression is constant `1234`, the `fr_offset` field is set with that value.
+    Also the relocation type of the fixup is set.
+    c. Noteworthy that the fixup information is attached to the instruction created as a pointer via
+    the `fixp` field. Lastly, depending on the relocation type, a new fragment must be created.
+13. The input is done as well as the assembly pass. Now we enter into the `write_object_file`
+    procedure, which, among over things, runs functions over all sections using
+    `bfd_map_over_sections`. The following operations are done:
+    a. `renumber_sections`,
+    b. `chain_frchains_together`,
+    c. `relax_seg`,
+    d. `size_seg`,
+    e. `adjust_reloc_syms`,
+    f. `fix_segment`,
+    g. `write_relocs`,
+    h. `compress_debug`,
+    i. `write_contents`.
+14. Note that in `fix_segment` we apply the fixups. In our case we have a fixup with the LO12
+    relocation type, however `fx_addsy` is NULL, because no symbol is provided, so the fixup can be
+    resolved right away without filling the `reloc_list` that would be written in the final object
+    file. However, in case `fx_addsy` is set, `reloc_list` is still not touched. This means it's
+    probably NOT used within this architecture.
+14. Finally, we `bfd_map_over_sections` with the relaxation procedure, by calling
+    `relax_seg/relax_segment`. We start iterating over individual fragments. In this case even with
+    our relocation there isn't any alignment or fill requirement so there isn't any special work
+    done. However some aligning work is still done, and I don't understand it yet.
+15. In the `write_relocs` section, we start indeed to track write relocations. Since the global
+    `reloc_list` isn't used, the way relocations are found is by tracking which fixups aren't "done"
+    yet. Information about the relocation is taken from the fixup field, and it's finally written in
+    the appropriate object file section buffer.
