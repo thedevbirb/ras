@@ -1385,138 +1385,113 @@ statement_read
 		// U8 funct7             = instruction_encoding.funct7;
 		// U8 instruction_flags  = instruction_encoding.flags;
 
-		switch (instruction_hash)
+		if (instruction_hash)
 		{
-		default:
-		{
+			const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
+			// TODO: change behaviour, emit error.
+			assert_always_m(opcode);
 
-			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-			diagnostic->location   = cursor->current.location;
-			diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Instruction_Unknown];
-			diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			error = 1;
-		} break;
-		case 0: {} break;
-
- 		// I-type (arithmetic)
- 		case HASH_addi:
-		{
-			// TODO: I need to start creating some more ergonomic ways of expecting and handling
-			// diagnostics. Moreover, when junk is found, I should go until the end of the line and
-			// continue. However I don't want go-to shenanigans to achieve so.
-			//
-			// I think doing any special handling is probably dumb and adds combinatoric explosion
-			// Diagnostics should be reported whenever there is an error, without carrying to much context.
-			// Whether to display multiple errors on the same line is a diagnostic rendering problem, and
-			// should not be a corcern here.
-			//
-			// Then, after a syntactically complete statement I should ensure that indeed an EOS is found,
-			// and advance until so, with a diagnostic.
+			RISCV_Instruction instruction = RISCV_Instruction__create(opcode);
+			OP_Argument *arguments = opcode->arguments;
 
 			U32 location_begin = cursor->current.location;
-
 			token_next(cursor, diagnostics, arena);
-			U8 register_destination = register_lookup(Token_Cursor__text(cursor));
-			if (register_destination == register_invalid)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
-				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
 
-			// NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
-			Token_2 token_before_comma = cursor->current;
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind == Token_Kind__Comma)
+			for (;;)
 			{
-				token_next(cursor, diagnostics, arena);
-			}
-			else
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = token_before_comma.location + token_before_comma.size;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-
-			U8 register_source = register_lookup(Token_Cursor__text(cursor));
-			if (register_source == register_invalid)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
-				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			token_before_comma = cursor->current;
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind == Token_Kind__Comma)
-			{
-				token_next(cursor, diagnostics, arena);
-			}
-			else
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = token_before_comma.location + token_before_comma.size;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			U32 location_expression_begin = cursor->current.location;
-			Expression_Node *expression   = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, &relocation, Instruction_Format__I);
-			U32 location_expression_end   = cursor->current.location;
-			S64 result = expression_evaluate(expressions, expression->index);
-
-			if (expression->evaluation == Expression_Kind__Constant)
-			{
-				B32 fits = S64_bits_range_in(result, 12);
-				if (!fits)
+				OP_Argument argument = *arguments;
+				if (!argument)
 				{
-					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->location   = cursor->current.location;
-					diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
-					diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
-					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-					result = 0;
+					break;
 				}
-			}
-			else
-			{
-				U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
-				Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
 
-				fixup->expression_index = expression->index;
-				fixup->fragment         = section->fragment_list.last;
-				fixup->encoding_offset  = fixup_encoding_base_offset;
-				// NOTE: the relocation type encodes information on where to set the resolved
-				// value.
-				fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
-				fixup->size             = 4;
+				switch (argument)
+				{
+				case OP_Argument__Comma:
+				{
+					// NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
+					Token_2 token_before_comma = cursor->current;
+					token_next(cursor, diagnostics, arena);
+					if (cursor->current.kind == Token_Kind__Comma)
+					{
+						token_next(cursor, diagnostics, arena);
+					}
+					else
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = token_before_comma.location + token_before_comma.size;
+						diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
+				} break;
+				case OP_Argument__RD:  {} // fallthrough
+				case OP_Argument__RS3: {} // fallthrough
+				case OP_Argument__RS2: {} // fallthrough
+				case OP_Argument__RS1:
+				{
+					U8 reg = register_lookup(Token_Cursor__text(cursor));
+					if (reg == register_invalid)
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = cursor->current.location;
+						diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
+						diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
 
-				SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
-				result = 0;
+					switch (argument)
+					{
+					case OP_Argument__RD:  { INSERT_OPERAND(RD,  instruction, reg); } break;
+					case OP_Argument__RS3: { INSERT_OPERAND(RS3, instruction, reg); } break;
+					case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, reg); } break;
+					case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, reg); } break;
+					}
+				} break;
+				case OP_Argument__Immediate_I:
+				{
+					U32 location_expression_begin = cursor->current.location;
+					Expression_Node *expression   = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, &relocation, Instruction_Format__I);
+					U32 location_expression_end   = cursor->current.location;
+					S64 result = expression_evaluate(expressions, expression->index);
+
+					if (expression->evaluation == Expression_Kind__Constant)
+					{
+						B32 fits = S64_bits_range_in(result, 12);
+						if (!fits)
+						{
+							Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+							diagnostic->location   = cursor->current.location;
+							diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
+							diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+							SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+							result = 0;
+						}
+					}
+					else
+					{
+						U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
+						Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+
+						fixup->expression_index = expression->index;
+						fixup->fragment         = section->fragment_list.last;
+						fixup->encoding_offset  = fixup_encoding_base_offset;
+						// NOTE: the relocation type encodes information on where to set the resolved
+						// value.
+						fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
+						fixup->size             = 4;
+
+						SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+						result = 0;
+					}
+				} break;
+				default: { unreachable_m(); }
+				}
+
+				arguments += 1;
 			}
 
 			U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);
-			data[0] = 0; // TODO fill
-		} break;
-
-
-// 			// I-type (arithmetic)
-// 			case HASH_addi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ADDI);                  } break;
-// 			case HASH_slti:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLTI);                  } break;
-// 			case HASH_sltiu:     { Parser_instruction_I_parse(parser, Instruction_Kind__SLTIU);                 } break;
-// 			case HASH_xori:      { Parser_instruction_I_parse(parser, Instruction_Kind__XORI);                  } break;
-// 			case HASH_ori:       { Parser_instruction_I_parse(parser, Instruction_Kind__ORI);                   } break;
-// 			case HASH_andi:      { Parser_instruction_I_parse(parser, Instruction_Kind__ANDI);                  } break;
-// 			case HASH_slli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SLLI);                  } break;
-// 			case HASH_srli:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRLI);                  } break;
-// 			case HASH_srai:      { Parser_instruction_I_parse(parser, Instruction_Kind__SRAI);                  } break;
+			memory_copy(data, &instruction.encoding, 4);
 		}
 
 		U8   data_directive_size = 0;

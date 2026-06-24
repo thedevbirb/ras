@@ -519,160 +519,160 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 	(((U32)((imm) >>  1)         &  0x3FF) << 21) | /* bits 30:21 imm[10:1]  */                            \
 	(((U32)((imm) >> 20)         &  0x01) << 31)   /* bit  31     imm[20]    */
 
-typedef U8 Instruction_Flags;
-enum
-{
-    Instruction_Flags__None                = 0,
-    // Operand transformations for pseudo-instruction encoding:
-    //   Swap_1: swap rs1 and rs2 (e.g., bgt -> blt with swapped ops)
-    //   Swap_2: rs1 -> x0, rs2 -> rs1 (e.g., bgtz -> blt x0, rs, label)
-    Instruction_Flags__Swap_1              = 1 << 0,
-    Instruction_Flags__Swap_2              = 1 << 1,
-    // The assembler attaches R_RISCV_RELAX to this instruction when it
-    // carries a symbol relocation under .option relax. Signals to the
-    // linker that this instruction participates in a relaxable pattern.
-    Instruction_Flags__Relax_Hint          = 1 << 2,
-    // Whether the instruction may be grow or shrink due to relaxation made by the linker or assembler.
-    Instruction_Flags__Expandable          = 1 << 3,
-    // The instruction's immediate can be written with a relocation operator
-    // (%lo, %hi, %pcrel_lo, %pcrel_hi, %tprel_lo, %tprel_hi, etc.).
-    Instruction_Flags__Relocation_Operator = 1 << 4,
-};
-
-typedef struct Instruction_Encoding Instruction_Encoding;
-struct Instruction_Encoding
-{
-    U8 opcode;
-    U8 funct3;
-    U8 funct7;     // also funct6 for RV64 shifts
-    U8 flags;
-};
-
-global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__COUNT] =
-{
-    // RV64I — U-type
-    // lui/auipc take %hi/%pcrel_hi; both participate in relaxable address pairs.
-    [Instruction_Kind__LUI]    = { OPCODE_LUI,      0,            0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__AUIPC]  = { OPCODE_AUIPC,    0,            0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64I — J-type
-    // jal has R_RISCV_JAL for symbolic targets but no %-operator syntax.
-    // It's the target of branch expansion (branches expand to jal form),
-    // and `call`/`tail` pseudos can relax to jal — but jal itself doesn't
-    // further expand or shrink.
-    [Instruction_Kind__JAL]    = { OPCODE_JAL,      0,            0,             0                                                                      },
-
-    // RV64I — I-type (JALR)
-    // jalr pairs with auipc in relaxable call/tail sequences; takes %pcrel_lo.
-    [Instruction_Kind__JALR]   = { OPCODE_JALR,     FUNCT3_JALR,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64I — B-type
-    // Branches have R_RISCV_BRANCH for resolvable backward in-range targets,
-    // but the assembler expands them to jal-based long form when the target
-    // isn't provably reachable. No %-operator syntax.
-    // Linker does not shrink branches -> no Instruction_Flags__Relax_Hint hint.
-    [Instruction_Kind__BEQ]    = { OPCODE_BRANCH,   FUNCT3_BEQ,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BNE]    = { OPCODE_BRANCH,   FUNCT3_BNE,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BLT]    = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BGE]    = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BLTU]   = { OPCODE_BRANCH,   FUNCT3_BLTU,  0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BGEU]   = { OPCODE_BRANCH,   FUNCT3_BGEU,  0,             Instruction_Flags__Expandable                                          },
-
-    // RV64I — Loads
-    // Load immediates take %lo/%pcrel_lo/%tprel_lo; pair with lui/auipc for
-    // address materialization, relaxable.
-    [Instruction_Kind__LB]     = { OPCODE_LOAD,     FUNCT3_LB,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LH]     = { OPCODE_LOAD,     FUNCT3_LH,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LW]     = { OPCODE_LOAD,     FUNCT3_LW,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LD]     = { OPCODE_LOAD,     FUNCT3_LD,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LBU]    = { OPCODE_LOAD,     FUNCT3_LBU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LHU]    = { OPCODE_LOAD,     FUNCT3_LHU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__LWU]    = { OPCODE_LOAD,     FUNCT3_LWU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64I — Stores
-    // Same as loads but with R_RISCV_LO12_S / R_RISCV_PCREL_LO12_S.
-    [Instruction_Kind__SB]     = { OPCODE_STORE,    FUNCT3_SB,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__SH]     = { OPCODE_STORE,    FUNCT3_SH,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__SW]     = { OPCODE_STORE,    FUNCT3_SW,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__SD]     = { OPCODE_STORE,    FUNCT3_SD,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64I — I-type ALU
-    // addi is the canonical low-12 target for %lo/%pcrel_lo/%tprel_lo.
-    // Other I-type ALU ops (slti, xori, ori, andi, sltiu) accept the same
-    // operators syntactically in GAS, though semantically unusual.
-    [Instruction_Kind__ADDI]   = { OPCODE_I_TYPE,   FUNCT3_ADDI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__SLTI]   = { OPCODE_I_TYPE,   FUNCT3_SLTI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__SLTIU]  = { OPCODE_I_TYPE,   FUNCT3_SLTIU, 0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__XORI]   = { OPCODE_I_TYPE,   FUNCT3_XORI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__ORI]    = { OPCODE_I_TYPE,   FUNCT3_ORI,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-    [Instruction_Kind__ANDI]   = { OPCODE_I_TYPE,   FUNCT3_ANDI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64I — Shift immediates (shamt, no symbol ever)
-    [Instruction_Kind__SLLI]   = { OPCODE_I_TYPE,   FUNCT3_SLLI,  FUNCT6_SLLI,   0                                                                      },
-    [Instruction_Kind__SRLI]   = { OPCODE_I_TYPE,   FUNCT3_SRLI,  FUNCT6_SRLI,   0                                                                      },
-    [Instruction_Kind__SRAI]   = { OPCODE_I_TYPE,   FUNCT3_SRAI,  FUNCT6_SRAI,   0                                                                      },
-
-    // RV64I — R-type (no immediate field, no relocation possible)
-    [Instruction_Kind__ADD]    = { OPCODE_R_TYPE,   FUNCT3_ADD,   FUNCT7_ADD,    0                                                                      },
-    [Instruction_Kind__SUB]    = { OPCODE_R_TYPE,   FUNCT3_SUB,   FUNCT7_SUB,    0                                                                      },
-    [Instruction_Kind__SLL]    = { OPCODE_R_TYPE,   FUNCT3_SLL,   FUNCT7_SLL,    0                                                                      },
-    [Instruction_Kind__SLT]    = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    0                                                                      },
-    [Instruction_Kind__SLTU]   = { OPCODE_R_TYPE,   FUNCT3_SLTU,  FUNCT7_SLTU,   0                                                                      },
-    [Instruction_Kind__XOR]    = { OPCODE_R_TYPE,   FUNCT3_XOR,   FUNCT7_XOR,    0                                                                      },
-    [Instruction_Kind__SRL]    = { OPCODE_R_TYPE,   FUNCT3_SRL,   FUNCT7_SRL,    0                                                                      },
-    [Instruction_Kind__SRA]    = { OPCODE_R_TYPE,   FUNCT3_SRA,   FUNCT7_SRA,    0                                                                      },
-    [Instruction_Kind__OR]     = { OPCODE_R_TYPE,   FUNCT3_OR,    FUNCT7_OR,     0                                                                      },
-    [Instruction_Kind__AND]    = { OPCODE_R_TYPE,   FUNCT3_AND,   FUNCT7_AND,    0                                                                      },
-
-    // RV64-W — I-type W
-    // addiw accepts %-operators syntactically (GAS attaches the relocation
-    // mechanically), even though the resulting 32-bit arithmetic is rarely
-    // useful for address computation. Mirrors GAS behavior.
-    [Instruction_Kind__ADDIW]  = { OPCODE_I_TYPE_W, FUNCT3_ADDIW, 0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
-
-    // RV64-W — Shift immediates W (shamt, no symbol)
-    [Instruction_Kind__SLLIW]  = { OPCODE_I_TYPE_W, FUNCT3_SLLIW, FUNCT7_SLLIW,  0                                                                      },
-    [Instruction_Kind__SRLIW]  = { OPCODE_I_TYPE_W, FUNCT3_SRLIW, FUNCT7_SRLIW,  0                                                                      },
-    [Instruction_Kind__SRAIW]  = { OPCODE_I_TYPE_W, FUNCT3_SRAIW, FUNCT7_SRAIW,  0                                                                      },
-
-    // RV64-W — R-type W (no immediate)
-    [Instruction_Kind__ADDW]   = { OPCODE_R_TYPE_W, FUNCT3_ADDW,  FUNCT7_ADDW,   0                                                                      },
-    [Instruction_Kind__SUBW]   = { OPCODE_R_TYPE_W, FUNCT3_SUBW,  FUNCT7_SUBW,   0                                                                      },
-    [Instruction_Kind__SLLW]   = { OPCODE_R_TYPE_W, FUNCT3_SLLW,  FUNCT7_SLLW,   0                                                                      },
-    [Instruction_Kind__SRLW]   = { OPCODE_R_TYPE_W, FUNCT3_SRLW,  FUNCT7_SRLW,   0                                                                      },
-    [Instruction_Kind__SRAW]   = { OPCODE_R_TYPE_W, FUNCT3_SRAW,  FUNCT7_SRAW,   0                                                                      },
-
-    // Pseudo — I-type mapped (register-register moves, not symbol-accepting)
-    [Instruction_Kind__MV]     = { OPCODE_I_TYPE,   FUNCT3_ADDI,  0,             0                                                                      },
-    [Instruction_Kind__NOT]    = { OPCODE_I_TYPE,   FUNCT3_XORI,  0,             0                                                                      },
-    [Instruction_Kind__SEXT_W] = { OPCODE_I_TYPE_W, FUNCT3_ADDIW, 0,             0                                                                      },
-    [Instruction_Kind__SEQZ]   = { OPCODE_I_TYPE,   FUNCT3_SLTIU, 0,             0                                                                      },
-    [Instruction_Kind__JR]     = { OPCODE_JALR,     FUNCT3_JALR,  0,             0                                                                      },
-
-    // Pseudo — R-type mapped (no immediate)
-    [Instruction_Kind__NEG]    = { OPCODE_R_TYPE,   FUNCT3_SUB,   FUNCT7_SUB,    Instruction_Flags__Swap_1                                              },
-    [Instruction_Kind__NEGW]   = { OPCODE_R_TYPE_W, FUNCT3_SUBW,  FUNCT7_SUBW,   Instruction_Flags__Swap_1                                              },
-    [Instruction_Kind__SNEZ]   = { OPCODE_R_TYPE,   FUNCT3_SLTU,  FUNCT7_SLTU,   Instruction_Flags__Swap_1                                              },
-    [Instruction_Kind__SGTZ]   = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    Instruction_Flags__Swap_1                                              },
-    [Instruction_Kind__SLTZ]   = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    0                                                                      },
-
-    // Pseudo — B-type mapped (expand to jal form when out of branch range,
-    // same as their real-instruction counterparts)
-    [Instruction_Kind__BEQZ]   = { OPCODE_BRANCH,   FUNCT3_BEQ,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BNEZ]   = { OPCODE_BRANCH,   FUNCT3_BNE,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BLTZ]   = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BGEZ]   = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable                                          },
-    [Instruction_Kind__BLEZ]   = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_2              },
-    [Instruction_Kind__BGTZ]   = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_2              },
-    [Instruction_Kind__BGT]    = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
-    [Instruction_Kind__BLE]    = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
-    [Instruction_Kind__BGTU]   = { OPCODE_BRANCH,   FUNCT3_BLTU,  0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
-    [Instruction_Kind__BLEU]   = { OPCODE_BRANCH,   FUNCT3_BGEU,  0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
-
-    // Pseudo — J-type mapped
-    // j is jal x0, label — same properties as jal itself.
-    [Instruction_Kind__J]      = { OPCODE_JAL,      0,            0,             0                                                                      },
-};
+// typedef U8 Instruction_Flags;
+// enum
+// {
+//     Instruction_Flags__None                = 0,
+//     // Operand transformations for pseudo-instruction encoding:
+//     //   Swap_1: swap rs1 and rs2 (e.g., bgt -> blt with swapped ops)
+//     //   Swap_2: rs1 -> x0, rs2 -> rs1 (e.g., bgtz -> blt x0, rs, label)
+//     Instruction_Flags__Swap_1              = 1 << 0,
+//     Instruction_Flags__Swap_2              = 1 << 1,
+//     // The assembler attaches R_RISCV_RELAX to this instruction when it
+//     // carries a symbol relocation under .option relax. Signals to the
+//     // linker that this instruction participates in a relaxable pattern.
+//     Instruction_Flags__Relax_Hint          = 1 << 2,
+//     // Whether the instruction may be grow or shrink due to relaxation made by the linker or assembler.
+//     Instruction_Flags__Expandable          = 1 << 3,
+//     // The instruction's immediate can be written with a relocation operator
+//     // (%lo, %hi, %pcrel_lo, %pcrel_hi, %tprel_lo, %tprel_hi, etc.).
+//     Instruction_Flags__Relocation_Operator = 1 << 4,
+// };
+//
+// typedef struct Instruction_Encoding Instruction_Encoding;
+// struct Instruction_Encoding
+// {
+//     U8 opcode;
+//     U8 funct3;
+//     U8 funct7;     // also funct6 for RV64 shifts
+//     U8 flags;
+// };
+//
+// global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__COUNT] =
+// {
+//     // RV64I — U-type
+//     // lui/auipc take %hi/%pcrel_hi; both participate in relaxable address pairs.
+//     [Instruction_Kind__LUI]    = { OPCODE_LUI,      0,            0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__AUIPC]  = { OPCODE_AUIPC,    0,            0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64I — J-type
+//     // jal has R_RISCV_JAL for symbolic targets but no %-operator syntax.
+//     // It's the target of branch expansion (branches expand to jal form),
+//     // and `call`/`tail` pseudos can relax to jal — but jal itself doesn't
+//     // further expand or shrink.
+//     [Instruction_Kind__JAL]    = { OPCODE_JAL,      0,            0,             0                                                                      },
+//
+//     // RV64I — I-type (JALR)
+//     // jalr pairs with auipc in relaxable call/tail sequences; takes %pcrel_lo.
+//     [Instruction_Kind__JALR]   = { OPCODE_JALR,     FUNCT3_JALR,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64I — B-type
+//     // Branches have R_RISCV_BRANCH for resolvable backward in-range targets,
+//     // but the assembler expands them to jal-based long form when the target
+//     // isn't provably reachable. No %-operator syntax.
+//     // Linker does not shrink branches -> no Instruction_Flags__Relax_Hint hint.
+//     [Instruction_Kind__BEQ]    = { OPCODE_BRANCH,   FUNCT3_BEQ,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BNE]    = { OPCODE_BRANCH,   FUNCT3_BNE,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BLT]    = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BGE]    = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BLTU]   = { OPCODE_BRANCH,   FUNCT3_BLTU,  0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BGEU]   = { OPCODE_BRANCH,   FUNCT3_BGEU,  0,             Instruction_Flags__Expandable                                          },
+//
+//     // RV64I — Loads
+//     // Load immediates take %lo/%pcrel_lo/%tprel_lo; pair with lui/auipc for
+//     // address materialization, relaxable.
+//     [Instruction_Kind__LB]     = { OPCODE_LOAD,     FUNCT3_LB,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LH]     = { OPCODE_LOAD,     FUNCT3_LH,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LW]     = { OPCODE_LOAD,     FUNCT3_LW,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LD]     = { OPCODE_LOAD,     FUNCT3_LD,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LBU]    = { OPCODE_LOAD,     FUNCT3_LBU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LHU]    = { OPCODE_LOAD,     FUNCT3_LHU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__LWU]    = { OPCODE_LOAD,     FUNCT3_LWU,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64I — Stores
+//     // Same as loads but with R_RISCV_LO12_S / R_RISCV_PCREL_LO12_S.
+//     [Instruction_Kind__SB]     = { OPCODE_STORE,    FUNCT3_SB,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__SH]     = { OPCODE_STORE,    FUNCT3_SH,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__SW]     = { OPCODE_STORE,    FUNCT3_SW,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__SD]     = { OPCODE_STORE,    FUNCT3_SD,    0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64I — I-type ALU
+//     // addi is the canonical low-12 target for %lo/%pcrel_lo/%tprel_lo.
+//     // Other I-type ALU ops (slti, xori, ori, andi, sltiu) accept the same
+//     // operators syntactically in GAS, though semantically unusual.
+//     [Instruction_Kind__ADDI]   = { OPCODE_I_TYPE,   FUNCT3_ADDI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__SLTI]   = { OPCODE_I_TYPE,   FUNCT3_SLTI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__SLTIU]  = { OPCODE_I_TYPE,   FUNCT3_SLTIU, 0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__XORI]   = { OPCODE_I_TYPE,   FUNCT3_XORI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__ORI]    = { OPCODE_I_TYPE,   FUNCT3_ORI,   0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//     [Instruction_Kind__ANDI]   = { OPCODE_I_TYPE,   FUNCT3_ANDI,  0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64I — Shift immediates (shamt, no symbol ever)
+//     [Instruction_Kind__SLLI]   = { OPCODE_I_TYPE,   FUNCT3_SLLI,  FUNCT6_SLLI,   0                                                                      },
+//     [Instruction_Kind__SRLI]   = { OPCODE_I_TYPE,   FUNCT3_SRLI,  FUNCT6_SRLI,   0                                                                      },
+//     [Instruction_Kind__SRAI]   = { OPCODE_I_TYPE,   FUNCT3_SRAI,  FUNCT6_SRAI,   0                                                                      },
+//
+//     // RV64I — R-type (no immediate field, no relocation possible)
+//     [Instruction_Kind__ADD]    = { OPCODE_R_TYPE,   FUNCT3_ADD,   FUNCT7_ADD,    0                                                                      },
+//     [Instruction_Kind__SUB]    = { OPCODE_R_TYPE,   FUNCT3_SUB,   FUNCT7_SUB,    0                                                                      },
+//     [Instruction_Kind__SLL]    = { OPCODE_R_TYPE,   FUNCT3_SLL,   FUNCT7_SLL,    0                                                                      },
+//     [Instruction_Kind__SLT]    = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    0                                                                      },
+//     [Instruction_Kind__SLTU]   = { OPCODE_R_TYPE,   FUNCT3_SLTU,  FUNCT7_SLTU,   0                                                                      },
+//     [Instruction_Kind__XOR]    = { OPCODE_R_TYPE,   FUNCT3_XOR,   FUNCT7_XOR,    0                                                                      },
+//     [Instruction_Kind__SRL]    = { OPCODE_R_TYPE,   FUNCT3_SRL,   FUNCT7_SRL,    0                                                                      },
+//     [Instruction_Kind__SRA]    = { OPCODE_R_TYPE,   FUNCT3_SRA,   FUNCT7_SRA,    0                                                                      },
+//     [Instruction_Kind__OR]     = { OPCODE_R_TYPE,   FUNCT3_OR,    FUNCT7_OR,     0                                                                      },
+//     [Instruction_Kind__AND]    = { OPCODE_R_TYPE,   FUNCT3_AND,   FUNCT7_AND,    0                                                                      },
+//
+//     // RV64-W — I-type W
+//     // addiw accepts %-operators syntactically (GAS attaches the relocation
+//     // mechanically), even though the resulting 32-bit arithmetic is rarely
+//     // useful for address computation. Mirrors GAS behavior.
+//     [Instruction_Kind__ADDIW]  = { OPCODE_I_TYPE_W, FUNCT3_ADDIW, 0,             Instruction_Flags__Relax_Hint | Instruction_Flags__Relocation_Operator },
+//
+//     // RV64-W — Shift immediates W (shamt, no symbol)
+//     [Instruction_Kind__SLLIW]  = { OPCODE_I_TYPE_W, FUNCT3_SLLIW, FUNCT7_SLLIW,  0                                                                      },
+//     [Instruction_Kind__SRLIW]  = { OPCODE_I_TYPE_W, FUNCT3_SRLIW, FUNCT7_SRLIW,  0                                                                      },
+//     [Instruction_Kind__SRAIW]  = { OPCODE_I_TYPE_W, FUNCT3_SRAIW, FUNCT7_SRAIW,  0                                                                      },
+//
+//     // RV64-W — R-type W (no immediate)
+//     [Instruction_Kind__ADDW]   = { OPCODE_R_TYPE_W, FUNCT3_ADDW,  FUNCT7_ADDW,   0                                                                      },
+//     [Instruction_Kind__SUBW]   = { OPCODE_R_TYPE_W, FUNCT3_SUBW,  FUNCT7_SUBW,   0                                                                      },
+//     [Instruction_Kind__SLLW]   = { OPCODE_R_TYPE_W, FUNCT3_SLLW,  FUNCT7_SLLW,   0                                                                      },
+//     [Instruction_Kind__SRLW]   = { OPCODE_R_TYPE_W, FUNCT3_SRLW,  FUNCT7_SRLW,   0                                                                      },
+//     [Instruction_Kind__SRAW]   = { OPCODE_R_TYPE_W, FUNCT3_SRAW,  FUNCT7_SRAW,   0                                                                      },
+//
+//     // Pseudo — I-type mapped (register-register moves, not symbol-accepting)
+//     [Instruction_Kind__MV]     = { OPCODE_I_TYPE,   FUNCT3_ADDI,  0,             0                                                                      },
+//     [Instruction_Kind__NOT]    = { OPCODE_I_TYPE,   FUNCT3_XORI,  0,             0                                                                      },
+//     [Instruction_Kind__SEXT_W] = { OPCODE_I_TYPE_W, FUNCT3_ADDIW, 0,             0                                                                      },
+//     [Instruction_Kind__SEQZ]   = { OPCODE_I_TYPE,   FUNCT3_SLTIU, 0,             0                                                                      },
+//     [Instruction_Kind__JR]     = { OPCODE_JALR,     FUNCT3_JALR,  0,             0                                                                      },
+//
+//     // Pseudo — R-type mapped (no immediate)
+//     [Instruction_Kind__NEG]    = { OPCODE_R_TYPE,   FUNCT3_SUB,   FUNCT7_SUB,    Instruction_Flags__Swap_1                                              },
+//     [Instruction_Kind__NEGW]   = { OPCODE_R_TYPE_W, FUNCT3_SUBW,  FUNCT7_SUBW,   Instruction_Flags__Swap_1                                              },
+//     [Instruction_Kind__SNEZ]   = { OPCODE_R_TYPE,   FUNCT3_SLTU,  FUNCT7_SLTU,   Instruction_Flags__Swap_1                                              },
+//     [Instruction_Kind__SGTZ]   = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    Instruction_Flags__Swap_1                                              },
+//     [Instruction_Kind__SLTZ]   = { OPCODE_R_TYPE,   FUNCT3_SLT,   FUNCT7_SLT,    0                                                                      },
+//
+//     // Pseudo — B-type mapped (expand to jal form when out of branch range,
+//     // same as their real-instruction counterparts)
+//     [Instruction_Kind__BEQZ]   = { OPCODE_BRANCH,   FUNCT3_BEQ,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BNEZ]   = { OPCODE_BRANCH,   FUNCT3_BNE,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BLTZ]   = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BGEZ]   = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable                                          },
+//     [Instruction_Kind__BLEZ]   = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_2              },
+//     [Instruction_Kind__BGTZ]   = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_2              },
+//     [Instruction_Kind__BGT]    = { OPCODE_BRANCH,   FUNCT3_BLT,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
+//     [Instruction_Kind__BLE]    = { OPCODE_BRANCH,   FUNCT3_BGE,   0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
+//     [Instruction_Kind__BGTU]   = { OPCODE_BRANCH,   FUNCT3_BLTU,  0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
+//     [Instruction_Kind__BLEU]   = { OPCODE_BRANCH,   FUNCT3_BGEU,  0,             Instruction_Flags__Expandable | Instruction_Flags__Swap_1              },
+//
+//     // Pseudo — J-type mapped
+//     // j is jal x0, label — same properties as jal itself.
+//     [Instruction_Kind__J]      = { OPCODE_JAL,      0,            0,             0                                                                      },
+// };
 
 #define ENCODING_NOP    0x00000013
 #define ENCODING_RET    0x00008067
@@ -681,14 +681,87 @@ global const Instruction_Encoding Instruction_Encoding_table[Instruction_Kind__C
 #define ENCODING_PAUSE  0x0100000F
 #define ENCODING_TSO    0x8330000F
 
+
+/* RV fields.  */
+
+#define OP_MASK_OP		0x7f
+#define OP_SH_OP		0
+#define OP_MASK_RS2		0x1f
+#define OP_SH_RS2		20
+#define OP_MASK_RS1		0x1f
+#define OP_SH_RS1		15
+#define OP_MASK_RS3		0x1fU
+#define OP_SH_RS3		27
+#define OP_MASK_RD		0x1f
+#define OP_SH_RD		7
+#define OP_MASK_SHAMT		0x3f
+#define OP_SH_SHAMT		20
+#define OP_MASK_SHAMTW		0x1f
+#define OP_SH_SHAMTW		20
+#define OP_MASK_RM		0x7
+#define OP_SH_RM		12
+#define OP_MASK_PRED		0xf
+#define OP_SH_PRED		24
+#define OP_MASK_SUCC		0xf
+#define OP_SH_SUCC		20
+#define OP_MASK_AQ		0x1
+#define OP_SH_AQ		26
+#define OP_MASK_RL		0x1
+#define OP_SH_RL		25
+
+#define OP_MASK_CSR		0xfffU
+#define OP_SH_CSR		20
+
+#define OP_MASK_FUNCT3		0x7
+#define OP_SH_FUNCT3		12
+#define OP_MASK_FUNCT7		0x7fU
+#define OP_SH_FUNCT7		25
+#define OP_MASK_FUNCT2		0x3
+#define OP_SH_FUNCT2		25
+
+#define MATCH_ADDI 0x13
+#define MASK_ADDI  0x707f
+
+typedef U32 insn_t;
+
+// Replace bits MASK << SHIFT of STRUCT with the equivalent bits in
+// VALUE << SHIFT.  VALUE is evaluated exactly once.
+#define INSERT_BITS(STRUCT, VALUE, MASK, SHIFT) \
+  (STRUCT) = (((STRUCT) & ~((insn_t)(MASK) << (SHIFT))) \
+	      | ((insn_t)((VALUE) & (MASK)) << (SHIFT)))
+
+#define INSERT_OPERAND(field, instruction, value) \
+  INSERT_BITS ((instruction).encoding, value, OP_MASK_##field, OP_SH_##field)
+
+#define INSERT_IMM(n, s, INSN, VALUE) \
+  INSERT_BITS ((INSN).insn_opcode, VALUE, (1UL<<n) - 1, s)
+
 typedef enum RISCV_Instruction_Class
 {
 	RISCV_Instruction_Class__None,
+	RISCV_Instruction_Class__I,
+
 	RISCV_Instruction_Class__COUNT,
+
 }
 RISCV_Instruction_Class;
 
 #define OP_arguments_m(...) ((U16[]){ __VA_ARGS__, 0 })
+
+typedef U16 OP_Argument;
+enum
+{
+	OP_Argument__None = 0,
+	OP_Argument__Comma,
+	OP_Argument__RD,
+	OP_Argument__RS1,
+	OP_Argument__RS2,
+	OP_Argument__RS3,
+	OP_Argument__Immediate_I,
+	OP_Argument__Immediate_S,
+	OP_Argument__Offset,
+	OP_Argument__COUNT,
+};
 
 // This structure holds information for a particular instruction.
 //
@@ -698,6 +771,9 @@ struct RISCV_Opcode
 {
 	// The name of the instruction.
 	const char *name;
+
+	// Hash of the name. NOTE: temporary, this could be dropped.
+	U32 hash;
 
 	// The requirement of xlen for the instruction, 0 if no requirement. For example, it can be 32/64 in case of
 	// 32/64-bit only instruction.
@@ -723,12 +799,80 @@ struct RISCV_Opcode
 	U32 mask;
 
 	// A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
-	B32 (*match_function) (RISCV_Opcode *opcode, U32 word);
+	B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
 
 	// For a macro, this is INSN_MACRO.  Otherwise, it is a collection of bits describing the instruction, notably
 	// any relevant hazard information.
 	U64 info;
 };
+
+static B32
+match_opcode (const RISCV_Opcode *opcode, U32 instruction)
+{
+	B32 result = ((instruction ^ opcode->match) & opcode->mask) == 0;
+	return result;
+}
+
+global const RISCV_Opcode RISCV_Opcode__table[] =
+{
+	{ "addi", HASH_addi, 0, 0, OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I), MATCH_ADDI, MASK_ADDI, match_opcode, 0 }
+};
+
+
+
+internal const RISCV_Opcode *
+RISCV_Opcode__table_find(U32 instruction_hash)
+{
+	U32 count = array_count_m(RISCV_Opcode__table);
+	U32 index = 0;
+
+	const RISCV_Opcode *result = 0;
+	for (;;)
+	{
+		B32 break_should = result || index >= count;
+		if (break_should)
+		{
+			break;
+		}
+
+		const RISCV_Opcode *opcode = &RISCV_Opcode__table[index];
+		result = opcode->hash == instruction_hash ? opcode : 0;
+
+		index += 1;
+	}
+
+	return result;
+}
+
+// Information about an instruction, including its format, operands
+// and fixups.
+typedef struct RISCV_Instruction RISCV_Instruction;
+struct RISCV_Instruction
+{
+  const RISCV_Opcode *opcode;
+
+  // The long encoded instruction bits ([0] is non-zero on a long opcode).  */
+  // char insn_long_opcode[RISCV_MAX_INSN_LEN];
+
+  // The frag that contains the instruction
+  Fragment *fragment;
+
+  U32 encoding;
+  // The offset into FRAG of the first instruction byte.
+  U32 offset;
+
+  // The relocations associated with the instruction, if any.
+  Fixup *fixup;
+};
+
+internal RISCV_Instruction
+RISCV_Instruction__create(const RISCV_Opcode *opcode)
+{
+	RISCV_Instruction result = {0};
+	result.opcode   = opcode;
+	result.encoding = opcode->match;
+	return result;
+}
 
 
 #endif // LANGUAGE_INSTRUCTION_H

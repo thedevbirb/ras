@@ -1,6 +1,7 @@
 #ifndef CORE_INCLUDE_H
 #define CORE_INCLUDE_H
 
+#include "core_token.h"
 #include "core_source.h"
 #include "core_initialize.h"
 #include "core_fragment.h"

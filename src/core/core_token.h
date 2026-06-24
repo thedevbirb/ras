@@ -1,5 +1,5 @@
-#ifndef LANGUAGE_TOKEN_H
-#define LANGUAGE_TOKEN_H
+#ifndef CORE_TOKEN_H
+#define CORE_TOKEN_H
 
 typedef enum Token_Kind
 {
@@ -121,5 +121,5 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
 	[Token_Kind__Number]            = "number",
 };
 
-#endif // LANGUAGE_TOKEN_H
+#endif // CORE_TOKEN_H
 

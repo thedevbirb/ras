@@ -729,3 +729,9 @@ with `addi x1, x0, %lo(1234)`. Commit used: `fb7b22bbeac9f26043f3aa92228c6ade7e2
     `reloc_list` isn't used, the way relocations are found is by tracking which fixups aren't "done"
     yet. Information about the relocation is taken from the fixup field, and it's finally written in
     the appropriate object file section buffer.
+
+Tue Jun 23 16:34:06 CEST 2026
+
+Previous analysis of GNU as lifecycle has been very helpful because it gives a rough track on the
+things that should be done, in what order and with which information. I feel more comfortable know
+trying to trace down a path.
