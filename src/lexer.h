@@ -78,7 +78,10 @@ typedef struct Token_Cursor Token_Cursor;
 struct Token_Cursor
 {
 	Source *source;
+	// The last token read with `token_next`.
 	Token_2 current;
+	// The previous token read with `token_next`.
+	Token_2 previous;
 	U32     source_index;
 };
 

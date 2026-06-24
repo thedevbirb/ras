@@ -634,6 +634,24 @@ expression_parse
 		} break;
 		}
 
+		// Don't check binding power of a ')', handle it and then check what's next.
+		if (cursor->current.kind == Token_Kind__Parenthesis_Right)
+		{
+			if (parenthesis_frame)
+			{
+				SLL_stack_pop_m(parenthesis_frame);
+			}
+			else
+			{
+				error = Arena__push_struct_m(arena, Diagnostic);
+				error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
+				error->location = cursor->current.location;
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
+			}
+			token_next(cursor, diagnostics, arena);
+		}
+
+
 		// The `binding_power_minimum` is used to describe precedence. Operator tokens have an associated power
 		// that is transferred to the next null denotation to preserve context.
 		//
@@ -661,22 +679,6 @@ expression_parse
 		B32 pop = next_power <= frame->binding_power_minimum || cursor->source_index >= cursor->source->count;
 		if (pop)
 		{
-			if (cursor->current.kind == Token_Kind__Parenthesis_Right)
-			{
-				if (!parenthesis_frame)
-				{
-					error = Arena__push_struct_m(arena, Diagnostic);
-					error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
-					error->location = cursor->current.location;
-					SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
-				}
-				else
-				{
-					SLL_stack_pop_m(parenthesis_frame);
-				}
-				token_next(cursor, diagnostics, arena);
-			}
-
 			if (frame->is_right_side_of_next)
 			{
 				assert_always_m(frame->next);
@@ -1292,7 +1294,7 @@ statement_read
 	B32 progress = 1;
 	B32 error =  0;
 
-	for (;;)
+ 	for (;;)
 	{
 		Directive_Kind directive_kind         = 0;
 		U32            instruction_hash       = 0;
@@ -1410,8 +1412,7 @@ statement_read
 				case OP_Argument__Comma:
 				{
 					// NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
-					Token_2 token_before_comma = cursor->current;
-					token_next(cursor, diagnostics, arena);
+					Token_2 token_before_comma = cursor->previous;
 					if (cursor->current.kind == Token_Kind__Comma)
 					{
 						token_next(cursor, diagnostics, arena);
@@ -1446,6 +1447,7 @@ statement_read
 					case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, reg); } break;
 					case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, reg); } break;
 					}
+					token_next(cursor, diagnostics, arena);
 				} break;
 				case OP_Argument__Immediate_I:
 				{
@@ -2048,12 +2050,13 @@ statement_read
 		U32 junk_location_end   = 0;
 		for (;;)
 		{
-			Token_Kind kind = cursor->current.kind;
+ 			Token_Kind kind = cursor->current.kind;
 			B32 break_should = kind == Token_Kind__None
 				|| kind == Token_Kind__Newline
 				|| kind == Token_Kind__Semicolon;
 			if (break_should)
 			{
+				token_next(cursor, diagnostics, arena);
 				break;
 			}
 			junk_location_end = cursor->current.location + cursor->current.size;
@@ -2063,7 +2066,7 @@ statement_read
 		if (junk_location_end)
 		{
 			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-			diagnostic->location   = cursor->current.location;
+			diagnostic->location   = junk_location_begin;
 			diagnostic->message    = String8__literal("junk found at the end of line");
 			diagnostic->ranges[0]  = (Range1_U32){{ junk_location_begin, junk_location_end }};
 			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);

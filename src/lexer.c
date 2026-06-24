@@ -547,7 +547,8 @@ token_next
 	Arena           *arena
 )
 {
-	cursor->current = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+	cursor->previous = cursor->current;
+	cursor->current  = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
 	if (cursor->current.kind != Token_Kind__None)
 	{
 		cursor->source_index = cursor->current.index + cursor->current.size;
