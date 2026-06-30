@@ -445,8 +445,6 @@
 
 // NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
 // common ground for it if it makes sense.
-//
-// Machine-dependent code should be noted with the best effort.
 internal Expression_Node *
 expression_parse
 (
@@ -454,10 +452,7 @@ expression_parse
 	Token_Cursor       *cursor,
 	Expressions        *expressions,
 	Symbols_Table      *symbols_table,
-	Diagnostic_List    *diagnostics,
-	// Machine-dependent
-	U16                *relocation_out,
-	Instruction_Format  instruction_format
+	Diagnostic_List    *diagnostics
 )
 {
 	// A stack of expression frames. Each sub-expression creates a frame associated to it.
@@ -530,58 +525,7 @@ expression_parse
 			token_next(cursor, diagnostics, arena);
 		} break;
 
-		// RISC-V specific: % for relocation
 		case Token_Kind__Percentage:
-		{
-			assert_always_m(relocation_out && "relocation_out should be set");
-
-			token_next(cursor, diagnostics, arena);
-			String8 relocation_operator_text = Token_Cursor__text(cursor);
-			U16 relocation_type = Relocation_RISC_V__lookup(relocation_operator_text, instruction_format);
-
-			if (*relocation_out != Relocation_RISC_V__None)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Multiple];
-				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			if (relocation_type == Relocation_RISC_V__None)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Invalid];
-				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			*relocation_out = relocation_type;
-			// TODO: check based on the current instruction info.
-			if (*relocation_out != Relocation_RISC_V__Low_12_I_Type)
-			{
-					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->location   = cursor->current.location;
-					diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Relocation_Operator_Invalid];
-					diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind != Token_Kind__Parenthesis_Left)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Expected];
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			// We'll go through the left parenthesis case in the next iteration.
-			continue;
-		}
-
 		case Token_Kind__Minus:
 		case Token_Kind__Tilde:
 		case Token_Kind__Bang:
@@ -732,6 +676,63 @@ expression_parse
 	Arena_Temporary__end(scratch);
 	return result;
 }
+
+// NOTE: both LLVM and GNU as have a precise way of handle relocation operators. They must appear at the beginning of
+// the expression, and everything else is absorbed by it. Examples:
+//
+// - `addi x1, x0, %lo(foo) + 1` is equivalent to `addi x1, x0, %lo(foo + 1)`.
+// - `addi x1, x0, 1 + %lo(foo)` is invalid.
+internal Expression_Node *
+expression_parse_with_relocation
+(
+	Arena               *arena,
+	Token_Cursor        *cursor,
+	Expressions         *expressions,
+	Symbols_Table       *symbols_table,
+	Diagnostic_List     *diagnostics,
+	// Machine-dependent
+	U16                 *relocation_out,
+	// Zero-terminated.
+	const Relocation_Operator *relocation_match
+)
+{
+
+	if (cursor->current.kind == Token_Kind__Percentage)
+	{
+		assert_always_m(relocation_out && "relocation_out should be set");
+
+		// Parse relocation
+		token_next(cursor, diagnostics, arena);
+		String8 text = Token_Cursor__text(cursor);
+
+		B32 found = 0;
+		for (;;)
+		{
+			B32 break_should = found || !relocation_match->relocation;
+			if (break_should)
+			{
+				break;
+			}
+			found = String8__match_exact(relocation_match->text, text);
+			relocation_match += 1;
+		}
+
+		if (!found)
+		{
+			Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+			diagnostic->location   = cursor->current.location;
+			diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+			diagnostic->message    = String8__literal("invalid relocation operator for instruction");
+			SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+		}
+
+		*relocation_out = relocation_match->relocation;
+		token_next(cursor, diagnostics, arena);
+	}
+	Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+	return result;
+}
+
 
 //
 // Expression_Node *
@@ -1300,7 +1301,7 @@ statement_read
 		U32            instruction_hash       = 0;
 		B32            null_terminated_string = 0;
 
-		// TODO: when to exist?
+		// TODO: when to exit?
 		progress = source_index_start < cursor->source_index;
 		B32 break_should_outer = cursor->current.kind == Token_Kind__None
 				      || cursor->current.kind == Token_Kind__Error
@@ -1381,17 +1382,12 @@ statement_read
 
 		U16 relocation = 0;
 
-		// Instruction_Encoding instruction_encoding = Instruction_Encoding_table[instruction_kind];
-		// U8 opcode             = instruction_encoding.opcode;
-		// U8 funct3             = instruction_encoding.funct3;
-		// U8 funct7             = instruction_encoding.funct7;
-		// U8 instruction_flags  = instruction_encoding.flags;
-
 		if (instruction_hash)
 		{
 			const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
 			// TODO: change behaviour, emit error.
 			assert_always_m(opcode);
+			assert_always_m(opcode->match_function);
 
 			RISCV_Instruction instruction = RISCV_Instruction__create(opcode);
 			OP_Argument *arguments = opcode->arguments;
@@ -1404,6 +1400,15 @@ statement_read
 				OP_Argument argument = *arguments;
 				if (!argument)
 				{
+					B32 match = opcode->match_function(opcode, instruction.encoding);
+					if (!match)
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = location_begin;
+						diagnostic->message    = String8__literal("unrecognized opcode");
+						diagnostic->ranges[0]  = (Range1_U32){{ location_begin, cursor->current.location + cursor->current.size }};
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
 					break;
 				}
 
@@ -1452,24 +1457,11 @@ statement_read
 				case OP_Argument__Immediate_I:
 				{
 					U32 location_expression_begin = cursor->current.location;
-					Expression_Node *expression   = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, &relocation, Instruction_Format__I);
+					Expression_Node *expression   = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, &relocation, Relocation_Operator__itype);
 					U32 location_expression_end   = cursor->current.location;
 					S64 result = expression_evaluate(expressions, expression->index);
 
-					if (expression->evaluation == Expression_Kind__Constant)
-					{
-						B32 fits = S64_bits_range_in(result, 12);
-						if (!fits)
-						{
-							Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-							diagnostic->location   = cursor->current.location;
-							diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
-							diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
-							SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-							result = 0;
-						}
-					}
-					else
+					if (relocation)
 					{
 						U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
 						Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
@@ -1484,6 +1476,30 @@ statement_read
 
 						SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
 						result = 0;
+					}
+
+					if (expression->evaluation == Expression_Kind__Constant)
+					{
+						B32 fits = S64_bits_range_in(result, 12);
+						if (!fits)
+						{
+							Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+							diagnostic->location   = location_expression_begin;
+							diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
+							diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+							SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+							result = 0;
+						}
+					}
+
+					if (!relocation && expression->evaluation != Expression_Kind__Constant)
+					{
+
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = location_expression_begin;
+						diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
+						diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
 				} break;
 				default: { unreachable_m(); }
@@ -1526,7 +1542,7 @@ statement_read
 			U32 index = 0;
 			for (;;)
 			{
-				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 
 				S64 result = expression_evaluate(expressions, expression->index);
 				if (expression->evaluation != Expression_Kind__Constant)
@@ -1767,7 +1783,7 @@ statement_read
 				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
-			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 			symbol->expression_index = expression->index;
 
 			S64 result = expression_evaluate(expressions, expression->index);
@@ -1803,7 +1819,7 @@ statement_read
 			token_next(cursor, diagnostics, arena);
 			U64 location_begin = cursor->current.location;
 
-			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 			S64 repeat = expression_evaluate(expressions, repeat_expression->index);
 			if (repeat_expression->evaluation != Expression_Kind__Constant)
 			{
@@ -1820,7 +1836,7 @@ statement_read
 				// Read size
 				token_next(cursor, diagnostics, arena);
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 				U64 location_expression_end   = cursor->current.location;
 				fill_size = expression_evaluate(expressions, size_expression->index);
 				if (size_expression->evaluation != Expression_Kind__Constant)
@@ -1857,7 +1873,7 @@ statement_read
 			{
 				// Read value
 				token_next(cursor, diagnostics, arena);
-				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 				fill_pattern = expression_evaluate(expressions, value_expression->index);
 				if (value_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1886,7 +1902,7 @@ statement_read
 			U8  alignment = 0;
 
 			token_next(cursor, diagnostics, arena);
-			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 			S64 alignment_evaluation = expression_evaluate(expressions, alignment_expression->index);
 
 			alignment = (U8)alignment_evaluation;
@@ -1907,7 +1923,7 @@ statement_read
 				token_next(cursor, diagnostics, arena);
 
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 				U64 location_expression_end   = cursor->current.location;
 
 				S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
@@ -1937,7 +1953,7 @@ statement_read
 				// Read bytes_max
 				token_next(cursor, diagnostics, arena);
 				U64 location_expression_begin = cursor->current.location;
-				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics, 0, 0);
+				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 				U64 location_expression_end   = cursor->current.location;
 				S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
 				if (bytes_max_expression->evaluation != Expression_Kind__Constant)
