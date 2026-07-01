@@ -737,10 +737,6 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 
 #define ENCODE_ITYPE_IMM(x) (((U32)(x) & 0xFFF) << 20)
 
-#define MATCH_CSRRW   0x1073
-#define MATCH_EBREAK  0x00100073
-#define MASK_EBREAK   0xffffffff
-
 // MASK_RD / MASK_RS1 / MASK_RS2 / MASK_IMM — field bit masks for match/mask construction
 #define MASK_RD     0x00000F80   // bits 11:7
 #define MASK_RS1    0x000F8000   // bits 19:15
@@ -902,6 +898,10 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 #define MASK_FENCE_I  0x707f
 #define MATCH_FENCE_TSO 0x8330000f
 #define MASK_FENCE_TSO  0xfff0707f
+#define MATCH_ECALL 0x73
+#define MASK_ECALL  0xffffffff
+#define MATCH_EBREAK 0x100073
+#define MASK_EBREAK  0xffffffff
 #define MATCH_MUL 0x2000033
 #define MASK_MUL  0xfe00707f
 #define MATCH_MULH 0x2001033
@@ -966,6 +966,8 @@ enum
 	OP_Argument__RS3,
 	OP_Argument__Immediate_I,
 	OP_Argument__Immediate_S,
+	OP_Argument__Offset_PC_Relative_12,
+	OP_Argument__Offset_PC_Relative_20,
 	OP_Argument__Offset_Load,
 	OP_Argument__Offset_Store,
 	OP_Argument__Parenthesis_Left,
@@ -1018,6 +1020,12 @@ struct RISCV_Opcode
 	U64 info;
 };
 
+// Check whether the encoded instruction bits match the provided opcode.
+//
+// To do so, a XOR over the opcode `match` field is performed. The operation highlights any bits that might differ from
+// the mandatory encoding (e.g. opcode bits, funct3/funct7 etc..). On a perfect match, this returns zero.
+// Then, we perform a bitwise AND with the opcode `mask` field, which keeps only the bits checked by the `match` field,
+// skipping variable ones like immediates or registers.
 static B32
 match_opcode (const RISCV_Opcode *opcode, U32 instruction)
 {
@@ -1041,166 +1049,9 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 
 #define encode_immediate_i_m(x) (shift_right_mask_m(x, 0, 12) << 20)
 
-#define A_RS1                 OP_arguments_m(OP_Argument__RS1)
-#define A_RD_OFF_LP_RS1_RP    OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Offset_Load, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-#define A_RD_RS1              OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1)
-#define A_RD_RS1_RS2          OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
-#define A_RD_RS1_IMM          OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
-
-// #define A_RD_RS1           OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1)
-// #define A_RD_IMM_LP_RS1_RP OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Immediate_I, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-// #define A_OFF              OP_arguments_m(OP_Argument__Offset_Load)
-// #define A_RD_OFF           OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Offset_Load)
-// #define A_RD_UIMM          OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Immediate_U)
-// #define A_RD_RS1_RS2       OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
-// #define A_RD_RS1_RS2_IMM   OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Immediate_I)
-// #define A_RS1_RS2_OFF      OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_Load)
-// #define A_RS2_RS1_OFF      OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Offset_Load)
-// #define A_RS2_OFF          OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_Load)
-// #define A_RS1_OFF          OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Offset_Load)
-// #define A_RD_RS1_SHAMT     OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount)
-// #define A_RD_RS2           OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS2)
-// #define A_OFF_L_RS1        OP_arguments_m(OP_Argument__Offset_Load, OP_Argument__Comma, OP_Argument__RS1)
-// #define A_OFF_S_RS1        OP_arguments_m(OP_Argument__Offset_Load, OP_Argument__Comma, OP_Argument__RS1)
-
-global const RISCV_Opcode RISCV_Opcode__table[] =
-{
-	// Base I instructions.
-	{ "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_JALR,                            MASK_JALR,                           match_opcode,         0                              },
-
-	{ "lb",     HASH_lb,    0, RISCV_Instruction_Class__I, A_RD_OFF_LP_RS1_RP,   MATCH_LB,                              MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	{ "lb",     HASH_lb,    0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_LB,                              MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	{ "lbu",    HASH_lbu,   0, RISCV_Instruction_Class__I, A_RD_OFF_LP_RS1_RP,   MATCH_LBU,                             MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	{ "lbu",    HASH_lbu,   0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_LBU,                             MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	{ "lh",     HASH_lh,    0, RISCV_Instruction_Class__I, A_RD_OFF_LP_RS1_RP,   MATCH_LH,                              MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	{ "lh",     HASH_lh,    0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_LH,                              MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	{ "lhu",    HASH_lhu,   0, RISCV_Instruction_Class__I, A_RD_OFF_LP_RS1_RP,   MATCH_LHU,                             MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	{ "lhu",    HASH_lhu,   0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_LHU,                             MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	{ "lw",     HASH_lw,    0, RISCV_Instruction_Class__I, A_RD_OFF_LP_RS1_RP,   MATCH_LW,                              MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-	{ "lw",     HASH_lw,    0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_LW,                              MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-	// TODO: add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
-
-	{ "addi",   HASH_addi,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ADDI,                            MASK_ADDI,                           match_opcode,         0                              },
-	{ "slti",   HASH_slti,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_SLTI,                            MASK_SLTI,                           match_opcode,         0                              },
-	{ "sltiu",  HASH_sltiu, 0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_SLTIU,                           MASK_SLTIU,                          match_opcode,         0                              },
-	{ "xori",   HASH_xori,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_XORI,                            MASK_XORI,                           match_opcode,         0                              },
-	{ "ori",    HASH_ori,   0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ORI,                             MASK_ORI,                            match_opcode,         0                              },
-	{ "andi",   HASH_andi,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ANDI,                            MASK_ANDI,                           match_opcode,         0                              },
-
-	{ "add",    HASH_add,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_ADD,                             MASK_ADD,                            match_opcode,         0                              },
-	{ "sub",    HASH_sub,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SUB,                             MASK_SUB,                            match_opcode,         0                              },
-	{ "sll",    HASH_sll,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SLL,                             MASK_SLL,                            match_opcode,         0                              },
-	{ "slt",    HASH_slt,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SLT,                             MASK_SLT,                            match_opcode,         0                              },
-	{ "sltu",   HASH_sltu,  0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SLTU,                            MASK_SLTU,                           match_opcode,         0                              },
-	{ "xor",    HASH_xor,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_XOR,                             MASK_XOR,                            match_opcode,         0                              },
-	{ "srl",    HASH_srl,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SRL,                             MASK_SRL,                            match_opcode,         0                              },
-	{ "sra",    HASH_sra,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SRA,                             MASK_SRA,                            match_opcode,         0                              },
-	{ "or",     HASH_or,    0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_OR,                              MASK_OR,                             match_opcode,         0                              },
-	{ "and",    HASH_and,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_AND,                             MASK_AND,                            match_opcode,         0                              },
-
-	// { "ebreak", HASH_ebreak,0, RISCV_Instruction_Class__I, 0,                    MATCH_EBREAK,                          MASK_EBREAK,                         match_opcode,         0                              },
-	// { "sbreak", 0,          0, RISCV_Instruction_Class__I, 0,                    MATCH_EBREAK,                          MASK_EBREAK,                         match_opcode,         INSN_ALIAS                     },
-	// { "ret",    HASH_ret,   0, RISCV_Instruction_Class__I, 0,                    MATCH_JALR|(X_RA << OP_SH_RS1),        MASK_JALR|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS|INSN_BRANCH         },
-	// { "jr",     HASH_jr,    0, RISCV_Instruction_Class__I, A_RS1,                MATCH_JALR,                            MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_BRANCH         },
-	// { "jr",     HASH_jr,    0, RISCV_Instruction_Class__I, A_IMM_LP_RS1_RP,      MATCH_JALR,                            MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH         },
-	// { "jr",     HASH_jr,    0, RISCV_Instruction_Class__I, A_RS1_IMM,            MATCH_JALR,                            MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH         },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RS1,                MATCH_JALR|(X_RA << OP_SH_RD),         MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_JSR           },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_IMM_LP_RS1_RP,      MATCH_JALR|(X_RA << OP_SH_RD),         MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR           },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RS1_IMM,            MATCH_JALR|(X_RA << OP_SH_RD),         MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR           },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_JALR,                            MASK_JALR|MASK_IMM,                  match_opcode,         INSN_ALIAS|INSN_JSR           },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_JALR,                            MASK_JALR,                           match_opcode,         INSN_JSR                      },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_JALR,                            MASK_JALR|MASK_IMM,                  match_opcode,         INSN_JSR                      },
-	// { "jalr",   HASH_jalr,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_JALR,                            MASK_JALR,                           match_opcode,         INSN_JSR                      },
-	// { "j",      HASH_j,     0, RISCV_Instruction_Class__I, A_OFF,                MATCH_JAL,                             MASK_JAL|MASK_RD,                    match_opcode,         INSN_ALIAS|INSN_BRANCH         },
-	// { "jal",    HASH_jal,   0, RISCV_Instruction_Class__I, A_OFF,                MATCH_JAL|(X_RA << OP_SH_RD),          MASK_JAL|MASK_RD,                    match_opcode,         INSN_ALIAS|INSN_JSR           },
-	// { "jal",    HASH_jal,   0, RISCV_Instruction_Class__I, A_RD_OFF,             MATCH_JAL,                             MASK_JAL,                            match_opcode,         INSN_JSR                      },
-	// { "call",   HASH_call,  0, RISCV_Instruction_Class__I, A_RD_OFF,             (X_T1 << OP_SH_RS1),                   M_CALL,                              NULL,                 INSN_MACRO                     },
-	// { "call",   HASH_call,  0, RISCV_Instruction_Class__I, A_OFF,                (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),M_CALL,                              NULL,                 INSN_MACRO                     },
-	// { "tail",   HASH_tail,  0, RISCV_Instruction_Class__I, A_OFF,                (X_T1 << OP_SH_RS1),                   M_CALL,                              NULL,                 INSN_MACRO                     },
-	// { "jump",   0,          0, RISCV_Instruction_Class__I, A_OFF_RS1,            0,                                     M_CALL,                              match_rs1_nonzero,    INSN_MACRO                     },
-	// { "nop",    HASH_nop,   0, RISCV_Instruction_Class__I, 0,                    MATCH_ADDI,                            MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
-	// { "lui",    HASH_lui,   0, RISCV_Instruction_Class__I, A_RD_UIMM,            MATCH_LUI,                             MASK_LUI,                            match_opcode,         0                              },
-	// { "li",     HASH_li,    0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ADDI,                            MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
-	// { "li",     HASH_li,    0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         0,                                     M_LI,                                NULL,                 INSN_MACRO                     },
-	// { "mv",     HASH_mv,    0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_ADDI,                            MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
-	// { "move",   0,          0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_ADDI,                            MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
-	// { "andi",   HASH_andi,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ANDI,                            MASK_ANDI,                           match_opcode,         0                              },
-	// { "and",    HASH_and,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_AND,                             MASK_AND,                            match_opcode,         0                              },
-	// { "and",    HASH_and,   0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ANDI,                            MASK_ANDI,                           match_opcode,         INSN_ALIAS                     },
-	// { "beqz",   HASH_beqz,  0, RISCV_Instruction_Class__I, A_RS1_OFF,            MATCH_BEQ,                             MASK_BEQ|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "beq",    HASH_beq,   0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BEQ,                             MASK_BEQ,                            match_opcode,         INSN_CONDBRANCH                },
-	// { "blez",   HASH_blez,  0, RISCV_Instruction_Class__I, A_RS2_OFF,            MATCH_BGE,                             MASK_BGE|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bgez",   HASH_bgez,  0, RISCV_Instruction_Class__I, A_RS1_OFF,            MATCH_BGE,                             MASK_BGE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bge",    HASH_bge,   0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BGE,                             MASK_BGE,                            match_opcode,         INSN_CONDBRANCH                },
-	// { "bgeu",   HASH_bgeu,  0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BGEU,                            MASK_BGEU,                           match_opcode,         INSN_CONDBRANCH                },
-	// { "ble",    HASH_ble,   0, RISCV_Instruction_Class__I, A_RS2_RS1_OFF,        MATCH_BGE,                             MASK_BGE,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bleu",   HASH_bleu,  0, RISCV_Instruction_Class__I, A_RS2_RS1_OFF,        MATCH_BGEU,                            MASK_BGEU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bltz",   HASH_bltz,  0, RISCV_Instruction_Class__I, A_RS1_OFF,            MATCH_BLT,                             MASK_BLT|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bgtz",   HASH_bgtz,  0, RISCV_Instruction_Class__I, A_RS2_OFF,            MATCH_BLT,                             MASK_BLT|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "blt",    HASH_blt,   0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BLT,                             MASK_BLT,                            match_opcode,         INSN_CONDBRANCH                },
-	// { "bltu",   HASH_bltu,  0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BLTU,                            MASK_BLTU,                           match_opcode,         INSN_CONDBRANCH                },
-	// { "bgt",    HASH_bgt,   0, RISCV_Instruction_Class__I, A_RS2_RS1_OFF,        MATCH_BLT,                             MASK_BLT,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bgtu",   HASH_bgtu,  0, RISCV_Instruction_Class__I, A_RS2_RS1_OFF,        MATCH_BLTU,                            MASK_BLTU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bnez",   HASH_bnez,  0, RISCV_Instruction_Class__I, A_RS1_OFF,            MATCH_BNE,                             MASK_BNE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-	// { "bne",    HASH_bne,   0, RISCV_Instruction_Class__I, A_RS1_RS2_OFF,        MATCH_BNE,                             MASK_BNE,                            match_opcode,         INSN_CONDBRANCH                },
-	// { "addi",   HASH_addi,  0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ADDI,                            MASK_ADDI,                           match_opcode,         0                              },
-	// { "add",    HASH_add,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_ADD,                             MASK_ADD,                            match_opcode,         0                              },
-	// { "add",    HASH_add,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2_IMM,     MATCH_ADD,                             MASK_ADD,                            match_opcode,         0                              },
-	// { "add",    HASH_add,   0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ADDI,                            MASK_ADDI,                           match_opcode,         INSN_ALIAS                     },
-	// { "la",     HASH_la,    0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_LA,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "neg",    HASH_neg,   0, RISCV_Instruction_Class__I, A_RD_RS2,             MATCH_SUB,                             MASK_SUB|MASK_RS1,                   match_opcode,         INSN_ALIAS                     },
-	// { "slli",   HASH_slli,  0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SLLI,                            MASK_SLLI,                           match_opcode,         0                              },
-	// { "sll",    HASH_sll,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SLL,                             MASK_SLL,                            match_opcode,         0                              },
-	// { "sll",    HASH_sll,   0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SLLI,                            MASK_SLLI,                           match_opcode,         INSN_ALIAS                     },
-	// { "srli",   HASH_srli,  0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SRLI,                            MASK_SRLI,                           match_opcode,         0                              },
-	// { "srl",    HASH_srl,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SRL,                             MASK_SRL,                            match_opcode,         0                              },
-	// { "srl",    HASH_srl,   0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SRLI,                            MASK_SRLI,                           match_opcode,         INSN_ALIAS                     },
-	// { "srai",   HASH_srai,  0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SRAI,                            MASK_SRAI,                           match_opcode,         0                              },
-	// { "sra",    HASH_sra,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SRA,                             MASK_SRA,                            match_opcode,         0                              },
-	// { "sra",    HASH_sra,   0, RISCV_Instruction_Class__I, A_RD_RS1_SHAMT,       MATCH_SRAI,                            MASK_SRAI,                           match_opcode,         INSN_ALIAS                     },
-	// { "sub",    HASH_sub,   0, RISCV_Instruction_Class__I, A_RD_RS1_RS2,         MATCH_SUB,                             MASK_SUB,                            match_opcode,         0                              },
-	// { "lb",     HASH_lb,    0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_LB,                              MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	// { "lb",     HASH_lb,    0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_Lx,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "lbu",    HASH_lbu,   0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_LBU,                             MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-	// { "lbu",    HASH_lbu,   0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_Lx,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "lh",     HASH_lh,    0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_LH,                              MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	// { "lh",     HASH_lh,    0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_Lx,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "lhu",    HASH_lhu,   0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_LHU,                             MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-	// { "lhu",    HASH_lhu,   0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_Lx,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "lw",     HASH_lw,    0, RISCV_Instruction_Class__I, A_RD_IMM_LP_RS1_RP,   MATCH_LW,                              MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-	// { "lw",     HASH_lw,    0, RISCV_Instruction_Class__I, A_RD_OFF,             0,                                     M_Lx,                                match_rd_nonzero,     INSN_MACRO                     },
-	// { "not",    HASH_not,   0, RISCV_Instruction_Class__I, A_RD_RS1,             MATCH_XORI|MASK_IMM,                   MASK_XORI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
-	// { "ori",    HASH_ori,   0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ORI,                             MASK_ORI,                            match_opcode,         0                              },
-	// { "or",     HASH_or,    0, RISCV_Instruction_Class__I, A_RD_RS1_IMM,         MATCH_ORI,                             MASK_ORI,                            match_opcode,         INSN_ALIAS                     },
-	// { "OR",     HASH_OR,    0, RISCV_INSTRUCTION_CLASS__I, A_RD_RS1_RS2,         MATCH_OR,                              MASK_OR,                             MATCH_OPCODE,         0                              },
-};
-
-// TODO: undef the helper macros defined above.
-
 // TODO: for now this is dumb enough and works.
 internal const RISCV_Opcode *
-RISCV_Opcode__table_find(U32 instruction_hash)
-{
-	U32 count = array_count_m(RISCV_Opcode__table);
-	U32 index = 0;
-
-	const RISCV_Opcode *result = 0;
-	for (;;)
-	{
-		B32 break_should = result || index >= count;
-		if (break_should)
-		{
-			break;
-		}
-
-		const RISCV_Opcode *opcode = &RISCV_Opcode__table[index];
-		result = opcode->hash == instruction_hash ? opcode : 0;
-
-		index += 1;
-	}
-
-	return result;
-}
+RISCV_Opcode__table_find(U32 instruction_hash);
 
 // Information about an instruction, including its format, operands
 // and fixups.
@@ -1232,5 +1083,7 @@ RISCV_Instruction__create(const RISCV_Opcode *opcode)
 	return result;
 }
 
+internal U8
+RISCV_instruction_size(U32 encoding);
 
 #endif // LANGUAGE_INSTRUCTION_H
