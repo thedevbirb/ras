@@ -116,12 +116,12 @@ main(int argument_count, char **argument_vector)
 		(
 			arena,
 			&cursor,
-			section,
 			&diagnostics,
 			&expressions,
-			fixups,
+			symbols_table,
+			section,
 			sections_table,
-			symbols_table
+			fixups
 		);
 
 	if (diagnostics.first)

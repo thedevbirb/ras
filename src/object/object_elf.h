@@ -3540,11 +3540,6 @@ typedef struct
  *   S_Type = S-Type instruction encoding (12-bit immediate, split field)
  */
 
-// TLS: Thread Local Storage
-// GOT: Global Offset Table
-// TP:  Thread Pointer
-// PC:  Program Counter
-
 // U16 is large enough for all relocation types across all targets.
 typedef U16 Relocation_RISC_V;
 

@@ -61,58 +61,6 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
-// B32
-// Expression_Kind_leaf_is(Expression_Kind kind)
-// {
-// 	B32 result = kind == Expression_Kind__Number_Literal
-// 	          || kind == Expression_Kind__Char_Literal
-// 	          || kind == Expression_Kind__Identifier
-// 	          || kind == Expression_Kind__Label_Numeric_Reference_Forward
-// 	          || kind == Expression_Kind__Label_Numeric_Reference_Backward
-// 	          || kind == Expression_Kind__Current_Address;
-// 	return result;
-// }
-
-// B32
-// Expression_Kind_constant_is(Expression_Kind kind)
-// {
-// 	B32 result = kind == Expression_Kind__Number_Literal
-// 		  || kind == Expression_Kind__Char_Literal;
-// 	return result;
-// }
-
-// The evaluation status of an `Expression_Node`. The higher, the stricter, with zero being not evaluated at all.
-// This ordering is important for comparisons, so changing it will break related code.
-// typedef enum Evaluation
-// {
-// 	Evaluation__None       = 0,
-// 	// Contains unresolved symbols that will be patched at link time.
-// 	Evaluation__Unresolved = 1,
-// 	// Involves symbols that can be resolved at assembly time.
-// 	Evaluation__Absolute   = 2,
-// 	// Only involves constant-time arithmetic.
-// 	Evaluation__Constant   = 3,
-// }
-// Evaluation;
-//
-// // TODO(medium): use these instead of direct checks.
-// internal B32
-// Evaluation__absolute(Evaluation evaluation)
-// {
-// 	assert_always_m(evaluation <= Evaluation__Constant);
-// 	B32 result = evaluation >= Evaluation__Absolute;
-// 	return result;
-// }
-//
-// // TODO(medium): use these instead of direct checks.
-// internal B32
-// Evaluation__unresolved(Evaluation evaluation)
-// {
-// 	assert_always_m(evaluation <= Evaluation__Constant);
-// 	B32 result = evaluation != Evaluation__None && evaluation <= Evaluation__Unresolved;
-// 	return result;
-// }
-
 // An `Expression_Node` contains information about both a parsed expression and its evaluation, where the latter can
 // mutate as more information is providing during multiple evaluation rounds, like during the relaxation process.
 typedef struct Expression_Node Expression_Node;
@@ -137,11 +85,6 @@ struct Expression_Node
 	U32 index_left;
 	U32 index_right;
 	Expression_Kind  evaluation;
-
-	// Useful for later finding symbols etc.
-	// U32 token_index;
-	//
-	// Relocation_Operator relocation_operator;
 
 };
 
