@@ -1430,6 +1430,26 @@ statement_read
 						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
 				} break;
+				case OP_Argument__Parenthesis_Left:
+				{
+					if (cursor->current.kind != Token_Kind__Parenthesis_Left)
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = cursor->current.location;
+						diagnostic->message    = String8__literal("'(' expected");
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
+				} break;
+				case OP_Argument__Parenthesis_Right:
+				{
+					if (cursor->current.kind != Token_Kind__Parenthesis_Right)
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->location   = cursor->current.location;
+						diagnostic->message    = String8__literal("')' expected");
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
+				} break;
 				case OP_Argument__RD:  {} // fallthrough
 				case OP_Argument__RS3: {} // fallthrough
 				case OP_Argument__RS2: {} // fallthrough
@@ -1454,6 +1474,18 @@ statement_read
 					}
 					token_next(cursor, diagnostics, arena);
 				} break;
+				case OP_Argument__Offset_Load:
+				{
+					OP_Argument *next = arguments + 1;
+					assert_always_m(next && "invalid operand list");
+
+					Token_2 peek = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+					if (*next == OP_Argument__Parenthesis_Left && peek.kind == Token_Kind__Parenthesis_Left)
+					{
+						// Omitted immediate, e.g. lw t1, (t0)
+						arguments += 2;
+					}
+				} // fallthrough;
 				case OP_Argument__Immediate_I:
 				{
 					U32 location_expression_begin = cursor->current.location;
@@ -1461,45 +1493,53 @@ statement_read
 					U32 location_expression_end   = cursor->current.location;
 					S64 result = expression_evaluate(expressions, expression->index);
 
-					if (relocation)
+					// if (relocation)
+					// {
+					// 	U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
+					// 	Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+					//
+					// 	fixup->expression_index = expression->index;
+					// 	fixup->fragment         = section->fragment_list.last;
+					// 	fixup->encoding_offset  = fixup_encoding_base_offset;
+					// 	// NOTE: the relocation type encodes information on where to set the resolved
+					// 	// value.
+					// 	fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
+					// 	fixup->size             = 4;
+					//
+					// 	SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+					// 	result = 0;
+					// }
+
+					if (!relocation)
 					{
-						U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
-						Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-
-						fixup->expression_index = expression->index;
-						fixup->fragment         = section->fragment_list.last;
-						fixup->encoding_offset  = fixup_encoding_base_offset;
-						// NOTE: the relocation type encodes information on where to set the resolved
-						// value.
-						fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
-						fixup->size             = 4;
-
-						SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
-						result = 0;
-					}
-
-					if (expression->evaluation == Expression_Kind__Constant)
-					{
-						B32 fits = S64_bits_range_in(result, 12);
-						if (!fits)
+						if (expression->kind == Expression_Kind__Constant)
 						{
+							// TODO: normalize constant expression?
+							B32 fits = S64_bits_range_in(result, 12);
+							if (!fits)
+							{
+								Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+								diagnostic->location   = location_expression_begin;
+								diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
+								diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+								SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+								result = 0;
+							}
+
+							// TODO: GNU as does this at a later step, and by default emits a
+							// relocation. Consider doing the same.
+							U32 encoding_immediate = encode_immediate_i_m(result);
+							instruction.encoding |= encoding_immediate;
+						}
+						else
+						{
+
 							Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 							diagnostic->location   = location_expression_begin;
-							diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
+							diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
 							diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
 							SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-							result = 0;
 						}
-					}
-
-					if (!relocation && expression->evaluation != Expression_Kind__Constant)
-					{
-
-						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-						diagnostic->location   = location_expression_begin;
-						diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
-						diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
-						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
 				} break;
 				default: { unreachable_m(); }
@@ -1508,6 +1548,7 @@ statement_read
 				arguments += 1;
 			}
 
+			// TODO: this should be done later by also checking the relocation_out
 			U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);
 			memory_copy(data, &instruction.encoding, 4);
 		}

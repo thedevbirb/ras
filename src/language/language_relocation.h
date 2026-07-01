@@ -9,4 +9,3 @@ struct Relocation_Operator
 };
 
 #endif // LANGUAGE_RELOCATION_H
-

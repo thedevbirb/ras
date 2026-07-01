@@ -1,4 +1,7 @@
 // TODO: this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
+//
+
+#define shift_right_mask_m(x, shift, bits)  (((x) >> (shift)) & ((1 << (bits)) - 1))
 
 // Panics on failure. Overallocates by 8 bytes to allow not checking always bounds.
 internal U8 *
