@@ -49,6 +49,18 @@
 // 	return key;
 // }
 
+// Macros for encoding relaxation state for RVC branches and far jumps.
+#define RELAX_BRANCH_ENCODE(uncond, rvc, length)	\
+  ((U32) 					        \
+   (0xc0000000						\
+    | ((uncond) ? 1 : 0)				\
+    | ((rvc) ? 2 : 0)					\
+    | ((length) << 2)))
+#define RELAX_BRANCH_P(i)      (((i) & 0xf0000000) == 0xc0000000)
+#define RELAX_BRANCH_LENGTH(i) (((i) >> 2) & 0xF)
+#define RELAX_BRANCH_RVC(i)    (((i) & 2) != 0)
+#define RELAX_BRANCH_UNCOND(i) (((i) & 1) != 0)
+
 // NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
 // common ground for it if it makes sense.
 internal Expression_Node *
@@ -343,9 +355,7 @@ expression_parse_with_relocation
 // Giving good diagnostics now it's harder because I can't reference past tokens.
 //
 
-// Just returns a statement
-
-internal RISCV_Instruction
+internal void
 RISCV_Instruction__parse
 (
 	Arena                   *arena,
@@ -353,15 +363,15 @@ RISCV_Instruction__parse
 	Diagnostic_List         *diagnostics,
 	Expressions             *expressions,
 	Symbols_Table           *symbols_table,
-
 	U32                      instruction_hash,
-	U16                     *relocation
+
+	U16                     *relocation_out,
+	RISCV_Instruction       *instruction_out,
+	U32                     *expression_index_out
 )
 {
 	const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
 	const char *opcode_name = opcode->name;
-
-	RISCV_Instruction instruction = {0};
 
 	U32 location_begin = cursor->current.location;
 	token_next(cursor, diagnostics, arena);
@@ -377,7 +387,7 @@ RISCV_Instruction__parse
 			break;
 		}
 
-		instruction = RISCV_Instruction__create(opcode);
+		*instruction_out = RISCV_Instruction__create(opcode, location_begin);
 		OP_Argument *arguments = opcode->arguments;
 
 		// Iterate over opcode arguments.
@@ -386,7 +396,7 @@ RISCV_Instruction__parse
 			OP_Argument argument = *arguments;
 			if (!argument)
 			{
-				match = !opcode->match_function || opcode->match_function(opcode, instruction.encoding);
+				match = !opcode->match_function || opcode->match_function(opcode, instruction_out->encoding);
 				break;
 			}
 
@@ -445,10 +455,10 @@ RISCV_Instruction__parse
 
 				switch (argument)
 				{
-				       case OP_Argument__RD:  { INSERT_OPERAND(RD,  instruction, reg); } break;
-				       case OP_Argument__RS3: { INSERT_OPERAND(RS3, instruction, reg); } break;
-				       case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, reg); } break;
-				       case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, reg); } break;
+				       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, reg); } break;
+				       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, reg); } break;
+				       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, reg); } break;
+				       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, reg); } break;
 				}
 				token_next(cursor, diagnostics, arena);
 			} break;
@@ -462,13 +472,13 @@ RISCV_Instruction__parse
 				// deferred later when we know all instructions. It is a different situation compared to
 				// a `li` or `call` instruction which, during instruction parsing, are already expanded
 				// into a known number of instructions (`INSN_MACRO`)
-				*relocation = Relocation_RISC_V__JAL;
+				*relocation_out = Relocation_RISC_V__JAL;
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 			} break;
 			case OP_Argument__Offset_PC_Relative_12:
 			{
 				// See notes for `OP_Argument__Offset_PC_Relative_20`.
-				*relocation = Relocation_RISC_V__Branch;
+				*relocation_out = Relocation_RISC_V__Branch;
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 			} break;
 			case OP_Argument__Offset_Load:
@@ -486,7 +496,7 @@ RISCV_Instruction__parse
 			case OP_Argument__Immediate_I:
 			{
 				U32 location_expression_begin = cursor->current.location;
-				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation, Relocation_Operator__itype);
+				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__itype);
 				U32 location_expression_end   = cursor->current.location;
 
 				// if (relocation)
@@ -506,7 +516,7 @@ RISCV_Instruction__parse
 				// 	result = 0;
 				// }
 
-				if (!relocation)
+				if (*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
 				       {
@@ -524,7 +534,7 @@ RISCV_Instruction__parse
 					       // TODO: GNU as does this at a later step, and by default emits a
 					       // relocation. Consider doing the same.
 					       U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
-					       instruction.encoding |= encoding_immediate;
+					       instruction_out->encoding |= encoding_immediate;
 				       }
 				       else
 				       {
@@ -556,7 +566,82 @@ RISCV_Instruction__parse
 		SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 	}
 
-	return instruction;
+	*expression_index_out = expression ? expression->index : 0;
+
+	return;
+}
+
+internal void
+track_instruction_in_fragment
+(
+	RISCV_Instruction *instruction,
+	Fragment          *fragment,
+	U32                offset
+)
+{
+	instruction->fragment  = fragment;
+	instruction->offset    = offset;
+
+	if (instruction->fixup)
+	{
+		instruction->fixup->fragment        = fragment;
+		instruction->fixup->encoding_offset = offset;
+	}
+}
+
+internal void
+add_instruction_relaxed
+(
+	Arena                   *arena,
+	Fragment_List           *fragments,
+	RISCV_Instruction       *instruction,
+	U8                       worst_case_size,
+	U8                       best_case_size,
+	U32                      expression_index,
+	U32                      subtype
+)
+{
+	U32 offset = fragments->last->size_fixed;
+	track_instruction_in_fragment(instruction, fragments->last, offset);
+
+	U8 *data = Fragment_List__variable
+	(
+		 fragments,
+		 arena,
+		 instruction->location,
+		 worst_case_size,
+		 best_case_size,
+		 expression_index,
+		 subtype,
+		 Relax_State__Machine
+	);
+
+	memory_copy(data, (U8 *)&instruction->encoding, RISCV_instruction_size(instruction->encoding));
+	return;
+}
+
+internal void
+add_instruction_fixed
+(
+	Arena                   *arena,
+	Fragment_List           *fragments,
+	RISCV_Instruction       *instruction
+)
+{
+	U32 offset = fragments->last->size_fixed;
+	track_instruction_in_fragment(instruction, fragments->last, offset);
+
+	U8 instruction_size = RISCV_instruction_size(instruction->encoding);
+	U8 *data = Fragment_List__fixed
+	(
+		 fragments,
+		 arena,
+		 instruction->location,
+		 instruction_size
+	);
+
+	memory_copy(data, (U8 *)&instruction->encoding, instruction_size);
+	return;
 }
 
 internal void
@@ -570,22 +655,46 @@ RISCV_Instruction__append
 	Section                 *section,
 
 	RISCV_Instruction       *instruction,
+	U32                      expression_index,
 	U16			 relocation
 )
 {
 	if (relocation)
 	{
-		if (relocation == Relocation_RISC_V__Branch || relocation == Relocation_RISC_V__JAL)
+		B32 jump_is = relocation == Relocation_RISC_V__JAL;
+		if (relocation == Relocation_RISC_V__Branch || jump_is)
 		{
 			// Add a relaxable fragment and that's it. Don't create a fixup yet because this relocation type
 			// could be changed and these instructions could expand unpredictably.
 			U8 best_case_size  = RISCV_instruction_size(instruction->encoding);
 			U8 worst_case_size = 8;
+
+			U32 subtype = RELAX_BRANCH_ENCODE (jump_is, best_case_size == 2, worst_case_size);
+			add_instruction_relaxed
+			(
+				arena,
+				&section->fragment_list,
+				instruction,
+				worst_case_size,
+				best_case_size,
+				expression_index,
+				subtype
+			);
+
+		}
+		else
+		{
+			// TODO: Create fixup, with HOWTO information.
 		}
 	}
 	else
 	{
-
+		add_instruction_fixed
+		(
+			arena,
+			&section->fragment_list,
+			instruction
+		);
 	}
 }
 
@@ -700,9 +809,11 @@ statement_read
 
 		if (instruction_hash)
 		{
-			U16 relocation = 0;
+			U16               relocation       =  0;
+			RISCV_Instruction instruction      = {0};
+			U32               expression_index =  0;
 
-			RISCV_Instruction instruction = RISCV_Instruction__parse
+			RISCV_Instruction__parse
 			(
 				arena,
 			 	cursor,
@@ -710,10 +821,23 @@ statement_read
 			 	expressions,
 				symbols_table,
 				instruction_hash,
-				&relocation
+				&relocation,
+				&instruction,
+				&expression_index
 			);
 
-			unused_m(instruction);
+			RISCV_Instruction__append
+			(
+				arena,
+				cursor,
+				diagnostics,
+				expressions,
+				symbols_table,
+				section,
+				&instruction,
+				expression_index,
+				relocation
+			);
 
 			// TODO: this should be done later by also checking the relocation_out
 			// U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);
@@ -1028,18 +1152,6 @@ statement_read
 			U64 location_begin = cursor->current.location;
 
 			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-			S64 repeat = expression_evaluate(expressions, repeat_expression->index);
-			if (repeat_expression->evaluation != Expression_Kind__Constant)
-			{
-				// TODO: creating a fixup before adding adding the fill into the fragment is simply
-				// wrong. The fill fragment created should contain information about the expression.
-				Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-				fixup->expression_index = repeat_expression->index;
-				fixup->fragment         = section->fragment_list.last;
-				fixup->encoding_offset  = section->fragment_list.last->size_fixed;
-
-				SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
-			}
 
 			if (cursor->current.kind == Token_Kind__Comma && !fill_size_set)
 			{
@@ -1093,7 +1205,7 @@ statement_read
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 			}
-			Fragment_List__fill(&section->fragment_list, arena, location_begin, repeat, fill_pattern, fill_size);
+			Fragment_List__fill(&section->fragment_list, arena, location_begin, repeat_expression->index, fill_pattern, fill_size);
 		} break;
 		case Directive_Kind__Align:
 		{
@@ -1109,22 +1221,20 @@ statement_read
 			U32 location_begin = cursor->current.location;
 			U8  pattern   = 0;
 			U8  bytes_max = 0;
-			U8  alignment = 0;
 
 			token_next(cursor, diagnostics, arena);
+			U32 location_alignment_expression_begin = cursor->current.location;
 			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-			S64 alignment_evaluation = expression_evaluate(expressions, alignment_expression->index);
+			U32 location_alignment_expression_end   = cursor->current.location;
+			expression_evaluate(expressions, alignment_expression->index);
 
-			alignment = (U8)alignment_evaluation;
 			if (alignment_expression->evaluation != Expression_Kind__Constant)
 			{
-				Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-
-				fixup->expression_index = alignment_expression->index;
-				fixup->fragment         = section->fragment_list.last;
-				fixup->encoding_offset  = section->fragment_list.last->size_fixed;
-
-				SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->location = location_alignment_expression_begin;
+				diagnostic->message  = String8__literal("constant expression expected");
+				diagnostic->ranges[0] = (Range1_U32){{ location_alignment_expression_begin, location_alignment_expression_end }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
 
 			if (cursor->current.kind == Token_Kind__Comma)
@@ -1132,9 +1242,9 @@ statement_read
 				// Read pattern
 				token_next(cursor, diagnostics, arena);
 
-				U64 location_expression_begin = cursor->current.location;
+				U32 location_expression_begin = cursor->current.location;
 				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U64 location_expression_end   = cursor->current.location;
+				U32 location_expression_end   = cursor->current.location;
 
 				S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
 				if (pattern_expression->evaluation != Expression_Kind__Constant)
@@ -1162,9 +1272,9 @@ statement_read
 			{
 				// Read bytes_max
 				token_next(cursor, diagnostics, arena);
-				U64 location_expression_begin = cursor->current.location;
+				U32 location_expression_begin = cursor->current.location;
 				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U64 location_expression_end   = cursor->current.location;
+				U32 location_expression_end   = cursor->current.location;
 				S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
 				if (bytes_max_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1200,7 +1310,7 @@ statement_read
 				}
 			}
 
-			Fragment_List__align(&section->fragment_list, arena, location_begin, alignment, pattern, bytes_max);
+			Fragment_List__align(&section->fragment_list, arena, location_begin, alignment_expression->index, pattern, bytes_max);
 		} break;
 // 			case Directive_Kind__Common:
 // 			{

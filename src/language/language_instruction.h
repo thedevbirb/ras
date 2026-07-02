@@ -1066,20 +1066,27 @@ struct RISCV_Instruction
   // The frag that contains the instruction
   Fragment *fragment;
 
-  U32 encoding;
-  // The offset into FRAG of the first instruction byte.
-  U32 offset;
-
   // The relocations associated with the instruction, if any.
   Fixup *fixup;
+
+  // Where the instruction is located in the source.
+  U32 location;
+
+  U32 encoding;
+  // The offset into fragment of the first instruction byte.
+  U32 offset;
+
 };
 
 internal RISCV_Instruction
-RISCV_Instruction__create(const RISCV_Opcode *opcode)
+RISCV_Instruction__create(const RISCV_Opcode *opcode, U32 location)
 {
-	RISCV_Instruction result = {0};
-	result.opcode   = opcode;
-	result.encoding = opcode->match;
+	RISCV_Instruction result =
+	{
+		.opcode   = opcode,
+		.encoding = opcode->match,
+		.location = location,
+	};
 	return result;
 }
 
