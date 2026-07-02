@@ -653,16 +653,19 @@ RISCV_Instruction__append
 	Expressions             *expressions,
 	Symbols_Table           *symbols_table,
 	Section                 *section,
+	Fixups                  *fixups,
 
 	RISCV_Instruction       *instruction,
 	U32                      expression_index,
 	U16			 relocation
 )
 {
+	B32 relaxable = 0;
 	if (relocation)
 	{
 		B32 jump_is = relocation == Relocation_RISC_V__JAL;
-		if (relocation == Relocation_RISC_V__Branch || jump_is)
+		relaxable = relocation == Relocation_RISC_V__Branch || jump_is;
+		if (relaxable)
 		{
 			// Add a relaxable fragment and that's it. Don't create a fixup yet because this relocation type
 			// could be changed and these instructions could expand unpredictably.
@@ -684,10 +687,16 @@ RISCV_Instruction__append
 		}
 		else
 		{
-			// TODO: Create fixup, with HOWTO information.
+			Fixup *fixup = Fixups__push(fixups);
+			fixup->fragment = section->fragment_list.last;
+			fixup->expression_index = expression_index;
+			fixup->relocation_type  = relocation;
+
+			instruction->fixup = fixup;
 		}
 	}
-	else
+
+	if (!relaxable)
 	{
 		add_instruction_fixed
 		(
@@ -696,6 +705,8 @@ RISCV_Instruction__append
 			instruction
 		);
 	}
+
+	return;
 }
 
 /// ParseStatement:
@@ -834,6 +845,7 @@ statement_read
 				expressions,
 				symbols_table,
 				section,
+				fixups,
 				&instruction,
 				expression_index,
 				relocation

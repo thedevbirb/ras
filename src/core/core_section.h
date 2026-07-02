@@ -102,16 +102,6 @@ Hashmap_hash(String8 key)
 // 1. https://refspecs.linuxfoundation.org/elf/elf.pdf
 // 2. https://sourceware.org/git/?p=glibc.git;a=blob;f=elf/elf.h
 
-// typedef struct Object_File_Section Object_File_Section;
-// struct Object_File_Section
-// {
-// 	Arena       *arena;
-// 	String8      buffer;
-// 	ELF_Section  section_index;
-// 	U32          offset; // Also known as "location counter", but it's just a byte offset.
-// 	U8	     alignment;
-// };
-
 // INVARIANT: the arena is used write to the fragment list only.
 typedef struct Section Section;
 struct Section
@@ -176,24 +166,5 @@ Sections_Table__default(void);
 
 internal void
 Sections_Table__add_common(Sections_Table *);
-
-// internal void
-// Object_File_Section_initialize(Object_File_Section *section, ELF_Section section_index, Arena *arena);
-//
-// internal Object_File_Section *
-// Object_File_Section_create_all(Arena *arena, U32 input_size);
-//
-// internal void
-// Object_File_Section_align(Object_File_Section *section, U8 alignment);
-//
-// // Write and align, returning the offset where data has been written.
-// U32
-// Object_File_Section_write_bytes(Object_File_Section *section, U8 *data, U64 count);
-//
-// U32
-// Object_File_Section_write(Object_File_Section *section, void *data, U64 size, U64 count);
-//
-// U32
-// Object_File_Section_relocation_write(Object_File_Section *section, ELF64_Relocation_Addend *relocation);
 
 #endif // CORE_SECTION_H

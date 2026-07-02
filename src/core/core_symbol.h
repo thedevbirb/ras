@@ -1,6 +1,8 @@
 #ifndef CORE_SYMBOL_H
 #define CORE_SYMBOL_H
 
+// TODO: I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
+
 // TODO: review some of this variants, they're taken from GAS but not always used.
 typedef enum Symbol_Flags
 {
@@ -50,58 +52,6 @@ typedef enum Symbol_Flags
 	Symbol_Flags__Redefined                   = 1 << 12,
 }
 Symbol_Flags;
-//
-// // ELF64_Symbol table (.symtab) content invariants:
-// //
-// // Entry 0: all zeros (null symbol).
-// // All STB_LOCAL entries before all STB_GLOBAL/STB_WEAK entries.
-// // One STT_SECTION entry per section, with st_name = 0, st_value = 0, st_shndx = that section's index. These are local.
-// // STT_FILE entry (if present): st_shndx = SHN_ABS, st_info = ELF64_ST_INFO(STB_LOCAL, STT_FILE).
-// // Undefined/external symbols: st_shndx = SHN_UNDEF, st_value = 0.
-// // Absolute symbols (.equ): st_shndx = SHN_ABS.
-// // Each entry's st_name is a valid offset into .strtab pointing to a null-terminated string.
-// //
-// // When I find a symbol or label I have to both put the value inside the string table, avoiding duplicates and in the
-// // symbol table.
-//
-// typedef struct Symbols_Table_Entry Symbols_Table_Entry;
-// struct Symbols_Table_Entry
-// {
-// 	String8       key;
-// 	ELF64_Symbol  elf;
-// 	// The index of the `Statements` structure where this symbol has been declared, or zero is unknown.
-// 	U32	      index_statement;
-// 	// The index in the Symbols_Table.entries in which this entry has been inserted.
-// 	U32           index;
-// 	Symbol_Flags  flags;
-// };
-//
-// global Symbols_Table_Entry symbols_table_entry_none = {0};
-//
-// // Symbols table which also tracks order of insertions via an array of slots.
-// typedef struct Symbols_Table Symbols_Table;
-// struct Symbols_Table
-// {
-// 	Arena   *arena;
-// 	Symbols_Table_Entry *entries;
-// 	U32     *slots;
-//
-// 	U32 capacity;
-// 	U32 count;
-// 	// With 10 labels, this pads well.
-// 	U16 label_numeric_count[label_numeric_max];
-// };
-//
-// // Allocates a initial buffer of zero-initialized values for saving symbols in the table.
-// void
-// Symbols_Table_initialize(Symbols_Table *map, Arena *arena);
-//
-// Symbols_Table_Entry *
-// Symbols_Table_get(Symbols_Table *map, String8 key);
-//
-// // Akin to a put operation, growing the map if needed.
-// Symbols_Table_Entry *
-// Symbols_Table_reserve(Symbols_Table *map, String8 key);
 
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
@@ -160,4 +110,3 @@ struct Symbols_Table
 
 
 #endif // CORE_SYMBOL_H
-

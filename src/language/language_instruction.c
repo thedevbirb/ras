@@ -19,17 +19,6 @@
 
 #define A_OFF_20              OP_arguments_m(OP_Argument__Offset_PC_Relative_20)
 
-// #define A_RD_RS1           OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1)
-// #define A_RD_IMM_LP_RS1_RP OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Immediate_I, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-// #define A_OFF              OP_arguments_m(OP_Argument__Offset_Load)
-// #define A_RD_UIMM          OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__Immediate_U)
-// #define A_RD_RS1_RS2       OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
-// #define A_RD_RS1_RS2_IMM   OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Immediate_I)
-// #define A_RD_RS1_SHAMT     OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount)
-// #define A_RD_RS2           OP_arguments_m(OP_Argument__RD, OP_Argument__Comma, OP_Argument__RS2)
-// #define A_OFF_L_RS1        OP_arguments_m(OP_Argument__Offset_Load, OP_Argument__Comma, OP_Argument__RS1)
-// #define A_OFF_S_RS1        OP_arguments_m(OP_Argument__Offset_Load, OP_Argument__Comma, OP_Argument__RS1)
-
 #define RV_IC_I RISCV_Instruction_Class__I
 
 // NOTE: the empty opcode can be distinguished by the zero hash.

@@ -1,6 +1,8 @@
 #ifndef CORE_INCLUDE_H
 #define CORE_INCLUDE_H
 
+// Core primitives of the codebase. Depends only on `base`.
+
 #include "core_initialize.h"
 #include "core_token.h"
 #include "core_source.h"

@@ -44,7 +44,13 @@ struct Fixups
 	Fixup_List  list;
 };
 
-
+internal Fixup *
+Fixups__push(Fixups *fixups)
+{
+	Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+	SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+	return fixup;
+}
 
 #endif // CORE_FIXUP_H
 
