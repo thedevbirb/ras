@@ -20,16 +20,14 @@
 #include "language/language_include.h"
 #include "syntax/syntax_include.h"
 #include "lexer.h"
-#include "parser/parser_include.h"
-// #include "core/core_resolver.h"
+#include "parser/parser_core.h"
 
 #include <base/base_include.c>
 
 #include "core/core_include.c"
 #include "lexer.c"
 #include "language/language_include.c"
-#include "parser/parser_include.c"
-// #include "core/core_resolver.c"
+#include "parser/parser_core.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);
