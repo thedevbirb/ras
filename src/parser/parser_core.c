@@ -405,7 +405,7 @@ RISCV_Instruction__parse
 			case OP_Argument__Comma:
 			{
 				// NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
-				Token_2 token_before_comma = cursor->previous;
+				Token token_before_comma = cursor->previous;
 				if (cursor->current.kind == Token_Kind__Comma)
 				{
 					token_next(cursor, diagnostics, arena);
@@ -486,7 +486,7 @@ RISCV_Instruction__parse
 				OP_Argument *next = arguments + 1;
 				assert_always_m(next && "invalid operand list");
 
-				Token_2 peek = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+				Token peek = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
 				if (*next == OP_Argument__Parenthesis_Left && peek.kind == Token_Kind__Parenthesis_Left)
 				{
 				       // Omitted immediate, e.g. lw t1, (t0)
@@ -759,7 +759,7 @@ statement_read
 				assert_always_m(directive_kind && "machine-dependent directives not yet implemented");
 			}
 
-			Token_2 next = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+			Token next = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
 			B32 label_found = next.kind == Token_Kind__Colon;
 			if (label_found)
 			{

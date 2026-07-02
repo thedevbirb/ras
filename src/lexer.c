@@ -1,4 +1,22 @@
-// After the lexer processes an item, it ALWAYS advances.
+global const U8 escape_valid_table[256] =
+{
+	['a']  = 1,  // bell
+	['b']  = 1,  // backspace
+	['t']  = 1,  // tab
+	['n']  = 1,  // newline
+	['v']  = 1,  // vertical tab
+	['f']  = 1,  // form feed
+	['r']  = 1,  // carriage return
+	['e']  = 1,  // escape
+	['\\'] = 1,  // backslash
+	['\''] = 1,  // single quote
+	['"']  = 1,  // double quote
+	['0']  = 1,  // null or octal begin
+	['1']  = 1,  // octal begin
+	['2']  = 1,  // octal begin
+	['3']  = 1,  // octal begin
+	['x']  = 1,  // hex begin
+};
 
 internal B32
 LE_U8_identifier_start_is(U8 character)
@@ -21,52 +39,13 @@ LE_U8_number_character_is(U8 character)
 	return result;
 }
 
-// internal U8 *
-// Lexer_peek_next(Lexer *lexer)
-// {
-// 	U8 *result = 0;
-// 	if (!lexer->end_reached)
-// 	{
-// 		result = &lexer->source->input.data[lexer->index + 1];
-// 	}
-// 	return result;
-// }
-//
-// // It is a no-op if the end has been reached already.
-// internal void
-// Lexer_advance(Lexer *lexer)
-// {
-// 	B32                  = lexer->source->input.count == 0 || lexer->index >= lexer->source->input.count;
-// 	lexer->index        += !lexer->end_reached;
-// 	lexer->current       = lexer->source->input.data[lexer->index];
-//
-// 	// An index pointing out of bounds is of no-one's help.
-// 	assert_always_m(lexer->index < lexer->source->input.count);
-//
-// 	return;
-// }
-//
-// internal void
-// Lexer_expect(Lexer *lexer, B32 condition, Lexer_Error_Kind error_kind)
-// {
-// 	if (!condition && !lexer->error.kind)
-// 	{
-// 		lexer->error = (Lexer_Error)
-// 		{
-// 			.index = lexer->index,
-// 			.kind  = error_kind,
-// 		};
-// 	}
-// 	return;
-// }
-
 // INVARIANT
 //
 // Assumes extra 8 bytes of zero after source->count.
 //
 // We don't want annoying codepaths because I read past one, so I assume the past one is zero.
-// This simplifies a lot of check, where the last character being zero is already enough of a check.
-internal Token_2
+// This simplifies a lot checks, where the last character being zero is already enough of a check.
+internal Token
 token_peek
 (
 	Source          *source,
@@ -82,7 +61,7 @@ token_peek
 		assert_always_m(data[count + i] == 0);
 	}
 
-	Token_2 token = {0};
+	Token token = {0};
 
 	U32 start_index = min_m(index_current, count);
 	U64 index = start_index;
