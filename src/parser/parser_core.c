@@ -499,23 +499,6 @@ RISCV_Instruction__parse
 				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__itype);
 				U32 location_expression_end   = cursor->current.location;
 
-				// if (relocation)
-				// {
-				// 	U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
-				// 	Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-				//
-				// 	fixup->expression_index = expression->index;
-				// 	fixup->fragment         = section->fragment_list.last;
-				// 	fixup->encoding_offset  = fixup_encoding_base_offset;
-				// 	// NOTE: the relocation type encodes information on where to set the resolved
-				// 	// value.
-				// 	fixup->relocation_type  = Relocation_RISC_V__Low_12_I_Type;
-				// 	fixup->size             = 4;
-				//
-				// 	SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
-				// 	result = 0;
-				// }
-
 				if (*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
@@ -546,6 +529,48 @@ RISCV_Instruction__parse
 					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				       }
 				}
+			} break;
+			case OP_Argument__Immediate_U:
+			{
+				U32 location_expression_begin = cursor->current.location;
+				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__utype);
+				U32 location_expression_end   = cursor->current.location;
+
+				if (*relocation_out)
+				{
+				       if (expression->kind == Expression_Kind__Constant)
+				       {
+					       S64 result = expression->integer_value;
+					       B32 fits = 0 <= result && result < (S64)(1 << 20);
+					       if (!fits)
+					       {
+						       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						       diagnostic->location   = location_expression_begin;
+						       diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
+						       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+						       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					       }
+
+					       // TODO: GNU as does this at a later step, and by default emits a
+					       // relocation. Consider doing the same.
+					       U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
+					       instruction_out->encoding |= encoding_immediate;
+				       }
+				       else
+				       {
+
+					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					       diagnostic->location   = location_expression_begin;
+					       diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
+					       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				       }
+				}
+			} break;
+			case OP_Argument__Call_Expression:
+			{
+				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				*relocation_out = Relocation_RISC_V__Call_PLT;
 			} break;
 			default: { unreachable_m(); }
 			}
@@ -709,10 +734,8 @@ RISCV_Instruction__append
 	return;
 }
 
-/// ParseStatement:
-///   ::= EndOfStatement
-///   ::= Label* Directive ...Operands... EndOfStatement
-///   ::= Label* Identifier OperandList* EndOfStatement
+// Add pseudo instructions which can expand.
+
 internal void
 statement_read
 (
@@ -745,6 +768,7 @@ statement_read
 				      || cursor->current.kind == Token_Kind__Error
 				      || error;
 		assert_always_m((progress || break_should_outer) && "infinite loop detected");
+
 		if (break_should_outer)
 		{
 			break;
@@ -1324,72 +1348,6 @@ statement_read
 
 			Fragment_List__align(&section->fragment_list, arena, location_begin, alignment_expression->index, pattern, bytes_max);
 		} break;
-// 			case Directive_Kind__Common:
-// 			{
-// 				// .comm symbol, size, alignment
-// 				Parser_advance(parser);
-// 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
-//
-// 				String8 key = Parser_token_string(parser);
-// 				Symbols_Table_Entry *entry = Symbols_Table_reserve(parser->symbols_table, key);
-// 				B32 duplicate = entry->elf.section_index != 0;
-//
-// 				entry->elf.type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, 0),
-// 				entry->elf.section_index    = ELF_Section_Index__Common,
-//
-// 				Parser_expect(parser, !duplicate, Parser_Error_Kind__Symbol_Duplicate);
-//
-// 				Parser_advance(parser);
-// 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-//
-// 				Parser_advance(parser);
-// 				Expression_Node *size_expression = Parser_expression_parse(parser);
-//
-// 				Parser_expect_token(parser, Token_Kind__Comma, Parser_Error_Kind__Comma_Expected);
-//
-// 				Parser_advance(parser);
-// 				Expression_Node *alignment_expression = Parser_expression_parse(parser);
-//
-// 				U32 *expressions_indexes = Arena__push_array_m(parser->arena, U32, 2);
-// 				expressions_indexes[0] = size_expression->index;
-// 				expressions_indexes[1] = alignment_expression->index;
-//
-// 				parser->statement_s_symbol = entry;
-// 				parser->statement_expressions_indexes = expressions_indexes;
-// 				parser->statement_expressions_count = 2;
-// 			} break;
-// 			case Directive_Kind__Option:
-// 			{
-// 				Parser_advance(parser);
-// 				Parser_expect_token(parser, Token_Kind__Identifier, Parser_Error_Kind__Identifier_Expected);
-//
-// 				String8 string = Parser_token_string(parser);
-// 				if (memory_match(string.data, "norelax", min_m(string.count, 7)) == 0)
-// 				{
-// 					parser->flags |= Statement_Flags__Relax_Disabled;
-// 				}
-// 				else if (memory_match(string.data, "relax", min_m(string.count, 5)) == 0)
-// 				{
-// 					parser->flags &= ~Statement_Flags__Relax_Disabled;
-// 				}
-// 				else
-// 				{
-// 					Parser_error_set(parser, Parser_Error_Kind__Option_Invalid);
-// 				}
-// 				Parser_advance(parser);
-//
-// 			} break;
-// 			default:
-// 			{
-// 				ELF_Section section_kind = ELF_Section_from_Directive_Kind(directive_kind);
-// 				assert_always_m(section_kind && "unhandled directive");
-//
-// 				parser->section_current_index = section_kind;
-// 				Parser_advance(parser);
-// 			} break;
-// 			}
-//
-// 			parser->statement_section_index      = parser->section_current_index;
 		default: {} break;
 		}
 
