@@ -567,6 +567,21 @@ RISCV_Instruction__parse
 				       }
 				}
 			} break;
+			case OP_Argument__Immediate_Large:
+			{
+				U32 location_expression_begin = cursor->current.location;
+				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				U32 location_expression_end   = cursor->current.location;
+
+				if (expression->kind != Expression_Kind__Constant)
+				{
+				       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				       diagnostic->location   = location_expression_begin;
+				       diagnostic->message    = String8__literal("Constant expression expected");
+				       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+				       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+			} break;
 			case OP_Argument__Call_Expression:
 			{
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
@@ -597,133 +612,120 @@ RISCV_Instruction__parse
 }
 
 internal void
-track_instruction_in_fragment
-(
-	RISCV_Instruction *instruction,
-	Fragment          *fragment,
-	U32                offset
-)
-{
-	instruction->fragment  = fragment;
-	instruction->offset    = offset;
-
-	if (instruction->fixup)
-	{
-		instruction->fixup->fragment        = fragment;
-		instruction->fixup->encoding_offset = offset;
-	}
-}
-
-internal void
 add_instruction_relaxed
 (
-	Arena                   *arena,
-	Fragment_List           *fragments,
-	RISCV_Instruction       *instruction,
-	U8                       worst_case_size,
-	U8                       best_case_size,
-	U32                      expression_index,
-	U32                      subtype
+	Section *section,
+	U32      encoding,
+	U32      location,
+	U8       worst_case_size,
+	U8       best_case_size,
+	U32      expression_index,
+	U32      subtype
 )
 {
-	U32 offset = fragments->last->size_fixed;
-	track_instruction_in_fragment(instruction, fragments->last, offset);
-
 	U8 *data = Fragment_List__variable
 	(
-		 fragments,
-		 arena,
-		 instruction->location,
-		 worst_case_size,
-		 best_case_size,
-		 expression_index,
-		 subtype,
-		 Relax_State__Machine
+		&section->fragment_list,
+		section->arena,
+		location,
+		worst_case_size,
+		best_case_size,
+		expression_index,
+		subtype,
+		Relax_State__Machine
 	);
 
-	memory_copy(data, (U8 *)&instruction->encoding, RISCV_instruction_size(instruction->encoding));
+	memory_copy(data, (U8 *)&encoding, RISCV_instruction_size(encoding));
 	return;
 }
 
+// Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
+// track the information of where this instruction has been placed.
 internal void
 add_instruction_fixed
 (
-	Arena                   *arena,
-	Fragment_List           *fragments,
-	RISCV_Instruction       *instruction
+	Section *section,
+	Fixup   *fixup,
+
+	U32      instruction_encoding,
+	U32      instruction_location
 )
 {
-	U32 offset = fragments->last->size_fixed;
-	track_instruction_in_fragment(instruction, fragments->last, offset);
-
-	U8 instruction_size = RISCV_instruction_size(instruction->encoding);
+	U8 instruction_size = RISCV_instruction_size(instruction_encoding);
 	U8 *data = Fragment_List__fixed
 	(
-		 fragments,
-		 arena,
-		 instruction->location,
+		 &section->fragment_list,
+		 section->arena,
+		 instruction_location,
 		 instruction_size
 	);
 
-	memory_copy(data, (U8 *)&instruction->encoding, instruction_size);
+	// Track its precise location within the fragment. Important to do it _after_ we've written it
+	// since it might have landed into another fragment because of low capacity of the previous.
+	if (fixup)
+	{
+		Fragment *last = section->fragment_list.last;
+		U32 encoding_offset = last->size_fixed - instruction_size;
+
+		fixup->fragment        = last;
+		fixup->encoding_offset = encoding_offset;
+	}
+
+	memory_copy(data, (U8 *)&instruction_encoding, instruction_size);
 	return;
 }
 
 internal void
 RISCV_Instruction__append
 (
-	Arena                   *arena,
-	Section                 *section,
-	Fixups                  *fixups,
+	Section           *section,
+	Fixups            *fixups,
 
-	RISCV_Instruction       *instruction,
-	U32                      expression_index,
-	U16			 relocation
+	RISCV_Instruction *instruction,
+	U32                expression_index,
+	U16                relocation
 )
 {
-	B32 relaxable = 0;
-	if (relocation)
+	Fixup *fixup     = 0;
+	B32    jump_is   = relocation == Relocation_RISC_V__JAL;
+	B32    relaxable = relocation == Relocation_RISC_V__Branch || jump_is;
+	B32    fixable   = relocation && !relaxable;
+
+	if (fixable)
 	{
-		B32 jump_is = relocation == Relocation_RISC_V__JAL;
-		relaxable = relocation == Relocation_RISC_V__Branch || jump_is;
-		if (relaxable)
-		{
-			// Add a relaxable fragment and that's it. Don't create a fixup yet because this relocation type
-			// could be changed and these instructions could expand unpredictably.
-			U8 best_case_size  = RISCV_instruction_size(instruction->encoding);
-			U8 worst_case_size = 8;
-
-			U32 subtype = RELAX_BRANCH_ENCODE (jump_is, best_case_size == 2, worst_case_size);
-			add_instruction_relaxed
-			(
-				arena,
-				&section->fragment_list,
-				instruction,
-				worst_case_size,
-				best_case_size,
-				expression_index,
-				subtype
-			);
-
-		}
-		else
-		{
-			Fixup *fixup = Fixups__push(fixups);
-			fixup->fragment = section->fragment_list.last;
-			fixup->expression_index = expression_index;
-			fixup->relocation_type  = relocation;
-
-			instruction->fixup = fixup;
-		}
+		// NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
+		// (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
+		// like branches, break this invariant.
+		fixup = Fixups__push(fixups);
+		fixup->expression_index = expression_index;
+		fixup->relocation_type  = relocation;
 	}
 
-	if (!relaxable)
+	if (relaxable)
+	{
+		U8 best_case_size  = RISCV_instruction_size(instruction->encoding);
+		U8 worst_case_size = 8;
+
+		U32 subtype = RELAX_BRANCH_ENCODE (jump_is, best_case_size == 2, worst_case_size);
+		add_instruction_relaxed
+		(
+			section,
+			instruction->encoding,
+			instruction->location,
+			worst_case_size,
+			best_case_size,
+			expression_index,
+			subtype
+		);
+	}
+	else
 	{
 		add_instruction_fixed
 		(
-			arena,
-			&section->fragment_list,
-			instruction
+			section,
+			fixup,
+			instruction->encoding,
+			instruction->location
 		);
 	}
 
@@ -734,7 +736,6 @@ internal void
 RISCV_macro_build
 (
 
-	Arena       *arena,
 	Section     *section,
 	Fixups      *fixups,
 
@@ -784,7 +785,6 @@ RISCV_macro_build
 
 	RISCV_Instruction__append
 	(
-		arena,
 		section,
 		fixups,
 		&instruction,
@@ -797,7 +797,6 @@ RISCV_macro_build
 internal void
 RISCV_call_expand
 (
-	Arena           *arena,
 	Section         *section,
 	Fixups          *fixups,
 
@@ -818,7 +817,6 @@ RISCV_call_expand
 	// Fragment_List__ensure(&section->fragment_list, section->arena, 8);
 	RISCV_macro_build
 	(
-		arena,
 		section,
 		fixups,
 
@@ -830,7 +828,6 @@ RISCV_call_expand
 	);
 	RISCV_macro_build
 	(
-		arena,
 		section,
 		fixups,
 
@@ -843,17 +840,196 @@ RISCV_call_expand
 	// then?
 }
 
+// Encodes all the instructions required during a LI pseudo-instruction. Pass `section = NULL` to count only; pass a
+// valid section pointer (with `rd` set) to additionally emit the encoded instructions.
+//
+// The algorithm proceeds by range analysis:
+//
+//   - If the value fits in a 12-bit signed range, a single ADDI suffices.
+//   - If it fits in a 32-bit signed range, it takes LUI alone (if the low 12 bits are zero) or LUI + ADDIW otherwise.
+//     ADDIW (not ADDI) is used because the result is meant to be a 32-bit sign-extended value.
+//
+// Otherwise, we peel the low 12 bits off as a sign-extended tail (to be spliced back with an ADDI later),
+// arithmetic-shift the remainder right by 12, and recurse on the upper portion. Each recursive level contributes one
+// SLLI (to shift the upper part back into place) plus one ADDI (to splice in the peeled 12 bits, if non-zero).
+//
+// Note: after the initial LUI + ADDIW builds the topmost 32-bit chunk, every subsequent low-bit insertion uses plain
+// ADDI, not ADDIW. ADDIW would discard the upper 32 bits we just shifted in.
+//
+// Example: li x1, 0x12345111333555
+//
+// Peeling (top-down analysis):
+//
+//   value = 0x12345111333555
+//     peel low 12 bits = 0x555, shift right by 12
+//   value = 0x12345111333
+//     peel low 12 bits = 0x333, shift right by 12
+//   value = 0x12345111
+//     fits in 32-bit signed -> LUI 0x12345, ADDIW 0x111
+//
+// Emission (bottom-up assembly, 6 instructions):
+//
+//   lui   ra, 0x12345    ; ra = 0x0000000012345000
+//   addiw ra, ra, 0x111  ; ra = 0x0000000012345111   <- base case
+//   slli  ra, ra, 12     ; ra = 0x0000012345111000
+//   addi  ra, ra, 0x333  ; ra = 0x0000012345111333   <- splice 0x333
+//   slli  ra, ra, 12     ; ra = 0x0012345111333000
+//   addi  ra, ra, 0x555  ; ra = 0x0012345111333555   <- splice 0x555
+//
+// The symmetry is the key insight: each level of peeling on the way down (shift right by 12, record a tail) becomes one
+// SLLI + ADDI pair on the way back up (shift left by 12, replay the tail). The base case at the bottom of the recursion
+// is the LUI (+ optional ADDIW) that seeds the topmost 32-bit chunk.
+//
+// Other minor optimizations are in place. In particular, the algorithm will also take into account additional trailing
+// zeros after shifting right by 12, so that numbers with many trailing zero don't need more instructions than needed.
+internal U8
+RISCV_li_expand
+(
+	Section         *section,
+
+	S64 immediate,
+	U8  register_destination,
+	U32 location
+)
+{
+	U8  instructions_count = 0;
+	S64 immediate_low_12   = 0;
+	U32 index              = 0;
+
+	// Peeled chunks: for each level we store the shift amount AND the
+	// low-12-bit tail. Shifts are at least 12, but can be larger because
+	// trailing zero bits of the upper residual are absorbed into the next
+	// SLLI (folding runs of zeros for free). Worst case on RV64 is 3
+	// peels = 8 total instructions (LUI + ADDIW + 3 x (SLLI + ADDI)).
+	struct { U8 shift; S64 tail; } peels[4];
+	U32 peels_count = 0;
+
+	for (;;)
+	{
+		B32 range_12     = S64_bits_range_in(immediate, 12);
+		B32 range_32     = S64_bits_range_in(immediate, 32);
+		B32 break_should = range_12 || range_32;
+
+		if (range_12)
+		{
+			instructions_count += 1;
+			if (section)
+			{
+				// Single ADDI from x0.
+				U32 encoding = instruction_i_encode_m(register_destination, 0, immediate,
+						OPCODE_I_TYPE, FUNCT3_ADDI);
+				add_instruction_fixed(section, 0, encoding, location);
+			}
+		}
+		else if (range_32)
+		{
+			immediate_low_12 = (immediate << 52) >> 52;
+			B32 lui_suffices = immediate_low_12 == 0;
+			instructions_count += lui_suffices ? 1 : 2;
+			if (section)
+			{
+				// LUI, plus ADDIW if the low 12 bits are non-zero. The LUI
+				// immediate is `immediate` with its low 12 bits cleared;
+				// ADDIW splices them back in (sign-extended to 64 bits).
+				S64 immediate_lui = immediate - immediate_low_12;
+				U32 encoding_lui  = instruction_u_encode_m(register_destination, immediate_lui, OPCODE_LUI);
+				add_instruction_fixed(section, 0, encoding_lui, location);
+				if (!lui_suffices)
+				{
+					U32 addiw_enc = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
+							OPCODE_I_TYPE, FUNCT3_ADDIW);
+					add_instruction_fixed(section, 0, addiw_enc, location);
+				}
+			}
+		}
+		else
+		{
+			immediate_low_12 = (immediate << 52) >> 52;
+			// Here, we override immediate to repeat the algorithm the next iterations on a smaller number
+			// composed by the 54 highest bits. However, as we see below there might be more trailing zeros!
+			immediate        = (immediate - immediate_low_12) >> 12;
+
+			// Absorb trailing zero bits of the upper residual into this
+			// peel's SLLI. Each absorbed bit means the residual we recurse
+			// on is denser, potentially bottoming out in fewer iterations
+			// (e.g. a huge value like 0x8000000000000000 collapses to just
+			// ADDI + SLLI after this).
+			U8 trailing = count_trailing_zeros((U64)immediate);
+			U8 shift    = (12 + trailing);
+			immediate  >>= trailing;
+
+			// SLLI is always needed to shift the upper part into place;
+			// ADDI is only needed when the peeled tail is non-zero.
+			B32 addi_needed = (immediate_low_12 != 0);
+			instructions_count += 1 + (addi_needed ? 1 : 0);
+
+			if (section)
+			{
+				// Record (shift, tail) for later replay. No emission yet:
+				// the SLLI + (optional) ADDI can't be emitted until the
+				// upper residual has been materialized by the base case.
+				assert_always_m(peels_count < 4 && "LI expansion exceeded worst case");
+				peels[peels_count].shift = shift;
+				peels[peels_count].tail  = immediate_low_12;
+				peels_count += 1;
+			}
+		}
+
+		if (break_should)
+		{
+			break;
+		}
+		index += 1;
+		assert_always_m(index < 8 && "infinite loop");
+	}
+
+	// Replay phase: emit SLLI + optional ADDI for each peeled level in
+	// reverse order. `register_destination` already holds the base-case residual; each
+	// iteration shifts it left by the recorded amount (12 + absorbed
+	// trailing zeros) and splices the next tail back in (when non-zero).
+	// Plain ADDI (not ADDIW) is used because we're building a 64-bit
+	// value; ADDIW would discard the upper bits just shifted into place
+	// by SLLI.
+	if (section)
+	{
+		S32 peel_index = peels_count - 1;
+		for (;;)
+		{
+			B32 break_should = index < 0;
+			if (break_should)
+			{
+				break;
+			}
+
+			U8  shift = peels[peel_index].shift;
+			S64 tail  = peels[peel_index].tail;
+
+			U32 encoding_slli = instruction_i_encode_m(register_destination, register_destination, shift, OPCODE_I_TYPE, FUNCT3_SLLI);
+			add_instruction_fixed(section, 0, encoding_slli, location);
+
+			if (tail != 0)
+			{
+				U32 encoding_addi = instruction_i_encode_m(register_destination, register_destination, tail, OPCODE_I_TYPE, FUNCT3_ADDI);
+				add_instruction_fixed(section, 0, encoding_addi, location);
+			}
+
+			peel_index -= 1;
+		}
+	}
+
+	assert_always_m(instructions_count > 0);
+	return instructions_count;
+}
 
 
 internal void
 RISCV_instruction_pseudo_append
 (
-	Arena                   *arena,
 	Section                 *section,
 	Fixups                  *fixups,
 
 	RISCV_Instruction       *instruction,
-	U32                      expression_index,
+	Expression_Node         *expression,
 	U16			 relocation
 )
 {
@@ -871,14 +1047,22 @@ RISCV_instruction_pseudo_append
 	{
 		RISCV_call_expand
 		(
-			arena,
 			section,
 			fixups,
-
 			rd,
 			rs1,
-			expression_index,
+			expression->index,
 			relocation,
+			instruction->location
+		);
+	} break;
+	case M_LI:
+	{
+		RISCV_li_expand
+		(
+			section,
+			expression->integer_value,
+			rd,
 			instruction->location
 		);
 	} break;
@@ -993,10 +1177,10 @@ statement_read
 
 		if (instruction_hash)
 		{
-			U16               relocation       =  0;
-			RISCV_Instruction instruction      = {0};
-			U32               expression_index =  0;
+			U16               relocation  =  0;
+			RISCV_Instruction instruction = {0};
 
+			U32 expression_index_parsed = 0;
 			RISCV_Instruction__parse
 			(
 				arena,
@@ -1007,18 +1191,18 @@ statement_read
 				instruction_hash,
 				&relocation,
 				&instruction,
-				&expression_index
+				&expression_index_parsed
 			);
 
 			if (instruction.opcode->info & INSN_MACRO)
 			{
+				Expression_Node *expression = xar_get_m(expressions, expression_index_parsed);
 				RISCV_instruction_pseudo_append
 				(
-					arena,
 					section,
 					fixups,
 					&instruction,
-					expression_index,
+					expression,
 					relocation
 				);
 			}
@@ -1026,18 +1210,13 @@ statement_read
 			{
 				RISCV_Instruction__append
 				(
-					arena,
 					section,
 					fixups,
 					&instruction,
-					expression_index,
+					expression_index_parsed,
 					relocation
 				);
 			}
-
-			// TODO: this should be done later by also checking the relocation_out
-			// U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);
-			// memory_copy(data, &instruction.encoding, 4);
 		}
 
 		U8   data_directive_size = 0;
@@ -1056,6 +1235,7 @@ statement_read
 		case Directive_Kind__Byte:
 		{
 			// TODO: finish this, it is a non-trivial directive to handle.
+			// It's missing writing to section etc.
 			data_directive_size += 1;
 
 			// U32 expressions_index_start = expressions->header.count;
@@ -1107,10 +1287,6 @@ statement_read
 
 				index += 1;
 			}
-
-			// statement.expressions_index = expressions_index_start;
-			// statement.expressions_count = expressions_count;
-			// statement.size              = data_directive_size * expressions_count;
 		} break;
 		case Directive_Kind__String: {} // fallthrough
 		case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
@@ -1401,7 +1577,7 @@ statement_read
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 			}
-			Fragment_List__fill(&section->fragment_list, arena, location_begin, repeat_expression->index, fill_pattern, fill_size);
+			Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression->index, fill_pattern, fill_size);
 		} break;
 		case Directive_Kind__Align:
 		{
@@ -1506,7 +1682,7 @@ statement_read
 				}
 			}
 
-			Fragment_List__align(&section->fragment_list, arena, location_begin, alignment_expression->index, pattern, bytes_max);
+			Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression->index, pattern, bytes_max);
 		} break;
 		default: {} break;
 		}

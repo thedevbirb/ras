@@ -119,11 +119,6 @@ diagnostic_print
 	set_color(stderr, (Diagnostic_Style){ .color = Diagnostic_ANSI_Color_Green, .bold = 1 });
 	for (;;)
 	{
-		if (index == newline_index)
-		{
-			break;
-		}
-
 		if (index == column_index)
 		{
 			character = '^';
@@ -139,7 +134,13 @@ diagnostic_print
 			}
 		}
 
+
 		fputc(character, stderr);
+
+		if (index == newline_index)
+		{
+			break;
+		}
 
 		index += 1;
 		character = ' ';

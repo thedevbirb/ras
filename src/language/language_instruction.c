@@ -1,9 +1,11 @@
 #define A_NONE                OP_arguments_m(OP_Argument__None)
 
 #define A_RS1                 OP_arguments_m(OP_Argument__RS1)
-#define A_RS1_IMM             OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
+#define A_RS1_IMM_I           OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
 
-#define A_RD_IMM_U            OP_arguments_m(OP_Argument__RD, OP_Argument__Comma,  OP_Argument__Immediate_U)
+#define A_RD_IMM_L            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_Large)
+#define A_RD_IMM_I            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_I)
+#define A_RD_IMM_U            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_U)
 #define A_RD_RS1              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1)
 #define A_RD_RS1_RS2          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
 #define A_RD_RS1_IMM          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
@@ -48,6 +50,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 // TODO: add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
 { "addi",   HASH_addi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDI,                              MASK_ADDI,                           match_opcode,         0                              },
+{ "addiw",  HASH_addiw,  0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDIW,                             MASK_ADDIW,                          match_opcode,         0                              },
 { "slti",   HASH_slti,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_SLTI,                              MASK_SLTI,                           match_opcode,         0                              },
 { "sltiu",  HASH_sltiu,  0, RV_IC_I, A_RD_RS1_IMM,         MATCH_SLTIU,                             MASK_SLTIU,                          match_opcode,         0                              },
 { "xori",   HASH_xori,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_XORI,                              MASK_XORI,                           match_opcode,         0                              },
@@ -74,11 +77,13 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "bgeu",   HASH_bgeu,   0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_CONDBRANCH                },
 
 // Pseudo-instructions (incomplete)
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_BRANCH },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,      MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM,            MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_BRANCH         },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,      MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH         },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM_I,          MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_BRANCH         },
 
-{ "call",   HASH_call,   0, RV_IC_I, A_CALL,               (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  M_CALL,                              0,                    INSN_MACRO },
+{ "call",   HASH_call,   0, RV_IC_I, A_CALL,               (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  M_CALL,                              0,                    INSN_MACRO                     },
+{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,           MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
+{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_L,           0,                                       M_LI,                                0,                    INSN_MACRO                     },
 
 { "nop",    HASH_nop,    0, RV_IC_I, A_NONE,               MATCH_ADDI,                              MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
 { "mv",     HASH_mv,     0, RV_IC_I, A_RD_RS1,             MATCH_ADDI,                              MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },

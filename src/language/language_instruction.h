@@ -459,6 +459,66 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 #define FUNCT7_SRAIW                   0x20
 
 
+// R-type encoding (32 bits):
+// [31:25] funct7 | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
+#define instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7)                                           \
+	 (((U32)(opcode)       & 0x7F) <<  0) | /* bits  6:0                     */                            \
+   	 (((U32)(rd)           & 0x1F) <<  7) | /* bits 11:7                     */                            \
+   	 (((U32)(funct3)       & 0x07) << 12) | /* bits 14:12                    */                            \
+   	 (((U32)(rs1)          & 0x1F) << 15) | /* bits 19:15                    */                            \
+   	 (((U32)(rs2)          & 0x1F) << 20) | /* bits 24:20                    */                            \
+   	 (((U32)(funct7)       & 0x7F) << 25)   /* bits 31:25                    */
+
+// I-type encoding (32 bits):
+// [31:20] imm[11:0] | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
+#define instruction_i_encode_m(rd, rs1, imm, opcode, funct3)                                                   \
+	(((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
+    	(((U32)(rd)           &  0x1F) <<  7) | /* bits 11:7                     */                            \
+    	(((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
+    	(((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
+    	(((U32)(imm)          & 0xFFF) << 20)   /* bits 31:20                    */
+
+#define instruction_i_shift_encode_m(rd, rs1, shamt, opcode, funct3, funct6)                                   \
+	instruction_i_encode_m(rd, rs1, ((funct6) << 6) | ((shamt) & 0x3F), opcode, funct3)
+
+#define instruction_i_shift_wide_encode_m(rd, rs1, shamt, opcode, funct3, funct7)                              \
+	instruction_i_encode_m(rd, rs1, (funct7 << 5) | (shamt & 0x1F), opcode, funct3)
+
+// S-type encoding (32 bits):
+// [31:25] imm[11:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] imm[4:0] | [6:0] opcode
+#define instruction_s_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
+	(((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
+    	(((U32)(imm)          &  0x1F) <<  7) | /* bits 11:7                     */                            \
+    	(((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
+    	(((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
+    	(((U32)(rs2)          &  0x1F) << 20) | /* bits 24:20                    */                            \
+    	(((U32)(imm)          & 0xFE0) << 25)   /* bits 31:25                    */
+
+// B-type encoding (32 bits):
+// [31] imm[12] | [30:25] imm[10:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:8] imm[4:1] | [7] imm[11] | [6:0] opcode
+#define instruction_b_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
+	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+    	(((U32)((imm) >> 11)         &  0x01) <<  7) | /* bit   7     imm[11]    */                            \
+    	(((U32)((imm) >>  1)         &  0x0F) <<  8) | /* bits 11:8   imm[4:1]   */                            \
+    	(((U32)(funct3)              &  0x07) << 12) | /* bits 14:12             */                            \
+    	(((U32)(rs1)                 &  0x1F) << 15) | /* bits 19:15             */                            \
+    	(((U32)(rs2)                 &  0x1F) << 20) | /* bits 24:20             */                            \
+    	(((U32)((imm) >>  5)         &  0x3F) << 25) | /* bits 30:25  imm[10:5]  */                            \
+    	(((U32)((imm) >> 12)         &  0x01) << 31)   /* bit  31     imm[12]    */
+
+#define instruction_u_encode_m(rd, imm, opcode)                                                                \
+	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+	(((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
+	(((U32)(imm)             & 0xFFFFF) << 12)     /* bits 31:12  imm[31:12] */
+
+#define instruction_j_encode_m(rd, imm, opcode)                                                                \
+	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+	(((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
+	(((U32)((imm) >> 12)         &  0xFF) << 12) | /* bits 19:12 imm[19:12]  */                            \
+	(((U32)((imm) >> 11)         &  0x01) << 20) | /* bit  20     imm[11]    */                            \
+	(((U32)((imm) >>  1)         &  0x3FF) << 21) | /* bits 30:21 imm[10:1]  */                            \
+	(((U32)((imm) >> 20)         &  0x01) << 31)   /* bit  31     imm[20]    */
+
 #define ENCODING_NOP    0x00000013
 #define ENCODING_RET    0x00008067
 #define ENCODING_ECALL  0x00000073
@@ -747,6 +807,7 @@ enum
 	OP_Argument__RS1,
 	OP_Argument__RS2,
 	OP_Argument__RS3,
+	OP_Argument__Immediate_Large,
 	OP_Argument__Immediate_I,
 	OP_Argument__Immediate_S,
 	OP_Argument__Offset_PC_Relative_12,
@@ -843,6 +904,7 @@ RISCV_Opcode__table_find(U32 instruction_hash);
 
 // Information about an instruction, including its format, operands
 // and fixups.
+// TODO: this struct is probably overloaded with unnedded stuff.
 typedef struct RISCV_Instruction RISCV_Instruction;
 struct RISCV_Instruction
 {
