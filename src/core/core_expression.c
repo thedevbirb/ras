@@ -173,6 +173,10 @@ expression_evaluate(Expressions *expressions, U32 index)
 			Expression_Node *left  = xar_get_m(expressions, node->index_left);
 			Expression_Node *right = xar_get_m(expressions, node->index_right);
 
+			// Assert that both left and right have been evaluated.
+			assert_always_m(left->evaluation);
+			assert_always_m(right->evaluation);
+
 			// Rethink evaluation model which still keeps the parsed information?
 			// Example: I can set a label difference to a constant if they belong to the same frag.
 
@@ -185,18 +189,22 @@ expression_evaluate(Expressions *expressions, U32 index)
 				node->evaluation = Expression_Kind__Constant;
 				result_end = result;
 			}
-			else if (left->kind == Expression_Kind__Symbol && right->kind == Expression_Kind__Symbol)
+			else if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Symbol)
 			{
-				B32 same_fragment = left->symbol->fragment          == right->symbol->fragment;
-				B32 same_section  = left->symbol->elf.section_index == right->symbol->elf.section_index;
-				B32 subtract      = node->kind                      == Expression_Kind__Subtract;
+				// Extra checks to ensure undefined symbols are not considered equal.
+				B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
+					          && left->symbol->fragment && right->symbol->fragment;
+				B32 same_section  = (left->symbol->elf.section_index == right->symbol->elf.section_index)
+				                  && left->symbol->elf.section_index && right->symbol->elf.section_index;
+				B32 subtract = node->kind == Expression_Kind__Subtract;
+
 				// same_fragment implies same_section
 				assert_always_m(!same_section || same_fragment && "same fragment but different section");
 
 				if (same_fragment && subtract)
 				{
 					// Fold to constant.
-					node->evaluation    = Expression_Kind__Constant;
+					node->evaluation = Expression_Kind__Constant;
 				}
 
 				if (subtract && same_section)
@@ -214,6 +222,8 @@ expression_evaluate(Expressions *expressions, U32 index)
 		else if (node->index_right)
 		{
 			Expression_Node *right = xar_get_m(expressions, node->index_right);
+			assert_always_m(right->evaluation);
+
 			if (right->kind == Expression_Kind__Constant)
 			{
 				S64 result = unary_evaluate(node->kind, right->integer_value);
@@ -232,14 +242,10 @@ expression_evaluate(Expressions *expressions, U32 index)
 		else
 		{
 			// Leaf reached.
-			B32 constant = node->kind == Expression_Kind__Constant;
 			assert_always_m(node->index_left == 0);
-			assert_always_m(constant || node->kind == Expression_Kind__Symbol);
+			assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
 
-			if (constant)
-			{
-				node->evaluation = Expression_Kind__Constant;
-			}
+			node->evaluation = node->kind;
 
 			Symbol_Ref *symbol = node->symbol;
 			if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)
