@@ -139,6 +139,8 @@ expression_parse
 			String8 name        = Token_Cursor__text(cursor);
 			Symbol_Ref *symbol  = Symbols_Table__get_or_default(symbols_table, name);
 
+			symbol->flags |= Symbol_Flags__Used;
+
 			frame->node->kind             = Expression_Kind__Symbol;
 			frame->node->evaluation       = Expression_Kind__Symbol;
 			frame->node->symbol           = symbol;
@@ -551,7 +553,6 @@ RISCV_Instruction__parse
 				       }
 				       else
 				       {
-
 					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					       diagnostic->location   = expression->location_range.v[0];
 					       diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
@@ -1213,23 +1214,22 @@ statement_read
 		{
 
 			String8 identifier = Token_Cursor__text(cursor);
-			B32 dot_start = identifier.data[0] == '.';
 
+			B32 dot_start = identifier.data[0] == '.';
 			if (dot_start)
 			{
 				directive_kind = Directive_Kind__from_String8(identifier);
-				assert_always_m(directive_kind && "machine-dependent directives not yet implemented");
 			}
 
 			Token next = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
 			B32 label_found = next.kind == Token_Kind__Colon;
 			if (label_found)
 			{
+				// Label declaration!
 				Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
-				ELF64_Symbol elf_empty = {0};
-				B32 empty = memory_match_struct(&symbol->elf, &elf_empty);
-				if (!empty)
+				if (symbol->fragment)
 				{
+					// NOTE: GNU as accepts the case where the fragment is the same AND same offset.
 					{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->location   = cursor->current.location;
@@ -1246,10 +1246,11 @@ statement_read
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					}
 				}
-				symbol->location = cursor->current.location;
-				// NOTE: This is some boilerplate that should be applied also for .local directive.
-				// symbol->elf.section_index = section->index;
-				// symbol->value = section->fragment_list->last.size_fixed;
+				symbol->flags            |= Symbol_Flags__Declared;
+				symbol->location          = cursor->current.location;
+				symbol->fragment          = section->fragment_list.last;
+				symbol->elf.value         = section->fragment_list.last->size_fixed;
+				symbol->elf.section_index = section->index;
 
 				token_next(cursor, diagnostics, arena);
 				token_next(cursor, diagnostics, arena);
