@@ -484,12 +484,40 @@ RISCV_Instruction__parse
 				// into a known number of instructions (`INSN_MACRO`)
 				*relocation_out = Relocation_RISC_V__JAL;
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+
+				// For branches we can't support a fixup. While GNU as silently ignores additional
+				// symbols, here we either warn or error.
+				expression_evaluate(expressions, expression->index);
+				if (expression->symbol_operand)
+				{
+					// TODO: this diagnostic could be better, I should probably support re-lexing
+					// from a specific location to get the exact token.
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
+					diagnostic->location   = expression->location_range.v[0];
+					diagnostic->ranges[0]  = expression->location_range;
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
 			} break;
 			case OP_Argument__Offset_PC_Relative_12:
 			{
 				// See notes for `OP_Argument__Offset_PC_Relative_20`.
 				*relocation_out = Relocation_RISC_V__Branch;
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+
+				// For branches we can't support a fixup. While GNU as silently ignores additional
+				// symbols, here we either warn or error.
+				expression_evaluate(expressions, expression->index);
+				if (expression->symbol_operand)
+				{
+					// TODO: this diagnostic could be better, I should probably support re-lexing
+					// from a specific location to get the exact token.
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
+					diagnostic->location   = expression->location_range.v[0];
+					diagnostic->ranges[0]  = expression->location_range;
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
 			} break;
 			case OP_Argument__Offset_Load:
 			{
