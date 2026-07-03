@@ -735,3 +735,60 @@ Tue Jun 23 16:34:06 CEST 2026
 Previous analysis of GNU as lifecycle has been very helpful because it gives a rough track on the
 things that should be done, in what order and with which information. I feel more comfortable know
 trying to trace down a path.
+
+Tue Jun 30 16:39:44 CEST 2026
+
+I'm noticing that GNU as does this pessimistic-by-default pattern where it assumes the pessimistic
+case (for example an instruction encoding) and then simplifies it later. The reason for doing this
+is to simplify codepaths: the simplification process (which is necessary) already contains the logic
+or jumps that should be done by eagerly checking whether you're in the worse case or not.
+This is not to say you should always assume the worst case, but in this context there isn't a
+meaningful improvement in performance by doing pessimitic-by-default, and it results in less code
+which is arguably better.
+
+Wed Jul  1 12:10:44 CEST 2026
+
+I should strive to avoid any kind of global variable and nil-terminated list, unless in very
+specific cases (e.g. linked lists).
+
+I'm acknowledging the assembler is looking more and more as a GNU as rewrite in a lot of parts. I
+don't know whether it's good or bad. However, while with way less features, I'm getting something
+(imo) more readable and library friendly, with better error handling and diagnostics. I also notice
+that once you opt into the fragment architecture then a lot of the downstream code looks similar.
+
+Another usefulness of actually reading the source code is that now I can precisely pinpoint where
+GAS quirks happen, for example that `beq t0, t1, label2-label1` completely skips the label
+difference creating something unexpected (not necessarily right or wrong). This happens in the
+`append_insn` when `add_relaxable_insn` is called, where expression information is provided but the
+`x_op_symbol` is skipped.
+I understand _why_ that is a tricky situation: the immediate might be beyond a 12-bit range leading
+to instruction expansion. Tracking the label difference properly would mean creating a fixup, but a
+fixup (at least for how they're defined in GNU as) is a patch for some bytes within a frag, and in
+case it is not resolved, it becomes a relocation. Fixups require relaxation to complete first, since
+in this way distances can be safely computed. Creating a fixups for a relaxable instruction like a
+branch could lead to after relaxation which should NOT happen.
+I still think it can be handled a bit better, with two possible approaches:
+
+1. You check that `x_op_symbol` is null, and error otherwise OR
+2. Since GNU as always expands a branch to a branch + jal, created the fixup directly in the jal.
+
+Fri Jul  3 14:24:18 CEST 2026
+
+Yesterday I felt slow, today I feel fast and effective. You never know how it is!
+Now I'm in a very good spot regarding assembling. Still no logic for actually writing to the object
+file but I'm getting closer.
+I have to re-do some of the local label / dot symbol management related to fragments.
+
+Maybe I've written already about it but the various `.local`/`.weak`/`.global` directives do only:
+1. Create the symbol if doesn't exist
+2. Try to impose the binding, _without_ demoting.
+AND _nothing else_. Because that is NOT a declaration, which must happen explicitly by writing
+`<label>:`.
+
+Have to start handling the dot. The requirements are the following:
+1. track a "global" dot symbol, which gets updated on demand very often
+2. when the dot symbol is met in an expression, allocate a clone symbol of the global dot at that
+   instance, which isn't saved into the symbol hash table and has a name `.L0\001` to avoid
+   collisions.
+3. in fixups we track the "value" of the dot along with its fragment
+4. The "value" of the dot is the current fragment fixed offset
