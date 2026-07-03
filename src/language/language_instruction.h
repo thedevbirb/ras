@@ -738,8 +738,6 @@ typedef enum RISCV_Instruction_Class
 }
 RISCV_Instruction_Class;
 
-#define OP_arguments_m(...) ((U16[]){ __VA_ARGS__, 0 })
-
 typedef U16 OP_Argument;
 enum
 {
@@ -762,6 +760,9 @@ enum
 	OP_Argument__Call_Expression,
 	OP_Argument__COUNT,
 };
+
+#define OP_arguments_m(...) ((OP_Argument[]){ __VA_ARGS__, 0 })
+
 
 // This structure holds information for a particular instruction.
 //

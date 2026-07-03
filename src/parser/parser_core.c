@@ -673,10 +673,6 @@ internal void
 RISCV_Instruction__append
 (
 	Arena                   *arena,
-	Token_Cursor            *cursor,
-	Diagnostic_List         *diagnostics,
-	Expressions             *expressions,
-	Symbols_Table           *symbols_table,
 	Section                 *section,
 	Fixups                  *fixups,
 
@@ -734,7 +730,160 @@ RISCV_Instruction__append
 	return;
 }
 
-// Add pseudo instructions which can expand.
+internal void
+RISCV_macro_build
+(
+
+	Arena       *arena,
+	Section     *section,
+	Fixups      *fixups,
+
+	String8	     instruction_name,
+	U32          location,
+	U32          expression_index,
+	OP_Argument *arguments,
+	S32         *values
+)
+{
+	U32 instruction_hash = hash_FNV_1a(instruction_name);
+	const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
+	assert_always_m(opcode && opcode->hash);
+
+	RISCV_Instruction instruction = RISCV_Instruction__create(opcode, location);
+
+	U16 relocation = 0;
+
+	for (;;)
+	{
+		OP_Argument argument = *arguments;
+		if (argument == 0)
+		{
+			break;
+		}
+
+		S32 value = *values;
+
+		switch (argument)
+		{
+			default: { unreachable_m(); } break;
+
+			case OP_Argument__RD:  { INSERT_OPERAND(RD,  instruction, value); } break;
+			case OP_Argument__RS3: { INSERT_OPERAND(RS3, instruction, value); } break;
+			case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, value); } break;
+			case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, value); } break;
+
+			case OP_Argument__Immediate_I: {} // fallthrough
+			case OP_Argument__Immediate_U: { relocation = value; } break;
+		}
+
+		arguments += 1;
+		values    += 1;
+	}
+
+	assert_always_m(relocation ? expression_index : 1);
+
+	RISCV_Instruction__append
+	(
+		arena,
+		section,
+		fixups,
+		&instruction,
+		expression_index,
+		relocation
+	);
+}
+
+// Expand a call pseudo instruction into an `auipc + jalr` pair with the provided register for `jalr`.
+internal void
+RISCV_call_expand
+(
+	Arena           *arena,
+	Section         *section,
+	Fixups          *fixups,
+
+	U8  rd,
+	U8  rs1,
+	U32 expression_index,
+	U16 relocation,
+	U32 location
+)
+{
+	// Ensure the instructions are in the same fragment
+	OP_Argument *arguments_auipc   = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
+	S32 values_auipc[2]            = {rs1, relocation};
+	OP_Argument *arguments_jalr    = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1);
+	S32 values_jalr[2]             = {rd, rs1};
+
+	// TODO: add equivalent of frag_grow. Not yet super clear how to accomplish that.
+	// Fragment_List__ensure(&section->fragment_list, section->arena, 8);
+	RISCV_macro_build
+	(
+		arena,
+		section,
+		fixups,
+
+		String8__literal("auipc"),
+		location,
+		expression_index,
+		arguments_auipc,
+		values_auipc
+	);
+	RISCV_macro_build
+	(
+		arena,
+		section,
+		fixups,
+
+		String8__literal("jalr"),
+		location,
+		0,
+		arguments_jalr,
+		values_jalr
+	);
+	// then?
+}
+
+
+
+internal void
+RISCV_instruction_pseudo_append
+(
+	Arena                   *arena,
+	Section                 *section,
+	Fixups                  *fixups,
+
+	RISCV_Instruction       *instruction,
+	U32                      expression_index,
+	U16			 relocation
+)
+{
+	U8 rd  = (instruction->encoding >> OP_SH_RD)  & OP_MASK_RD;
+	U8 rs1 = (instruction->encoding >> OP_SH_RS1) & OP_MASK_RS1;
+	U8 rs2 = (instruction->encoding >> OP_SH_RS2) & OP_MASK_RS2;
+	unused_m(rs2);
+
+	U32 pseudo_type = instruction->opcode->mask;
+
+	switch (pseudo_type)
+	{
+	default: { unreachable_m(); } break;
+	case M_CALL:
+	{
+		RISCV_call_expand
+		(
+			arena,
+			section,
+			fixups,
+
+			rd,
+			rs1,
+			expression_index,
+			relocation,
+			instruction->location
+		);
+	} break;
+	}
+}
 
 internal void
 statement_read
@@ -861,19 +1010,30 @@ statement_read
 				&expression_index
 			);
 
-			RISCV_Instruction__append
-			(
-				arena,
-				cursor,
-				diagnostics,
-				expressions,
-				symbols_table,
-				section,
-				fixups,
-				&instruction,
-				expression_index,
-				relocation
-			);
+			if (instruction.opcode->info & INSN_MACRO)
+			{
+				RISCV_instruction_pseudo_append
+				(
+					arena,
+					section,
+					fixups,
+					&instruction,
+					expression_index,
+					relocation
+				);
+			}
+			else
+			{
+				RISCV_Instruction__append
+				(
+					arena,
+					section,
+					fixups,
+					&instruction,
+					expression_index,
+					relocation
+				);
+			}
 
 			// TODO: this should be done later by also checking the relocation_out
 			// U8 *data = Fragment_List__fixed(&section->fragment_list, arena, location_begin, 4);

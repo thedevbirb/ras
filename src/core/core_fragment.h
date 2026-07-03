@@ -68,7 +68,7 @@ struct Fragment_List
 
 // Push `size` bytes into the fragment, returning a pointer to zeroed data of the same size.
 //
-// NOTE: since we're arena allocator, it might happen that the current chunk hasn't enough reserved size for it.
+// NOTE: since we're using an arena allocator, it might happen that the current chunk hasn't enough reserved size for it.
 // In such case, we need to "seal" the current fragment and switch to another arena block, creating a new one.
 internal U8 *
 Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 size)
