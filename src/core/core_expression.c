@@ -139,8 +139,6 @@ expression_evaluate(Expressions *expressions, U32 index)
 	frame->node = xar_get_m(expressions, index);
 	S64 result_end = 0;
 
-	// TODO: avoid continue?
-
 	for (;;)
 	{
 		if (frame == 0 || !frame->node->kind) // or error
@@ -180,7 +178,7 @@ expression_evaluate(Expressions *expressions, U32 index)
 
 			// example: (symbol1 + 2) * (symbol2 + 4) =
 
-			if (left->kind == Expression_Kind__Constant && right->kind == Expression_Kind__Constant)
+			if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
 			{
 				S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
 				node->integer_value = result;
@@ -234,8 +232,14 @@ expression_evaluate(Expressions *expressions, U32 index)
 		else
 		{
 			// Leaf reached.
+			B32 constant = node->kind == Expression_Kind__Constant;
 			assert_always_m(node->index_left == 0);
-			assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
+			assert_always_m(constant || node->kind == Expression_Kind__Symbol);
+
+			if (constant)
+			{
+				node->evaluation = Expression_Kind__Constant;
+			}
 
 			Symbol_Ref *symbol = node->symbol;
 			if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)

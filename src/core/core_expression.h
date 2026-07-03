@@ -66,13 +66,15 @@ Expression_Kind;
 typedef struct Expression_Node Expression_Node;
 struct Expression_Node
 {
-	// The location across sources where this expression started.
-	// With a binary operation like `1 + 2`, the location would point to `1`.
-	//
-	// TODO: this should be an U32. Then, would it make sense to save a range instead?
-	// Perhaps it would be better to have a location for the root token, like '+' in this case,
-	// and then a range containing the whole expresion.
-	U64 location;
+	// Location tracking. Consider `1 + 2` as an example.
+
+	// Points to the location of the "root" token of the expression. For example, if the node is `+`, it would point
+	// to its location.
+	U32        location;
+	// The location range of this expression. For example, if the node is `+` it would cover the whole subexpression
+	// `1 + 2`.
+	Range1_U32 location_range;
+
 
 	// Evaluation-related fields, in a relocation friendly format.
 	S64 integer_value;

@@ -78,5 +78,16 @@ Token_Cursor__text(Token_Cursor *cursor)
 	return result;
 }
 
+// Remove quotes.
+internal String8
+String8__skip_chop(String8 token_string)
+{
+
+	String8 result = {0};
+	result = String8__skip(token_string, 1);
+	result = String8__chop(result, 1);
+	return result;
+}
+
 #endif // LEXER_H
 

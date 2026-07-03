@@ -18,7 +18,6 @@
 
 #include "core/core_include.h"
 #include "language/language_include.h"
-#include "syntax/syntax_include.h"
 #include "lexer.h"
 #include "parser/parser_core.h"
 

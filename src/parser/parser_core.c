@@ -86,6 +86,7 @@ expression_parse
 		Binding_Power     binding_power_minimum;
 		B32               is_right_side_of_next;
 		B32               null_denotation_parsed;
+		U32               location_begin;
 
 	};
 
@@ -103,7 +104,9 @@ expression_parse
 
 	Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
 	frame->node  = Expressions_push_empty(expressions, arena);
+
 	frame->node->location = cursor->current.location;
+	frame->location_begin = cursor->current.location;
 
 	// ZII node as initial result;
 	Expression_Node *result = frame->node;
@@ -125,6 +128,7 @@ expression_parse
 			frame->node->kind          = Expression_Kind__Constant;
 			frame->node->evaluation    = Expression_Kind__Constant;
 			frame->node->integer_value = cursor->current.numerical_value;
+			frame->node->location      = cursor->current.location;
 			frame->null_denotation_parsed = 1;
 
 			token_next(cursor, diagnostics, arena);
@@ -138,6 +142,7 @@ expression_parse
 			frame->node->kind             = Expression_Kind__Symbol;
 			frame->node->evaluation       = Expression_Kind__Symbol;
 			frame->node->symbol           = symbol;
+			frame->node->location         = cursor->current.location;
 			frame->null_denotation_parsed = 1;
 
 			token_next(cursor, diagnostics, arena);
@@ -159,6 +164,7 @@ expression_parse
 			frame_new->is_right_side_of_next = 1;
 
 			token_next(cursor, diagnostics, arena);
+			frame_new->location_begin = cursor->current.location;
 
 			SLL_stack_push_m(frame, frame_new);
 			continue;
@@ -252,6 +258,8 @@ expression_parse
 				// Save the result before popping the last frame.
 				result = frame->node;
 			}
+			U32 location_end = cursor->previous.location + cursor->previous.size;
+			frame->node->location_range = (Range1_U32){{ frame->location_begin, location_end }};
 			SLL_stack_pop_n_m(frame, next);
 		}
 		else
@@ -263,6 +271,7 @@ expression_parse
 			frame->node = Expressions_push_empty(expressions, arena);
 			frame->node->kind = Expression_Kind__binary_from_Token_Kind(cursor->current.kind);
 			frame->node->index_left = left->index;
+			frame->node->location   = cursor->current.location;
 
 			token_next(cursor, diagnostics, arena);
 
@@ -272,6 +281,7 @@ expression_parse
 			frame_new->node->location = cursor->current.location;
 			frame_new->binding_power_minimum = next_power;
 			frame_new->is_right_side_of_next = 1;
+			frame_new->location_begin = cursor->current.location;
 			SLL_stack_push_m(frame, frame_new);
 		}
 
@@ -495,10 +505,7 @@ RISCV_Instruction__parse
 			} // fallthrough;
 			case OP_Argument__Immediate_I:
 			{
-				U32 location_expression_begin = cursor->current.location;
 				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__itype);
-				U32 location_expression_end   = cursor->current.location;
-
 				if (*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
@@ -508,9 +515,9 @@ RISCV_Instruction__parse
 					       if (!fits)
 					       {
 						       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-						       diagnostic->location   = location_expression_begin;
+						       diagnostic->location   = expression->location_range.v[0];
 						       diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
-						       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+						       diagnostic->ranges[0]  = expression->location_range;
 						       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					       }
 
@@ -523,19 +530,16 @@ RISCV_Instruction__parse
 				       {
 
 					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					       diagnostic->location   = location_expression_begin;
+					       diagnostic->location   = expression->location_range.v[0];
 					       diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
-					       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					       diagnostic->ranges[0]  = expression->location_range;
 					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				       }
 				}
 			} break;
 			case OP_Argument__Immediate_U:
 			{
-				U32 location_expression_begin = cursor->current.location;
 				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__utype);
-				U32 location_expression_end   = cursor->current.location;
-
 				if (*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
@@ -545,9 +549,9 @@ RISCV_Instruction__parse
 					       if (!fits)
 					       {
 						       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-						       diagnostic->location   = location_expression_begin;
+						       diagnostic->location   = expression->location_range.v[0];
 						       diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
-						       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+						       diagnostic->ranges[0]  = expression->location_range;
 						       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					       }
 
@@ -560,25 +564,22 @@ RISCV_Instruction__parse
 				       {
 
 					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					       diagnostic->location   = location_expression_begin;
 					       diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
-					       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					       diagnostic->location   = expression->location_range.v[0];
+					       diagnostic->ranges[0]  = expression->location_range;
 					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				       }
 				}
 			} break;
 			case OP_Argument__Immediate_Large:
 			{
-				U32 location_expression_begin = cursor->current.location;
 				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U32 location_expression_end   = cursor->current.location;
-
 				if (expression->kind != Expression_Kind__Constant)
 				{
 				       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				       diagnostic->location   = location_expression_begin;
 				       diagnostic->message    = String8__literal("Constant expression expected");
-				       diagnostic->ranges[0]  = (Range1_U32){{ location_expression_begin, location_expression_end }};
+				       diagnostic->location   = expression->location_range.v[0];
+				       diagnostic->ranges[0]  = expression->location_range;
 				       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 			} break;
@@ -1234,58 +1235,69 @@ statement_read
 		case Directive_Kind__Word_Half:   { data_directive_size += 1; } // fallthrough
 		case Directive_Kind__Byte:
 		{
-			// TODO: finish this, it is a non-trivial directive to handle.
-			// It's missing writing to section etc.
 			data_directive_size += 1;
 
-			// U32 expressions_index_start = expressions->header.count;
-			String8 subsource = String8__skip(String8__new(cursor->source->data, cursor->source->count), cursor->source_index);
-			U32 expressions_count = 1 + commas_until_newline(subsource.data, subsource.count);
-			U32 fixup_encoding_base_offset = section->fragment_list.last->size_fixed;
-			U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, expressions_count * data_directive_size);
-
-			// Format: .byte <expr_1> , ..., <expr_n>.
+			// Format: .byte|half|word|dword <expr_1> , ..., <expr_n>.
 			//
 			// Advance to reach the first expression token.
-			U32 index = 0;
+			token_next(cursor, diagnostics, arena);
 			for (;;)
 			{
 				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-
+				// We explicitly convert it to an unsigned value since this is how it's treated as.
+				//
+				// TODO: not very clear behaviour when in case of signed overflow.
 				S64 result = expression_evaluate(expressions, expression->index);
+				U64 result_unsigned = (U64)result;
+
+				U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, data_directive_size);
 				if (expression->evaluation != Expression_Kind__Constant)
 				{
+					U32 encoding_offset = section->fragment_list.last->size_fixed - data_directive_size;
+
 					Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
 					fixup->expression_index = expression->index;
 					fixup->fragment         = section->fragment_list.last;
-					fixup->encoding_offset  = fixup_encoding_base_offset + index * data_directive_size;
+					fixup->encoding_offset  = encoding_offset;
 					fixup->size             = data_directive_size;
 
 					SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
 				}
 				else
 				{
-					// TODO: warn here if it doesn't fit.
-					memory_copy(data + index * data_directive_size, (U8 *)result, data_directive_size);
+					U8 bit_size = data_directive_size * 8;
+					B32 fits = bit_size == 64 ? 1 : (result_unsigned < (1 << (data_directive_size * 8)));
+					memory_copy(data, (U8 *)&result_unsigned, data_directive_size);
+
+					if (!fits)
+					{
+						Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+						diagnostic->kind      = Diagnostic_Kind__Warning;
+						diagnostic->location  = expression->location_range.v[0];
+						diagnostic->message   = String8__literal("value too large, truncated");
+						diagnostic->ranges[0] = expression->location_range;
+						SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+					}
 				}
 
-				B32 break_should_directive =  index >= expressions_count - 1
-					                  || cursor->source_index >= cursor->source->count
-							  || cursor->current.kind == Token_Kind__Newline;
+				B32 break_should_directive =  cursor->source_index >= cursor->source->count
+							   || cursor->current.kind == Token_Kind__Newline;
 				if (break_should_directive)
 				{
 					break;
 				}
 
-				if (cursor->current.kind != Token_Kind__Comma)
+				if (cursor->current.kind == Token_Kind__Comma)
+				{
+					token_next(cursor, diagnostics, arena);
+				}
+				else
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->location = cursor->current.location;
 					diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
-
-				index += 1;
 			}
 		} break;
 		case Directive_Kind__String: {} // fallthrough
@@ -1332,7 +1344,7 @@ statement_read
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 				String8 text    = Token_Cursor__text(cursor);
-				String8 content = token_string_content(text);
+				String8 content = String8__skip_chop(text);
 				ELF_Section_Header_Flags flags = ELF_Section_Header_Flags__parse(content);
 
 				if (flags == ELF_Section_Header_Flags__Invalid)
@@ -1363,7 +1375,7 @@ statement_read
 				}
 				token_next(cursor, diagnostics, arena);
 				String8 text    = Token_Cursor__text(cursor);
-				String8 content = token_string_content(text);
+				String8 content = String8__skip_chop(text);
 				ELF_Section_Header_Type type = ELF_Section_Header_Type__from_String8(content);
 				if (type == ELF_Section_Header_Type__Invalid)
 				{
@@ -1462,7 +1474,7 @@ statement_read
 			String8 name = Token_Cursor__text(cursor);
 			if (cursor->current.kind == Token_Kind__String)
 			{
-				name = token_string_content(name);
+				name = String8__skip_chop(name);
 			}
 			Symbol_Ref *symbol = Symbols_Table__create(symbols_table, name);
 			symbol->location = cursor->current.location;
@@ -1529,9 +1541,7 @@ statement_read
 			{
 				// Read size
 				token_next(cursor, diagnostics, arena);
-				U64 location_expression_begin = cursor->current.location;
 				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U64 location_expression_end   = cursor->current.location;
 				fill_size = expression_evaluate(expressions, size_expression->index);
 				if (size_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1543,11 +1553,11 @@ statement_read
 				if (fill_size <= 0)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->kind     = Diagnostic_Kind__Warning;
-					diagnostic->location = location_expression_begin;
+					diagnostic->kind      = Diagnostic_Kind__Warning;
+					diagnostic->location  = size_expression->location_range.v[0];
+					diagnostic->ranges[0] = size_expression->location_range;
 					// TODO: nicer diagnostic with vsnprintf support in String8
-					diagnostic->message  = String8__literal("non-positive fill size, ensuring it is zero");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					diagnostic->message   = String8__literal("non-positive fill size, ensuring it is zero");
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					fill_size = 0;
 				}
@@ -1555,9 +1565,9 @@ statement_read
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->kind     = Diagnostic_Kind__Warning;
-					diagnostic->location = location_expression_begin;
+					diagnostic->location  = size_expression->location_range.v[0];
+					diagnostic->ranges[0] = size_expression->location_range;
 					diagnostic->message  = String8__literal("capping fill size to 8 bytes");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					fill_size = 8;
 				}
@@ -1595,17 +1605,15 @@ statement_read
 			U8  bytes_max = 0;
 
 			token_next(cursor, diagnostics, arena);
-			U32 location_alignment_expression_begin = cursor->current.location;
 			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-			U32 location_alignment_expression_end   = cursor->current.location;
 			expression_evaluate(expressions, alignment_expression->index);
 
 			if (alignment_expression->evaluation != Expression_Kind__Constant)
 			{
 				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location = location_alignment_expression_begin;
-				diagnostic->message  = String8__literal("constant expression expected");
-				diagnostic->ranges[0] = (Range1_U32){{ location_alignment_expression_begin, location_alignment_expression_end }};
+				diagnostic->message   = String8__literal("constant expression expected");
+				diagnostic->location  = alignment_expression->location_range.v[0];
+				diagnostic->ranges[0] = alignment_expression->location_range;
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
 
@@ -1614,17 +1622,15 @@ statement_read
 				// Read pattern
 				token_next(cursor, diagnostics, arena);
 
-				U32 location_expression_begin = cursor->current.location;
 				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U32 location_expression_end   = cursor->current.location;
 
 				S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
 				if (pattern_expression->evaluation != Expression_Kind__Constant)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->location = location_expression_begin;
 					diagnostic->message  = String8__literal("constant expression expected");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					diagnostic->location  = pattern_expression->location_range.v[0];
+					diagnostic->ranges[0] = pattern_expression->location_range;
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 
@@ -1633,9 +1639,9 @@ statement_read
 				if ((S64)pattern != pattern_evaluation)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->location = location_expression_begin;
 					diagnostic->message  = String8__literal("expression result isn't a unsigned 8 bit integer");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					diagnostic->location  = pattern_expression->location_range.v[0];
+					diagnostic->ranges[0] = pattern_expression->location_range;
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 			}
@@ -1644,15 +1650,14 @@ statement_read
 			{
 				// Read bytes_max
 				token_next(cursor, diagnostics, arena);
-				U32 location_expression_begin = cursor->current.location;
 				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-				U32 location_expression_end   = cursor->current.location;
 				S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
 				if (bytes_max_expression->evaluation != Expression_Kind__Constant)
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					diagnostic->location = cursor->current.location;
 					diagnostic->message  = String8__literal("constant expression expected");
+					diagnostic->location  = bytes_max_expression->location_range.v[0];
+					diagnostic->ranges[0] = bytes_max_expression->location_range;
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				}
 				bytes_max = (U8)bytes_max_evaluation;
@@ -1661,10 +1666,10 @@ statement_read
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->kind     = Diagnostic_Kind__Warning;
-					diagnostic->location = location_expression_begin;
-					// TODO: nicer diagnostic with vsnprintf support in String8
 					diagnostic->message  = String8__literal("non-positive max bytes size, ensuring it is zero");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					diagnostic->location  = bytes_max_expression->location_range.v[0];
+					diagnostic->ranges[0] = bytes_max_expression->location_range;
+					// TODO: nicer diagnostic with vsnprintf support in String8
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					bytes_max = 0;
 				}
@@ -1674,9 +1679,9 @@ statement_read
 				{
 					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					diagnostic->kind     = Diagnostic_Kind__Warning;
-					diagnostic->location = location_expression_begin;
 					diagnostic->message  = String8__literal("capping fill size to 64 bytes");
-					diagnostic->ranges[0] = (Range1_U32){{ location_expression_begin, location_expression_end }};
+					diagnostic->location  = bytes_max_expression->location_range.v[0];
+					diagnostic->ranges[0] = bytes_max_expression->location_range;
 					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 					bytes_max = 8;
 				}
