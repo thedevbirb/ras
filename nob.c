@@ -45,12 +45,8 @@ int main(int argc, char **argv)
 	// command line that you want to execute.
 	Nob_Cmd cmd = {0};
 
-	// Compile as C99 with two include paths: the base layer and the src folder
-	// itself (for unity-build includes like "window/macos_window.h").
-	// Link Cocoa (AppKit + Foundation), CoreGraphics, and QuartzCore (CALayer).
 	nob_cmd_append(&cmd, "cc",
-			"-std=c11", "-g",
-			// "-DASSEMBLER_EXPECT_PANIC",
+			"-std=c11", "-g", "-O0",
 			// "-w",
 			"-Wall", "-Wextra", "-Wpedantic",
 			"-Wno-override-init",
@@ -59,6 +55,12 @@ int main(int argc, char **argv)
 			"-Werror=incompatible-pointer-types",
 			"-Werror=int-conversion",
 			"-Werror=parentheses",
+		        // Clang sanitizers. TODO: add more and more granular
+			"-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
+			"-fsanitize-address-use-after-scope",            // ASan: poison stack vars after their scope ends.
+			"-fsanitize-address-use-after-return=always",    // ASan: detect use-after-return (stack use after the call).
+			"-fno-omit-frame-pointer",                       // keep frame pointers for usable stack traces.
+			"-fno-sanitize-recover=all",                     // abort on first sanitizer hit instead of continuing.
 			"-I.",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",
