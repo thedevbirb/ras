@@ -103,7 +103,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "ecall",  HASH_ecall,  0, RV_IC_I, A_NONE,               MATCH_ECALL,                             MASK_ECALL,                          match_opcode,         0                              },
 { "ebreak", HASH_ebreak, 0, RV_IC_I, A_NONE,               MATCH_EBREAK,                            MASK_EBREAK,                         match_opcode,         0                              },
 
-{ "", 0, 0, 0, 0, 0, 0, 0, 0 }
+{ "",       0,           0, 0,       A_NONE,               0,                                       0,                                   0,                    0                              }
 };
 
 // TODO: undef the helper macros defined above.

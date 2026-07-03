@@ -392,11 +392,6 @@ RISCV_Instruction__parse
 	// Iterate over opcode entries with the same name.
 	for (;;)
 	{
-		if (match || opcode->hash == 0 || opcode->name != opcode_name)
-		{
-			break;
-		}
-
 		*instruction_out = RISCV_Instruction__create(opcode, location_begin);
 		OP_Argument *arguments = opcode->arguments;
 
@@ -406,7 +401,7 @@ RISCV_Instruction__parse
 			OP_Argument argument = *arguments;
 			if (!argument)
 			{
-				match = !opcode->match_function || opcode->match_function(opcode, instruction_out->encoding);
+				match = opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
 				break;
 			}
 
@@ -534,11 +529,11 @@ RISCV_Instruction__parse
 			case OP_Argument__Immediate_I:
 			{
 				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__itype);
-				if (*relocation_out)
+				if (!*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
 				       {
-					       // TODO: normalize constant expression?
+					       // TODO: normalize constant expression? See GNU as.
 					       B32 fits = S64_bits_range_in(expression->integer_value, 12);
 					       if (!fits)
 					       {
@@ -559,7 +554,7 @@ RISCV_Instruction__parse
 
 					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
 					       diagnostic->location   = expression->location_range.v[0];
-					       diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
+					       diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
 					       diagnostic->ranges[0]  = expression->location_range;
 					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 				       }
@@ -568,7 +563,7 @@ RISCV_Instruction__parse
 			case OP_Argument__Immediate_U:
 			{
 				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__utype);
-				if (*relocation_out)
+				if (!*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
 				       {
@@ -592,7 +587,7 @@ RISCV_Instruction__parse
 				       {
 
 					       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-					       diagnostic->message    = String8__literal("Non-constant expression without relocation operator provided");
+					       diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
 					       diagnostic->location   = expression->location_range.v[0];
 					       diagnostic->ranges[0]  = expression->location_range;
 					       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
@@ -622,6 +617,10 @@ RISCV_Instruction__parse
 			arguments += 1;
 		}
 
+		if (match || opcode->hash == 0 || opcode->name != opcode_name)
+		{
+			break;
+		}
 
 		opcode += 1;
 	}
@@ -1098,6 +1097,65 @@ RISCV_instruction_pseudo_append
 	}
 }
 
+// Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
+// created if missing.
+internal void
+binding_set
+(
+	Arena                   *arena,
+	Token_Cursor            *cursor,
+	Diagnostic_List         *diagnostics,
+	Symbols_Table           *symbols_table,
+	ELF_Symbol_Binding       binding
+)
+{
+	token_next(cursor, diagnostics, arena);
+	if (cursor->current.kind != Token_Kind__Identifier)
+	{
+		Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+		diagnostic->location = cursor->current.location;
+		diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+		SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+	}
+
+	String8 name = Token_Cursor__text(cursor);
+	Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+	if (!(symbol->flags & Symbol_Flags__Declared))
+	{
+		// Still give a preliminary location for it so that we can show diagnostics.
+		symbol->location = cursor->current.location;
+	}
+
+	U8 binding_old = ELF_Symbol_bind_m(symbol->elf.type_and_binding);
+	B32 demoted = binding < binding_old;
+	if (demoted)
+	{
+		{
+		Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+		diagnostic->kind       = Diagnostic_Kind__Warning;
+		diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Symbol_Demoted];
+		diagnostic->location   = cursor->current.location;
+		diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+		SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+		}
+		{
+		Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+		diagnostic->kind       = Diagnostic_Kind__Note;
+		diagnostic->message    = Diagnostic__previous_declaration_String8;
+		diagnostic->location   = symbol->location;
+		diagnostic->ranges[0] = (Range1_U32){{ symbol->location, symbol->location + name.count }};
+		SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+		}
+	}
+	else
+	{
+		U8 type_and_binding = ELF_Symbol_info_m(binding, ELF_Symbol_type_m(symbol->elf.type_and_binding));
+		symbol->elf.type_and_binding = type_and_binding;
+	}
+
+	token_next(cursor, diagnostics, arena);
+}
+
 internal void
 statement_read
 (
@@ -1123,6 +1181,7 @@ statement_read
 		Directive_Kind directive_kind         = 0;
 		U32            instruction_hash       = 0;
 		B32            null_terminated_string = 0;
+		B32            empty_line             = 0;
 
 		// TODO: when to exit?
 		progress = source_index_start < cursor->source_index;
@@ -1142,6 +1201,12 @@ statement_read
 		case Token_Kind__Newline:
 		{
 			token_next(cursor, diagnostics, arena);
+			empty_line = 1;
+		} break;
+		case Token_Kind__Semicolon:
+		{
+			token_next(cursor, diagnostics, arena);
+			empty_line = 1;
 		} break;
 		// Instructions, directives and label start with an identifier. We have to discriminate further.
 		case Token_Kind__Identifier:
@@ -1182,6 +1247,10 @@ statement_read
 					}
 				}
 				symbol->location = cursor->current.location;
+				// NOTE: This is some boilerplate that should be applied also for .local directive.
+				// symbol->elf.section_index = section->index;
+				// symbol->value = section->fragment_list->last.size_fixed;
+
 				token_next(cursor, diagnostics, arena);
 				token_next(cursor, diagnostics, arena);
 			}
@@ -1423,66 +1492,16 @@ statement_read
 		} break;
 		case Directive_Kind__Local:
 		{
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind != Token_Kind__Identifier)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location = cursor->current.location;
-				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			String8 name = Token_Cursor__text(cursor);
-			Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
-
-			U8 type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Local, ELF_Symbol_type_m(symbol->elf.type_and_binding));
-			symbol->elf.section_index    = section->index;
-			symbol->elf.type_and_binding = type_and_binding;
-			symbol->location             = cursor->current.location;
-
-			B32 demoted = ELF_Symbol_bind_m(symbol->elf.type_and_binding) > ELF_Symbol_Binding__Local;
-			if (demoted)
-			{
-				{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location   = cursor->current.location;
-				diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Symbol_Demoted];
-				diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-				}
-				{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->kind       = Diagnostic_Kind__Note;
-				diagnostic->location   = symbol->location;
-				diagnostic->message    = Diagnostic__previous_declaration_String8;
-				diagnostic->ranges[0] = (Range1_U32){{ symbol->location, symbol->location + name.count }};
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-				}
-			}
-
-			token_next(cursor, diagnostics, arena);
+			binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);
+		} break;
+		case Directive_Kind__Weak:
+		{
+			binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);
 		} break;
 		case Directive_Kind__Globl: {} // fallthrough
 		case Directive_Kind__Global:
 		{
-			token_next(cursor, diagnostics, arena);
-			if (cursor->current.kind != Token_Kind__Identifier)
-			{
-				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-				diagnostic->location = cursor->current.location;
-				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
-				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-			}
-
-			String8 name = Token_Cursor__text(cursor);
-			Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
-
-			U8 type_and_binding = ELF_Symbol_info_m(ELF_Symbol_Binding__Global, ELF_Symbol_type_m(symbol->elf.type_and_binding));
-			symbol->elf.section_index    = section->index;
-			symbol->elf.type_and_binding = type_and_binding;
-			symbol->location             = cursor->current.location;
-
-			token_next(cursor, diagnostics, arena);
+			binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global);
 		} break;
 		// TODO: implement .eqv or .equiv which are more picky about re-definitions and forward references.
 		// Lastly, support for `<identifier> = <expr>` could be added by jumping here.
@@ -1726,12 +1745,12 @@ statement_read
 		for (;;)
 		{
  			Token_Kind kind = cursor->current.kind;
-			B32 break_should = kind == Token_Kind__None
+			B32 break_should = empty_line
+				|| kind == Token_Kind__None
 				|| kind == Token_Kind__Newline
 				|| kind == Token_Kind__Semicolon;
 			if (break_should)
 			{
-				token_next(cursor, diagnostics, arena);
 				break;
 			}
 			junk_location_end = cursor->current.location + cursor->current.size;
