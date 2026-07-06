@@ -28,48 +28,48 @@
 
 int main(int argc, char **argv)
 {
-	// This line enables the self-rebuilding. It detects when nob.c is updated and auto rebuilds it then
-	// runs it again.
-	NOB_GO_REBUILD_URSELF(argc, argv);
+        // This line enables the self-rebuilding. It detects when nob.c is updated and auto rebuilds it then
+        // runs it again.
+        NOB_GO_REBUILD_URSELF(argc, argv);
 
-	// It's better to keep all the building artifacts in a separate build folder. Let's create it if it
-	// does not exist yet.
-	//
-	// Majority of the nob command return bool which indicates whether operation has failed or not (true -
-	// success, false - failure). If the operation returned false you don't need to log anything, the
-	// convention is usually that the function logs what happened to itself. Just do
-	// `if (!nob_function()) return;`
-	if (!nob_mkdir_if_not_exists(BUILD_FOLDER)) return 1;
+        // It's better to keep all the building artifacts in a separate build folder. Let's create it if it
+        // does not exist yet.
+        //
+        // Majority of the nob command return bool which indicates whether operation has failed or not (true -
+        // success, false - failure). If the operation returned false you don't need to log anything, the
+        // convention is usually that the function logs what happened to itself. Just do
+        // `if (!nob_function()) return;`
+        if (!nob_mkdir_if_not_exists(BUILD_FOLDER)) return 1;
 
-	// The working horse of nob is the Nob_Cmd structure. It's a Dynamic Array of strings which represent
-	// command line that you want to execute.
-	Nob_Cmd cmd = {0};
+        // The working horse of nob is the Nob_Cmd structure. It's a Dynamic Array of strings which represent
+        // command line that you want to execute.
+        Nob_Cmd cmd = {0};
 
-	nob_cmd_append(&cmd, "cc",
-			"-std=c11", "-g", "-O0",
-			// "-w",
-			"-Wall", "-Wextra", "-Wpedantic",
-			"-Wno-override-init",
-			"-Wno-unused-function",
-			"-Werror=shadow",
-			"-Werror=incompatible-pointer-types",
-			"-Werror=int-conversion",
-			"-Werror=parentheses",
-		        // Clang sanitizers. TODO: add more and more granular
-			"-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
-			"-fsanitize-address-use-after-scope",            // ASan: poison stack vars after their scope ends.
-			"-fsanitize-address-use-after-return=always",    // ASan: detect use-after-return (stack use after the call).
-			"-fno-omit-frame-pointer",                       // keep frame pointers for usable stack traces.
-			"-fno-sanitize-recover=all",                     // abort on first sanitizer hit instead of continuing.
-			"-I.",
-			"-I"SRC_FOLDER,
-			"-I/Users/birb/personal/c_layer/src",
-			"-DRAS_DEBUG_TOKEN_DUMP",
-			"-o", BUILD_FOLDER"ras",
-			SRC_FOLDER"ras_main.c");
+        nob_cmd_append(&cmd, "cc",
+                        "-std=c11", "-g", "-O0",
+                        // "-w",
+                        "-Wall", "-Wextra", "-Wpedantic",
+                        "-Wno-override-init",
+                        "-Wno-unused-function",
+                        "-Werror=shadow",
+                        "-Werror=incompatible-pointer-types",
+                        "-Werror=int-conversion",
+                        "-Werror=parentheses",
+                        // Clang sanitizers. TODO: add more and more granular
+                        "-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
+                        "-fsanitize-address-use-after-scope",            // ASan: poison stack vars after their scope ends.
+                        "-fsanitize-address-use-after-return=always",    // ASan: detect use-after-return (stack use after the call).
+                        "-fno-omit-frame-pointer",                       // keep frame pointers for usable stack traces.
+                        "-fno-sanitize-recover=all",                     // abort on first sanitizer hit instead of continuing.
+                        "-I.",
+                        "-I"SRC_FOLDER,
+                        "-I/Users/birb/personal/c_layer/src",
+                        "-DRAS_DEBUG_TOKEN_DUMP",
+                        "-o", BUILD_FOLDER"ras",
+                        SRC_FOLDER"ras_main.c");
 
-	// Let's execute the command.
-	if (!nob_cmd_run(&cmd)) return 1;
+        // Let's execute the command.
+        if (!nob_cmd_run(&cmd)) return 1;
 
-	return 0;
+        return 0;
 }

@@ -9,354 +9,354 @@
 
 typedef enum Instruction_Format
 {
-	Instruction_Format__None = 0,
-	Instruction_Format__R,
-	Instruction_Format__I,
-	Instruction_Format__S,
-	Instruction_Format__B,
-	Instruction_Format__U,
-	Instruction_Format__J,
+        Instruction_Format__None = 0,
+        Instruction_Format__R,
+        Instruction_Format__I,
+        Instruction_Format__S,
+        Instruction_Format__B,
+        Instruction_Format__U,
+        Instruction_Format__J,
         Instruction_Format__Expandable,
-	Instruction_Format__COUNT,
+        Instruction_Format__COUNT,
 }
 Instruction_Format;
 
 typedef enum Instruction_Kind
 {
-	Instruction_Kind__None = 0,
+        Instruction_Kind__None = 0,
 
-	// RV64I base
-	Instruction_Kind__LUI,
-	Instruction_Kind__AUIPC,
+        // RV64I base
+        Instruction_Kind__LUI,
+        Instruction_Kind__AUIPC,
 
-	Instruction_Kind__JAL,
-	Instruction_Kind__JALR,
+        Instruction_Kind__JAL,
+        Instruction_Kind__JALR,
 
-	Instruction_Kind__BEQ,
-	Instruction_Kind__BNE,
-	Instruction_Kind__BLT,
-	Instruction_Kind__BGE,
-	Instruction_Kind__BLTU,
-	Instruction_Kind__BGEU,
+        Instruction_Kind__BEQ,
+        Instruction_Kind__BNE,
+        Instruction_Kind__BLT,
+        Instruction_Kind__BGE,
+        Instruction_Kind__BLTU,
+        Instruction_Kind__BGEU,
 
-	Instruction_Kind__LB,
-	Instruction_Kind__LH,
-	Instruction_Kind__LW,
-	Instruction_Kind__LD,
-	Instruction_Kind__LBU,
-	Instruction_Kind__LHU,
-	Instruction_Kind__LWU,
+        Instruction_Kind__LB,
+        Instruction_Kind__LH,
+        Instruction_Kind__LW,
+        Instruction_Kind__LD,
+        Instruction_Kind__LBU,
+        Instruction_Kind__LHU,
+        Instruction_Kind__LWU,
 
-	Instruction_Kind__SB,
-	Instruction_Kind__SH,
-	Instruction_Kind__SW,
-	Instruction_Kind__SD,
+        Instruction_Kind__SB,
+        Instruction_Kind__SH,
+        Instruction_Kind__SW,
+        Instruction_Kind__SD,
 
-	Instruction_Kind__ADDI,
-	Instruction_Kind__SLTI,
-	Instruction_Kind__SLTIU,
-	Instruction_Kind__XORI,
-	Instruction_Kind__ORI,
-	Instruction_Kind__ANDI,
+        Instruction_Kind__ADDI,
+        Instruction_Kind__SLTI,
+        Instruction_Kind__SLTIU,
+        Instruction_Kind__XORI,
+        Instruction_Kind__ORI,
+        Instruction_Kind__ANDI,
 
-	Instruction_Kind__SLLI,
-	Instruction_Kind__SRLI,
-	Instruction_Kind__SRAI,
+        Instruction_Kind__SLLI,
+        Instruction_Kind__SRLI,
+        Instruction_Kind__SRAI,
 
-	Instruction_Kind__ADD,
-	Instruction_Kind__SUB,
-	Instruction_Kind__SLL,
-	Instruction_Kind__SLT,
-	Instruction_Kind__SLTU,
-	Instruction_Kind__XOR,
-	Instruction_Kind__SRL,
-	Instruction_Kind__SRA,
-	Instruction_Kind__OR,
-	Instruction_Kind__AND,
+        Instruction_Kind__ADD,
+        Instruction_Kind__SUB,
+        Instruction_Kind__SLL,
+        Instruction_Kind__SLT,
+        Instruction_Kind__SLTU,
+        Instruction_Kind__XOR,
+        Instruction_Kind__SRL,
+        Instruction_Kind__SRA,
+        Instruction_Kind__OR,
+        Instruction_Kind__AND,
 
-	// RV64-specific
-	Instruction_Kind__ADDIW,
-	Instruction_Kind__SLLIW,
-	Instruction_Kind__SRLIW,
-	Instruction_Kind__SRAIW,
+        // RV64-specific
+        Instruction_Kind__ADDIW,
+        Instruction_Kind__SLLIW,
+        Instruction_Kind__SRLIW,
+        Instruction_Kind__SRAIW,
 
-	Instruction_Kind__ADDW,
-	Instruction_Kind__SUBW,
-	Instruction_Kind__SLLW,
-	Instruction_Kind__SRLW,
-	Instruction_Kind__SRAW,
+        Instruction_Kind__ADDW,
+        Instruction_Kind__SUBW,
+        Instruction_Kind__SLLW,
+        Instruction_Kind__SRLW,
+        Instruction_Kind__SRAW,
 
-	// Pseudo-instructions
-	Instruction_Kind__NOP,
-	Instruction_Kind__RET,
-	Instruction_Kind__MV,
-	Instruction_Kind__NOT,
-	Instruction_Kind__NEG,
-	Instruction_Kind__NEGW,
-	Instruction_Kind__SEXT_W,
-	Instruction_Kind__SEQZ,
-	Instruction_Kind__SNEZ,
-	Instruction_Kind__SLTZ,
-	Instruction_Kind__SGTZ,
-	Instruction_Kind__BEQZ,
-	Instruction_Kind__BNEZ,
-	Instruction_Kind__BLEZ,
-	Instruction_Kind__BGEZ,
-	Instruction_Kind__BLTZ,
-	Instruction_Kind__BGTZ,
-	Instruction_Kind__BGT,
-	Instruction_Kind__BLE,
-	Instruction_Kind__BGTU,
-	Instruction_Kind__BLEU,
-	Instruction_Kind__J,
-	Instruction_Kind__CALL,
-	Instruction_Kind__TAIL,
-	Instruction_Kind__JR,
-	Instruction_Kind__LI,
-	Instruction_Kind__LA,
+        // Pseudo-instructions
+        Instruction_Kind__NOP,
+        Instruction_Kind__RET,
+        Instruction_Kind__MV,
+        Instruction_Kind__NOT,
+        Instruction_Kind__NEG,
+        Instruction_Kind__NEGW,
+        Instruction_Kind__SEXT_W,
+        Instruction_Kind__SEQZ,
+        Instruction_Kind__SNEZ,
+        Instruction_Kind__SLTZ,
+        Instruction_Kind__SGTZ,
+        Instruction_Kind__BEQZ,
+        Instruction_Kind__BNEZ,
+        Instruction_Kind__BLEZ,
+        Instruction_Kind__BGEZ,
+        Instruction_Kind__BLTZ,
+        Instruction_Kind__BGTZ,
+        Instruction_Kind__BGT,
+        Instruction_Kind__BLE,
+        Instruction_Kind__BGTU,
+        Instruction_Kind__BLEU,
+        Instruction_Kind__J,
+        Instruction_Kind__CALL,
+        Instruction_Kind__TAIL,
+        Instruction_Kind__JR,
+        Instruction_Kind__LI,
+        Instruction_Kind__LA,
 
-	// SYSTEM
-	Instruction_Kind__ECALL,
-	Instruction_Kind__EBREAK,
-	Instruction_Kind__PAUSE,
-	Instruction_Kind__FENCE,
-	Instruction_Kind__FENCE_TSO,
+        // SYSTEM
+        Instruction_Kind__ECALL,
+        Instruction_Kind__EBREAK,
+        Instruction_Kind__PAUSE,
+        Instruction_Kind__FENCE,
+        Instruction_Kind__FENCE_TSO,
 
-	// Instruction_Kind__CSRRW,
-	// Instruction_Kind__CSRRS,
-	// Instruction_Kind__CSRRC,
-	// Instruction_Kind__CSRRWI,
-	// Instruction_Kind__CSRRSI,
-	// Instruction_Kind__CSRRCI,
-	//
-	// // M extension
-	// Instruction_Kind__MUL,
-	// Instruction_Kind__MULH,
-	// Instruction_Kind__MULHSU,
-	// Instruction_Kind__MULHU,
-	// Instruction_Kind__DIV,
-	// Instruction_Kind__DIVU,
-	// Instruction_Kind__REM,
-	// Instruction_Kind__REMU,
-	//
-	// Instruction_Kind__MULW,
-	// Instruction_Kind__DIVW,
-	// Instruction_Kind__DIVUW,
-	// Instruction_Kind__REMW,
-	// Instruction_Kind__REMUW,
-	//
-	// // A extension
-	// Instruction_Kind__LR_W,
-	// Instruction_Kind__SC_W,
-	// Instruction_Kind__AMOSWAP_W,
-	// Instruction_Kind__AMOADD_W,
-	// Instruction_Kind__AMOXOR_W,
-	// Instruction_Kind__AMOAND_W,
-	// Instruction_Kind__AMOOR_W,
-	// Instruction_Kind__AMOMIN_W,
-	// Instruction_Kind__AMOMAX_W,
-	// Instruction_Kind__AMOMINU_W,
-	// Instruction_Kind__AMOMAXU_W,
-	//
-	// Instruction_Kind__LR_D,
-	// Instruction_Kind__SC_D,
-	// Instruction_Kind__AMOSWAP_D,
-	// Instruction_Kind__AMOADD_D,
-	// Instruction_Kind__AMOXOR_D,
-	// Instruction_Kind__AMOAND_D,
-	// Instruction_Kind__AMOOR_D,
-	// Instruction_Kind__AMOMIN_D,
-	// Instruction_Kind__AMOMAX_D,
-	// Instruction_Kind__AMOMINU_D,
-	// Instruction_Kind__AMOMAXU_D,
+        // Instruction_Kind__CSRRW,
+        // Instruction_Kind__CSRRS,
+        // Instruction_Kind__CSRRC,
+        // Instruction_Kind__CSRRWI,
+        // Instruction_Kind__CSRRSI,
+        // Instruction_Kind__CSRRCI,
+        //
+        // // M extension
+        // Instruction_Kind__MUL,
+        // Instruction_Kind__MULH,
+        // Instruction_Kind__MULHSU,
+        // Instruction_Kind__MULHU,
+        // Instruction_Kind__DIV,
+        // Instruction_Kind__DIVU,
+        // Instruction_Kind__REM,
+        // Instruction_Kind__REMU,
+        //
+        // Instruction_Kind__MULW,
+        // Instruction_Kind__DIVW,
+        // Instruction_Kind__DIVUW,
+        // Instruction_Kind__REMW,
+        // Instruction_Kind__REMUW,
+        //
+        // // A extension
+        // Instruction_Kind__LR_W,
+        // Instruction_Kind__SC_W,
+        // Instruction_Kind__AMOSWAP_W,
+        // Instruction_Kind__AMOADD_W,
+        // Instruction_Kind__AMOXOR_W,
+        // Instruction_Kind__AMOAND_W,
+        // Instruction_Kind__AMOOR_W,
+        // Instruction_Kind__AMOMIN_W,
+        // Instruction_Kind__AMOMAX_W,
+        // Instruction_Kind__AMOMINU_W,
+        // Instruction_Kind__AMOMAXU_W,
+        //
+        // Instruction_Kind__LR_D,
+        // Instruction_Kind__SC_D,
+        // Instruction_Kind__AMOSWAP_D,
+        // Instruction_Kind__AMOADD_D,
+        // Instruction_Kind__AMOXOR_D,
+        // Instruction_Kind__AMOAND_D,
+        // Instruction_Kind__AMOOR_D,
+        // Instruction_Kind__AMOMIN_D,
+        // Instruction_Kind__AMOMAX_D,
+        // Instruction_Kind__AMOMINU_D,
+        // Instruction_Kind__AMOMAXU_D,
 
-	Instruction_Kind__COUNT,
+        Instruction_Kind__COUNT,
 }
 Instruction_Kind;
 
 global const char *Instruction_Kind_strings[Instruction_Kind__COUNT] =
 {
-	[Instruction_Kind__None] = "",
+        [Instruction_Kind__None] = "",
 
-	[Instruction_Kind__LUI] = "lui",
-	[Instruction_Kind__AUIPC] = "auipc",
+        [Instruction_Kind__LUI] = "lui",
+        [Instruction_Kind__AUIPC] = "auipc",
 
-	[Instruction_Kind__JAL] = "jal",
-	[Instruction_Kind__JALR] = "jalr",
+        [Instruction_Kind__JAL] = "jal",
+        [Instruction_Kind__JALR] = "jalr",
 
-	[Instruction_Kind__BEQ] = "beq",
-	[Instruction_Kind__BNE] = "bne",
-	[Instruction_Kind__BLT] = "blt",
-	[Instruction_Kind__BGE] = "bge",
-	[Instruction_Kind__BLTU] = "bltu",
-	[Instruction_Kind__BGEU] = "bgeu",
+        [Instruction_Kind__BEQ] = "beq",
+        [Instruction_Kind__BNE] = "bne",
+        [Instruction_Kind__BLT] = "blt",
+        [Instruction_Kind__BGE] = "bge",
+        [Instruction_Kind__BLTU] = "bltu",
+        [Instruction_Kind__BGEU] = "bgeu",
 
-	[Instruction_Kind__LB] = "lb",
-	[Instruction_Kind__LH] = "lh",
-	[Instruction_Kind__LW] = "lw",
-	[Instruction_Kind__LD] = "ld",
-	[Instruction_Kind__LBU] = "lbu",
-	[Instruction_Kind__LHU] = "lhu",
-	[Instruction_Kind__LWU] = "lwu",
+        [Instruction_Kind__LB] = "lb",
+        [Instruction_Kind__LH] = "lh",
+        [Instruction_Kind__LW] = "lw",
+        [Instruction_Kind__LD] = "ld",
+        [Instruction_Kind__LBU] = "lbu",
+        [Instruction_Kind__LHU] = "lhu",
+        [Instruction_Kind__LWU] = "lwu",
 
-	[Instruction_Kind__SB] = "sb",
-	[Instruction_Kind__SH] = "sh",
-	[Instruction_Kind__SW] = "sw",
-	[Instruction_Kind__SD] = "sd",
+        [Instruction_Kind__SB] = "sb",
+        [Instruction_Kind__SH] = "sh",
+        [Instruction_Kind__SW] = "sw",
+        [Instruction_Kind__SD] = "sd",
 
-	[Instruction_Kind__ADDI] = "addi",
-	[Instruction_Kind__SLTI] = "slti",
-	[Instruction_Kind__SLTIU] = "sltiu",
-	[Instruction_Kind__XORI] = "xori",
-	[Instruction_Kind__ORI] = "ori",
-	[Instruction_Kind__ANDI] = "andi",
+        [Instruction_Kind__ADDI] = "addi",
+        [Instruction_Kind__SLTI] = "slti",
+        [Instruction_Kind__SLTIU] = "sltiu",
+        [Instruction_Kind__XORI] = "xori",
+        [Instruction_Kind__ORI] = "ori",
+        [Instruction_Kind__ANDI] = "andi",
 
-	[Instruction_Kind__SLLI] = "slli",
-	[Instruction_Kind__SRLI] = "srli",
-	[Instruction_Kind__SRAI] = "srai",
+        [Instruction_Kind__SLLI] = "slli",
+        [Instruction_Kind__SRLI] = "srli",
+        [Instruction_Kind__SRAI] = "srai",
 
-	[Instruction_Kind__ADD] = "add",
-	[Instruction_Kind__SUB] = "sub",
-	[Instruction_Kind__SLL] = "sll",
-	[Instruction_Kind__SLT] = "slt",
-	[Instruction_Kind__SLTU] = "sltu",
-	[Instruction_Kind__XOR] = "xor",
-	[Instruction_Kind__SRL] = "srl",
-	[Instruction_Kind__SRA] = "sra",
-	[Instruction_Kind__OR] = "or",
-	[Instruction_Kind__AND] = "and",
+        [Instruction_Kind__ADD] = "add",
+        [Instruction_Kind__SUB] = "sub",
+        [Instruction_Kind__SLL] = "sll",
+        [Instruction_Kind__SLT] = "slt",
+        [Instruction_Kind__SLTU] = "sltu",
+        [Instruction_Kind__XOR] = "xor",
+        [Instruction_Kind__SRL] = "srl",
+        [Instruction_Kind__SRA] = "sra",
+        [Instruction_Kind__OR] = "or",
+        [Instruction_Kind__AND] = "and",
 
-	[Instruction_Kind__ADDIW] = "addiw",
-	[Instruction_Kind__SLLIW] = "slliw",
-	[Instruction_Kind__SRLIW] = "srliw",
-	[Instruction_Kind__SRAIW] = "sraiw",
+        [Instruction_Kind__ADDIW] = "addiw",
+        [Instruction_Kind__SLLIW] = "slliw",
+        [Instruction_Kind__SRLIW] = "srliw",
+        [Instruction_Kind__SRAIW] = "sraiw",
 
-	[Instruction_Kind__ADDW] = "addw",
-	[Instruction_Kind__SUBW] = "subw",
-	[Instruction_Kind__SLLW] = "sllw",
-	[Instruction_Kind__SRLW] = "srlw",
-	[Instruction_Kind__SRAW] = "sraw",
+        [Instruction_Kind__ADDW] = "addw",
+        [Instruction_Kind__SUBW] = "subw",
+        [Instruction_Kind__SLLW] = "sllw",
+        [Instruction_Kind__SRLW] = "srlw",
+        [Instruction_Kind__SRAW] = "sraw",
 
-	[Instruction_Kind__ECALL] = "ecall",
-	[Instruction_Kind__EBREAK] = "ebreak",
-	[Instruction_Kind__PAUSE] = "pause",
-	[Instruction_Kind__FENCE] = "fence",
-	[Instruction_Kind__FENCE_TSO] = "fence.tso",
+        [Instruction_Kind__ECALL] = "ecall",
+        [Instruction_Kind__EBREAK] = "ebreak",
+        [Instruction_Kind__PAUSE] = "pause",
+        [Instruction_Kind__FENCE] = "fence",
+        [Instruction_Kind__FENCE_TSO] = "fence.tso",
 
-	// [Instruction_Kind__CSRRW] = "csrrw",
-	// [Instruction_Kind__CSRRS] = "csrrs",
-	// [Instruction_Kind__CSRRC] = "csrrc",
-	// [Instruction_Kind__CSRRWI] = "csrrwi",
-	// [Instruction_Kind__CSRRSI] = "csrrsi",
-	// [Instruction_Kind__CSRRCI] = "csrrci",
-	//
-	// [Instruction_Kind__MUL] = "mul",
-	// [Instruction_Kind__MULH] = "mulh",
-	// [Instruction_Kind__MULHSU] = "mulhsu",
-	// [Instruction_Kind__MULHU] = "mulhu",
-	// [Instruction_Kind__DIV] = "div",
-	// [Instruction_Kind__DIVU] = "divu",
-	// [Instruction_Kind__REM] = "rem",
-	// [Instruction_Kind__REMU] = "remu",
-	//
-	// [Instruction_Kind__MULW] = "mulw",
-	// [Instruction_Kind__DIVW] = "divw",
-	// [Instruction_Kind__DIVUW] = "divuw",
-	// [Instruction_Kind__REMW] = "remw",
-	// [Instruction_Kind__REMUW] = "remuw",
-	//
-	// [Instruction_Kind__LR_W] = "lr.w",
-	// [Instruction_Kind__SC_W] = "sc.w",
-	// [Instruction_Kind__AMOSWAP_W] = "amoswap.w",
-	// [Instruction_Kind__AMOADD_W] = "amoadd.w",
-	// [Instruction_Kind__AMOXOR_W] = "amoxor.w",
-	// [Instruction_Kind__AMOAND_W] = "amoand.w",
-	// [Instruction_Kind__AMOOR_W] = "amoor.w",
-	// [Instruction_Kind__AMOMIN_W] = "amomin.w",
-	// [Instruction_Kind__AMOMAX_W] = "amomax.w",
-	// [Instruction_Kind__AMOMINU_W] = "amominu.w",
-	// [Instruction_Kind__AMOMAXU_W] = "amomaxu.w",
-	//
-	// [Instruction_Kind__LR_D] = "lr.d",
-	// [Instruction_Kind__SC_D] = "sc.d",
-	// [Instruction_Kind__AMOSWAP_D] = "amoswap.d",
-	// [Instruction_Kind__AMOADD_D] = "amoadd.d",
-	// [Instruction_Kind__AMOXOR_D] = "amoxor.d",
-	// [Instruction_Kind__AMOAND_D] = "amoand.d",
-	// [Instruction_Kind__AMOOR_D] = "amoor.d",
-	// [Instruction_Kind__AMOMIN_D] = "amomin.d",
-	// [Instruction_Kind__AMOMAX_D] = "amomax.d",
-	// [Instruction_Kind__AMOMINU_D] = "amominu.d",
-	// [Instruction_Kind__AMOMAXU_D] = "amomaxu.d",
+        // [Instruction_Kind__CSRRW] = "csrrw",
+        // [Instruction_Kind__CSRRS] = "csrrs",
+        // [Instruction_Kind__CSRRC] = "csrrc",
+        // [Instruction_Kind__CSRRWI] = "csrrwi",
+        // [Instruction_Kind__CSRRSI] = "csrrsi",
+        // [Instruction_Kind__CSRRCI] = "csrrci",
+        //
+        // [Instruction_Kind__MUL] = "mul",
+        // [Instruction_Kind__MULH] = "mulh",
+        // [Instruction_Kind__MULHSU] = "mulhsu",
+        // [Instruction_Kind__MULHU] = "mulhu",
+        // [Instruction_Kind__DIV] = "div",
+        // [Instruction_Kind__DIVU] = "divu",
+        // [Instruction_Kind__REM] = "rem",
+        // [Instruction_Kind__REMU] = "remu",
+        //
+        // [Instruction_Kind__MULW] = "mulw",
+        // [Instruction_Kind__DIVW] = "divw",
+        // [Instruction_Kind__DIVUW] = "divuw",
+        // [Instruction_Kind__REMW] = "remw",
+        // [Instruction_Kind__REMUW] = "remuw",
+        //
+        // [Instruction_Kind__LR_W] = "lr.w",
+        // [Instruction_Kind__SC_W] = "sc.w",
+        // [Instruction_Kind__AMOSWAP_W] = "amoswap.w",
+        // [Instruction_Kind__AMOADD_W] = "amoadd.w",
+        // [Instruction_Kind__AMOXOR_W] = "amoxor.w",
+        // [Instruction_Kind__AMOAND_W] = "amoand.w",
+        // [Instruction_Kind__AMOOR_W] = "amoor.w",
+        // [Instruction_Kind__AMOMIN_W] = "amomin.w",
+        // [Instruction_Kind__AMOMAX_W] = "amomax.w",
+        // [Instruction_Kind__AMOMINU_W] = "amominu.w",
+        // [Instruction_Kind__AMOMAXU_W] = "amomaxu.w",
+        //
+        // [Instruction_Kind__LR_D] = "lr.d",
+        // [Instruction_Kind__SC_D] = "sc.d",
+        // [Instruction_Kind__AMOSWAP_D] = "amoswap.d",
+        // [Instruction_Kind__AMOADD_D] = "amoadd.d",
+        // [Instruction_Kind__AMOXOR_D] = "amoxor.d",
+        // [Instruction_Kind__AMOAND_D] = "amoand.d",
+        // [Instruction_Kind__AMOOR_D] = "amoor.d",
+        // [Instruction_Kind__AMOMIN_D] = "amomin.d",
+        // [Instruction_Kind__AMOMAX_D] = "amomax.d",
+        // [Instruction_Kind__AMOMINU_D] = "amominu.d",
+        // [Instruction_Kind__AMOMAXU_D] = "amomaxu.d",
 };
 
 typedef enum Pseudo_Instruction_Kind
 {
-	Pseudo_Instruction_Kind__None = 0,
+        Pseudo_Instruction_Kind__None = 0,
 
-	Pseudo_Instruction_Kind__NOP,
-	Pseudo_Instruction_Kind__LI,
-	Pseudo_Instruction_Kind__MV,
-	Pseudo_Instruction_Kind__NOT,
-	Pseudo_Instruction_Kind__NEG,
-	Pseudo_Instruction_Kind__NEGW,
-	Pseudo_Instruction_Kind__SEXT_W,
+        Pseudo_Instruction_Kind__NOP,
+        Pseudo_Instruction_Kind__LI,
+        Pseudo_Instruction_Kind__MV,
+        Pseudo_Instruction_Kind__NOT,
+        Pseudo_Instruction_Kind__NEG,
+        Pseudo_Instruction_Kind__NEGW,
+        Pseudo_Instruction_Kind__SEXT_W,
 
-	Pseudo_Instruction_Kind__SEQZ,
-	Pseudo_Instruction_Kind__SNEZ,
-	Pseudo_Instruction_Kind__SLTZ,
-	Pseudo_Instruction_Kind__SGTZ,
+        Pseudo_Instruction_Kind__SEQZ,
+        Pseudo_Instruction_Kind__SNEZ,
+        Pseudo_Instruction_Kind__SLTZ,
+        Pseudo_Instruction_Kind__SGTZ,
 
-	Pseudo_Instruction_Kind__BEQZ,
-	Pseudo_Instruction_Kind__BNEZ,
-	Pseudo_Instruction_Kind__BLEZ,
-	Pseudo_Instruction_Kind__BGEZ,
-	Pseudo_Instruction_Kind__BLTZ,
-	Pseudo_Instruction_Kind__BGTZ,
+        Pseudo_Instruction_Kind__BEQZ,
+        Pseudo_Instruction_Kind__BNEZ,
+        Pseudo_Instruction_Kind__BLEZ,
+        Pseudo_Instruction_Kind__BGEZ,
+        Pseudo_Instruction_Kind__BLTZ,
+        Pseudo_Instruction_Kind__BGTZ,
 
-	Pseudo_Instruction_Kind__J,
-	Pseudo_Instruction_Kind__JR,
-	Pseudo_Instruction_Kind__RET,
-	Pseudo_Instruction_Kind__CALL,
-	Pseudo_Instruction_Kind__TAIL,
+        Pseudo_Instruction_Kind__J,
+        Pseudo_Instruction_Kind__JR,
+        Pseudo_Instruction_Kind__RET,
+        Pseudo_Instruction_Kind__CALL,
+        Pseudo_Instruction_Kind__TAIL,
 
-	Pseudo_Instruction_Kind__LA,
+        Pseudo_Instruction_Kind__LA,
 
-	Pseudo_Instruction_Kind__COUNT,
+        Pseudo_Instruction_Kind__COUNT,
 }
 Pseudo_Instruction_Kind;
 
 global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUNT] =
 {
-	[Pseudo_Instruction_Kind__None]   = "",
+        [Pseudo_Instruction_Kind__None]   = "",
 
-	[Pseudo_Instruction_Kind__NOP]    = "nop",
-	[Pseudo_Instruction_Kind__LI]     = "li",
-	[Pseudo_Instruction_Kind__MV]     = "mv",
-	[Pseudo_Instruction_Kind__NOT]    = "not",
-	[Pseudo_Instruction_Kind__NEG]    = "neg",
-	[Pseudo_Instruction_Kind__NEGW]   = "negw",
-	[Pseudo_Instruction_Kind__SEXT_W] = "sext.w",
+        [Pseudo_Instruction_Kind__NOP]    = "nop",
+        [Pseudo_Instruction_Kind__LI]     = "li",
+        [Pseudo_Instruction_Kind__MV]     = "mv",
+        [Pseudo_Instruction_Kind__NOT]    = "not",
+        [Pseudo_Instruction_Kind__NEG]    = "neg",
+        [Pseudo_Instruction_Kind__NEGW]   = "negw",
+        [Pseudo_Instruction_Kind__SEXT_W] = "sext.w",
 
-	[Pseudo_Instruction_Kind__SEQZ]   = "seqz",
-	[Pseudo_Instruction_Kind__SNEZ]   = "snez",
-	[Pseudo_Instruction_Kind__SLTZ]   = "sltz",
-	[Pseudo_Instruction_Kind__SGTZ]   = "sgtz",
+        [Pseudo_Instruction_Kind__SEQZ]   = "seqz",
+        [Pseudo_Instruction_Kind__SNEZ]   = "snez",
+        [Pseudo_Instruction_Kind__SLTZ]   = "sltz",
+        [Pseudo_Instruction_Kind__SGTZ]   = "sgtz",
 
-	[Pseudo_Instruction_Kind__BEQZ]   = "beqz",
-	[Pseudo_Instruction_Kind__BNEZ]   = "bnez",
-	[Pseudo_Instruction_Kind__BLEZ]   = "blez",
-	[Pseudo_Instruction_Kind__BGEZ]   = "bgez",
-	[Pseudo_Instruction_Kind__BLTZ]   = "bltz",
-	[Pseudo_Instruction_Kind__BGTZ]   = "bgtz",
+        [Pseudo_Instruction_Kind__BEQZ]   = "beqz",
+        [Pseudo_Instruction_Kind__BNEZ]   = "bnez",
+        [Pseudo_Instruction_Kind__BLEZ]   = "blez",
+        [Pseudo_Instruction_Kind__BGEZ]   = "bgez",
+        [Pseudo_Instruction_Kind__BLTZ]   = "bltz",
+        [Pseudo_Instruction_Kind__BGTZ]   = "bgtz",
 
-	[Pseudo_Instruction_Kind__J]      = "j",
-	[Pseudo_Instruction_Kind__JR]     = "jr",
-	[Pseudo_Instruction_Kind__RET]    = "ret",
-	[Pseudo_Instruction_Kind__CALL]   = "call",
-	[Pseudo_Instruction_Kind__TAIL]   = "tail",
+        [Pseudo_Instruction_Kind__J]      = "j",
+        [Pseudo_Instruction_Kind__JR]     = "jr",
+        [Pseudo_Instruction_Kind__RET]    = "ret",
+        [Pseudo_Instruction_Kind__CALL]   = "call",
+        [Pseudo_Instruction_Kind__TAIL]   = "tail",
 
-	[Pseudo_Instruction_Kind__LA]     = "la",
+        [Pseudo_Instruction_Kind__LA]     = "la",
 };
 
 #define OPCODE_LUI                     0x37
@@ -462,62 +462,62 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 // R-type encoding (32 bits):
 // [31:25] funct7 | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
 #define instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7)                                           \
-	 (((U32)(opcode)       & 0x7F) <<  0) | /* bits  6:0                     */                            \
-   	 (((U32)(rd)           & 0x1F) <<  7) | /* bits 11:7                     */                            \
-   	 (((U32)(funct3)       & 0x07) << 12) | /* bits 14:12                    */                            \
-   	 (((U32)(rs1)          & 0x1F) << 15) | /* bits 19:15                    */                            \
-   	 (((U32)(rs2)          & 0x1F) << 20) | /* bits 24:20                    */                            \
-   	 (((U32)(funct7)       & 0x7F) << 25)   /* bits 31:25                    */
+         (((U32)(opcode)       & 0x7F) <<  0) | /* bits  6:0                     */                            \
+         (((U32)(rd)           & 0x1F) <<  7) | /* bits 11:7                     */                            \
+         (((U32)(funct3)       & 0x07) << 12) | /* bits 14:12                    */                            \
+         (((U32)(rs1)          & 0x1F) << 15) | /* bits 19:15                    */                            \
+         (((U32)(rs2)          & 0x1F) << 20) | /* bits 24:20                    */                            \
+         (((U32)(funct7)       & 0x7F) << 25)   /* bits 31:25                    */
 
 // I-type encoding (32 bits):
 // [31:20] imm[11:0] | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
 #define instruction_i_encode_m(rd, rs1, imm, opcode, funct3)                                                   \
-	(((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
-    	(((U32)(rd)           &  0x1F) <<  7) | /* bits 11:7                     */                            \
-    	(((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
-    	(((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
-    	(((U32)(imm)          & 0xFFF) << 20)   /* bits 31:20                    */
+        (((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
+        (((U32)(rd)           &  0x1F) <<  7) | /* bits 11:7                     */                            \
+        (((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
+        (((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
+        (((U32)(imm)          & 0xFFF) << 20)   /* bits 31:20                    */
 
 #define instruction_i_shift_encode_m(rd, rs1, shamt, opcode, funct3, funct6)                                   \
-	instruction_i_encode_m(rd, rs1, ((funct6) << 6) | ((shamt) & 0x3F), opcode, funct3)
+        instruction_i_encode_m(rd, rs1, ((funct6) << 6) | ((shamt) & 0x3F), opcode, funct3)
 
 #define instruction_i_shift_wide_encode_m(rd, rs1, shamt, opcode, funct3, funct7)                              \
-	instruction_i_encode_m(rd, rs1, (funct7 << 5) | (shamt & 0x1F), opcode, funct3)
+        instruction_i_encode_m(rd, rs1, (funct7 << 5) | (shamt & 0x1F), opcode, funct3)
 
 // S-type encoding (32 bits):
 // [31:25] imm[11:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] imm[4:0] | [6:0] opcode
 #define instruction_s_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
-	(((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
-    	(((U32)(imm)          &  0x1F) <<  7) | /* bits 11:7                     */                            \
-    	(((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
-    	(((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
-    	(((U32)(rs2)          &  0x1F) << 20) | /* bits 24:20                    */                            \
-    	(((U32)(imm)          & 0xFE0) << 25)   /* bits 31:25                    */
+        (((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
+        (((U32)(imm)          &  0x1F) <<  7) | /* bits 11:7                     */                            \
+        (((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
+        (((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
+        (((U32)(rs2)          &  0x1F) << 20) | /* bits 24:20                    */                            \
+        (((U32)(imm)          & 0xFE0) << 25)   /* bits 31:25                    */
 
 // B-type encoding (32 bits):
 // [31] imm[12] | [30:25] imm[10:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:8] imm[4:1] | [7] imm[11] | [6:0] opcode
 #define instruction_b_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
-	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-    	(((U32)((imm) >> 11)         &  0x01) <<  7) | /* bit   7     imm[11]    */                            \
-    	(((U32)((imm) >>  1)         &  0x0F) <<  8) | /* bits 11:8   imm[4:1]   */                            \
-    	(((U32)(funct3)              &  0x07) << 12) | /* bits 14:12             */                            \
-    	(((U32)(rs1)                 &  0x1F) << 15) | /* bits 19:15             */                            \
-    	(((U32)(rs2)                 &  0x1F) << 20) | /* bits 24:20             */                            \
-    	(((U32)((imm) >>  5)         &  0x3F) << 25) | /* bits 30:25  imm[10:5]  */                            \
-    	(((U32)((imm) >> 12)         &  0x01) << 31)   /* bit  31     imm[12]    */
+        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+        (((U32)((imm) >> 11)         &  0x01) <<  7) | /* bit   7     imm[11]    */                            \
+        (((U32)((imm) >>  1)         &  0x0F) <<  8) | /* bits 11:8   imm[4:1]   */                            \
+        (((U32)(funct3)              &  0x07) << 12) | /* bits 14:12             */                            \
+        (((U32)(rs1)                 &  0x1F) << 15) | /* bits 19:15             */                            \
+        (((U32)(rs2)                 &  0x1F) << 20) | /* bits 24:20             */                            \
+        (((U32)((imm) >>  5)         &  0x3F) << 25) | /* bits 30:25  imm[10:5]  */                            \
+        (((U32)((imm) >> 12)         &  0x01) << 31)   /* bit  31     imm[12]    */
 
 #define instruction_u_encode_m(rd, imm, opcode)                                                                \
-	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-	(((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
-	(((U32)(imm)             & 0xFFFFF) << 12)     /* bits 31:12  imm[31:12] */
+        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+        (((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
+        (((U32)(imm)             & 0xFFFFF) << 12)     /* bits 31:12  imm[31:12] */
 
 #define instruction_j_encode_m(rd, imm, opcode)                                                                \
-	(((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-	(((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
-	(((U32)((imm) >> 12)         &  0xFF) << 12) | /* bits 19:12 imm[19:12]  */                            \
-	(((U32)((imm) >> 11)         &  0x01) << 20) | /* bit  20     imm[11]    */                            \
-	(((U32)((imm) >>  1)         &  0x3FF) << 21) | /* bits 30:21 imm[10:1]  */                            \
-	(((U32)((imm) >> 20)         &  0x01) << 31)   /* bit  31     imm[20]    */
+        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
+        (((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
+        (((U32)((imm) >> 12)         &  0xFF) << 12) | /* bits 19:12 imm[19:12]  */                            \
+        (((U32)((imm) >> 11)         &  0x01) << 20) | /* bit  20     imm[11]    */                            \
+        (((U32)((imm) >>  1)         &  0x3FF) << 21) | /* bits 30:21 imm[10:1]  */                            \
+        (((U32)((imm) >> 20)         &  0x01) << 31)   /* bit  31     imm[20]    */
 
 #define ENCODING_NOP    0x00000013
 #define ENCODING_RET    0x00008067
@@ -529,40 +529,40 @@ global const char *Pseudo_Instruction_Kind_strings[Pseudo_Instruction_Kind__COUN
 
 /* RV fields.  */
 
-#define OP_MASK_OP		0x7f
-#define OP_SH_OP		0
-#define OP_MASK_RS2		0x1f
-#define OP_SH_RS2		20
-#define OP_MASK_RS1		0x1f
-#define OP_SH_RS1		15
-#define OP_MASK_RS3		0x1fU
-#define OP_SH_RS3		27
-#define OP_MASK_RD		0x1f
-#define OP_SH_RD		7
-#define OP_MASK_SHAMT		0x3f
-#define OP_SH_SHAMT		20
-#define OP_MASK_SHAMTW		0x1f
-#define OP_SH_SHAMTW		20
-#define OP_MASK_RM		0x7
-#define OP_SH_RM		12
-#define OP_MASK_PRED		0xf
-#define OP_SH_PRED		24
-#define OP_MASK_SUCC		0xf
-#define OP_SH_SUCC		20
-#define OP_MASK_AQ		0x1
-#define OP_SH_AQ		26
-#define OP_MASK_RL		0x1
-#define OP_SH_RL		25
+#define OP_MASK_OP              0x7f
+#define OP_SH_OP                0
+#define OP_MASK_RS2             0x1f
+#define OP_SH_RS2               20
+#define OP_MASK_RS1             0x1f
+#define OP_SH_RS1               15
+#define OP_MASK_RS3             0x1fU
+#define OP_SH_RS3               27
+#define OP_MASK_RD              0x1f
+#define OP_SH_RD                7
+#define OP_MASK_SHAMT           0x3f
+#define OP_SH_SHAMT             20
+#define OP_MASK_SHAMTW          0x1f
+#define OP_SH_SHAMTW            20
+#define OP_MASK_RM              0x7
+#define OP_SH_RM                12
+#define OP_MASK_PRED            0xf
+#define OP_SH_PRED              24
+#define OP_MASK_SUCC            0xf
+#define OP_SH_SUCC              20
+#define OP_MASK_AQ              0x1
+#define OP_SH_AQ                26
+#define OP_MASK_RL              0x1
+#define OP_SH_RL                25
 
-#define OP_MASK_CSR		0xfffU
-#define OP_SH_CSR		20
+#define OP_MASK_CSR             0xfffU
+#define OP_SH_CSR               20
 
-#define OP_MASK_FUNCT3		0x7
-#define OP_SH_FUNCT3		12
-#define OP_MASK_FUNCT7		0x7fU
-#define OP_SH_FUNCT7		25
-#define OP_MASK_FUNCT2		0x3
-#define OP_SH_FUNCT2		25
+#define OP_MASK_FUNCT3          0x7
+#define OP_SH_FUNCT3            12
+#define OP_MASK_FUNCT7          0x7fU
+#define OP_SH_FUNCT7            25
+#define OP_MASK_FUNCT2          0x3
+#define OP_SH_FUNCT2            25
 
 #define MATCH_ADDI 0x13
 #define MASK_ADDI  0x707f
@@ -780,7 +780,7 @@ typedef U32 insn_t;
 // VALUE << SHIFT.  VALUE is evaluated exactly once.
 #define INSERT_BITS(STRUCT, VALUE, MASK, SHIFT) \
   (STRUCT) = (((STRUCT) & ~((insn_t)(MASK) << (SHIFT))) \
-	      | ((insn_t)((VALUE) & (MASK)) << (SHIFT)))
+              | ((insn_t)((VALUE) & (MASK)) << (SHIFT)))
 
 #define INSERT_OPERAND(field, instruction, value) \
   INSERT_BITS ((instruction).encoding, value, OP_MASK_##field, OP_SH_##field)
@@ -790,10 +790,10 @@ typedef U32 insn_t;
 
 typedef enum RISCV_Instruction_Class
 {
-	RISCV_Instruction_Class__None,
-	RISCV_Instruction_Class__I,
+        RISCV_Instruction_Class__None,
+        RISCV_Instruction_Class__I,
 
-	RISCV_Instruction_Class__COUNT,
+        RISCV_Instruction_Class__COUNT,
 
 }
 RISCV_Instruction_Class;
@@ -801,25 +801,25 @@ RISCV_Instruction_Class;
 typedef U16 OP_Argument;
 enum
 {
-	OP_Argument__None = 0,
-	OP_Argument__Comma,
-	OP_Argument__RD,
-	OP_Argument__RS1,
-	OP_Argument__RS2,
-	OP_Argument__RS3,
-	OP_Argument__Immediate_Large,
-	OP_Argument__Immediate_I,
-	OP_Argument__Immediate_S,
-	OP_Argument__Offset_PC_Relative_12,
-	OP_Argument__Offset_PC_Relative_20,
-	OP_Argument__Offset_Load,
-	OP_Argument__Offset_Store,
-	OP_Argument__Parenthesis_Left,
-	OP_Argument__Parenthesis_Right,
-	OP_Argument__Immediate_U,
-	OP_Argument__Shift_Amount,
-	OP_Argument__Call_Expression,
-	OP_Argument__COUNT,
+        OP_Argument__None = 0,
+        OP_Argument__Comma,
+        OP_Argument__RD,
+        OP_Argument__RS1,
+        OP_Argument__RS2,
+        OP_Argument__RS3,
+        OP_Argument__Immediate_Large,
+        OP_Argument__Immediate_I,
+        OP_Argument__Immediate_S,
+        OP_Argument__Offset_PC_Relative_12,
+        OP_Argument__Offset_PC_Relative_20,
+        OP_Argument__Offset_Load,
+        OP_Argument__Offset_Store,
+        OP_Argument__Parenthesis_Left,
+        OP_Argument__Parenthesis_Right,
+        OP_Argument__Immediate_U,
+        OP_Argument__Shift_Amount,
+        OP_Argument__Call_Expression,
+        OP_Argument__COUNT,
 };
 
 #define OP_arguments_m(...) ((OP_Argument[]){ __VA_ARGS__, 0 })
@@ -831,41 +831,41 @@ enum
 typedef struct RISCV_Opcode RISCV_Opcode;
 struct RISCV_Opcode
 {
-	// The name of the instruction.
-	const char *name;
+        // The name of the instruction.
+        const char *name;
 
-	// Hash of the name. NOTE: temporary, this could be dropped.
-	U32 hash;
+        // Hash of the name. NOTE: temporary, this could be dropped.
+        U32 hash;
 
-	// The requirement of xlen for the instruction, 0 if no requirement. For example, it can be 32/64 in case of
-	// 32/64-bit only instruction.
-	U32 length_requirement;
+        // The requirement of xlen for the instruction, 0 if no requirement. For example, it can be 32/64 in case of
+        // 32/64-bit only instruction.
+        U32 length_requirement;
 
-	// Class to which this instruction belongs.  Used to decide whether or not this instruction is legal in the
-	// current -march context.
-	RISCV_Instruction_Class instruction_class;
+        // Class to which this instruction belongs.  Used to decide whether or not this instruction is legal in the
+        // current -march context.
+        RISCV_Instruction_Class instruction_class;
 
-	// A 16-bit, null-terminated array describing the arguments for this instruction.
-	U16 *arguments;
+        // A 16-bit, null-terminated array describing the arguments for this instruction.
+        U16 *arguments;
 
-	// The basic opcode for the instruction.  When assembling, this opcode is modified by the arguments to produce
-	// the actual opcode that is used.  If pinfo is INSN_MACRO, then this is 0.
-	//
-	// NOTE: this field, like `mask`, are U64 in GNU as. However, no >32-bit instructions exist at the moment if I'm
-	// not mistaken, so let's just use that.
-	U32 match;
+        // The basic opcode for the instruction.  When assembling, this opcode is modified by the arguments to produce
+        // the actual opcode that is used.  If pinfo is INSN_MACRO, then this is 0.
+        //
+        // NOTE: this field, like `mask`, are U64 in GNU as. However, no >32-bit instructions exist at the moment if I'm
+        // not mistaken, so let's just use that.
+        U32 match;
 
-	// If pinfo is not INSN_MACRO, then this is a bit mask for the relevant portions of the opcode when
-	// disassembling.  If the actual opcode anded with the match field equals the opcode field, then we have found
-	// the correct instruction.  If pinfo is INSN_MACRO, then this field is the macro identifier.
-	U32 mask;
+        // If pinfo is not INSN_MACRO, then this is a bit mask for the relevant portions of the opcode when
+        // disassembling.  If the actual opcode anded with the match field equals the opcode field, then we have found
+        // the correct instruction.  If pinfo is INSN_MACRO, then this field is the macro identifier.
+        U32 mask;
 
-	// A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
-	B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
+        // A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
+        B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
 
-	// For a macro, this is INSN_MACRO.  Otherwise, it is a collection of bits describing the instruction, notably
-	// any relevant hazard information.
-	U64 info;
+        // For a macro, this is INSN_MACRO.  Otherwise, it is a collection of bits describing the instruction, notably
+        // any relevant hazard information.
+        U64 info;
 };
 
 // Check whether the encoded instruction bits match the provided opcode.
@@ -877,22 +877,22 @@ struct RISCV_Opcode
 static B32
 match_opcode (const RISCV_Opcode *opcode, U32 instruction)
 {
-	B32 result = ((instruction ^ opcode->match) & opcode->mask) == 0;
-	return result;
+        B32 result = ((instruction ^ opcode->match) & opcode->mask) == 0;
+        return result;
 }
 
 static B32
 match_rd_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 {
-	unused_m(opcode);
-	return ((instruction >> OP_SH_RD) & OP_MASK_RD) != 0;
+        unused_m(opcode);
+        return ((instruction >> OP_SH_RD) & OP_MASK_RD) != 0;
 }
 
 static B32
 match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 {
-	unused_m(opcode);
-	return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
+        unused_m(opcode);
+        return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
 }
 
 #define encode_immediate_i_m(x) (shift_right_mask_m(x, 0, 12) << 20)
@@ -931,13 +931,13 @@ struct RISCV_Instruction
 internal RISCV_Instruction
 RISCV_Instruction__create(const RISCV_Opcode *opcode, U32 location)
 {
-	RISCV_Instruction result =
-	{
-		.opcode   = opcode,
-		.encoding = opcode->match,
-		.location = location,
-	};
-	return result;
+        RISCV_Instruction result =
+        {
+                .opcode   = opcode,
+                .encoding = opcode->match,
+                .location = location,
+        };
+        return result;
 }
 
 internal U8

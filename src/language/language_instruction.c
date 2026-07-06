@@ -114,37 +114,37 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash)
 {
-	U32 count = array_count_m(RISCV_Opcode__table);
-	U32 index = 0;
+        U32 count = array_count_m(RISCV_Opcode__table);
+        U32 index = 0;
 
-	B32 match = 0;
+        B32 match = 0;
 
-	const RISCV_Opcode *result = 0;
-	for (;;)
-	{
-		B32 break_should = match || index >= count;
-		if (break_should)
-		{
-			break;
-		}
+        const RISCV_Opcode *result = 0;
+        for (;;)
+        {
+                B32 break_should = match || index >= count;
+                if (break_should)
+                {
+                        break;
+                }
 
-		result = &RISCV_Opcode__table[index];
-		match = result->hash == instruction_hash ? 1 : 0;
+                result = &RISCV_Opcode__table[index];
+                match = result->hash == instruction_hash ? 1 : 0;
 
-		index += 1;
-	}
+                index += 1;
+        }
 
-	assert_always_m(result);
-	assert_always_m(match || result->hash == 0);
+        assert_always_m(result);
+        assert_always_m(match || result->hash == 0);
 
-	return result;
+        return result;
 }
 
 internal U8
 RISCV_instruction_size(U32 encoding)
 {
-	B32 bit_32_encoding = (encoding & 0x1f) != 0x1f;
-	assert_always_m(bit_32_encoding && "only 32-bit instruction supported");
-	U8 length = 4;
-	return length;
+        B32 bit_32_encoding = (encoding & 0x1f) != 0x1f;
+        assert_always_m(bit_32_encoding && "only 32-bit instruction supported");
+        U8 length = 4;
+        return length;
 }

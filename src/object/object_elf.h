@@ -68,16 +68,16 @@ struct ELF64_Header
 typedef struct ELF32_Section_Header ELF32_Section_Header;
 struct ELF32_Section_Header
 {
-	U32 string_table_offset;
-  	U32 type;
-  	U32 flags;
-  	U32 address_virtual;
-  	U32 offset;
-  	U32 size;
-  	U32 link;
-  	U32 info;
-  	U32 alignment;
-  	U32 entry_size;
+        U32 string_table_offset;
+        U32 type;
+        U32 flags;
+        U32 address_virtual;
+        U32 offset;
+        U32 size;
+        U32 link;
+        U32 info;
+        U32 alignment;
+        U32 entry_size;
 };
 
 typedef struct ELF_Section_Header ELF_Section_Header;
@@ -355,7 +355,7 @@ struct ELF32_Rela
 
 typedef struct
 {
-	U64 offset;                /* Address */
+        U64 offset;                /* Address */
         U64 info;                        /* Relocation type and symbol index */
         S64 addend;                /* Addend */
 } ELF64_Relocation_Addend;
