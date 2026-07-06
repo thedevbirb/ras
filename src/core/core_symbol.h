@@ -1,6 +1,11 @@
 #ifndef CORE_SYMBOL_H
 #define CORE_SYMBOL_H
 
+#define DOT_SYMBOL_NAME ".L0\x01"
+#define DOT_SYMBOL_HASH 0
+
+global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
+
 // TODO: I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
 
 // TODO: review some of this variants, they're taken from GAS but not always used.

@@ -164,16 +164,16 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 re
 {
 	assert_always_m(size <= 8);
 	U8 *data = Fragment_List__variable
-		(
-			fragments,
-			arena,
-			location,
-			size,
-			size,
-			repeat_expression_index,
-			0,
-			Relax_State__Fill
-		);
+	(
+		fragments,
+		arena,
+		location,
+		size,
+		size,
+		repeat_expression_index,
+		0,
+		Relax_State__Fill
+	);
 	memory_copy(data, (U8 *)pattern, size);
 	return;
 }
@@ -189,16 +189,16 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 a
 	U8 size_max = 1;
 	U8 size_variable = 1;
 	U8 *data = Fragment_List__variable
-		(
-			fragments,
-			arena,
-			location,
-			size_max,
-			size_variable,
-			alignment_expression_index,
-			alignment_max,
-			Relax_State__Fill
-		);
+	(
+		fragments,
+		arena,
+		location,
+		size_max,
+		size_variable,
+		alignment_expression_index,
+		alignment_max,
+		Relax_State__Fill
+	);
 	data[0] = pattern;
 
 	return;

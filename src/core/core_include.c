@@ -1,6 +1,6 @@
 #include "core_initialize.c"
 #include "core_utils.c"
-#include "core_symbol.c"
 #include "core_section.c"
+#include "core_symbol.c"
 #include "core_diagnostic.c"
 #include "core_expression.c"

@@ -50,12 +50,10 @@ symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
 
 // NOTE: we need a reference to the root pointer so that in case it's null we can change it.
 internal Symbols_Trie *
-symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, String8 name)
+symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, U64 hash, String8 name)
 {
 	B32 initialized = 0;
 	B32 match = 0;
-
-	U64 hash = FNV_hash(name);
 
 	Symbols_Trie **trie_current = root;
 	U64 hash_shifted = hash;
@@ -90,11 +88,9 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbo
 
 // Always create a new symbol, by overriding a current definition if exist, without dropping it.
 internal Symbols_Trie *
-symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, String8 name)
+symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, U64 hash, String8 name)
 {
 	B32 initialized = 0;
-
-	U64 hash = FNV_hash(name);
 
 	Symbols_Trie **trie_current = root;
 	U64 hash_shifted = hash;
@@ -147,16 +143,64 @@ Symbols_Table__last(Symbols_Table *symbols_table)
 internal Symbol_Ref *
 Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
 {
-	Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, name);
+
+	U64 hash = FNV_hash_U64(name);
+	Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
 
 	return &node->symbol;
+}
+
+// Return the global dot symbol.
+internal Symbol_Ref *
+Symbols_Table__dot(Symbols_Table *symbols_table)
+{
+
+	Symbols_Trie *result = symbols_trie_get(symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_string);
+	return &result->symbol;
+}
+
+// Create the global dot symbol. This should be done right after symbol table initialization and called once.
+internal Symbol_Ref *
+Symbols_Table__dot_create(Symbols_Table *symbols_table)
+{
+	local_persist B32 created = 0;
+	assert_m(!created);
+	Symbols_Trie *result = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_string);
+	created = 1;
+	// ELF-SPECIFIC: Update string table offset field.
+	// if (node->symbol.elf.string_table_offset == 0)
+	// {
+	// 	if (last)
+	// 	{
+	// 		node->symbol.elf.string_table_offset = last->symbol.elf.string_table_offset + last->name.count;
+	// 	}
+	// }
+	return &result->symbol;
+}
+
+// Update the global dot symbol with the data of the provided section and create a snapshot of it.
+internal Symbol_Ref *
+Symbols_Table__dot_snapshot(Symbols_Table *symbols_table, Section *section)
+{
+	Symbol_Ref *dot = Symbols_Table__dot(symbols_table);
+	// Update it.
+	dot->fragment          = section->fragment_list.last;
+	dot->elf.value         = section->fragment_list.last->size_fixed;
+	dot->elf.section_index = section->index;
+
+	Symbols_Trie *snapshot = symbols_trie_chunk_list_push(symbols_table->arena, symbols_table->chunks, Symbols_Trie_Chunk__capacity_default);
+	snapshot->name   = dot_symbol_string;
+	snapshot->symbol = *dot;
+
+	return &snapshot->symbol;
 }
 
 internal Symbol_Ref *
 Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
 {
+	U64 hash = FNV_hash_U64(name);
 	Symbols_Trie *last = Symbols_Table__last(symbols_table);
-	Symbols_Trie *node = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, name);
+	Symbols_Trie *node = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
 	// ELF-SPECIFIC: Update string table offset field.
 	if (node->symbol.elf.string_table_offset == 0)
 	{
@@ -166,4 +210,18 @@ Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
 		}
 	}
 	return &node->symbol;
+}
+
+// Creates a new symbols table with a dedicated arena allocator and by creating the global dot symbol.
+internal Symbols_Table *
+Symbols_Table__new(void)
+{
+	Arena *arena_symbols_table = Arena__allocate_m();
+	Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
+
+	symbols_table->arena  = arena_symbols_table;
+	symbols_table->chunks = Arena__push_struct_m(arena_symbols_table, Symbols_Trie_Chunk_List);
+
+	Symbols_Table__dot_create(symbols_table);
+	return symbols_table;
 }

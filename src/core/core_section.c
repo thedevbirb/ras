@@ -103,7 +103,7 @@ Sections_Table__default(void)
 internal Section *
 Sections_Table__get(Sections_Table *sections_table, String8 name)
 {
-	U64 hash = FNV_hash(name);
+	U64 hash = FNV_hash_U64(name);
 	Sections_Trie *trie = Sections_Trie__get(sections_table->root, hash, name);
 
 	Section *result = trie ? &trie->section : 0;
@@ -118,7 +118,7 @@ Sections_Table__get(Sections_Table *sections_table, String8 name)
 internal Section *
 Sections_Table__get_or_default(Sections_Table *sections_table, String8 name)
 {
-	U64 hash = FNV_hash(name);
+	U64 hash = FNV_hash_U64(name);
 	Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, sections_table->chunks, hash, name);
 
 	B32 zero_is = Section__zero_is(&trie->section);

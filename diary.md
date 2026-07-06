@@ -792,3 +792,8 @@ Have to start handling the dot. The requirements are the following:
    collisions.
 3. in fixups we track the "value" of the dot along with its fragment
 4. The "value" of the dot is the current fragment fixed offset
+
+Sun Jul  5 18:42:15 CEST 2026
+
+The dot symbol clones should be saved in the same arenas, however by not setting an hash for it we
+make it virtually non-existent.

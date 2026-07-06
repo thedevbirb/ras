@@ -27,7 +27,7 @@ U8__octal(U8 byte)
 }
 
 internal U32
-hash_FNV_1a(String8 string)
+FNV_hash_U32(String8 string)
 {
 	U32 hash = 2166136261u;
 
@@ -42,6 +42,29 @@ hash_FNV_1a(String8 string)
 
 		hash ^= (U8)string.data[index];
 		hash *= 16777619u;
+
+		index += 1;
+	}
+
+	return hash;
+}
+
+internal U64
+FNV_hash_U64(String8 string)
+{
+	U64 hash = 2166136261ull;
+
+	U64 index = 0;
+	for (;;)
+	{
+		B32 break_should = index >= string.count;
+		if (break_should)
+		{
+			break;
+		}
+
+		hash ^= (U8)string.data[index];
+		hash *= 16777619ull;
 
 		index += 1;
 	}
@@ -217,21 +240,6 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
 	}
 
 	return;
-}
-
-// TODO: actually modify this for U64, it has been retrofitted from U32 implementation.
-internal U64
-FNV_hash(String8 key)
-{
-	U64 hash = 2166136261ull;
-
-	for (U64 i = 0; i < key.count; i++)
-	{
-		hash ^= key.data[i];
-		hash *= 16777619ull;
-	}
-
-	return hash;
 }
 
 internal U8

@@ -94,10 +94,7 @@ main(int argument_count, char **argument_vector)
 	Sections_Table__add_common(sections_table);
 	Section *section = Sections_Table__get(sections_table, String8__literal(".text"));
 
-	Arena *arena_symbols_table = Arena__allocate_m();
-	Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
-	symbols_table->arena = arena_symbols_table;
-	symbols_table->chunks = Arena__push_struct_m(arena, Symbols_Trie_Chunk_List);
+	Symbols_Table *symbols_table = Symbols_Table__new();
 
 	Arena *arena_fixups = Arena__allocate_m();
 	Fixups *fixups = Arena__push_struct_m(arena_fixups, Fixups);
@@ -110,22 +107,25 @@ main(int argument_count, char **argument_vector)
 
 	Token_Cursor cursor = { .source = &source, .source_index = 0 };
 	statement_read
-		(
-			arena,
-			&cursor,
-			&diagnostics,
-			&expressions,
-			symbols_table,
-			section,
-			sections_table,
-			fixups
-		);
+	(
+		arena,
+		&cursor,
+		&diagnostics,
+		&expressions,
+		symbols_table,
+		section,
+		sections_table,
+		fixups
+	);
+
+	B32 exit_status = 0;
 
 	if (diagnostics.first)
 	{
 		Diagnostic *current = diagnostics.first;
 		for (;;)
 		{
+			exit_status = current->kind == Diagnostic_Kind__Error;
 			diagnostic_print(current, &source, arena);
 			current = current->next;
 
@@ -134,8 +134,7 @@ main(int argument_count, char **argument_vector)
 				break;
 			}
 		}
-		exit(1);
 	}
 
-	return 0;
+	return exit_status;
 }

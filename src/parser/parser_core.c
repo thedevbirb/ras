@@ -70,6 +70,7 @@ expression_parse
 	Token_Cursor       *cursor,
 	Expressions        *expressions,
 	Symbols_Table      *symbols_table,
+	Section            *section,
 	Diagnostic_List    *diagnostics
 )
 {
@@ -136,8 +137,11 @@ expression_parse
 
 		case Token_Kind__Identifier:
 		{
-			String8 name        = Token_Cursor__text(cursor);
-			Symbol_Ref *symbol  = Symbols_Table__get_or_default(symbols_table, name);
+			String8 name = Token_Cursor__text(cursor);
+			B32 dot = name.count == 1 && name.data[0] == '.';
+			Symbol_Ref *symbol = dot
+				? Symbols_Table__dot_snapshot(symbols_table, section)
+				: Symbols_Table__get_or_default(symbols_table, name);
 
 			symbol->flags |= Symbol_Flags__Used;
 
@@ -319,6 +323,7 @@ expression_parse_with_relocation
 	Token_Cursor        *cursor,
 	Expressions         *expressions,
 	Symbols_Table       *symbols_table,
+	Section             *section,
 	Diagnostic_List     *diagnostics,
 	// Machine-dependent
 	U16                 *relocation_out,
@@ -359,7 +364,7 @@ expression_parse_with_relocation
 		*relocation_out = relocation_match->relocation;
 		token_next(cursor, diagnostics, arena);
 	}
-	Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+	Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 	return result;
 }
 
@@ -375,6 +380,7 @@ RISCV_Instruction__parse
 	Diagnostic_List         *diagnostics,
 	Expressions             *expressions,
 	Symbols_Table           *symbols_table,
+	Section                 *section,
 	U32                      instruction_hash,
 
 	U16                     *relocation_out,
@@ -480,7 +486,7 @@ RISCV_Instruction__parse
 				// a `li` or `call` instruction which, during instruction parsing, are already expanded
 				// into a known number of instructions (`INSN_MACRO`)
 				*relocation_out = Relocation_RISC_V__JAL;
-				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 
 				// For branches we can't support a fixup. While GNU as silently ignores additional
 				// symbols, here we either warn or error.
@@ -500,7 +506,7 @@ RISCV_Instruction__parse
 			{
 				// See notes for `OP_Argument__Offset_PC_Relative_20`.
 				*relocation_out = Relocation_RISC_V__Branch;
-				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 
 				// For branches we can't support a fixup. While GNU as silently ignores additional
 				// symbols, here we either warn or error.
@@ -530,7 +536,7 @@ RISCV_Instruction__parse
 			} // fallthrough;
 			case OP_Argument__Immediate_I:
 			{
-				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__itype);
+				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator__itype);
 				if (!*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
@@ -563,7 +569,7 @@ RISCV_Instruction__parse
 			} break;
 			case OP_Argument__Immediate_U:
 			{
-				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator__utype);
+				expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator__utype);
 				if (!*relocation_out)
 				{
 				       if (expression->kind == Expression_Kind__Constant)
@@ -597,7 +603,7 @@ RISCV_Instruction__parse
 			} break;
 			case OP_Argument__Immediate_Large:
 			{
-				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				if (expression->kind != Expression_Kind__Constant)
 				{
 				       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -609,7 +615,7 @@ RISCV_Instruction__parse
 			} break;
 			case OP_Argument__Call_Expression:
 			{
-				expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				*relocation_out = Relocation_RISC_V__Call_PLT;
 			} break;
 			default: { unreachable_m(); }
@@ -775,7 +781,7 @@ RISCV_macro_build
 	S32         *values
 )
 {
-	U32 instruction_hash = hash_FNV_1a(instruction_name);
+	U32 instruction_hash = FNV_hash_U32(instruction_name);
 	const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
 	assert_always_m(opcode && opcode->hash);
 
@@ -1259,7 +1265,7 @@ statement_read
 			B32 instruction_expected = !label_found && !directive_kind;
 			if (instruction_expected)
 			{
-				instruction_hash = hash_FNV_1a(identifier);
+				instruction_hash = FNV_hash_U32(identifier);
 			}
 		} break;
 		default:
@@ -1287,6 +1293,7 @@ statement_read
 			 	diagnostics,
 			 	expressions,
 				symbols_table,
+				section,
 				instruction_hash,
 				&relocation,
 				&instruction,
@@ -1341,7 +1348,7 @@ statement_read
 			token_next(cursor, diagnostics, arena);
 			for (;;)
 			{
-				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				// We explicitly convert it to an unsigned value since this is how it's treated as.
 				//
 				// TODO: not very clear behaviour when in case of signed overflow.
@@ -1547,7 +1554,7 @@ statement_read
 				diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
 				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 			}
-			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 			symbol->expression_index = expression->index;
 
 			S64 result = expression_evaluate(expressions, expression->index);
@@ -1583,13 +1590,13 @@ statement_read
 			token_next(cursor, diagnostics, arena);
 			U64 location_begin = cursor->current.location;
 
-			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 
 			if (cursor->current.kind == Token_Kind__Comma && !fill_size_set)
 			{
 				// Read size
 				token_next(cursor, diagnostics, arena);
-				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				fill_size = expression_evaluate(expressions, size_expression->index);
 				if (size_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1625,7 +1632,7 @@ statement_read
 			{
 				// Read value
 				token_next(cursor, diagnostics, arena);
-				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				fill_pattern = expression_evaluate(expressions, value_expression->index);
 				if (value_expression->evaluation != Expression_Kind__Constant)
 				{
@@ -1653,7 +1660,7 @@ statement_read
 			U8  bytes_max = 0;
 
 			token_next(cursor, diagnostics, arena);
-			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+			Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 			expression_evaluate(expressions, alignment_expression->index);
 
 			if (alignment_expression->evaluation != Expression_Kind__Constant)
@@ -1670,7 +1677,7 @@ statement_read
 				// Read pattern
 				token_next(cursor, diagnostics, arena);
 
-				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 
 				S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
 				if (pattern_expression->evaluation != Expression_Kind__Constant)
@@ -1698,7 +1705,7 @@ statement_read
 			{
 				// Read bytes_max
 				token_next(cursor, diagnostics, arena);
-				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+				Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 				S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
 				if (bytes_max_expression->evaluation != Expression_Kind__Constant)
 				{
