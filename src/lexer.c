@@ -45,6 +45,8 @@ LE_U8_number_character_is(U8 character)
 //
 // We don't want annoying codepaths because I read past one, so I assume the past one is zero.
 // This simplifies a lot checks, where the last character being zero is already enough of a check.
+//
+// TODO: make this function signature the same as token_next, and create a more explicit inner version that just "reads"
 internal Token
 token_peek
 (
@@ -532,4 +534,10 @@ token_next
 	{
 		cursor->source_index = cursor->current.index + cursor->current.size;
 	}
+
+#ifdef RAS_DEBUG_TOKEN_DUMP
+	const char *token_string = Token_Kind_strings[cursor->current.kind];
+	String8 text = Token_Cursor__text(cursor);
+	printf("token: %10s   content: %.*s\n", token_string, (int)text.count, text.data);
+#endif
 }

@@ -64,6 +64,7 @@ int main(int argc, char **argv)
 			"-I.",
 			"-I"SRC_FOLDER,
 			"-I/Users/birb/personal/c_layer/src",
+			"-DRAS_DEBUG_TOKEN_DUMP",
 			"-o", BUILD_FOLDER"ras",
 			SRC_FOLDER"ras_main.c");
 

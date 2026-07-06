@@ -90,7 +90,7 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
 	[Token_Kind__Tilde]             = "~",
 	[Token_Kind__Caret]             = "^",
 
-	[Token_Kind__Newline]           = "\n",
+	[Token_Kind__Newline]           = "<newline>",
 
 	[Token_Kind__Greater_2]         = ">>",
 	[Token_Kind__Greater_Equal]     = ">=",
@@ -115,11 +115,10 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
 
 	[Token_Kind__Percentage]        = "%",
 
-	[Token_Kind__String]    = "string",
+	[Token_Kind__String]            = "string",
 
 	[Token_Kind__Identifier]        = "identifier",
 	[Token_Kind__Number]            = "number",
 };
 
 #endif // CORE_TOKEN_H
-

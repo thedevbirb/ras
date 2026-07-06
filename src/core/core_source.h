@@ -47,5 +47,19 @@ struct Source
 	U32 origin_offset_logical;
 };
 
+internal String8
+Source__text_at(Source *source, U32 location, U32 size)
+{
+	String8 result = {0};
+	U32 location_valid = source->start_offset_logical <= location;
+	if (location_valid)
+	{
+		U32 index = location - source->start_offset_logical;
+		result.count = min_m(size, source->count);
+		result.data  = &source->data[index];
+	}
+	return result;
+}
+
 #endif // CORE_SOURCE_H
 

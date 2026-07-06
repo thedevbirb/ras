@@ -126,10 +126,61 @@ expression_parse
 		{
 		case Token_Kind__Number:
 		{
-			frame->node->kind          = Expression_Kind__Constant;
-			frame->node->evaluation    = Expression_Kind__Constant;
-			frame->node->integer_value = cursor->current.numerical_value;
-			frame->node->location      = cursor->current.location;
+			Token   peek      = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+			String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
+
+			B32 identifier_is    = peek.kind == Token_Kind__Identifier;
+			B32 single_letter_is = identifier_is && (peek_text.count == 1);
+			B32 forward          = single_letter_is && peek_text.data[0] == 'f';
+			B32 backward         = single_letter_is && peek_text.data[0] == 'b';
+			Symbol_Ref *label    = 0;
+
+			// These two paths can probably collapse.
+			if (backward)
+			{
+				U32            number        = U32_cast_safe(cursor->current.numerical_value);
+				Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
+				String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
+				               label         = Symbols_Table__get_or_default(symbols_table, label_name);
+
+				if (!label->elf.section_index)
+				{
+					Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+					diagnostic->message    = String8__literal("backward label reference not found");
+					diagnostic->location   = cursor->current.location;
+					diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
+					SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+				}
+			}
+
+			if (forward)
+			{
+				// Create it
+				U32            number        = U32_cast_safe(cursor->current.numerical_value);
+				Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
+				               label_numeric->instances += 1;
+				String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
+				               label         = Symbols_Table__get_or_default(symbols_table, label_name);
+
+				assert_always_m(label->elf.section_index == 0);
+			}
+
+			if (label)
+			{
+				frame->node->kind       = Expression_Kind__Symbol;
+				frame->node->evaluation = Expression_Kind__Symbol;
+				frame->node->symbol     = label;
+				// Skip the letter
+				token_next(cursor, diagnostics, arena);
+			}
+			else
+			{
+				frame->node->kind       = Expression_Kind__Constant;
+				frame->node->evaluation = Expression_Kind__Constant;
+				frame->node->integer_value    = cursor->current.numerical_value;
+			}
+
+			frame->node->location         = cursor->current.location;
 			frame->null_denotation_parsed = 1;
 
 			token_next(cursor, diagnostics, arena);
@@ -139,9 +190,18 @@ expression_parse
 		{
 			String8 name = Token_Cursor__text(cursor);
 			B32 dot = name.count == 1 && name.data[0] == '.';
-			Symbol_Ref *symbol = dot
-				? Symbols_Table__dot_snapshot(symbols_table, section)
-				: Symbols_Table__get_or_default(symbols_table, name);
+
+			Symbol_Ref *symbol = 0;
+			if (dot)
+			{
+				Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
+				Symbol_Ref__update_section(&dot_trie->symbol, section);
+				symbol = Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
+			}
+			else
+			{
+				symbol = Symbols_Table__get_or_default(symbols_table, name);
+			}
 
 			symbol->flags |= Symbol_Flags__Used;
 
@@ -1106,6 +1166,9 @@ RISCV_instruction_pseudo_append
 
 // Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
 // created if missing.
+//
+// TODO: should I just set the binding or in case of a promotion should I "delete" the other symbol and create a new
+// one? This
 internal void
 binding_set
 (
@@ -1214,6 +1277,40 @@ statement_read
 		{
 			token_next(cursor, diagnostics, arena);
 			empty_line = 1;
+		} break;
+		case Token_Kind__Number:
+		{
+			Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+
+			// Should be a numeric label definition, e.g. 1:
+			U32 number = U32_cast_safe(cursor->current.numerical_value);
+			token_next(cursor, diagnostics, arena);
+			B32 label_definition = cursor->current.kind == Token_Kind__Colon;
+			if (!label_definition)
+			{
+				Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+				diagnostic->message    = String8__literal("expected ':' for numeric label declaration");
+				diagnostic->location   = cursor->current.location;
+				diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+				SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+			}
+
+			Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
+			String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
+			Symbol_Ref    *label         = Symbols_Table__get(symbols_table, label_name);
+
+			B32 missing_or_already_declared = !label || label->elf.section_index != 0;
+			if (missing_or_already_declared)
+			{
+				label_numeric->instances += 1;
+				String8 label_name_new = label_numeric_string(scratch.arena, *label_numeric);
+				label = Symbols_Table__create(symbols_table, label_name_new);
+			}
+			Symbol_Ref__update_section(label, section);
+
+			Arena__scratch_end_m(scratch);
+			token_next(cursor, diagnostics, arena);
+
 		} break;
 		// Instructions, directives and label start with an identifier. We have to discriminate further.
 		case Token_Kind__Identifier:

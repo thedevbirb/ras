@@ -105,12 +105,40 @@ struct Symbols_Trie_Chunk_List
 	Symbols_Trie_Chunk *last;
 };
 
+typedef struct Label_Numeric Label_Numeric;
+struct Label_Numeric
+{
+	U32 number;
+	U32 instances;
+};
+
+typedef struct Label_Numeric_Chunk Label_Numeric_Chunk;
+struct Label_Numeric_Chunk
+{
+	Label_Numeric_Chunk *next;
+	Label_Numeric *nodes;
+	U64 count;
+	U64 capacity;
+};
+
+typedef struct Label_Numeric_Chunk_List Label_Numeric_Chunk_List;
+struct Label_Numeric_Chunk_List
+{
+	U64 count;
+	Label_Numeric_Chunk *first;
+	Label_Numeric_Chunk *last;
+};
+
+#define Label_Numeric_Chunk__capacity_default 4096
+
 typedef struct Symbols_Table Symbols_Table;
 struct Symbols_Table
 {
-	Arena        *arena;
-	Symbols_Trie *root;
-	Symbols_Trie_Chunk_List *chunks;
+	// A dedicated arena for every data, including symbols names, that are saved here.
+	Arena                    *arena;
+	Symbols_Trie             *root;
+	Symbols_Trie_Chunk_List  *chunks;
+	Label_Numeric_Chunk_List *chunks_label;
 };
 
 

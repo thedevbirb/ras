@@ -797,3 +797,28 @@ Sun Jul  5 18:42:15 CEST 2026
 
 The dot symbol clones should be saved in the same arenas, however by not setting an hash for it we
 make it virtually non-existent.
+
+Mon Jul  6 09:18:34 CEST 2026
+
+Now it's time to re-add support for local numeric labels. There is some accounting to be done to
+track the number of instances created. Moreover, GNU as doesn't impose limits on how high the
+numeric label is, so 9999b is perfectly fine for example. It is implemented as a two arrays: one
+tracks the index in which a numeric label appears and is linearly scanned, and after getting the
+index we read the second array containing the number of instances.
+These arrays are dynamically resized as needed. A small optimization done is that the first ten
+numeric labels (0..9) are guaranteed to be the in the first ten entries of the array to ensure quick
+lookup.
+
+Following GNU as, I should treat all numbers inside expressions as unsigned unless a specific
+negation sign is prefixed. I like the idea, I should then check what implications does it have when
+you're close to evaluation.
+
+TODO is also dealing with recursive definitions.
+
+It's very hard to design good APIs, because it's a tradeoff between composability and how many
+details you want to expose to the caller. For example, when creating a local numeric label, it
+should be set right away with the current section value. Should the function then take a `Section`
+as parameter or not? I know that I'm the main consumer of this code, but one of the goals of this
+assembler is to not be a nightmare to use as library code, or at least provide a decent starting
+point.
+Actually, straightforward composability wins.
