@@ -2,6 +2,8 @@
 #define CORE_INCLUDE_H
 
 // Core primitives of the codebase. Depends only on `base`.
+// Ideally this contains backend-agnostic logic-only, in practice this is a best effort.
+// While there aren't strict dependencies on RISCV-related logic, there is dependency on ELF contents.
 
 #include "core_initialize.h"
 #include "core_token.h"

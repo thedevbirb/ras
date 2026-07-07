@@ -1,5 +1,5 @@
-#ifndef LANGUAGE_REGISTER_H
-#define LANGUAGE_REGISTER_H
+#ifndef RISCV_REGISTER_H
+#define RISCV_REGISTER_H
 
 typedef struct Register Register;
 struct Register
@@ -50,5 +50,5 @@ static const Register register_map[] =
 U8
 register_lookup(String8 string);
 
-#endif // LANGUAGE_REGISTER_H
+#endif // RISCV_REGISTER_H
 

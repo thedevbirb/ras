@@ -150,14 +150,6 @@ Fragment_List__variable
         return data;
 }
 
-// NOTE:
-//
-// 1. It's fine if `size` is passed as zero if it cannot be decided immediately, e.g. `.zero label2-label1`. However,
-// make sure you create an appropriate fixup.
-//
-// TODO: this implementation is completely wrong given the repeat expression will be evaluated during relaxation.
-//
-
 // Seal the current fragment with a fill pattern.
 internal void
 Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat_expression_index, S64 pattern, U8 size)

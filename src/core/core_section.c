@@ -196,3 +196,68 @@ Sections_Table__add_common(Sections_Table *sections_table)
 //
 //      return *trie_current;
 // }
+
+internal void
+Section__add_instruction_relaxed
+(
+        Section *section,
+        U32      encoding,
+        U8       encoding_size,
+        U32      location,
+        U8       worst_case_size,
+        U8       best_case_size,
+        U32      expression_index,
+        U32      subtype
+)
+{
+        U8 *data = Fragment_List__variable
+        (
+                &section->fragment_list,
+                section->arena,
+                location,
+                worst_case_size,
+                best_case_size,
+                expression_index,
+                subtype,
+                Relax_State__Machine
+        );
+
+        memory_copy(data, (U8 *)&encoding, encoding_size);
+        return;
+}
+
+// Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
+// track the information of where this instruction has been placed.
+internal void
+Section__add_instruction_fixed
+(
+        Section *section,
+        Fixup   *fixup,
+
+        U32      encoding,
+        U8       encoding_size,
+        U32      location
+)
+{
+        U8 *data = Fragment_List__fixed
+        (
+                 &section->fragment_list,
+                 section->arena,
+                 location,
+                 encoding_size
+        );
+
+        // Track its precise location within the fragment. Important to do it _after_ we've written it
+        // since it might have landed into another fragment because of low capacity of the previous.
+        if (fixup)
+        {
+                Fragment *last = section->fragment_list.last;
+                U32 encoding_offset = last->size_fixed - encoding_size;
+
+                fixup->fragment        = last;
+                fixup->encoding_offset = encoding_offset;
+        }
+
+        memory_copy(data, (U8 *)&encoding, encoding_size);
+        return;
+}

@@ -1,7 +1,17 @@
 // TODO: this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
-//
 
 #define shift_right_mask_m(x, shift, bits)  (((x) >> (shift)) & ((1 << (bits)) - 1))
+
+internal String8
+String8__skip_chop(String8 token_string)
+{
+
+        String8 result = {0};
+        result = String8__skip(token_string, 1);
+        result = String8__chop(result, 1);
+        return result;
+}
+
 
 // Panics on failure. Overallocates by 8 bytes to allow not checking always bounds.
 internal U8 *

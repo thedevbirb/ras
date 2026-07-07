@@ -850,3 +850,12 @@ code, it's not like I'm using indexes everywhere. Even inside `Expression_Node` 
 left/right pointers for the symbols. I would still allocate them in a separate arena, so I would
 need to carry around it to create new symbols. However, traversal would be free of it.
 Not high priority, but a thought.
+
+Detecting symbol recursive definitions should probably be done at a later stage of evaluation. For
+example, in GNU as, the following doesn't loop:
+```asm
+.set foo, bar
+.set bar, foo
+.set foo, 5
+.set bar, 5
+```

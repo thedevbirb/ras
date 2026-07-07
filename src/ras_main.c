@@ -8,9 +8,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-// TODO(medium): move this into appropriate place.
-#define label_numeric_max 10
-
 #include <base/base_include.h>
 
 #include <generated/instruction_hashes.h>
@@ -18,16 +15,16 @@
 #include "object/object_include.h"
 
 #include "core/core_include.h"
-#include "language/language_include.h"
 #include "lexer.h"
-#include "parser/parser_core.h"
+#include "riscv/riscv_include.h"
+#include "parser/parser_include.h"
 
 #include <base/base_include.c>
 
 #include "core/core_include.c"
 #include "lexer.c"
-#include "language/language_include.c"
-#include "parser/parser_core.c"
+#include "riscv/riscv_include.c"
+#include "parser/parser_include.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);

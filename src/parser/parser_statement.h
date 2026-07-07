@@ -1,5 +1,5 @@
-#ifndef PARSER_CORE_H
-#define PARSER_CORE_H
+#ifndef PARSER_STATEMENT_H
+#define PARSER_STATEMENT_H
 
 typedef enum Parser_Error_Kind
 {
@@ -94,4 +94,4 @@ global const String8 Parser_Error_Kind_messages[Parser_Error_Kind__COUNT] =
         [Parser_Error_Kind__Relocation_Operator_Multiple]            = String8__literal("multiple relocation operators in the same statement is invalid"),
 };
 
-#endif // PARSER_CORE_H
+#endif // PARSER_STATEMENT_H

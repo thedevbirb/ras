@@ -1,7 +1,25 @@
 #ifndef LEXER_H
 #define LEXER_H
 
-global const U8 escape_valid_table[256];
+global const U8 escape_valid_table[256] =
+{
+        ['a']  = 1,  // bell
+        ['b']  = 1,  // backspace
+        ['t']  = 1,  // tab
+        ['n']  = 1,  // newline
+        ['v']  = 1,  // vertical tab
+        ['f']  = 1,  // form feed
+        ['r']  = 1,  // carriage return
+        ['e']  = 1,  // escape
+        ['\\'] = 1,  // backslash
+        ['\''] = 1,  // single quote
+        ['"']  = 1,  // double quote
+        ['0']  = 1,  // null or octal begin
+        ['1']  = 1,  // octal begin
+        ['2']  = 1,  // octal begin
+        ['3']  = 1,  // octal begin
+        ['x']  = 1,  // hex begin
+};
 
 typedef enum Lexing_Error_Kind
 {
@@ -45,24 +63,6 @@ global const String8 lexer_error_kind_messages[Lexer_Error_Kind__COUNT] =
         [Lexer_Error_Kind__Character_Unexpected]                    = String8__literal("unexpected character"),
 };
 
-typedef struct Token Token;
-struct Token
-{
-        U64         numerical_value; // No float support yet.
-        U32         location;
-        U32         index;
-
-        U32         size;
-        Token_Kind  kind;
-};
-
-internal Range1_U32
-Token__range(Token token)
-{
-        Range1_U32 result = {{ token.location, token.location + token.size }};
-        return result;
-}
-
 typedef struct Token_Cursor Token_Cursor;
 struct Token_Cursor
 {
@@ -74,27 +74,12 @@ struct Token_Cursor
         U32   source_index;
 };
 
-internal String8
-Token_Cursor__text(Token_Cursor *cursor)
-{
-        String8 result =
-        {
-                .data  = &cursor->source->data[cursor->current.index],
-                .count =  cursor->current.size
-        };
-        return result;
-}
+internal String8 Token_Cursor__text(Token_Cursor *);
 
-// Remove quotes.
-internal String8
-String8__skip_chop(String8 token_string)
-{
+internal Token lex_at(const Source *, U32 index_current, Diagnostic_List *, Arena *);
 
-        String8 result = {0};
-        result = String8__skip(token_string, 1);
-        result = String8__chop(result, 1);
-        return result;
-}
+internal Token token_peek(const Token_Cursor *, Diagnostic_List *, Arena *);
+internal void  token_next(      Token_Cursor *, Diagnostic_List *, Arena *);
 
 #endif // LEXER_H
 

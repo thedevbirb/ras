@@ -1,3 +1,13 @@
+#ifndef RISCV_RELOCATION_H
+#define RISCV_RELOCATION_H
+
+typedef struct Relocation_Operator Relocation_Operator;
+struct Relocation_Operator
+{
+        String8 text;
+        Relocation_RISC_V relocation;
+};
+
 global const String8 Relocation_RISC_V_operator_strings[Relocation_RISC_V__COUNT] =
 {
         [Relocation_RISC_V__High_20]                                    = String8__literal("hi"),
@@ -48,7 +58,4 @@ global const struct Relocation_Operator Relocation_Operator__relax_only[] =
         {String8__literal("tprel_add"),    Relocation_RISC_V__Thread_Pointer_Relative_Add},
 };
 
-global const struct Relocation_Operator Relocation_Operator__null[] =
-{
-        {String8__literal(""), 0}
-};
+#endif // RISCV_RELOCATION_H

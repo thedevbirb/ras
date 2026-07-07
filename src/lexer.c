@@ -1,23 +1,3 @@
-global const U8 escape_valid_table[256] =
-{
-        ['a']  = 1,  // bell
-        ['b']  = 1,  // backspace
-        ['t']  = 1,  // tab
-        ['n']  = 1,  // newline
-        ['v']  = 1,  // vertical tab
-        ['f']  = 1,  // form feed
-        ['r']  = 1,  // carriage return
-        ['e']  = 1,  // escape
-        ['\\'] = 1,  // backslash
-        ['\''] = 1,  // single quote
-        ['"']  = 1,  // double quote
-        ['0']  = 1,  // null or octal begin
-        ['1']  = 1,  // octal begin
-        ['2']  = 1,  // octal begin
-        ['3']  = 1,  // octal begin
-        ['x']  = 1,  // hex begin
-};
-
 internal B32
 LE_U8_identifier_start_is(U8 character)
 {
@@ -39,6 +19,17 @@ LE_U8_number_character_is(U8 character)
         return result;
 }
 
+internal String8
+Token_Cursor__text(Token_Cursor *cursor)
+{
+        String8 result =
+        {
+                .data  = &cursor->source->data[cursor->current.index],
+                .count =  cursor->current.size
+        };
+        return result;
+}
+
 // INVARIANT
 //
 // Assumes extra 8 bytes of zero after source->count.
@@ -48,9 +39,9 @@ LE_U8_number_character_is(U8 character)
 //
 // TODO: make this function signature the same as token_next, and create a more explicit inner version that just "reads"
 internal Token
-token_peek
+lex_at
 (
-        Source          *source,
+        const Source    *source,
         U32              index_current,
         Diagnostic_List *diagnostics,
         Arena           *arena
@@ -519,6 +510,18 @@ token_peek
         return token;
 }
 
+internal Token
+token_peek
+(
+        const Token_Cursor    *cursor,
+        Diagnostic_List *diagnostics,
+        Arena           *arena
+)
+{
+        Token result = lex_at(cursor->source, cursor->source_index, diagnostics, arena);
+        return result;
+}
+
 // TODO: maybe return the token AND update the cursor?
 internal void
 token_next
@@ -529,7 +532,7 @@ token_next
 )
 {
         cursor->previous = cursor->current;
-        cursor->current  = token_peek(cursor->source, cursor->source_index, diagnostics, arena);
+        cursor->current  = token_peek(cursor, diagnostics, arena);
         if (cursor->current.kind != Token_Kind__None)
         {
                 cursor->source_index = cursor->current.index + cursor->current.size;

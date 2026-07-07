@@ -168,4 +168,28 @@ Sections_Table__default(void);
 internal void
 Sections_Table__add_common(Sections_Table *);
 
+internal void
+Section__add_instruction_relaxed
+(
+        Section *section,
+        U32      encoding,
+        U8       encoding_size,
+        U32      location,
+        U8       worst_case_size,
+        U8       best_case_size,
+        U32      expression_index,
+        U32      subtype
+);
+
+internal void
+Section__add_instruction_fixed
+(
+        Section *section,
+        Fixup   *fixup,
+
+        U32      encoding,
+        U8       encoding_size,
+        U32      location
+);
+
 #endif // CORE_SECTION_H

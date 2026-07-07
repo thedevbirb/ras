@@ -49,14 +49,7 @@ typedef enum Token_Kind
         Token_Kind__Ampersand_2,
         Token_Kind__Ampersand,
 
-        // Token_Kind__Relocation_Prefix, // %
         Token_Kind__Percentage,
-
-        // Token_Kind__Label,
-        // Token_Kind__Label_Numeric,                    // e.g. 1:
-        // Token_Kind__Label_Numeric_Reference_Forward,  // e.g. 1f
-        // Token_Kind__Label_Numeric_Reference_Backward, // e.g. 1b
-        // Token_Kind__Directive,
 
         Token_Kind__String,
 
@@ -120,5 +113,19 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
         [Token_Kind__Identifier]        = "identifier",
         [Token_Kind__Number]            = "number",
 };
+
+typedef struct Token Token;
+struct Token
+{
+        U64         numerical_value; // No float support yet.
+        U32         location;
+        U32         index;
+
+        U32         size;
+        Token_Kind  kind;
+};
+
+internal Range1_U32
+Token__range(Token token);
 
 #endif // CORE_TOKEN_H

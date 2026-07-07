@@ -29,6 +29,7 @@ Initialize_hex_table(void)
         return;
 }
 
+// TODO: this doesn't need an initializer.
 internal void
 Initialize_numeric_suffix_table(void)
 {

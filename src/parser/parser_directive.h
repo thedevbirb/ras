@@ -1,5 +1,5 @@
-#ifndef LANGUAGE_DIRECTIVE_H
-#define LANGUAGE_DIRECTIVE_H
+#ifndef PARSER_DIRECTIVE_H
+#define PARSER_DIRECTIVE_H
 
 typedef enum Directive_Kind
 {
@@ -70,5 +70,39 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
 Directive_Kind
 Directive_Kind__from_String8(String8 source);
 
-#endif // LANGUAGE_DIRECTIVE_H
 
+typedef enum Set_Mode
+{
+        // Used in `.set/.equ`.
+	Set_Mode__Override = 0,
+        // Used in `.eqv`.
+	Set_Mode__Strict_Forward,
+        // Used in `.equiv`.
+	Set_Mode__Strict,
+}
+Set_Mode;
+
+internal void
+binding_set
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Symbols_Table           *symbols_table,
+        ELF_Symbol_Binding       binding
+);
+
+internal void
+directive_set_like
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section,
+        Sections_Table          *section_table,
+        Set_Mode                 mode
+);
+
+#endif // PARSER_DIRECTIVE_H
