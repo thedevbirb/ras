@@ -89,7 +89,7 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbo
         return *trie_current;
 }
 
-// Always create a new symbol, by overriding a current definition if exist, without dropping it.
+// Always create a new symbol, by marking a current definition as `Redefined` if it exist, without dropping it.
 internal Symbols_Trie *
 symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, U64 hash, String8 name)
 {
@@ -254,30 +254,29 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
         return;
 }
 
-internal Symbol_Ref *
-Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, String8 name)
+internal Symbols_Trie *
+Symbols_Table__create_trie(Symbols_Table *symbols_table, String8 name)
 {
-        Symbols_Trie *clone = symbols_trie_chunk_list_push(symbols_table->arena, symbols_table->chunks, Symbols_Trie_Chunk__capacity_default);
-        clone->name   = String8__duplicate(symbols_table->arena, name);
-        clone->symbol = *symbol;
-        return &clone->symbol;
+        U64 hash = FNV_hash_U64(name);
+        // Symbols_Trie *last = Symbols_Table__last(symbols_table);
+        Symbols_Trie *result = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
+        return result;
 }
 
 internal Symbol_Ref *
 Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
 {
-        U64 hash = FNV_hash_U64(name);
-        // Symbols_Trie *last = Symbols_Table__last(symbols_table);
-        Symbols_Trie *node = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
-        // ELF-SPECIFIC: Update string table offset field.
-        // if (node->symbol.elf.string_table_offset == 0)
-        // {
-        //      if (last)
-        //      {
-        //              node->symbol.elf.string_table_offset = last->symbol.elf.string_table_offset + last->name.count;
-        //      }
-        // }
+        Symbols_Trie *node = Symbols_Table__create_trie(symbols_table, name);
         return &node->symbol;
+}
+
+internal Symbol_Ref *
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, String8 name)
+{
+        Symbols_Trie *clone = Symbols_Table__create_trie(symbols_table, name);
+        clone->name   = String8__duplicate(symbols_table->arena, name);
+        clone->symbol = *symbol;
+        return &clone->symbol;
 }
 
 internal Label_Numeric *

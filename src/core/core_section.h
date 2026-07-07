@@ -113,6 +113,7 @@ struct Section
         U32            index;
         U32            flags;
         U32            type;
+        U32            location;
         // TODO: unsupported yet.
         U8             alignment;
 

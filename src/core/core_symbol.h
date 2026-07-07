@@ -50,10 +50,14 @@ typedef enum Symbol_Flags
         // Whether the symbol has been declared using a label or directive.
         Symbol_Flags__Declared                   = 1 << 10,
 
-        Symbol_Flags__Dot                        = 1 << 11,
-
-        // Whether this symbol has been replaced with another `.set` directive, and as such it should NOT be written in
-        // the object file, but should be kept because some fixups depends on it.
+        // Whether the volatile symbol has been actually redefined, and as such it should NOT be written in the object
+        // file, but should be kept because something depends on it.
+        //
+        // NOTE: GNU as doesn't need this flag because symbols are stored in a doubly linked list and previous version
+        // of a symbol are simply removed from it. In our case, symbols are stored in a chunk list, so we need some data
+        // to explicitly skip them.
+        //
+        // TODO: it may be that calling this flag `Skip` is generic enough for multiple usecases.
         Symbol_Flags__Redefined                   = 1 << 12,
 }
 Symbol_Flags;
@@ -65,7 +69,8 @@ struct Symbol_Ref
         ELF64_Symbol  elf;
         // Where the symbol has been declared.
         U32 location;
-        // The index of the expression which defines its value, if known.
+        // The index of the expression which defines its value, if known. This will be non-zero
+        // on symbol definition using `.set`-like directives.
         U32 expression_index;
         Symbol_Flags flags;
 };

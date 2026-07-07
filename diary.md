@@ -822,3 +822,31 @@ as parameter or not? I know that I'm the main consumer of this code, but one of 
 assembler is to not be a nightmare to use as library code, or at least provide a decent starting
 point.
 Actually, straightforward composability wins.
+
+Jotting down some ideas regarding lexer utilities. In general I'd like to support moving the cursor
+back and forth, but some care must be taken to ensure consistency with the "previous" token.
+1. Jump back to previous token, explicitly provided -> take a "previous" as input, set it, call advance to set current.
+2. Track the latest EOS (newline, semicolon) found; when gargabe is found you jump back to that so
+   you start the next line properly.
+In general the `previous` field is used rarely in a token cursor, I could drop it for simplicity and
+let call sites handle it explicitly.
+
+Ok next in priority is probably a robust handling of the various .equ directives because there is a
+lot to learn there, especially due to the relationship between symbols and expressions and deferring
+evaluation.
+
+Tue Jul  7 08:57:27 CEST 2026
+
+In GNU as, the .eqv directory completely defers even the dot valuation, so when is met instead of
+taking a snapshot of it, the global dot symbol is used instead.
+
+I've to add an `expression_index` field to a symbol, in case a symbol is defined as an expression via
+`.set`-like directives. I'm still not sure whether using those indexes instead of pointers has been
+a good idea or not.
+An `expression_index` results in a smaller `Expression_Node` size, however I need to carry around
+the expressions xar everywhere, while with pointers I'd mainly need the root and I can traverse
+left-hand side and right-hand size freely. Pointers are already very pervasive in the rest of the
+code, it's not like I'm using indexes everywhere. Even inside `Expression_Node` itself I have
+left/right pointers for the symbols. I would still allocate them in a separate arena, so I would
+need to carry around it to create new symbols. However, traversal would be free of it.
+Not high priority, but a thought.

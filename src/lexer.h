@@ -56,6 +56,13 @@ struct Token
         Token_Kind  kind;
 };
 
+internal Range1_U32
+Token__range(Token token)
+{
+        Range1_U32 result = {{ token.location, token.location + token.size }};
+        return result;
+}
+
 typedef struct Token_Cursor Token_Cursor;
 struct Token_Cursor
 {

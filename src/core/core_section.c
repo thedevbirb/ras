@@ -116,7 +116,7 @@ Sections_Table__get(Sections_Table *sections_table, String8 name)
 // 2. Set the section index field.
 // 3. Add an empty fragment to it.
 internal Section *
-Sections_Table__get_or_default(Sections_Table *sections_table, String8 name)
+Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32 location)
 {
         U64 hash = FNV_hash_U64(name);
         Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, sections_table->chunks, hash, name);
@@ -127,9 +127,10 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name)
                 Arena *arena = Arena__allocate_m();
                 trie->section = (Section)
                 {
-                        .arena = arena,
-                        .name  = name,
-                        .index = sections_table->index_next,
+                        .arena    = arena,
+                        .name     = name,
+                        .index    = sections_table->index_next,
+                        .location = location,
                 };
                 sections_table->index_next += 1;
                 Fragment *fragment = Arena__push_struct_m(arena, Fragment);
@@ -151,10 +152,10 @@ Sections_Table__add_common(Sections_Table *sections_table)
         String8 bss  = String8__literal(".bss");
 
         // TODO: modify flags etc.
-        Sections_Table__get_or_default(sections_table, nil);
-        Sections_Table__get_or_default(sections_table, text);
-        Sections_Table__get_or_default(sections_table, data);
-        Sections_Table__get_or_default(sections_table, bss);
+        Sections_Table__get_or_default(sections_table, nil,  0);
+        Sections_Table__get_or_default(sections_table, text, 0);
+        Sections_Table__get_or_default(sections_table, data, 0);
+        Sections_Table__get_or_default(sections_table, bss,  0);
 
         return;
 }

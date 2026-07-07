@@ -1,54 +1,5 @@
 // NOTE: most of this is riscv-backend exclusive, so it should move somewhere accordingly.
 
-
-// // Create a label string for the dot symbol, in the format `.D{index}`, where `index` is the current statement index.
-// //
-// // TODO(medium): this may not be needed, since every statements brings its own section offset.
-// internal String8
-// Parser_label_dot(Parser *parser)
-// {
-//      U32 statement_index = parser->statements->count;
-//      U32 digits_count = number_to_digits_count(statement_index);
-//      U64 string_characters_count  = digits_count + 2;
-//      String8 key =
-//      {
-//              // .D{statement_index}
-//              .data = Arena__push_array_m(parser->arena, U8, string_characters_count),
-//              .count = string_characters_count,
-//      };
-//
-//      key.data[0] = '.';
-//      key.data[1] = 'D';
-//      // TODO(low): I mean, snprintf is quite overkill for this.
-//      snprintf((char *)(key.data + 2), digits_count, "%d", statement_index);
-//
-//      return key;
-// }
-//
-// // Format: .L<number>^B<occurrences>, compliant to GNU as. ^B is 0x02.
-// internal String8
-// Parser_label_numeric_symbol_string(Parser *parser, U8 label_numeric)
-// {
-//      assert_always_m(label_numeric < label_numeric_max);
-//      U16 occurrences = parser->symbols_table->label_numeric_count[label_numeric];
-//      U32 digits_count = number_to_digits_count(occurrences);
-//      U8 string_characters_count = 4 + digits_count;
-//      String8 key =
-//      {
-//              .data = Arena__push_array_m(parser->arena, U8, string_characters_count),
-//              .count = string_characters_count,
-//      };
-//
-//      key.data[0] = '.';
-//      key.data[1] = '.';
-//      key.data[2] = '0' + label_numeric;
-//      key.data[3] = 0x02;
-//      // TODO(low): I mean, snprintf is quite overkill for this.
-//      snprintf((char *)(key.data + 4), digits_count, "%d", occurrences);
-//
-//      return key;
-// }
-
 // Macros for encoding relaxation state for RVC branches and far jumps.
 #define RELAX_BRANCH_ENCODE(uncond, rvc, length)        \
   ((U32)                                                \
@@ -61,17 +12,25 @@
 #define RELAX_BRANCH_RVC(i)    (((i) & 2) != 0)
 #define RELAX_BRANCH_UNCOND(i) (((i) & 1) != 0)
 
-// NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
-// common ground for it if it makes sense.
+typedef enum Expression_Flags
+{
+	Expression_Flags__None      = 0,
+        Expression_Flags__Defer_Dot = 1,
+	Expression_Flags__COUNT,
+}
+Expression_Flags;
+
+
 internal Expression_Node *
-expression_parse
+expression_parse_with_flags
 (
         Arena              *arena,
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Section            *section,
-        Diagnostic_List    *diagnostics
+        Diagnostic_List    *diagnostics,
+        Expression_Flags    flags
 )
 {
         // A stack of expression frames. Each sub-expression creates a frame associated to it.
@@ -136,14 +95,15 @@ expression_parse
                         Symbol_Ref *label    = 0;
 
                         // These two paths can probably collapse.
-                        if (backward)
+                        if (forward || backward)
                         {
                                 U32            number        = U32_cast_safe(cursor->current.numerical_value);
                                 Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
+                                               label_numeric->instances += (U32)forward;
                                 String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
                                                label         = Symbols_Table__get_or_default(symbols_table, label_name);
 
-                                if (!label->elf.section_index)
+                                if (backward && !label->elf.section_index)
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->message    = String8__literal("backward label reference not found");
@@ -151,22 +111,9 @@ expression_parse
                                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
-                        }
 
-                        if (forward)
-                        {
-                                // Create it
-                                U32            number        = U32_cast_safe(cursor->current.numerical_value);
-                                Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
-                                               label_numeric->instances += 1;
-                                String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                                               label         = Symbols_Table__get_or_default(symbols_table, label_name);
+                                assert_always_m(!forward || label->elf.section_index == 0);
 
-                                assert_always_m(label->elf.section_index == 0);
-                        }
-
-                        if (label)
-                        {
                                 frame->node->kind       = Expression_Kind__Symbol;
                                 frame->node->evaluation = Expression_Kind__Symbol;
                                 frame->node->symbol     = label;
@@ -196,7 +143,9 @@ expression_parse
                         {
                                 Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
                                 Symbol_Ref__update_section(&dot_trie->symbol, section);
-                                symbol = Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
+                                symbol = flags & Expression_Flags__Defer_Dot
+                                       ? &dot_trie->symbol
+                                       : Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
                         }
                         else
                         {
@@ -370,6 +319,36 @@ expression_parse
         Arena_Temporary__end(scratch);
         return result;
 }
+
+// NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
+// common ground for it if it makes sense.
+//
+// TODO: add a "defer" mode here or similar to not create a clone of the dot if found but rather keep a reference to the
+// global dot symbol, analogous to GNU as "expr_defer_incl_dot`. Needed for `.eqv` directive.
+internal Expression_Node *
+expression_parse
+(
+        Arena              *arena,
+        Token_Cursor       *cursor,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Section            *section,
+        Diagnostic_List    *diagnostics
+)
+{
+        Expression_Node *result = expression_parse_with_flags
+        (
+                arena,
+                cursor,
+                expressions,
+                symbols_table,
+                section,
+                diagnostics,
+                Expression_Flags__None
+        );
+        return result;
+}
+
 
 // NOTE: both LLVM and GNU as have a precise way of handle relocation operators. They must appear at the beginning of
 // the expression, and everything else is absorbed by it. Examples:
@@ -1226,6 +1205,133 @@ binding_set
         token_next(cursor, diagnostics, arena);
 }
 
+typedef enum Set_Mode
+{
+        // Used in `.set/.equ`.
+	Set_Mode__Override = 0,
+        // Used in `.eqv`.
+	Set_Mode__Strict_Forward,
+        // Used in `.equiv`.
+	Set_Mode__Strict,
+}
+Set_Mode;
+
+internal void
+directive_set_like
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section,
+        Sections_Table          *section_table,
+        Set_Mode                 mode
+)
+{
+        // TODO: check no conflicts with section names and register names. GNU as doesn't seem to error on using a
+        // register name like `sp` though, which I think can be quite confusing/error prone.
+
+        token_next(cursor, diagnostics, arena);
+        if (cursor->current.kind != Token_Kind__Identifier)
+        {
+                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                diagnostic->location = cursor->current.location;
+                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+        }
+
+        String8 name = Token_Cursor__text(cursor);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+
+        B32 already_defined_or_equated = symbol->elf.section_index || symbol->expression_index;
+        if (already_defined_or_equated)
+        {
+                B32 frozen = mode != Set_Mode__Override || !(symbol->flags & Symbol_Flags__Volatile);
+                if (frozen)
+                {
+                        {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->message    = String8__literal("symbol cannot be redefined");
+                        diagnostic->location   = cursor->current.location;
+                        diagnostic->ranges[0]  = Token__range(cursor->current);
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        }
+                        {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind       = Diagnostic_Kind__Note;
+                        diagnostic->message    = Diagnostic__previous_declaration_String8;
+                        diagnostic->location   = symbol->location;
+                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        }
+                }
+
+                symbol = Symbols_Table__clone(symbols_table, symbol, name);
+        }
+
+        Section *section_maybe = Sections_Table__get(section_table, name);
+        if (section_maybe)
+        {
+                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                diagnostic->message    = String8__literal("cannot create a symbol with the same name of a section");
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Token__range(cursor->current);
+                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+        }
+
+        symbol->location = cursor->current.location;
+        Expression_Flags expression_flags = 0;
+
+        if (mode == Set_Mode__Override)
+        {
+                symbol->flags |= Symbol_Flags__Volatile;
+        }
+        else if (mode == Set_Mode__Strict_Forward)
+        {
+                symbol->flags    |= Symbol_Flags__Forward_Reference;
+                expression_flags |= Expression_Flags__Defer_Dot;
+        }
+
+        token_next(cursor, diagnostics, arena);
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                token_next(cursor, diagnostics, arena);
+        }
+        else
+        {
+                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                diagnostic->location = cursor->current.location;
+                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+        }
+
+        Expression_Node *expression = expression_parse_with_flags
+        (
+                arena,
+                cursor,
+                expressions,
+                symbols_table,
+                section,
+                diagnostics,
+                expression_flags
+        );
+        symbol->expression_index = expression->index;
+
+        if (mode != Set_Mode__Strict_Forward)
+        {
+
+                S64 result = expression_evaluate(expressions, expression->index);
+                if (expression->evaluation == Expression_Kind__Constant)
+                {
+                        symbol->elf.section_index = ELF_Section_Index__Absolute;
+                        symbol->elf.value         = result;
+                }
+        }
+
+        return;
+}
+
 internal void
 statement_read
 (
@@ -1309,7 +1415,11 @@ statement_read
                         Symbol_Ref__update_section(label, section);
 
                         Arena__scratch_end_m(scratch);
-                        token_next(cursor, diagnostics, arena);
+
+                        if (label_definition)
+                        {
+                                token_next(cursor, diagnostics, arena);
+                        }
 
                 } break;
                 // Instructions, directives and label start with an identifier. We have to discriminate further.
@@ -1531,7 +1641,7 @@ statement_read
                         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
                         token_next(cursor, diagnostics, arena);
                         String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
-                        Section *section_new = Sections_Table__get_or_default(sections_table, name);
+                        Section *section_new = Sections_Table__get_or_default(sections_table, name, cursor->current.location);
 
                         token_next(cursor, diagnostics, arena);
                         if (cursor->current.kind == Token_Kind__Comma)
@@ -1613,57 +1723,46 @@ statement_read
                 case Directive_Kind__Set: {} // fallthrough
                 case Directive_Kind__Equality:
                 {
-                        token_next(cursor, diagnostics, arena);
-                        // TODO: gas accepts also a string, in such case it is unquoted.
-                        if (cursor->current.kind != Token_Kind__Identifier && cursor->current.kind != Token_Kind__String)
-                        {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                diagnostic->location = cursor->current.location;
-                                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                        }
-
-                        String8 name = Token_Cursor__text(cursor);
-                        if (cursor->current.kind == Token_Kind__String)
-                        {
-                                name = String8__skip_chop(name);
-                        }
-                        Symbol_Ref *symbol = Symbols_Table__create(symbols_table, name);
-                        symbol->location = cursor->current.location;
-                        // TODO: not very clear whether all symbols come with volatile by default.
-                        // TODO: it might be that type and binding information is inherited.
-                        // Example:
-                        // ```asm
-                        // .global asdf
-                        // nop
-                        // .global asdf2
-                        // j asdf2-asdf
-                        // .set asdf, 5
-                        // ```
-                        symbol->flags |= Symbol_Flags__Volatile;
-                        symbol->elf.section_index = ELF_Section_Index__Absolute;
-
-                        token_next(cursor, diagnostics, arena);
-                        if (cursor->current.kind != Token_Kind__Comma)
-                        {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                diagnostic->location = cursor->current.location;
-                                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                        }
-                        Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                        symbol->expression_index = expression->index;
-
-                        S64 result = expression_evaluate(expressions, expression->index);
-                        if (expression->evaluation == Expression_Kind__Constant)
-                        {
-                                symbol->elf.section_index = ELF_Section_Index__Absolute;
-                                symbol->elf.value         = result;
-                        }
-
-                        // NOTE: a fixup needs to be created only when some data has to be written, here is not
-                        // necessary.
-                        token_next(cursor, diagnostics, arena);
+                        S32 mode = 0;
+                        directive_set_like
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                section,
+                                sections_table,
+                                mode
+                        );
+                } break;
+                case Directive_Kind__Equiv:
+                {
+                        directive_set_like
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                section,
+                                sections_table,
+                                Set_Mode__Strict
+                        );
+                } break;
+                case Directive_Kind__Eqv:
+                {
+                        directive_set_like
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                section,
+                                sections_table,
+                                Set_Mode__Strict_Forward
+                        );
                 } break;
                 case Directive_Kind__Zero:
                 {
