@@ -121,7 +121,7 @@ lex_at
                 {
                         token.kind = Token_Kind__Less;
                         index += 1;
-                        if (data[index] == '>')
+                        if (data[index] == '<')
                         {
                                 index += 1;
                                 token.kind = Token_Kind__Less_2;

@@ -4,51 +4,54 @@
 typedef struct Register Register;
 struct Register
 {
-    const char *name;
-    U8 number; // Bad padding but that's it.
+        String8 name;
+        U8 number;
 };
 
-#define register_tp 4
-
-static const Register register_map[] =
+typedef struct Register_List Register_List;
+struct Register_List
 {
-        {"x0",  0},  {"x1",  1},  {"x2",  2},  {"x3",  3},
-        {"x4",  4},  {"x5",  5},  {"x6",  6},  {"x7",  7},
-        {"x8",  8},  {"x9",  9},  {"x10", 10}, {"x11", 11},
-        {"x12", 12}, {"x13", 13}, {"x14", 14}, {"x15", 15},
-        {"x16", 16}, {"x17", 17}, {"x18", 18}, {"x19", 19},
-        {"x20", 20}, {"x21", 21}, {"x22", 22}, {"x23", 23},
-        {"x24", 24}, {"x25", 25}, {"x26", 26}, {"x27", 27},
-        {"x28", 28}, {"x29", 29}, {"x30", 30}, {"x31", 31},
-
-        {"zero", 0},
-        {"ra",   1},
-        {"sp",   2},
-        {"gp",   3},
-        {"tp",   4},
-        {"fp",   8},  // fp is alias for s0.
-
-        {"t0",  5},  {"t1",  6},  {"t2",  7},
-        {"t3", 28},  {"t4", 29},  {"t5", 30}, {"t6", 31},
-
-        {"s0",  8},  {"s1",  9},
-        {"s2", 18},  {"s3", 19},  {"s4", 20}, {"s5", 21},
-        {"s6", 22},  {"s7", 23},  {"s8", 24}, {"s9", 25},
-        {"s10", 26}, {"s11", 27},
-
-        {"a0", 10},  {"a1", 11},  {"a2", 12}, {"a3", 13},
-        {"a4", 14},  {"a5", 15},  {"a6", 16}, {"a7", 17},
-
-        // Extra buffer to avoid faults when doing length-based checks.
-        {"", 0xFF}
+        const Register *data;
+        U64 count;
 };
 
-#define register_map_size (sizeof(register_map) / sizeof(register_map[0])) - 1
-#define register_invalid 0xFF
+#define Register__invalid_number 0xFF
 
-// Returns 0xFF on not found.
-U8
-register_lookup(String8 string);
+global const Register Register__invalid = { .name = String8__literal(""), .number = Register__invalid_number };
+
+global const Register RISCV_registers[] =
+{
+        {String8__literal("x0"),   0}, {String8__literal("x1"),   1}, {String8__literal("x2"),   2}, {String8__literal("x3"),   3},
+        {String8__literal("x4"),   4}, {String8__literal("x5"),   5}, {String8__literal("x6"),   6}, {String8__literal("x7"),   7},
+        {String8__literal("x8"),   8}, {String8__literal("x9"),   9}, {String8__literal("x10"), 10}, {String8__literal("x11"), 11},
+        {String8__literal("x12"), 12}, {String8__literal("x13"), 13}, {String8__literal("x14"), 14}, {String8__literal("x15"), 15},
+        {String8__literal("x16"), 16}, {String8__literal("x17"), 17}, {String8__literal("x18"), 18}, {String8__literal("x19"), 19},
+        {String8__literal("x20"), 20}, {String8__literal("x21"), 21}, {String8__literal("x22"), 22}, {String8__literal("x23"), 23},
+        {String8__literal("x24"), 24}, {String8__literal("x25"), 25}, {String8__literal("x26"), 26}, {String8__literal("x27"), 27},
+        {String8__literal("x28"), 28}, {String8__literal("x29"), 29}, {String8__literal("x30"), 30}, {String8__literal("x31"), 31},
+
+        {String8__literal("zero"), 0},
+        {String8__literal("ra"),   1},
+        {String8__literal("sp"),   2},
+        {String8__literal("gp"),   3},
+        {String8__literal("tp"),   4},
+        {String8__literal("fp"),   8},  // fp is alias for s0.
+
+        {String8__literal("t0"),  5},  {String8__literal("t1"),  6},  {String8__literal("t2"),  7}, {String8__literal("t3"), 28},
+        {String8__literal("t4"), 29},  {String8__literal("t5"), 30},  {String8__literal("t6"), 31},
+
+        {String8__literal("s0"),  8},  {String8__literal("s1"),  9}, {String8__literal("s2"),  18},  {String8__literal("s3"),  19},
+        {String8__literal("s4"), 20},  {String8__literal("s5"), 21}, {String8__literal("s6"),  22},  {String8__literal("s7"),  23},
+        {String8__literal("s8"), 24},  {String8__literal("s9"), 25}, {String8__literal("s10"), 26},  {String8__literal("s11"), 27},
+
+        {String8__literal("a0"), 10},  {String8__literal("a1"), 11},  {String8__literal("a2"), 12}, {String8__literal("a3"), 13},
+        {String8__literal("a4"), 14},  {String8__literal("a5"), 15},  {String8__literal("a6"), 16}, {String8__literal("a7"), 17},
+};
+
+global const Register_List RISCV_register_list = { .data = RISCV_registers, .count = array_count_m(RISCV_registers) };
+
+internal Register
+Register_List__lookup(Register_List, String8);
 
 #endif // RISCV_REGISTER_H
 

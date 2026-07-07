@@ -35,16 +35,15 @@ expression_parse
 internal Expression_Node *
 expression_parse_with_relocation
 (
-        Arena               *arena,
-        Token_Cursor        *cursor,
-        Expressions         *expressions,
-        Symbols_Table       *symbols_table,
-        Section             *section,
-        Diagnostic_List     *diagnostics,
+        Arena                    *arena,
+        Token_Cursor             *cursor,
+        Expressions              *expressions,
+        Symbols_Table            *symbols_table,
+        Section                  *section,
+        Diagnostic_List          *diagnostics,
         // Machine-dependent
-        U16                 *relocation_out,
-        // Zero-terminated.
-        const Relocation_Operator *relocation_match
+        U16                      *relocation_out,
+        Relocation_Operator_List  relocation_match_list
 );
 
 #endif // PARSER_EXPRESSION_H

@@ -335,40 +335,42 @@ expression_parse
 internal Expression_Node *
 expression_parse_with_relocation
 (
-        Arena               *arena,
-        Token_Cursor        *cursor,
-        Expressions         *expressions,
-        Symbols_Table       *symbols_table,
-        Section             *section,
-        Diagnostic_List     *diagnostics,
+        Arena                    *arena,
+        Token_Cursor             *cursor,
+        Expressions              *expressions,
+        Symbols_Table            *symbols_table,
+        Section                  *section,
+        Diagnostic_List          *diagnostics,
         // Machine-dependent
-        U16                 *relocation_out,
-        // Zero-terminated.
-        const Relocation_Operator *relocation_match
+        U16                      *relocation_out,
+        Relocation_Operator_List  relocation_match_list
 )
 {
 
         if (cursor->current.kind == Token_Kind__Percentage)
         {
                 assert_always_m(relocation_out && "relocation_out should be set");
+                *relocation_out = 0;
 
                 // Parse relocation
                 token_next(cursor, diagnostics, arena);
                 String8 text = Token_Cursor__text(cursor);
 
-                B32 found = 0;
+                U64 index = 0;
                 for (;;)
                 {
-                        B32 break_should = found || !relocation_match->relocation;
+                        B32 break_should = *relocation_out || index >= relocation_match_list.count;
                         if (break_should)
                         {
                                 break;
                         }
-                        found = String8__match_exact(relocation_match->text, text);
-                        relocation_match += 1;
+                        Relocation_Operator operator = relocation_match_list.data[index];
+                        B32 found = String8__match_exact(operator.text, text);
+                        *relocation_out = found ? operator.relocation : 0;
+                        index += 1;
                 }
 
-                if (!found)
+                if (!(*relocation_out))
                 {
                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                         diagnostic->location   = cursor->current.location;
@@ -377,7 +379,6 @@ expression_parse_with_relocation
                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
 
-                *relocation_out = relocation_match->relocation;
                 token_next(cursor, diagnostics, arena);
         }
         Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);

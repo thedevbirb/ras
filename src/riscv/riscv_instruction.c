@@ -233,8 +233,9 @@ RISCV_Instruction__parse
                         case OP_Argument__RS2: {} // fallthrough
                         case OP_Argument__RS1:
                         {
-                                U8 reg = register_lookup(Token_Cursor__text(cursor));
-                                if (reg == register_invalid)
+                                String8 text = Token_Cursor__text(cursor);
+                                Register reg = Register_List__lookup(RISCV_register_list, text);
+                                if (reg.number == Register__invalid_number)
                                 {
                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                        diagnostic->location   = cursor->current.location;
@@ -245,10 +246,10 @@ RISCV_Instruction__parse
 
                                 switch (argument)
                                 {
-                                       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, reg); } break;
-                                       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, reg); } break;
-                                       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, reg); } break;
-                                       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, reg); } break;
+                                       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, reg.number); } break;
+                                       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, reg.number); } break;
+                                       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, reg.number); } break;
+                                       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, reg.number); } break;
                                 }
                                 token_next(cursor, diagnostics, arena);
                         } break;
@@ -313,7 +314,7 @@ RISCV_Instruction__parse
                         } // fallthrough;
                         case OP_Argument__Immediate_I:
                         {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator__itype);
+                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__itype);
                                 if (!*relocation_out)
                                 {
                                        if (expression->kind == Expression_Kind__Constant)
@@ -346,7 +347,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Immediate_U:
                         {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator__utype);
+                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__utype);
                                 if (!*relocation_out)
                                 {
                                        if (expression->kind == Expression_Kind__Constant)

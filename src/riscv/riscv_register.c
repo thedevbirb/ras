@@ -1,23 +1,22 @@
-U8
-register_lookup(String8 string)
+internal Register
+Register_List__lookup(Register_List register_list, String8 string)
 {
-        U8 register_value = register_invalid;
-        S8 index    = 0;
-        B32 found   = 0;
-        S32 result  = -1;
+        U64 index = 0;
+        B32 found = 0;
         for (;;)
         {
-                result = memory_match(string.data, (unsigned char *)register_map[index].name, string.count);
-                found = result == 0;
-                B32 break_should = index >= (S8)register_map_size || found;
+                B32 break_should = found || index >= register_list.count;
                 if (break_should)
                 {
+                        index -= (U64)found;
                         break;
                 }
+                found = String8__match_exact(register_list.data[index].name, string);
                 index += 1;
-
         }
-        register_value = found ? register_map[index].number : register_invalid;
 
-        return register_value;
+        assert_always_m(index < register_list.count);
+        Register result = found ? register_list.data[index] : Register__invalid;
+
+        return result;
 }

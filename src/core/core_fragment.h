@@ -166,7 +166,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 re
                 0,
                 Relax_State__Fill
         );
-        memory_copy(data, (U8 *)pattern, size);
+        memory_copy(data, (U8 *)&pattern, size);
         return;
 }
 
