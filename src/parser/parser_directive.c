@@ -202,3 +202,80 @@ directive_set_like
 
         return;
 }
+
+internal void
+directive_data
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section,
+        Fixups                  *fixups,
+        U8                       data_directive_size
+)
+{
+        // Format: .byte|half|word|dword <expr_1> , ..., <expr_n>.
+        //
+        // Advance to reach the first expression token.
+        token_next(cursor, diagnostics, arena);
+        U8 bit_size = data_directive_size * 8;
+        for (;;)
+        {
+                Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                // We explicitly convert it to an unsigned value since this is how it's treated as.
+                //
+                // TODO: not very clear behaviour when in case of signed overflow.
+                S64 result = expression_evaluate(expressions, expression->index);
+                U64 result_unsigned = (U64)result;
+
+                U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, data_directive_size);
+                if (expression->evaluation == Expression_Kind__Constant)
+                {
+                        B32 fits = bit_size == 64 ? 1 : (result_unsigned < ((U64)1 << (data_directive_size * 8)));
+                        memory_copy(data, (U8 *)&result_unsigned, data_directive_size);
+
+                        if (!fits)
+                        {
+                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                diagnostic->kind      = Diagnostic_Kind__Warning;
+                                diagnostic->location  = expression->location_range.v[0];
+                                diagnostic->message   = String8__literal("value too large, truncated");
+                                diagnostic->ranges[0] = expression->location_range;
+                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        }
+                }
+                else
+                {
+                        U32 encoding_offset = section->fragment_list.last->size_fixed - data_directive_size;
+
+                        Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+                        fixup->expression_index = expression->index;
+                        fixup->fragment         = section->fragment_list.last;
+                        fixup->encoding_offset  = encoding_offset;
+                        fixup->size             = data_directive_size;
+
+                        SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+                }
+
+                B32 break_should_directive =  cursor->source_index >= cursor->source->count
+                                           || cursor->current.kind == Token_Kind__Newline;
+                if (break_should_directive)
+                {
+                        break;
+                }
+
+                if (cursor->current.kind == Token_Kind__Comma)
+                {
+                        token_next(cursor, diagnostics, arena);
+                }
+                else
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->location = cursor->current.location;
+                        diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                }
+        }
+}

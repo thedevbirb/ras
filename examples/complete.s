@@ -6,7 +6,7 @@
 .local helper
 .local loop_body
 
-.option relax
+# .option relax
 
 .equ STACK_SIZE, 4 << 4
 .equ UART_BASE, 0x10000000
@@ -156,8 +156,8 @@ result_buf:
     .skip 32
 
 .section .bss
-.comm buffer, 64, 8
-.comm scratch, 256, 16
+# .comm buffer, 64, 8
+# .comm scratch, 256, 16
 
 stack:
     .skip 4096

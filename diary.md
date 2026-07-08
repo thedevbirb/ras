@@ -859,3 +859,16 @@ example, in GNU as, the following doesn't loop:
 .set foo, 5
 .set bar, 5
 ```
+
+Running with a more complete.s example shows a lot to do still, in terms of basic instruction
+support, error handling etc.
+
+Wed Jul  8 14:14:12 CEST 2026
+
+Sometimes the syntax of GNU as can be unexpected, again
+
+```asm
+li, t0, t1
+```
+
+This produces a relocation because t1 is treated as a symbol and not recognized as a register.

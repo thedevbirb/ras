@@ -9,9 +9,12 @@
 #define A_RD_RS1              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1)
 #define A_RD_RS1_RS2          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
 #define A_RD_RS1_IMM          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
+#define A_RD_RS1_SHIFT        OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount)
+#define A_RD_RS1_SHIFT5       OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount_5)
 
-#define A_RD_OFF_LP_RS1_RP    OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Load, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-#define A_OFF_LP_RS1_RP       OP_arguments_m(                                      OP_Argument__Offset_Load, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
+#define A_RD_OFF_S_LP_RS1_RP  OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Store, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
+#define A_RD_OFF_L_LP_RS1_RP  OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
+#define A_OFF_LP_RS1_RP       OP_arguments_m(                                      OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 
 #define A_RD_ADDRESS          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Address)
 #define A_RD_OFF              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_PC_Relative_20)
@@ -33,22 +36,27 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "auipc",  HASH_auipc,  0, RV_IC_I, A_RD_IMM_U,           MATCH_AUIPC,                             MASK_AUIPC,                          match_opcode,         0                              },
 { "lui",    HASH_lui,    0, RV_IC_I, A_RD_IMM_U,           MATCH_LUI,                               MASK_LUI,                            match_opcode,         0                              },
 
-{ "jal",    HASH_jal,    0, RV_IC_I, A_OFF_20,             MATCH_JAL|(X_RA << OP_SH_RD),            MASK_JAL|MASK_RD,                    match_opcode,         0                              },
+// NOTE: important here to go from more specific to less specific.
 { "jal",    HASH_jal,    0, RV_IC_I, A_RD_OFF,             MATCH_JAL,                               MASK_JAL,                            match_opcode,         0                              },
+{ "jal",    HASH_jal,    0, RV_IC_I, A_OFF_20,             MATCH_JAL|(X_RA << OP_SH_RD),            MASK_JAL|MASK_RD,                    match_opcode,         0                              },
 
 { "jalr",   HASH_jalr,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_JALR,                              MASK_JALR,                           match_opcode,         0                              },
 
-{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_OFF_LP_RS1_RP,   MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
 { "lb",     HASH_lb,     0, RV_IC_I, A_RD_RS1,             MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_OFF_LP_RS1_RP,   MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
 { "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_RS1,             MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_OFF_LP_RS1_RP,   MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
 { "lh",     HASH_lh,     0, RV_IC_I, A_RD_RS1,             MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_OFF_LP_RS1_RP,   MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
 { "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_RS1,             MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_LP_RS1_RP,   MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
+{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
 { "lw",     HASH_lw,     0, RV_IC_I, A_RD_RS1,             MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
 // TODO: add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
+
+{ "sw",     HASH_sw,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SW,                                MASK_SW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
+{ "sh",     HASH_sh,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SH,                                MASK_SH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "sb",     HASH_sb,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SB,                                MASK_SB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
 
 { "addi",   HASH_addi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDI,                              MASK_ADDI,                           match_opcode,         0                              },
 { "addiw",  HASH_addiw,  0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDIW,                             MASK_ADDIW,                          match_opcode,         0                              },
@@ -58,6 +66,12 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "ori",    HASH_ori,    0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ORI,                               MASK_ORI,                            match_opcode,         0                              },
 { "andi",   HASH_andi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ANDI,                              MASK_ANDI,                           match_opcode,         0                              },
 
+{ "slli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
+{ "srli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
+{ "srai",   HASH_srai,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SRAI,                              MASK_SRAI,                           match_opcode,         0                              },
+{ "slliw",  HASH_slliw,  0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SLLIW,                             MASK_SLLIW,                          match_opcode,         0                              },
+{ "srliw",  HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SRLIW,                             MASK_SRLIW,                          match_opcode,         0                              },
+{ "sraiw",  HASH_sraiw,  0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SRAIW,                             MASK_SRAIW,                          match_opcode,         0                              },
 
 { "add",    HASH_add,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_ADD,                               MASK_ADD,                            match_opcode,         0                              },
 { "sub",    HASH_sub,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SUB,                               MASK_SUB,                            match_opcode,         0                              },
@@ -82,6 +96,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_JSR            },
 { "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,      MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
 { "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM_I,          MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "ret",    HASH_ret,    0, RV_IC_I, A_NONE,               MATCH_JALR|(X_RA << OP_SH_RD),           MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
 
 { "call",   HASH_call,   0, RV_IC_I, A_CALL,               (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  M_CALL,                              0,                    INSN_MACRO                     },
 { "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,           MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
@@ -169,10 +184,11 @@ RISCV_Instruction__parse
 )
 {
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
-        const char *opcode_name = opcode->name;
+        String8 opcode_name = String8__from_cstring(opcode->name);
 
-        U32 location_begin = cursor->current.location;
+        Token opcode_token = cursor->current;
         token_next(cursor, diagnostics, arena);
+        Token_Cursor cursor_start = *cursor;
 
         Expression_Node *expression = 0;
         B32 match = 0;
@@ -180,8 +196,9 @@ RISCV_Instruction__parse
         // Iterate over opcode entries with the same name.
         for (;;)
         {
-                *instruction_out = RISCV_Instruction__create(opcode, location_begin);
+                *instruction_out = RISCV_Instruction__create(opcode, opcode_token.location);
                 OP_Argument *arguments = opcode->arguments;
+                B32 try_next = 0;
 
                 // Iterate over opcode arguments.
                 for (;;)
@@ -189,7 +206,7 @@ RISCV_Instruction__parse
                         OP_Argument argument = *arguments;
                         if (!argument)
                         {
-                                match = opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
+                                match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
                                 break;
                         }
 
@@ -213,7 +230,11 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Parenthesis_Left:
                         {
-                                if (cursor->current.kind != Token_Kind__Parenthesis_Left)
+                                if (cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                {
+                                        token_next(cursor, diagnostics, arena);
+                                }
+                                else
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->location   = cursor->current.location;
@@ -223,7 +244,11 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Parenthesis_Right:
                         {
-                                if (cursor->current.kind != Token_Kind__Parenthesis_Right)
+                                if (cursor->current.kind == Token_Kind__Parenthesis_Right)
+                                {
+                                        token_next(cursor, diagnostics, arena);
+                                }
+                                else
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->location   = cursor->current.location;
@@ -332,36 +357,82 @@ RISCV_Instruction__parse
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
+                        case OP_Argument__Offset_Store:
+                        {
+                                OP_Argument *next = arguments + 1;
+                                assert_always_m(next && "invalid operand list");
+
+                                if (*next == OP_Argument__Parenthesis_Left && cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                {
+                                       // Omitted immediate, e.g. sw t1, (t0)
+                                       arguments += 1;
+                                }
+                                else
+                                {
+                                        // TODO: this is mostly in common with OP_Argument__Immediate_I case.
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                        if (!*relocation_out)
+                                        {
+                                                expression_evaluate(expressions, expression->index);
+                                                // TODO: normalize constant expression? See GNU as.
+                                                B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                                if (expression->evaluation == Expression_Kind__Constant && fits)
+                                                {
+                                                        // TODO: GNU as does this at a later step, and by default emits a
+                                                        // relocation. Consider doing the same.
+                                                        U32 encoding_immediate = encode_immediate_s_m(expression->integer_value);
+                                                        instruction_out->encoding |= encoding_immediate;
+                                                }
+                                                else
+                                                {
+                                                        try_next = 1;
+                                                }
+                                        }
+                                }
+                        } break;
                         case OP_Argument__Offset_Load:
                         {
                                 OP_Argument *next = arguments + 1;
                                 assert_always_m(next && "invalid operand list");
 
-                                Token peek = token_peek(cursor, diagnostics, arena);
-                                if (*next == OP_Argument__Parenthesis_Left && peek.kind == Token_Kind__Parenthesis_Left)
+                                if (*next == OP_Argument__Parenthesis_Left && cursor->current.kind == Token_Kind__Parenthesis_Left)
                                 {
                                        // Omitted immediate, e.g. lw t1, (t0)
-                                       arguments += 2;
+                                       arguments += 1;
                                 }
-                        } // fallthrough;
+                                else
+                                {
+                                        // TODO: this is mostly in common with OP_Argument__Immediate_I case.
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                        if (!*relocation_out)
+                                        {
+                                                expression_evaluate(expressions, expression->index);
+                                                // TODO: normalize constant expression? See GNU as.
+                                                B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                                if (expression->evaluation == Expression_Kind__Constant && fits)
+                                                {
+                                                        // TODO: GNU as does this at a later step, and by default emits a
+                                                        // relocation. Consider doing the same.
+                                                        U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
+                                                        instruction_out->encoding |= encoding_immediate;
+                                                }
+                                                else
+                                                {
+                                                        try_next = 1;
+                                                }
+                                        }
+                                }
+                        } break;
                         case OP_Argument__Immediate_I:
                         {
                                 expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__itype);
                                 if (!*relocation_out)
                                 {
-                                       if (expression->kind == Expression_Kind__Constant)
+                                       expression_evaluate(expressions, expression->index);
+                                       // TODO: normalize constant expression? See GNU as.
+                                       B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                       if (expression->evaluation == Expression_Kind__Constant && fits)
                                        {
-                                               // TODO: normalize constant expression? See GNU as.
-                                               B32 fits = S64_bits_range_in(expression->integer_value, 12);
-                                               if (!fits)
-                                               {
-                                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                                       diagnostic->location   = expression->location_range.v[0];
-                                                       diagnostic->message    = String8__literal("constant expression value must fits in 12 bits");
-                                                       diagnostic->ranges[0]  = expression->location_range;
-                                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                               }
-
                                                // TODO: GNU as does this at a later step, and by default emits a
                                                // relocation. Consider doing the same.
                                                U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
@@ -369,11 +440,7 @@ RISCV_Instruction__parse
                                        }
                                        else
                                        {
-                                               Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                               diagnostic->location   = expression->location_range.v[0];
-                                               diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
-                                               diagnostic->ranges[0]  = expression->location_range;
-                                               SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                               try_next = 1;
                                        }
                                 }
                         } break;
@@ -382,39 +449,41 @@ RISCV_Instruction__parse
                                 expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__utype);
                                 if (!*relocation_out)
                                 {
-                                       if (expression->kind == Expression_Kind__Constant)
-                                       {
-                                               S64 result = expression->integer_value;
-                                               B32 fits = 0 <= result && result < (S64)(1 << 20);
-                                               if (!fits)
-                                               {
-                                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                                       diagnostic->location   = expression->location_range.v[0];
-                                                       diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
-                                                       diagnostic->ranges[0]  = expression->location_range;
-                                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                               }
+                                        expression_evaluate(expressions, expression->index);
+                                        if (expression->evaluation == Expression_Kind__Constant)
+                                        {
+                                                S64 result = expression->integer_value;
+                                                B32 fits = 0 <= result && result < (S64)(1 << 20);
+                                                if (!fits)
+                                                {
+                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        diagnostic->location   = expression->location_range.v[0];
+                                                        diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
+                                                        diagnostic->ranges[0]  = expression->location_range;
+                                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                                }
 
-                                               // TODO: GNU as does this at a later step, and by default emits a
-                                               // relocation. Consider doing the same.
-                                               U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
-                                               instruction_out->encoding |= encoding_immediate;
-                                       }
-                                       else
-                                       {
+                                                // TODO: GNU as does this at a later step, and by default emits a
+                                                // relocation. Consider doing the same.
+                                                U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
+                                                instruction_out->encoding |= encoding_immediate;
+                                        }
+                                        else
+                                        {
 
-                                               Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                               diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
-                                               diagnostic->location   = expression->location_range.v[0];
-                                               diagnostic->ranges[0]  = expression->location_range;
-                                               SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                       }
+                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
+                                                diagnostic->location   = expression->location_range.v[0];
+                                                diagnostic->ranges[0]  = expression->location_range;
+                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        }
                                 }
                         } break;
                         case OP_Argument__Immediate_Large:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                if (expression->kind != Expression_Kind__Constant)
+                                expression_evaluate(expressions, expression->index);
+                                if (expression->evaluation != Expression_Kind__Constant)
                                 {
                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                        diagnostic->message    = String8__literal("Constant expression expected");
@@ -422,6 +491,40 @@ RISCV_Instruction__parse
                                        diagnostic->ranges[0]  = expression->location_range;
                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
+                        } break;
+                        case OP_Argument__Shift_Amount:
+                        {
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression_evaluate(expressions, expression->index);
+                                S64 value = expression->integer_value;
+                                B32 fits = 0 <= value && value < XLEN;
+                                if (expression->evaluation != Expression_Kind__Constant || !fits)
+                                {
+                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                       diagnostic->location   = expression->location_range.v[0];
+                                       diagnostic->ranges[0]  = expression->location_range;
+                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                }
+
+	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+                        } break;
+                        case OP_Argument__Shift_Amount_5:
+                        {
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression_evaluate(expressions, expression->index);
+                                S64 value = expression->integer_value;
+                                B32 fits = 0 <= value && value < (1 << 5);
+                                if (expression->evaluation != Expression_Kind__Constant || !fits)
+                                {
+                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                       diagnostic->location   = expression->location_range.v[0];
+                                       diagnostic->ranges[0]  = expression->location_range;
+                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                }
+
+	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
                         } break;
                         case OP_Argument__Call_Expression:
                         {
@@ -434,20 +537,22 @@ RISCV_Instruction__parse
                         arguments += 1;
                 }
 
-                if (match || opcode->hash == 0 || opcode->name != opcode_name)
+                B32 same_name = String8__match_exact(opcode_name, String8__from_cstring(opcode->name));
+                if (match || opcode->hash == 0 || !same_name)
                 {
                         break;
                 }
 
+                *cursor = cursor_start;
                 opcode += 1;
         }
 
         if (!match)
         {
                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                diagnostic->location   = location_begin;
+                diagnostic->location   = opcode_token.location;
                 diagnostic->message    = String8__literal("unrecognized opcode");
-                diagnostic->ranges[0]  = (Range1_U32){{ location_begin, cursor->current.location + cursor->current.size }};
+                diagnostic->ranges[0]  = Token__range(opcode_token);
                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
@@ -781,7 +886,7 @@ RISCV_li_expand
                 S32 peel_index = peels_count - 1;
                 for (;;)
                 {
-                        B32 break_should = index < 0;
+                        B32 break_should = peel_index < 0;
                         if (break_should)
                         {
                                 break;

@@ -1,7 +1,10 @@
 #ifndef RISCV_INSTRUCTION_H
 #define RISCV_INSTRUCTION_H
 
+// TODO: both of this should not relied upon too much, and ideally be configurable
+// depending on either on (currently unsupported) runtime/compile options.
 #define INSTRUCTION_SIZE 4
+#define XLEN 64
 
 #define IMMEDIATE_NOMINAL_J_SIZE_BIT   21
 #define IMMEDIATE_NOMINAL_U_SIZE_BIT   21
@@ -496,6 +499,7 @@ enum
         OP_Argument__Parenthesis_Right,
         OP_Argument__Immediate_U,
         OP_Argument__Shift_Amount,
+        OP_Argument__Shift_Amount_5,
         OP_Argument__Call_Expression,
         OP_Argument__COUNT,
 };
@@ -573,8 +577,9 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
         return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
 }
 
-#define encode_immediate_i_m(x) (shift_right_mask_m(x, 0, 12) << 20)
-#define encode_immediate_u_m(x) (shift_right_mask_m(x, 0, 20) << 12)
+#define encode_immediate_i_m(x)  (shift_right_mask_m(x, 0, 12) << 20)
+#define encode_immediate_u_m(x)  (shift_right_mask_m(x, 0, 20) << 12)
+#define encode_immediate_s_m(x) ((shift_right_mask_m(x, 0, 5)  <<  7) | shift_right_mask_m(x, 5, 7) << 24)
 
 // TODO: for now this is dumb enough and works.
 internal const RISCV_Opcode *
@@ -685,4 +690,3 @@ RISCV_instruction_pseudo_append
 );
 
 #endif // RISCV_INSTRUCTION_H
-

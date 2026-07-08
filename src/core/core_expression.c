@@ -224,7 +224,7 @@ expression_evaluate(Expressions *expressions, U32 index)
                         Expression_Node *right = xar_get_m(expressions, node->index_right);
                         assert_always_m(right->evaluation);
 
-                        if (right->kind == Expression_Kind__Constant)
+                        if (right->evaluation == Expression_Kind__Constant)
                         {
                                 S64 result = unary_evaluate(node->kind, right->integer_value);
                                 node->integer_value = result;
@@ -234,7 +234,7 @@ expression_evaluate(Expressions *expressions, U32 index)
                         else
                         {
                                 // Absorb it.
-                                node->evaluation = node->kind;
+                                node->evaluation = node->evaluation;
                                 node->symbol     = right->symbol;
                         }
                         SLL_stack_pop_m(frame);

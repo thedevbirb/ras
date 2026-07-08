@@ -105,4 +105,17 @@ directive_set_like
         Set_Mode                 mode
 );
 
+internal void
+directive_data
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section,
+        Fixups                  *fixups,
+        U8                       data_directive_size
+);
+
 #endif // PARSER_DIRECTIVE_H
