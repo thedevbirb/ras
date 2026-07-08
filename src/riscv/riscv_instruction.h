@@ -435,6 +435,22 @@
 #define RELAX_BRANCH_RVC(i)    (((i) & 2) != 0)
 #define RELAX_BRANCH_UNCOND(i) (((i) & 1) != 0)
 
+// Is the given value a sign-extended 32-bit value?
+//
+// Let M = (S64)0x7fffffff = 0x000000007FFFFFFF (bits 0–30 set). Then ~M = 0xFFFFFFFF80000000 (bits 31–63 set).
+// The expression x & ~M keeps only bits 31–63 and discards the lower 31.
+//
+// Two acceptable cases remain:
+//
+// x & ~M == 0  - bits 31–63 are all zero. x is in [0, 0x7FFFFFFF]: a non-negative 32-bit value, zero-extended (which is
+// also valid sign-extension for non-negatives).
+// x & ~M == ~M - bits 31–63 are all ones. x is in [0xFFFFFFFF80000000, 0xFFFFFFFFFFFFFFFF] = [-2^31, -1]: a negative
+// 32-bit value, sign-extended.
+#define sign_extended_32_bit_is_m(x) (((x) &~ (S64)0x7fffffff) == 0 || (((x) &~ (S64)0x7fffffff) == ~(S64)0x7fffffff))
+
+// Is the given value a zero-extended 32-bit value?  Or a negated one?
+#define zero_extended_32_bit_is_m(x) (((x) &~ (S64)0xffffffff) == 0 || (((x) &~ (S64)0xffffffff) == ~(S64)0xffffffff))
+
 typedef U32 insn_t;
 
 // Replace bits MASK << SHIFT of STRUCT with the equivalent bits in
@@ -471,6 +487,7 @@ enum
         OP_Argument__Immediate_Large,
         OP_Argument__Immediate_I,
         OP_Argument__Immediate_S,
+        OP_Argument__Address,
         OP_Argument__Offset_PC_Relative_12,
         OP_Argument__Offset_PC_Relative_20,
         OP_Argument__Offset_Load,
@@ -656,8 +673,11 @@ RISCV_li_expand
 internal void
 RISCV_instruction_pseudo_append
 (
+        Arena                   *arena,
         Section                 *section,
         Fixups                  *fixups,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
 
         RISCV_Instruction       *instruction,
         Expression_Node         *expression,

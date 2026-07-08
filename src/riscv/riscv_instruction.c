@@ -13,6 +13,7 @@
 #define A_RD_OFF_LP_RS1_RP    OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Load, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 #define A_OFF_LP_RS1_RP       OP_arguments_m(                                      OP_Argument__Offset_Load, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 
+#define A_RD_ADDRESS          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Address)
 #define A_RD_OFF              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_PC_Relative_20)
 #define A_RS1_OFF             OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
 #define A_RS2_OFF             OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
@@ -85,6 +86,8 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "call",   HASH_call,   0, RV_IC_I, A_CALL,               (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  M_CALL,                              0,                    INSN_MACRO                     },
 { "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,           MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
 { "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_L,           0,                                       M_LI,                                0,                    INSN_MACRO                     },
+
+{ "la",     HASH_la,     0, RV_IC_I, A_RD_ADDRESS,         0,                                       M_LA,                                match_rd_nonzero,     INSN_MACRO                     },
 
 { "nop",    HASH_nop,    0, RV_IC_I, A_NONE,               MATCH_ADDI,                              MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
 { "mv",     HASH_mv,     0, RV_IC_I, A_RD_RS1,             MATCH_ADDI,                              MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
@@ -252,6 +255,35 @@ RISCV_Instruction__parse
                                        case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, reg.number); } break;
                                 }
                                 token_next(cursor, diagnostics, arena);
+                        } break;
+                        case OP_Argument__Address:
+                        {
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                B32 symbol_is   = expression->kind == Expression_Kind__Symbol;
+                                B32 constant_is = expression->kind == Expression_Kind__Constant;
+                                if (!(symbol_is || constant_is))
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->message    = String8__literal("expression must be either symbol or a constant");
+                                        diagnostic->location   = expression->location_range.v[0];
+                                        diagnostic->ranges[0]  = expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                }
+
+                                if (symbol_is)
+                                {
+                                        *relocation_out = Relocation_RISC_V__32_Bit;
+                                }
+
+                                B32 constant_fits = sign_extended_32_bit_is_m(expression->integer_value);
+                                if (constant_is && !constant_fits)
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->message    = String8__literal("offset too large for this opcode");
+                                        diagnostic->location   = expression->location_range.v[0];
+                                        diagnostic->ranges[0]  = expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                }
                         } break;
                         case OP_Argument__Offset_PC_Relative_20:
                         {
@@ -566,8 +598,7 @@ RISCV_call_expand
         OP_Argument *arguments_jalr    = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1);
         S32 values_jalr[2]             = {rd, rs1};
 
-        // TODO: add equivalent of frag_grow. Not yet super clear how to accomplish that.
-        // Fragment_List__ensure(&section->fragment_list, section->arena, 8);
+        Arena__ensure_contiguous_for_size(section->arena, 8);
         RISCV_macro_build
         (
                 section,
@@ -781,8 +812,11 @@ RISCV_li_expand
 internal void
 RISCV_instruction_pseudo_append
 (
+        Arena                   *arena,
         Section                 *section,
         Fixups                  *fixups,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
 
         RISCV_Instruction       *instruction,
         Expression_Node         *expression,
@@ -811,6 +845,87 @@ RISCV_instruction_pseudo_append
                         relocation,
                         instruction->location
                 );
+        } break;
+        case M_LA:
+        {
+                if (expression->kind == Expression_Kind__Constant)
+                {
+                        RISCV_li_expand
+                        (
+                                section,
+                                expression->integer_value,
+                                rd,
+                                instruction->location
+                        );
+                }
+                else
+                {
+                        // TODO: no support yet for Position-Indipendent-Code (PIC) or GOT etc.
+                        //
+                        // We just expand to a `auipc + addi` combination.
+                        // How it works:
+                        //
+                        // Suppose we have a symbol with 32-bit address `a`. We have to split its value
+                        // into two instructions. The %pcrel_hi relocation operator computes `(a - pc) >> 12` (returns
+                        // the upper 20 bits) while `auipc rd, immediate` computes `pc + (immediate << 12)` and saves it
+                        // into `rd`, so that yields (once computed by linker) the value
+                        //      `pc + ((a - pc) >> 12) << 12` == `pc + hi20(a - pc) << 12
+                        // into `rd`. Lastly, the program counter is increased.
+                        //
+                        // Now, we have to add the remaining lower 12-bits of `(a - pc)` i.e. `lo12(a - pc)`, so that we
+                        // erase `pc` from `rd` and get the final address `a`.
+                        // We could use an `addi` paired with `%pcrel_lo`. However, now `pc` has been increased by 4
+                        // bytes or whatever the instruction size is, so it would be off.
+                        //
+                        // To mitigate this in a standardized way, the RISC-V ELF psABI mandates the following steps:
+                        //
+                        // 1. A symbol (label) inside `%pcrel_lo` must point to the matching `%pcrel_hi` relocation;
+                        // 2. The linker will discover the value of `a` by looking at the matching relocation, and
+                        //    complete the computation by adding the sign-extended, lower 12-bits of `(a - pc)`.
+                        //
+                        // In essence, the `%pcrel_lo` relocation is just an artificial way to point to the matching
+                        // `%pcrel_hi` because the value `(label - pc_of_addi) >> 20` is never used (it would equal -4
+                        // in most cases, by the way).
+                        //
+                        // This is why we have to create a local label like ".L0 " is created above the `auipc`
+                        // instruction.
+
+                        OP_Argument *arguments_auipc = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
+                        S32 values_auipc[]           = {rd, Relocation_RISC_V__PC_Relative_High_20};
+                        OP_Argument *arguments_addi  = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1, OP_Argument__Immediate_I);
+                        S32 values_addi[]            = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
+
+                        Symbol_Ref      *internal_label          = Symbols_Table__internal_label(symbols_table, section);
+                        Expression_Node *expression_addi         = Expressions_push_empty(expressions, arena);
+                                         expression_addi->symbol = internal_label;
+                                         expression_addi->kind   = Expression_Kind__Symbol;
+
+                        // Ensure the instructions are in the same fragment
+                        Arena__ensure_contiguous_for_size(section->arena, 8);
+                        RISCV_macro_build
+                        (
+                                 section,
+                                 fixups,
+
+                                 String8__literal("auipc"),
+                                 instruction->location,
+                                 expression->index,
+                                 arguments_auipc,
+                                 values_auipc
+                        );
+                        // NOTE: GNU as creates also a second expression with an fake label for addi, why?
+                        RISCV_macro_build
+                        (
+                                 section,
+                                 fixups,
+
+                                 String8__literal("addi"),
+                                 instruction->location,
+                                 expression_addi->index,
+                                 arguments_addi,
+                                 values_addi
+                        );
+                }
         } break;
         case M_LI:
         {

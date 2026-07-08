@@ -178,8 +178,11 @@ statement_read
                                 Expression_Node *expression = xar_get_m(expressions, expression_index_parsed);
                                 RISCV_instruction_pseudo_append
                                 (
+                                        arena,
                                         section,
                                         fixups,
+                                        expressions,
+                                        symbols_table,
                                         &instruction,
                                         expression,
                                         relocation
