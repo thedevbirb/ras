@@ -2,7 +2,7 @@
 #define CORE_SECTION_H
 
 
-// TODO: make some stuff into elf if applicable
+// TODO(refactor): make some stuff into elf if applicable
 
 // NOTE: programs can have a lot of sections. In particular compilers may emit one section per function
 // `-ffunction-section` that allows them to eliminate dead functions at link time. This means sections should be stored
@@ -114,7 +114,7 @@ struct Section
         U32            flags;
         U32            type;
         U32            location;
-        // TODO: unsupported yet.
+        // TODO(check-gas): unsupported yet.
         U8             alignment;
 
 };

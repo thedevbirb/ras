@@ -81,5 +81,7 @@ internal Token lex_at(const Source *, U32 index_current, Diagnostic_List *, Aren
 internal Token token_peek(const Token_Cursor *, Diagnostic_List *, Arena *);
 internal void  token_next(      Token_Cursor *, Diagnostic_List *, Arena *);
 
+internal void  token_advance_to_new_statement(Token_Cursor *, Diagnostic_List *, Arena *);
+
 #endif // LEXER_H
 

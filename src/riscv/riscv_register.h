@@ -50,7 +50,7 @@ global const Register RISCV_registers[] =
 
 global const Register_List RISCV_register_list = { .data = RISCV_registers, .count = array_count_m(RISCV_registers) };
 
-internal Register
+internal const Register *
 Register_List__lookup(Register_List, String8);
 
 #endif // RISCV_REGISTER_H

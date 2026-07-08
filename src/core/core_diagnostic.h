@@ -74,7 +74,7 @@ struct Diagnostic
         Diagnostic_Kind kind;
 };
 
-// TODO: may need to support:
+// TODO(feature): may need to support:
 //
 // 1. Configuration, e.g. transform warning in errors.
 // 2. Maybe counter of errors to abort on too many of them?
@@ -86,7 +86,7 @@ struct Diagnostic_List
         U32         count;
 };
 
-// TODO: support multiple sources.
+// TODO(feature): support multiple sources.
 internal void
 diagnostic_print
 (

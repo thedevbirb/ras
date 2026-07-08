@@ -1,6 +1,8 @@
 #ifndef CORE_TOKEN_H
 #define CORE_TOKEN_H
 
+// TODO(refactor): I wonder whether making this a U64 and having token kind as bitflags would help.
+// For example, we could have masks for end of statement i.e. `Token_Kind__Newline | Token_Kind__Semicolon` and so on.
 typedef enum Token_Kind
 {
         Token_Kind__None = 0,
@@ -93,8 +95,8 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
         [Token_Kind__Less_Equal]        = "<=",
         [Token_Kind__Less]              = "<",
 
-        [Token_Kind__Equal_2]           = " ==",
-        [Token_Kind__Equal]             = " =",
+        [Token_Kind__Equal_2]           = "==",
+        [Token_Kind__Equal]             = "=",
 
         [Token_Kind__Equal_Bang]        = "!=",
         [Token_Kind__Bang]              = "!",
@@ -127,5 +129,9 @@ struct Token
 
 internal Range1_U32
 Token__range(Token token);
+
+// NOTE: this is syntax-specific though.
+internal B32
+Token__end_of_statement(Token_Kind);
 
 #endif // CORE_TOKEN_H

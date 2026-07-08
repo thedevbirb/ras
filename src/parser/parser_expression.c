@@ -299,9 +299,6 @@ expression_parse_with_flags
 
 // NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
 // common ground for it if it makes sense.
-//
-// TODO: add a "defer" mode here or similar to not create a clone of the dot if found but rather keep a reference to the
-// global dot symbol, analogous to GNU as "expr_defer_incl_dot`. Needed for `.eqv` directive.
 internal Expression_Node *
 expression_parse
 (

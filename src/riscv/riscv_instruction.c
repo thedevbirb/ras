@@ -52,7 +52,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_RS1,             MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
 { "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
 { "lw",     HASH_lw,     0, RV_IC_I, A_RD_RS1,             MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-// TODO: add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
+// TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
 { "sw",     HASH_sw,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SW,                                MASK_SW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
 { "sh",     HASH_sh,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SH,                                MASK_SH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
@@ -125,9 +125,9 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "",       0,           0, 0,       A_NONE,               0,                                       0,                                   0,                    0                              }
 };
 
-// TODO: undef the helper macros defined above.
+// TODO(low): undef the helper macros defined above.
 
-// TODO: for now this is dumb enough and works.
+// TODO(low): for now this is dumb enough and works.
 //
 // Returns empty opcode if not found.
 internal const RISCV_Opcode *
@@ -262,8 +262,8 @@ RISCV_Instruction__parse
                         case OP_Argument__RS1:
                         {
                                 String8 text = Token_Cursor__text(cursor);
-                                Register reg = Register_List__lookup(RISCV_register_list, text);
-                                if (reg.number == Register__invalid_number)
+                                const Register *reg = Register_List__lookup(RISCV_register_list, text);
+                                if (!reg)
                                 {
                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                        diagnostic->location   = cursor->current.location;
@@ -272,12 +272,13 @@ RISCV_Instruction__parse
                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
+                                U8 register_number = reg ? reg->number : Register__invalid_number;
                                 switch (argument)
                                 {
-                                       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, reg.number); } break;
-                                       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, reg.number); } break;
-                                       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, reg.number); } break;
-                                       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, reg.number); } break;
+                                       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, register_number); } break;
+                                       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, register_number); } break;
+                                       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, register_number); } break;
+                                       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
                                 }
                                 token_next(cursor, diagnostics, arena);
                         } break;
@@ -328,7 +329,7 @@ RISCV_Instruction__parse
                                 expression_evaluate(expressions, expression->index);
                                 if (expression->symbol_operand)
                                 {
-                                        // TODO: this diagnostic could be better, I should probably support re-lexing
+                                        // TODO(low): this diagnostic could be better, I should probably support re-lexing
                                         // from a specific location to get the exact token.
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
@@ -348,7 +349,7 @@ RISCV_Instruction__parse
                                 expression_evaluate(expressions, expression->index);
                                 if (expression->symbol_operand)
                                 {
-                                        // TODO: this diagnostic could be better, I should probably support re-lexing
+                                        // TODO(low): this diagnostic could be better, I should probably support re-lexing
                                         // from a specific location to get the exact token.
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
@@ -369,16 +370,15 @@ RISCV_Instruction__parse
                                 }
                                 else
                                 {
-                                        // TODO: this is mostly in common with OP_Argument__Immediate_I case.
                                         expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
                                                 expression_evaluate(expressions, expression->index);
-                                                // TODO: normalize constant expression? See GNU as.
+                                                // TODO(RV32): normalize constant expression? See GNU as.
                                                 B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                 if (expression->evaluation == Expression_Kind__Constant && fits)
                                                 {
-                                                        // TODO: GNU as does this at a later step, and by default emits a
+                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
                                                         // relocation. Consider doing the same.
                                                         U32 encoding_immediate = encode_immediate_s_m(expression->integer_value);
                                                         instruction_out->encoding |= encoding_immediate;
@@ -402,16 +402,16 @@ RISCV_Instruction__parse
                                 }
                                 else
                                 {
-                                        // TODO: this is mostly in common with OP_Argument__Immediate_I case.
+                                        // TODO(refactor): this is mostly in common with OP_Argument__Immediate_I case.
                                         expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
                                                 expression_evaluate(expressions, expression->index);
-                                                // TODO: normalize constant expression? See GNU as.
+                                                // TODO(RV32): normalize constant expression? See GNU as.
                                                 B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                 if (expression->evaluation == Expression_Kind__Constant && fits)
                                                 {
-                                                        // TODO: GNU as does this at a later step, and by default emits a
+                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
                                                         // relocation. Consider doing the same.
                                                         U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
                                                         instruction_out->encoding |= encoding_immediate;
@@ -429,11 +429,11 @@ RISCV_Instruction__parse
                                 if (!*relocation_out)
                                 {
                                        expression_evaluate(expressions, expression->index);
-                                       // TODO: normalize constant expression? See GNU as.
+                                       // TODO(RV32): normalize constant expression? See GNU as.
                                        B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                        if (expression->evaluation == Expression_Kind__Constant && fits)
                                        {
-                                               // TODO: GNU as does this at a later step, and by default emits a
+                                               // TODO(medium): GNU as does this at a later step, and by default emits a
                                                // relocation. Consider doing the same.
                                                U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
                                                instruction_out->encoding |= encoding_immediate;
@@ -463,7 +463,7 @@ RISCV_Instruction__parse
                                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                                 }
 
-                                                // TODO: GNU as does this at a later step, and by default emits a
+                                                // TODO(medium): GNU as does this at a later step, and by default emits a
                                                 // relocation. Consider doing the same.
                                                 U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
                                                 instruction_out->encoding |= encoding_immediate;
@@ -965,8 +965,8 @@ RISCV_instruction_pseudo_append
                 }
                 else
                 {
-                        // TODO: no support yet for Position-Indipendent-Code (PIC) or GOT etc.
-                        //
+                        // TODO(low): no support yet for Position-Indipendent-Code (PIC) or GOT etc.
+
                         // We just expand to a `auipc + addi` combination.
                         // How it works:
                         //

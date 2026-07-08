@@ -31,7 +31,7 @@ print_recap_line(U8 *name, U32 line_number, U32 column_number, Diagnostic_Kind k
 }
 
 
-// TODO: support multiple sources.
+// TODO(feature): support multiple sources.
 internal void
 diagnostic_print
 (

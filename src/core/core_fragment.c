@@ -26,8 +26,6 @@ Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 si
         {
                 // We have to "seal" the current fragment, and switch to another arena block.
                 // We that also the new fragment header is on the new arena.
-                //
-                // TODO: maybe some other steps are needed.
                 Fragment *fragment = Arena__push_struct_m(arena, Fragment);
                 fragment->location = location;
                 SLL_queue_push_m(fragments->first, fragments->last, fragment);
@@ -113,7 +111,7 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 a
 {
         // NOTE: double check more precisely how GNU as overloads some fields, and then decide whether to keep the same
         // layout or not.
-        // TODO: GNU as does some special handling of the absolute section. Since no variable-sized data exist on the
+        // TODO(check-gas): GNU as does some special handling of the absolute section. Since no variable-sized data exist on the
         // absolute section, it can be expanded to match the required alignment right away.
 
         U8 size_max = 1;

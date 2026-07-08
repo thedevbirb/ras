@@ -6,45 +6,43 @@
 
 global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
 
-// TODO: I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
+// TODO(refactor): I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
 
-// TODO: review some of this variants, they're taken from GAS but not always used.
+// TODO(track): review some of this variants, they're taken from GAS but not always used.
 typedef enum Symbol_Flags
 {
         Symbol_Flags__None                       = 0 << 0,
 
-        /* Whether the symbol is a local_symbol.  */
+        // Whether the symbol is a local_symbol.
         Symbol_Flags__Local                      = 1 << 0,
 
-        /* Weather symbol has been written.  */
+        // Weather symbol has been written.
         Symbol_Flags__Written                    = 1 << 1,
 
-        /* Whether symbol value has been completely resolved (used during final pass over symbol table).  */
+        // Whether symbol value has been completely resolved (used during final pass over symbol table).
         Symbol_Flags__Resolved                   = 1 << 2,
 
-        /* Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).  */
+        // Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).
         Symbol_Flags__Resolving                  = 1 << 3,
 
-        /* Whether the symbol value is used in a reloc.  This is used to ensure that symbols used in relocs are written
-         * out, even if they are local and would otherwise not be.  */
-        // TODO(high): actually use this, for example in branches.
+        // Whether the symbol value is used in a relocation. This is used to ensure that symbols used in relocations are
+        // written out, even if they are local and would otherwise not be.
+        // TODO(medium): actually use this.
         Symbol_Flags__Relocation                 = 1 << 4,
 
-        /* Whether the symbol is used as an operand or in an expression.
-           NOTE:  Not all the backends keep this information accurate; backends which use this bit are responsible for
-           setting it when a symbol is used in backend routines.  */
+        // Whether the symbol is used as an operand or in an expression.
         Symbol_Flags__Used                       = 1 << 5,
 
-        /* Whether the symbol can be re-defined.  */
+        // Whether the symbol can be re-defined.
         Symbol_Flags__Volatile                   = 1 << 6 ,
 
-        /* Whether the symbol is a forward reference, and whether such has
-           been determined.  */
+        // Whether the symbol is a forward reference, and whether such has been determined.
         Symbol_Flags__Forward_Reference          = 1 << 7,
         Symbol_Flags__Forward_Reference_Resolved = 1 << 8,
 
-        /* Whether the symbol has been marked to be removed by a .symver
-           directive.  */
+        // Whether the symbol has been marked to be removed by a .symver directive.
+        // TODO(refactor): I won't support the .symver directive, perhaps this can be collapsed with
+        // `Symbol_Flags__Redefined/Symbol_Flags__Skip`
         Symbol_Flags__Removed                    = 1 << 9,
 
         // Whether the symbol has been declared using a label or directive.
@@ -57,7 +55,7 @@ typedef enum Symbol_Flags
         // of a symbol are simply removed from it. In our case, symbols are stored in a chunk list, so we need some data
         // to explicitly skip them.
         //
-        // TODO: it may be that calling this flag `Skip` is generic enough for multiple usecases.
+        // TODO(refactor): it may be that calling this flag `Symbol_Flags__Skip` is generic enough for multiple usecases.
         Symbol_Flags__Redefined                   = 1 << 12,
 }
 Symbol_Flags;

@@ -89,7 +89,7 @@ operation_evaluate(Expression_Kind kind, S64 a, S64 b)
         case Expression_Kind__Logical_And:   { result = a && b; } break;
         case Expression_Kind__Logical_Or:    { result = a || b; } break;
 
-        default: { assert_always_m(0); } break;
+        default: { unreachable_m(); } break;
         }
 
         return result;
@@ -106,7 +106,7 @@ unary_evaluate(Expression_Kind kind, S64 a)
         case Expression_Kind__Logical_Not:   { result = !a; } break;
         case Expression_Kind__Bitwise_Not:   { result = ~a; } break;
 
-        default: { assert_always_m(0); } break;
+        default: { unreachable_m(); } break;
         }
 
         return result;

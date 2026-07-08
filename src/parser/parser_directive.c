@@ -28,7 +28,7 @@ Directive_Kind__from_String8(String8 source)
 // Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
 // created if missing.
 //
-// TODO: should I just set the binding or in case of a promotion should I "delete" the other symbol and create a new
+// TODO(check-gas): should I just set the binding or in case of a promotion should I "delete" the other symbol and create a new
 // one? This
 internal void
 binding_set
@@ -100,7 +100,7 @@ directive_set_like
         Set_Mode                 mode
 )
 {
-        // TODO: check no conflicts with section names and register names. GNU as doesn't seem to error on using a
+        // TODO(medium): check no conflicts with section names and register names. GNU as doesn't seem to error on using a
         // register name like `sp` though, which I think can be quite confusing/error prone.
 
         token_next(cursor, diagnostics, arena);

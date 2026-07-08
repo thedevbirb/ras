@@ -1,7 +1,7 @@
 #ifndef RISCV_INSTRUCTION_H
 #define RISCV_INSTRUCTION_H
 
-// TODO: both of this should not relied upon too much, and ideally be configurable
+// TODO(32-bit): both of this should not relied upon too much, and ideally be configurable
 // depending on either on (currently unsupported) runtime/compile options.
 #define INSTRUCTION_SIZE 4
 #define XLEN 64
@@ -581,13 +581,12 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 #define encode_immediate_u_m(x)  (shift_right_mask_m(x, 0, 20) << 12)
 #define encode_immediate_s_m(x) ((shift_right_mask_m(x, 0, 5)  <<  7) | shift_right_mask_m(x, 5, 7) << 24)
 
-// TODO: for now this is dumb enough and works.
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash);
 
 // Information about an instruction, including its format, operands
 // and fixups.
-// TODO: this struct is probably overloaded with unnedded stuff.
+// TODO(refactor): this struct is probably overloaded with unnedded stuff.
 typedef struct RISCV_Instruction RISCV_Instruction;
 struct RISCV_Instruction
 {

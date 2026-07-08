@@ -4,7 +4,7 @@
 #define ELF_Section_Header_Flags__cstring  "aeowxEGMST"
 global const String8 ELF_Section_Header_Flags__string8 = String8__literal(ELF_Section_Header_Flags__cstring);
 
-// TODO: incomplete compared to what GNU as does.
+// TODO(low): incomplete compared to what GNU as does.
 internal ELF_Section_Header_Flags
 ELF_Section_Header_Flags__parse
 (

@@ -151,7 +151,7 @@ Sections_Table__add_common(Sections_Table *sections_table)
         String8 data = String8__literal(".data");
         String8 bss  = String8__literal(".bss");
 
-        // TODO: modify flags etc.
+        // TODO(check-gas): modify flags etc.
         Sections_Table__get_or_default(sections_table, nil,  0);
         Sections_Table__get_or_default(sections_table, text, 0);
         Sections_Table__get_or_default(sections_table, data, 0);

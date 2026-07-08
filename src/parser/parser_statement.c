@@ -25,7 +25,6 @@ statement_read
                 B32            null_terminated_string = 0;
                 B32            empty_line             = 0;
 
-                // TODO: when to exit?
                 progress = source_index_start < cursor->source_index;
                 B32 break_should_outer = cursor->current.kind == Token_Kind__None
                                       || cursor->current.kind == Token_Kind__Error
@@ -276,7 +275,7 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
-                                // TODO: are they ORed? Or overwritten?
+                                // TODO(medium): are they ORed? Or overwritten?
                                 section_new->flags = flags;
                                 token_next(cursor, diagnostics, arena);
                         }
@@ -325,8 +324,7 @@ statement_read
                 {
                         binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global);
                 } break;
-                // TODO: implement .eqv or .equiv which are more picky about re-definitions and forward references.
-                // Lastly, support for `<identifier> = <expr>` could be added by jumping here.
+                // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                 case Directive_Kind__Set: {} // fallthrough
                 case Directive_Kind__Equality:
                 {
@@ -414,7 +412,7 @@ statement_read
                                         diagnostic->kind      = Diagnostic_Kind__Warning;
                                         diagnostic->location  = size_expression->location_range.v[0];
                                         diagnostic->ranges[0] = size_expression->location_range;
-                                        // TODO: nicer diagnostic with vsnprintf support in String8
+                                        // TODO(low): nicer diagnostic with vsnprintf support in String8
                                         diagnostic->message   = String8__literal("non-positive fill size, ensuring it is zero");
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         fill_size = 0;
@@ -451,7 +449,7 @@ statement_read
                 {
                         // .align <size> [, <pattern> [, <max_bytes>]]
                         //
-                        // TODO: support omitting some values, e.g. .align 2, , 8
+                        // TODO(low): support omitting some values, e.g. .align 2, , 8
                         //
                         // .align is implementation-defined, in this case we interpret the next expression as a power of
                         // two. See also .p2align.
@@ -527,7 +525,7 @@ statement_read
                                         diagnostic->message  = String8__literal("non-positive max bytes size, ensuring it is zero");
                                         diagnostic->location  = bytes_max_expression->location_range.v[0];
                                         diagnostic->ranges[0] = bytes_max_expression->location_range;
-                                        // TODO: nicer diagnostic with vsnprintf support in String8
+                                        // TODO(low): nicer diagnostic with vsnprintf support in String8
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         bytes_max = 0;
                                 }
