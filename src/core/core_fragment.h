@@ -5,6 +5,13 @@ typedef U8 Relax_State;
 enum
 {
         // Used by listing code.
+        //
+        // This describes either an unitiliased or open fragment, which is able to ingest more bytes.
+        // Sealing a fragment is marked by changing this state to something else. For fixed-size fragments, inspired by
+        // GNU as, this is achieved by marking the fragment in a `Relax_State__Fill` of zero size, with no pattern,
+        // instead of having a dedicated variant for it.
+        //
+        // TODO(medium): the above is achieved by calling something like `frag_wane`, which is currently unimplemented.
         Relax_State__None,
         // Describes a `.fill <repeat>, <size>, <pattern>` directive:
         // - `expression_index` contains the <repeat> expression.

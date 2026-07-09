@@ -872,3 +872,53 @@ li, t0, t1
 ```
 
 This produces a relocation because t1 is treated as a symbol and not recognized as a register.
+
+I think I can finally start to look into actually creating the object file, now the assembler
+supports a good range of instructions and it's able to ingest a decent program, basically
+RV32I/RV64I is supported along with common pseudo-instructions or different formats. It is still a
+RV64I assembler though, there are some places to fix in case of a 32-bit target.
+
+In essence, I need to go over and study `write_object_file` from GNU as.
+
+Thu Jul  9 09:35:28 CEST 2026
+
+Right after the assembly pass is done, GNU as calls `md_finish`/`riscv_md_finish`, which fills the
+content of the `.riscv.attributes` section if required by configuration. I can skip this for now.
+Then, if the "relax" option is enabled (which is the default on GNU as), it iters over all section
+and calls `riscv_insert_uleb128_fixes`. Given I don't support the `.uleb128` directive yet, I'll
+skip this too, but I should keep it in mind. Then, we mainly go inside `write_object_file`.
+
+These will be notes about the `write_object_file` function, which are a longer version of the
+initial stub written the 20th of June.
+
+1. `subseg_finish`: For each section (actually, `stdoutput->section`?), calls `subsegs_finish_section`.
+    This latter function is essentially housekeeping for ending sections. For each section, it
+    appends a terminal alignment fragment (of which alignment value will be discussed afterwards),
+    followed by an empty, sealed frag i.e. `rs_fill` of size zero via `frag_wane`, so that all
+    sections end in a uniform shape like `[align_frag][fill-zero frag]` and it can be relied upon.
+
+    The alignment value can be degenerate i.e. set to zero or 1, unless the following hold:
+
+    1. A backend might define `SUB_SEGMENT_ALIGN`, giving its custom value and it can do whatever it
+       wants. If that's not the case, and the target defines instead `HANDLE_ALIGN` (that is the
+       case for riscv) then the code section gets its defined alignment (usually 2), padding with
+       NOPs. This makes the tail of executable sections always diassemblable and execution-safe.
+    2. The section is either a `SEC_MERGE | SEC_STRINGS`. The former flag denotes a section which
+       content creates a table of fixed size entries of size `sh_entsize`, that can be deduplicated
+       by the linker based on their hashed content. Usually `SEC_STRINGS` implies `SEC_MERGE` and in
+       such case the `sh_entsize` field expresses the encoding used for the the strings. 1 (byte) of
+       C/UTF-8 strings, 2/4 for UTF-16/UTF-32. The linker treats specially the deduplication process
+       in case of `SEC_STRINGS`.
+       For these section, we compute the _largest_ power-of-two factor of `sh_entsize` and the we
+       align based on that value. This process is needed because a section alignment requirement is
+       different from its entry stride, and we want to ensure the linker won't read past the
+       intended number of bytes and instead reads complete entries. It might be that `sh_entsize`
+       isn't a power of two, in such case this would be a "best effort": all machinery is intended
+       for power-of-twos, and supporting other type of alignments isn't an option. Later steps warn
+       whether the section size isn't a multiple of `sh_entsize`, and the linker would not perform a
+       deduplication step for `SEC_MERGE` sections.
+
+    Long explanation! But a lot of concepts here. Note that at this stage, adding warnings about
+    section size is still premature since this is pre-relaxation etc.
+
+
