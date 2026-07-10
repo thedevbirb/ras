@@ -123,7 +123,7 @@ main(int argument_count, char **argument_vector)
                 Diagnostic *current = diagnostics.first;
                 for (;;)
                 {
-                        exit_status = current->kind == Diagnostic_Kind__Error;
+                        exit_status |= current->kind == Diagnostic_Kind__Error;
                         diagnostic_print(current, &source, arena);
                         current = current->next;
 
