@@ -880,7 +880,7 @@ RV64I assembler though, there are some places to fix in case of a 32-bit target.
 
 In essence, I need to go over and study `write_object_file` from GNU as.
 
-Thu Jul  9 09:35:28 CEST 2026
+Thu Jul  9 09:35:28 CEST 2026 / Fri Jul 10 10:27:35 CEST 2026
 
 Right after the assembly pass is done, GNU as calls `md_finish`/`riscv_md_finish`, which fills the
 content of the `.riscv.attributes` section if required by configuration. I can skip this for now.
@@ -889,7 +889,8 @@ and calls `riscv_insert_uleb128_fixes`. Given I don't support the `.uleb128` dir
 skip this too, but I should keep it in mind. Then, we mainly go inside `write_object_file`.
 
 These will be notes about the `write_object_file` function, which are a longer version of the
-initial stub written the 20th of June.
+initial stub written the 20th of June. It tries to be reasonably exhaustive, while skipping some
+details because otherwise it is of no good use.
 
 1. `subseg_finish`: For each section (actually, `stdoutput->section`?), calls `subsegs_finish_section`.
     This latter function is essentially housekeeping for ending sections. For each section, it
@@ -921,4 +922,196 @@ initial stub written the 20th of June.
     Long explanation! But a lot of concepts here. Note that at this stage, adding warnings about
     section size is still premature since this is pre-relaxation etc.
 
+2. `riscv_pre_output_hook`: contains logic related to `.cfi_remember_state` directive, which I don't
+   support so for now I'll skip it.
 
+3. `chain_frchains_together` is called after removing GNU as internal expression and register
+   sections: as the name suggest, it chains together the fragments contained in `frchainS` from
+   various _subsections_. However, I haven't added support for sub-sections (they're _mostly_
+   unused, but I might be wrong), so this step can be skipped. This is actually done in
+   `chain_frchains_together_1`, then the caller sets toggles the global `frags_chained`.
+
+4. relaxation/`relax_seg`/`relax_segment`: the core relaxation logic for sections. Other than its
+   side-effects, a boolean returns whether it had some effect at all, and it tracks the number of
+   passes done. There two main loops here: the outer one, which runs indefinitely, This is an
+   endless loop that runs until there is no change with the previous iteration. On _each iteration_,
+   we call _for every section_ the `relax_seg` function, which calls the inner `relax_segment`
+   function which performs the actual relaxation and checks whether the addresses of fragments in a
+   section changed.
+   The reason for this double outer loop is the following: cross-section symbols. That is, a section
+   might contain references (symbols) defined in other sections e.g. label distances. That means
+   addresses within one section may influence the layout of another, so it is required an iteration
+   where _all_ section addresses don't change to make sure relaxation is completed.
+   Example of cross-section references:
+   ```asm
+    .text
+    start:
+        beq   $t0, $t1, far   ; short branch, may grow to long
+        # other stuff
+    far:
+        # other stuff
+    end:
+
+    .eh_frame
+        .uleb128 end - start  ; size of the function above
+   ```
+   While I don't support neither `.eh_frame` or `.uleb128` it still gives the idea why this should
+   be done.
+
+   Inside `relax_segment`, we iter over the fragments multiple times. There is one special, initial
+   iteration that is needed to compute a first estimate (minimum) addresses of the fragments, then
+   there is the relaxation loop where we iter multiple times over them. To understand why this
+   separation is needed, remember that to relax a fragment correctly we need to know the addresses
+   of subsequent fragments (e.g. jump distance). Without a first estimate of the layout, this would
+   be impossible!
+
+   For the first loop, we keep track of a cumulative `int region` and `address` that is increased
+   while processing the fragments (TODO: expand on `region`). Then the steps are:
+   1. Set the current `region` and `address`; bump `address` by the amount of fixed bytes (`fr_fix`)
+      within the fragment.
+   2. Process the fragment type, and increment the `address` accordingly, some noteworthy types:
+      1. For `rs_align`-like fragments we compute the offset (distance) from the current value of
+         `address` to the required alignment. If it overcomes the maximum amount, it is set to zero
+         (which seems weird to me?). Then, we check and error in case the offset isn't a multiple of
+         the expect variable size `fr_var`. We then bump `address` by `offset` and increment `region`.
+      2. For `rs_machine_dependent` (e.g. branch) with a symbol (in ras, an expression) attached,
+         the `resolve_symbol_value` function is called. It's a lengthy function treated separately.
+         I think of it as expression evaluation, with more checks and details.
+         Lastly, we increment `address` by the estimation of the relaxed instruction. In case of the
+         RISC-V backend, it is calculated the size of branch based on current symbol information
+         (`relaxed_branch_length`), and `fr_var` is updated accordingly.
+   The previous process computes the fragment addresses, but relaxation loop hasn't started. Now it does.
+   Very interestingly, the maximum number of iterations is O(n^2) of the number of fragments
+   (`frag_count * frag_count`), capping to O(n) in case of overflows.
+   We start iterating again over fragments. We keep track of the cumulative bytes stretched
+   `stretch`. Compared to the previous loop, with gave a tentative address to the fragments, now:
+   1. We skip `rs_fill`, because it doesn't grow/relax.
+   2. For `rs_align` fragments, we track the signed difference between previous and current (based
+      on fragment address) alignment bytes needed, establishing how much the fragment needs to grow
+      in this iteration. Because it may be that know, taking into account current stretching, less
+      bytes of alignment padding might be needed! Then special handling of `.leb128` directives.
+   3. The `rs_org` is finally handled. For now I'll ignore it.
+   4. The `rs_space`/`rs_space_nop`, is now handled, while previously skipped at the very first
+      iteration. The symbol for the repeat count is read, and expected to be an absolute symbol
+      (i.e., constant), and giving warning on negative values of it.
+   5. The `rs_machine_dependent` is handled by calling the target `md_relax_frag` which in case of
+      the RISC-V backend is `riscv_relax_frag` that computes the `relaxed_branch_length` based on
+      current information. As with the initial iteration, `fragP->fr_var` is updated but the
+      difference from previous iteration is also returned.
+   Other relaxation types are handled, but are skipped for now. The algorithm loops until an
+   iteration result in no `growth` (neither negative or positive, convergence) or until we cap the
+   number of iterations. Lastly, we track whether some addresses have changed at all by looking at
+   `last_fr_address` field.
+
+   After relaxation has completed, it marks the global `finalize_syms` as true, meaning that now
+   symbols are considered frozen and cannot be changed. It makes sense because otherwise addresses
+   can change again.
+
+5. `size_seg`: after relaxation, we can compute the correct fragment size and section _for each
+   section_ using this function. The following steps are performed:
+   1. For every fragment, call `cvt_frag_to_fill` ("convert fragment to fill fragment"). As the name
+      suggests, it mutably changes every fragment into a `rs_fill` variant of fixed size. This is
+      done in slightly different ways, depending again on the fragment type:
+      1. For `rs_align`/`rs_space` and similar, we call the machine-dependent code `HANDLE_ALIGN`,
+         which maps to `riscv_handle_align`. This inserts `nop` padding in case of `rs_align_code`.
+      2. For `rs_machine_dependent`, in case of RISC-V the
+         `md_convert_frag`/`md_convert_frag_branch` functions are called. This expands a branch into
+         the actual instructions. See content for details, but it also handles remaining fixups.
+      Different cases end up with adding to `fr_fix` the value of `fr_var`, changing to a `rs_fill`
+      and zero other values, so that the fragment is officially sealed and fixed.
+   2. The section size is computed by walking the fragment list and taking the address (offset) of
+      the last fragment, plus its fixed byte size.
+   3. The section is also marked with `SEC_HAS_CONTENTS` in case its size is non-zero and some other
+      conditions apply.
+   4. NOTE: some architectures require section alignment, but it's not the case for RISC-V, which
+      `#define md_section_align(sec, size) size`, so a partion of the bottom code of the function is
+      skipped.
+
+6. `create_object_attributes`: for ELF targets this function is invoked to create a custom section
+   `.riscv.attributes`. This contains a lot of ELF-specific stuff so that code should be re-examined
+   separately also while running a debugger to check values.
+
+7. `resolve_symbol_value` is called on every _regular_ symbol in the chain.
+   How `resolve_symbol_value` works: this function takes a symbol and returns its value, which is most
+   often an address. Following steps are taken.
+
+   1. If it is a local symbol, read its `value`. If the symbol is already resolved, return it.
+      Otherwise, increase it with the associated fragment address value. If the `finalize_syms` flag is
+      provided when calling this function, mark the symbol flag `resolved` and freeze the value.
+      Returned the currently computed value.
+   2. If not a local symbol but is it resolved, walk through the chain of `X_add_symbol` by adding the
+      corresponding `X_add_number` until we hit a local symbol or a constant. Return zero if we find an
+      unresolved symbol in between. This seems a weird path but here is some code that leads to that
+      codepath:
+      ```asm
+      .equ base, 100          # base resolved; value = O_constant,       X_add_number=100
+      .equ mid,   base + 5    # mid  resolved; value = O_symbol -> base, X_add_number=5
+      .equ top,   mid   + 7   # top  resolved; value = O_symbol -> mid,  X_add_number=7
+
+      .equ result, top        # forces resolve_symbol_value on top
+      ```
+   3. Track the segment of the symbol.
+   4. We check whether the symbol is in a `resolving` state. If that's the case, and we're
+      `finalize_syms`, we error because it means we've detected a loop we can't escape. This allows
+      some early forms of recursive symbol definitions as long that they're resolved later, e.g.:
+      ```asm
+      .set foo, bar
+      .set bar, foo
+      .set foo, 5
+      .set bar, 5
+      ```
+      Otherwise, mark the symbol as `resolving` and process its `X_op` field. For machine-dependent
+      operations, specific code is run. While some details are omitted, it is very important to note
+      that a lot evaluations resulting in adding the fragment address of where the symbol belongs.
+      While this makes sense for labels, it might be weird for other symbols, but remember that if
+      they're undefined or absolute, they are attached to a dummy fragment with address zero, so it's a
+      no-op.
+   5. Other operations require recursively calling `resolve_symbol_value`. Lastly, if the global
+      `finalize_syms` is set, we set the final computed value.
+   6. To be continued, some details are still missing.
+
+   In some sense, this function is a loose equivalent to `expression_evaluate`, while doing some extra
+   care. But I will address it later.
+
+8. `resolve_local_symbol_values`: this is called right after looping over _regular_ symbol. Note
+   that in there, we might already resolve some local symbols references by regular symbol, however
+   some of them might be left out here, and so this functions ensures all of them are processed.
+
+9. `resolve_reloc_expr_symbols`: this is actually a no-op in most cases, unless the `.reloc`
+   directive is supported. Hence why even if your code produces relocation, this does nothing.
+   Relocation pass through the symbols machinery.
+
+10. `fix_segment/fixup_segment`: called for every section. first, if the global `linkrelax`
+    configuration is enabled, then basically return right away. Otherwise, iterate the fixup chain
+    for the section and perform the following steps:
+    1. If we have a sub symbol, then:
+       1. If we have an add and sub symbol in the same section, and we don't have a forced relocation,
+       compute the offset difference right away and save it in `fixP->fx_offset`. This can be safely
+       after relaxation!
+       2. else if we have a sub symbol from the absolute section, then we get its value, we flip its sign,
+          and we save it as the number to _add_ (`fixP->fx_offset`).
+       3. else if we have a sub symbol in the current section we're processing, we get its offset,
+          and we transform the fixup into a PC-relative one `fixP->fx_pcrel = 1`.
+    2. If we have an add symbol, then we almost perform the same steps as before, increasing the
+       `fixP->fx_offset` by that value.
+    3. `md_apply_fix` is finally called. Custom logic to check separately, but tries to check
+       whether they're solvable. NOTE: a `RELAX` relocation here can be added if applicable by
+       inserting right away a fixup into the chain with such relocation value.
+
+11. Lastly, there is another pass on the symbol table that filters away all unwanted symbols from
+    the object file.
+
+Fri Jul 10 15:37:52 CEST 2026
+
+Now that I'm closer to the end of reading GNU as, I can say again that some parts of it are very
+clever, and in other parts there are a lot of patches. While there are some generalizations that
+reduce the number of codepaths (e.g. made up sections and symbols to re-use some machinery) in other
+parts there are so many branches. This is not necessary bad per se but I feel like it could be more
+straightforward. While I'm reading about ELF object file through GNU as, I should read a bit better
+about the format and its requirements from an official source, and then do what's needed for a basic
+assembler.
+I realize this assembler, being a first working version, would not be particularly good. I think it
+has something good in it, but it can be miles better and cleaner. However this requires a lot of
+knowledge and a non-trivial amount of time. There are so many choices to be made, so many details
+and relationship with other tooling like compilers, linkers etc.. It's really a non-trivial piece of
+software that is run everyday and does so much. My deepest respect for people writing this software!

@@ -12,6 +12,8 @@ enum
         // instead of having a dedicated variant for it.
         //
         // TODO(medium): the above is achieved by calling something like `frag_wane`, which is currently unimplemented.
+        // TODO(medium): for numerical values I use the `expression_index`, which implies that I always have to carry
+        // around the `Expressions` Xar even for reading a constant value that won't change anymore. It's not good.
         Relax_State__None,
         // Describes a `.fill <repeat>, <size>, <pattern>` directive:
         // - `expression_index` contains the <repeat> expression.
@@ -28,10 +30,12 @@ enum
         // Describe an `.align` directive:
         // - `expression_index` contains the constant expression with the power of two used for alignment.
         // - `subtype` contains the maximum number of bytes to skip when aligning, or zero if there is no maximum.
+        // - `size_variable` contains the size of the byte pattern.
         Relax_State__Align,
         // Describe an `.align` directive, in a _code_ section. The fill pattern is handled by the backend.
         // - `expression_index` contains the constant expression with the power of two used for alignment.
         // - `subtype` contains the maximum number of bytes to skip when aligning, or zero if there is no maximum.
+        // - `size_variable` contains the size of the byte pattern, but this is machine dependent.
         Relax_State__Align_Code,
         // Machine specific relaxable instruction (e.g. branches, etc.).
         Relax_State__Machine,
@@ -65,7 +69,7 @@ struct Fragment
         U32          size_fixed;
         // Opaque 32 bits to store additional information contextual to the `type`.
         U32          subtype;
-        // The varaible number of bytes we have past the fixed ones.
+        // The variable number of bytes we have past the fixed ones.
         U8           size_variable;
         Relax_State  type;
 };
