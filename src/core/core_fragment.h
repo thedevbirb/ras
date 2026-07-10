@@ -17,8 +17,13 @@ enum
         // - `expression_index` contains the <repeat> expression.
         // - `size_variable` contains <size>.
         // - the variable bytes of the fragment contain the pattern.
+        //
+        // NOTE: GNU as further distinguishes between `rs_fill` and `rs_space`/`rs_space_nop`. In essence, `rs_fill` is
+        // guaranteed to have a constant <repeat> count, while `rs_space`/`rs_space_nop` do contain expressions inside
+        // the symbol field. However we don't need this discrimination, and we can just check whether the symbol field
+        // constains a constant expression or not, and move on.
         Relax_State__Fill,
-        // Describes a fill directive in a code section.
+        // Describes a fill directive in a code section. Should be used in a `nops/.nops` directive.
         Relax_State__Fill_Nop,
         // Describe an `.align` directive:
         // - `expression_index` contains the constant expression with the power of two used for alignment.
