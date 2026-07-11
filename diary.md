@@ -1115,3 +1115,80 @@ has something good in it, but it can be miles better and cleaner. However this r
 knowledge and a non-trivial amount of time. There are so many choices to be made, so many details
 and relationship with other tooling like compilers, linkers etc.. It's really a non-trivial piece of
 software that is run everyday and does so much. My deepest respect for people writing this software!
+
+Fri Jul 10 18:01:50 CEST 2026
+
+TODO(refactor, high) revisit expression allocation strategies.
+
+ Using expression indexes have the only advantage of occupying a small size. This however shouldn't be a concern until
+ I have good reasons to. The rest is mostly bad consequences of this:
+
+ 1. For both writing AND reading expressions I need the `Expressions` bookkeeper struct. While I'm
+    fine to have one for writing, I don't like that I need it for reading, and I would like to just
+    read from a pointer. However that is mandatory now because an expression might have some left
+    and right side to read and I have to deal read them from the array.
+    This creates clanky interfaces sometimes, and reading from the a bookkeeper struct (a Xar)
+    actually resulting in some additional hops.
+ 2. The bookkeeper struct is an eXtensible array, from the base layer. When I read about them I got
+    really excited and I wanted to use them. They're great, but as with dynamic arrays, they need to
+    be used in the right place at the right time. I feel this is isn't it.
+    Since I want to use pointers, a chunk list (like with the symbols table) would probably be the
+    best bet!
+
+There is a lot of synergies between symbols and expressions, and that is because symbols can be
+defined as expressions, and not necessarily only as labels. Moreover, the left and right hand
+side of expressions can be modelled by symbols.
+Right now, symbols and expressions are allocated separately, but I wonder whether they should go
+closer together somehow, or belong to the same allocator, and perhaps completely identify
+expressions with symbols you don't have a name of.
+GNU `as` kinda goes in this direction, and also creates a dedicated section for expression
+symbols, however I'm wondering whether this definition of a symbol would work:
+```c
+typedef struct Symbol_2 Symbol_2;
+struct Symbol_2
+{
+        Symbol_Flags     flags;
+        Section         *section;
+        Fragment        *fragment;
+        Symbol_Ref      *symbol;
+        Symbol_Ref      *symbol_operand;
+        S64              integer_value;
+        Expression_Kind  kind;
+        // others, like locations etc, which are shared between
+        // symbols and expressions.
+};
+```
+Some more context is the following: GNU as distinguishes between a `struct local_symbol` and a
+`struct symbol`. The former are created _only_ for _internal local labels_, that is labels that
+start with symbols like `.L*`, generated internally for assembler usage and omitted from the
+object file unless a flag is explicitly set. This is completely unrelated to the visiblity
+(local, global, weak, etc.) of a symbols. Lastly, those symbols will only mainly contain their
+value i.e., the offset in their section, which is a `usize`-like.
+In contrast, full symbols hold:
+1. An `expressionS` struct, which is ~24 bytes;
+2. Two additonal `struct symbol` pointers because of double linked list bookkeeping and
+   traversal. Since symbol traversal would be done using the `Symbols_Table` chunks, those two
+   pointers would not be needed.
+   These pointers are used to traverse the symbols table while skipping local symbols, so in a
+   more efficient manner. However often the code requires scanning over the local symbols
+   too (see `resolve_local_symbol_values`), which is implemented by iterating over every entry
+   of the symbol table.
+3. Object and target specific fields, which are unneeded for the RISC-V + ELF combo.
+
+This is all to say that the advantage of separating between the two isn't _that_ big of a saving
+(around 20 bytes or similar?), at least in this decade and for the targets I'm interest in, but
+I understand every memory saving would be precious in the 90s.
+
+Some rough implications of this:
+1. Every `Expression_Node` would become a `Symbol_2` pointer, or whatever is this named.
+2. These symbols, which should be omitted from the final object file, should be added inside an
+   expression section so they can be easily skipped when needed.
+
+Apart from this, more optimizations could be achieved for creating less full symbols: during
+parsing, I could peek ahead some binary operations and eagerly collapse into a symbol plus number or
+similar.
+
+Sat Jul 11 16:24:25 CEST 2026
+
+Support for the E extension is mainly limiting the amount of registers to 16, so during register
+lookup if the number is greater or equal 16, you mark it as missing.

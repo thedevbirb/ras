@@ -4,10 +4,6 @@
 
 // TODO(refactor): make some stuff into elf if applicable
 
-// NOTE: programs can have a lot of sections. In particular compilers may emit one section per function
-// `-ffunction-section` that allows them to eliminate dead functions at link time. This means sections should be stored
-// in an hashmap. Moreover, each section can grow its data.
-
 typedef enum ELF_Section
 {
         ELF_Section__None = 0,
@@ -80,20 +76,6 @@ global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
         [ELF_Section__Data]             = ELF_Section__Relocations_Data,
         [ELF_Section__Read_Only_Data]   = ELF_Section__Relocations_Read_Only_Data,
 };
-
-internal U32
-Hashmap_hash(String8 key)
-{
-        U32 hash = 2166136261u;
-
-        for (U64 i = 0; i < key.count; i++)
-        {
-                hash ^= key.data[i];
-                hash *= 16777619u;
-        }
-
-        return hash;
-}
 
 // A data structure modelling an object file section, in memory.
 //

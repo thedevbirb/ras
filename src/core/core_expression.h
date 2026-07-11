@@ -1,6 +1,8 @@
 #ifndef CORE_EXPRESSION_H
 #define CORE_EXPRESSION_H
 
+// TODO(refactor, high) revisit expression, see diary.
+
 // After the parser processes an item, it ALWAYS advances.
 
 // This can be used both for parsing information and evaluation information.
@@ -18,13 +20,6 @@ typedef enum Expression_Kind
         // Leaf nodes
         Expression_Kind__Constant,
         Expression_Kind__Symbol,
-        // Expression_Kind__Number,
-        // Expression_Kind__Char_Literal,
-        // Expression_Kind__Identifier,
-        // Expression_Kind__Label_Numeric_Reference_Forward,
-        // Expression_Kind__Label_Numeric_Reference_Backward,
-        // Expression_Kind__Current_Address,   // .
-        // Expression_Kind__Relocation,        // %hi(expr), %lo(expr), etc.
 
         // Unary operators
         Expression_Kind__Negate,            // -x

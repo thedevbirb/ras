@@ -13,7 +13,8 @@ typedef enum Symbol_Flags
 {
         Symbol_Flags__None                       = 0 << 0,
 
-        // Whether the symbol is a local_symbol.
+        // This comes from GNU as, and as it suggests it marks whether the symbol is a local symbol. It is used because
+        // a `symbolS` pointer can be casted into a fully-fledged `struct symbol`.
         Symbol_Flags__Local                      = 1 << 0,
 
         // Weather symbol has been written.
@@ -72,7 +73,6 @@ struct Symbol_Ref
         U32 expression_index;
         Symbol_Flags flags;
 };
-
 
 typedef struct Symbol Symbol;
 struct Symbol
