@@ -180,7 +180,7 @@ RISCV_Instruction__parse
 
         U16                     *relocation_out,
         RISCV_Instruction       *instruction_out,
-        U32                     *expression_index_out
+        Expression_Node        **expression_node_out
 )
 {
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
@@ -326,7 +326,7 @@ RISCV_Instruction__parse
 
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
-                                expression_evaluate(expressions, expression->index);
+                                expression_evaluate(expression);
                                 if (expression->symbol_operand)
                                 {
                                         // TODO(low): this diagnostic could be better, I should probably support re-lexing
@@ -346,7 +346,7 @@ RISCV_Instruction__parse
 
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
-                                expression_evaluate(expressions, expression->index);
+                                expression_evaluate(expression);
                                 if (expression->symbol_operand)
                                 {
                                         // TODO(low): this diagnostic could be better, I should probably support re-lexing
@@ -373,7 +373,7 @@ RISCV_Instruction__parse
                                         expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
-                                                expression_evaluate(expressions, expression->index);
+                                                expression_evaluate(expression);
                                                 // TODO(RV32): normalize constant expression? See GNU as.
                                                 B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                 if (expression->evaluation == Expression_Kind__Constant && fits)
@@ -406,7 +406,7 @@ RISCV_Instruction__parse
                                         expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
-                                                expression_evaluate(expressions, expression->index);
+                                                expression_evaluate(expression);
                                                 // TODO(RV32): normalize constant expression? See GNU as.
                                                 B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                 if (expression->evaluation == Expression_Kind__Constant && fits)
@@ -428,7 +428,7 @@ RISCV_Instruction__parse
                                 expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__itype);
                                 if (!*relocation_out)
                                 {
-                                       expression_evaluate(expressions, expression->index);
+                                       expression_evaluate(expression);
                                        // TODO(RV32): normalize constant expression? See GNU as.
                                        B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                        if (expression->evaluation == Expression_Kind__Constant && fits)
@@ -449,7 +449,7 @@ RISCV_Instruction__parse
                                 expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__utype);
                                 if (!*relocation_out)
                                 {
-                                        expression_evaluate(expressions, expression->index);
+                                        expression_evaluate(expression);
                                         if (expression->evaluation == Expression_Kind__Constant)
                                         {
                                                 S64 result = expression->integer_value;
@@ -482,7 +482,7 @@ RISCV_Instruction__parse
                         case OP_Argument__Immediate_Large:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                expression_evaluate(expressions, expression->index);
+                                expression_evaluate(expression);
                                 if (expression->evaluation != Expression_Kind__Constant)
                                 {
                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -495,7 +495,7 @@ RISCV_Instruction__parse
                         case OP_Argument__Shift_Amount:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                expression_evaluate(expressions, expression->index);
+                                expression_evaluate(expression);
                                 S64 value = expression->integer_value;
                                 B32 fits = 0 <= value && value < XLEN;
                                 if (expression->evaluation != Expression_Kind__Constant || !fits)
@@ -512,7 +512,7 @@ RISCV_Instruction__parse
                         case OP_Argument__Shift_Amount_5:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                expression_evaluate(expressions, expression->index);
+                                expression_evaluate(expression);
                                 S64 value = expression->integer_value;
                                 B32 fits = 0 <= value && value < (1 << 5);
                                 if (expression->evaluation != Expression_Kind__Constant || !fits)
@@ -556,7 +556,7 @@ RISCV_Instruction__parse
                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
-        *expression_index_out = expression ? expression->index : 0;
+        *expression_node_out = expression;
 
         return;
 }
@@ -568,7 +568,7 @@ RISCV_Instruction__append
         Fixups            *fixups,
 
         RISCV_Instruction *instruction,
-        U32                expression_index,
+        Expression_Node   *expression_node,
         U16                relocation
 )
 {
@@ -583,7 +583,7 @@ RISCV_Instruction__append
                 // (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
                 // like branches, break this invariant.
                 fixup = Fixups__push(fixups);
-                fixup->expression_index = expression_index;
+                fixup->expression_node = expression_node;
                 fixup->relocation_type  = relocation;
         }
 
@@ -603,7 +603,7 @@ RISCV_Instruction__append
                         instruction->location,
                         worst_case_size,
                         best_case_size,
-                        expression_index,
+                        expression_node,
                         subtype
                 );
         }
@@ -626,14 +626,14 @@ internal void
 RISCV_macro_build
 (
 
-        Section     *section,
-        Fixups      *fixups,
+        Section         *section,
+        Fixups          *fixups,
 
-        String8      instruction_name,
-        U32          location,
-        U32          expression_index,
-        OP_Argument *arguments,
-        S32         *values
+        String8          instruction_name,
+        U32              location,
+        Expression_Node *expression_node,
+        OP_Argument     *arguments,
+        S32             *values
 )
 {
         U32 instruction_hash = FNV_hash_U32(instruction_name);
@@ -671,14 +671,14 @@ RISCV_macro_build
                 values    += 1;
         }
 
-        assert_always_m(relocation ? expression_index : 1);
+        assert_always_m(relocation ? expression_node != 0 : 1);
 
         RISCV_Instruction__append
         (
                 section,
                 fixups,
                 &instruction,
-                expression_index,
+                expression_node,
                 relocation
         );
 }
@@ -690,11 +690,11 @@ RISCV_call_expand
         Section         *section,
         Fixups          *fixups,
 
-        U8  rd,
-        U8  rs1,
-        U32 expression_index,
-        U16 relocation,
-        U32 location
+        U8               rd,
+        U8               rs1,
+        Expression_Node *expression_node,
+        U16              relocation,
+        U32              location
 )
 {
         // Ensure the instructions are in the same fragment
@@ -711,7 +711,7 @@ RISCV_call_expand
 
                 String8__literal("auipc"),
                 location,
-                expression_index,
+                expression_node,
                 arguments_auipc,
                 values_auipc
         );
@@ -946,7 +946,7 @@ RISCV_instruction_pseudo_append
                         fixups,
                         rd,
                         rs1,
-                        expression->index,
+                        expression,
                         relocation,
                         instruction->location
                 );
@@ -1014,7 +1014,7 @@ RISCV_instruction_pseudo_append
 
                                  String8__literal("auipc"),
                                  instruction->location,
-                                 expression->index,
+                                 expression,
                                  arguments_auipc,
                                  values_auipc
                         );
@@ -1026,7 +1026,7 @@ RISCV_instruction_pseudo_append
 
                                  String8__literal("addi"),
                                  instruction->location,
-                                 expression_addi->index,
+                                 expression_addi,
                                  arguments_addi,
                                  values_addi
                         );

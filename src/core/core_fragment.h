@@ -1,6 +1,9 @@
 #ifndef CORE_FRAGMENT_H
 #define CORE_FRAGMENT_H
 
+// Forward declaration for pointer use.
+typedef struct Expression_Node Expression_Node;
+
 typedef U8 Relax_State;
 enum
 {
@@ -12,11 +15,9 @@ enum
         // instead of having a dedicated variant for it.
         //
         // TODO(medium): the above is achieved by calling something like `frag_wane`, which is currently unimplemented.
-        // TODO(medium): for numerical values I use the `expression_index`, which implies that I always have to carry
-        // around the `Expressions` Xar even for reading a constant value that won't change anymore. It's not good.
         Relax_State__None,
         // Describes a `.fill <repeat>, <size>, <pattern>` directive:
-        // - `expression_index` contains the <repeat> expression.
+        // - `expression_node` contains the <repeat> expression.
         // - `size_variable` contains <size>.
         // - the variable bytes of the fragment contain the pattern.
         //
@@ -28,12 +29,12 @@ enum
         // Describes a fill directive in a code section. Should be used in a `nops/.nops` directive.
         Relax_State__Fill_Nop,
         // Describe an `.align` directive:
-        // - `expression_index` contains the constant expression with the power of two used for alignment.
+        // - `expression_node` contains the constant expression with the power of two used for alignment.
         // - `subtype` contains the maximum number of bytes to skip when aligning, or zero if there is no maximum.
         // - `size_variable` contains the size of the byte pattern.
         Relax_State__Align,
         // Describe an `.align` directive, in a _code_ section. The fill pattern is handled by the backend.
-        // - `expression_index` contains the constant expression with the power of two used for alignment.
+        // - `expression_node` contains the constant expression with the power of two used for alignment.
         // - `subtype` contains the maximum number of bytes to skip when aligning, or zero if there is no maximum.
         // - `size_variable` contains the size of the byte pattern, but this is machine dependent.
         Relax_State__Align_Code,
@@ -62,7 +63,7 @@ struct Fragment
         U64          object_file_offset_last;
         // Variably-sized fragments are tied to instructions which can expand and most probably
         // have an expression attached to them.
-        U32          expression_index;
+        Expression_Node *expression_node;
         // The location in the source code where this fragment has been created.
         U32          location;
         // The fixed number of bytes we have.
@@ -106,21 +107,21 @@ Fragment_List__fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 s
 internal U8 *
 Fragment_List__variable
 (
-        Fragment_List *fragments,
-        Arena         *arena,
-        U32            location,
-        U32            size_max,
-        U32            size_variable,
-        U32            expression_index,
-        U32            subtype,
-        Relax_State    type
+        Fragment_List   *fragments,
+        Arena           *arena,
+        U32              location,
+        U32              size_max,
+        U32              size_variable,
+        Expression_Node *expression_node,
+        U32              subtype,
+        Relax_State      type
 );
 
 // Seal the current fragment with a fill pattern.
 internal void
-Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat_expression_index, S64 pattern, U8 size);
+Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, S64 pattern, U8 size);
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 alignment_expression_index, U8 pattern, U8 alignment_max);
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *alignment_expression_node, U8 pattern, U8 alignment_max);
 
 #endif // CORE_FRAGMENT_H

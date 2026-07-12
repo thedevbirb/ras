@@ -132,11 +132,11 @@ struct Evaluation_Frame
 };
 
 internal S64
-expression_evaluate(Expressions *expressions, U32 index)
+expression_evaluate(Expression_Node *node_root)
 {
         Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
         Evaluation_Frame *frame = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-        frame->node = xar_get_m(expressions, index);
+        frame->node = node_root;
         S64 result_end = 0;
 
         for (;;)
@@ -152,26 +152,26 @@ expression_evaluate(Expressions *expressions, U32 index)
                         result_end = node->integer_value;
                         SLL_stack_pop_m(frame);
                 }
-                else if (node->index_right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
+                else if (node->right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
                 {
                         // We have to evaluate the inner expression
                         frame->state |= Evaluation_Frame_State__Right_Evaluated;
                         Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-                        frame_new->node = xar_get_m(expressions, node->index_right);
+                        frame_new->node = node->right;
                         SLL_stack_push_n_m(frame, frame_new, next);
                 }
-                else if (node->index_left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
+                else if (node->left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
                 {
                         // We have to evaluate the inner expression
                         frame->state |= Evaluation_Frame_State__Left_Evaluated;
                         Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-                        frame_new->node = xar_get_m(expressions, node->index_left);
+                        frame_new->node = node->left;
                         SLL_stack_push_n_m(frame, frame_new, next);
                 }
-                else if (node->index_right && node->index_left)
+                else if (node->right && node->left)
                 {
-                        Expression_Node *left  = xar_get_m(expressions, node->index_left);
-                        Expression_Node *right = xar_get_m(expressions, node->index_right);
+                        Expression_Node *left  = node->left;
+                        Expression_Node *right = node->right;
 
                         // Assert that both left and right have been evaluated.
                         assert_always_m(left->evaluation);
@@ -219,9 +219,9 @@ expression_evaluate(Expressions *expressions, U32 index)
                         }
                         SLL_stack_pop_m(frame);
                 }
-                else if (node->index_right)
+                else if (node->right)
                 {
-                        Expression_Node *right = xar_get_m(expressions, node->index_right);
+                        Expression_Node *right = node->right;
                         assert_always_m(right->evaluation);
 
                         if (right->evaluation == Expression_Kind__Constant)
@@ -242,7 +242,7 @@ expression_evaluate(Expressions *expressions, U32 index)
                 else
                 {
                         // Leaf reached.
-                        assert_always_m(node->index_left == 0);
+                        assert_always_m(node->left == 0);
                         assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
 
                         node->evaluation = node->kind;
@@ -291,9 +291,7 @@ Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount)
 Expression_Node *
 Expressions_push_empty(Expressions *expressions, Arena *arena)
 {
-        U32 index             = expressions->header.count;
         Expression_Node *node = xar_push_m(expressions, arena);
-        node->index           = index;
 
         return node;
 }

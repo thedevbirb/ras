@@ -4,6 +4,9 @@
 #define DOT_SYMBOL_NAME ".L0\x01"
 #define DOT_SYMBOL_HASH 0
 
+// Forward declaration for pointer use.
+typedef struct Expression_Node Expression_Node;
+
 global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
 
 // TODO(refactor): I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
@@ -64,14 +67,14 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
-        Fragment *fragment;
-        ELF64_Symbol  elf;
-        // Where the symbol has been declared.
-        U32 location;
-        // The index of the expression which defines its value, if known. This will be non-zero
+        Fragment         *fragment;
+        // The expression which defines its value, if known. This will be non-null
         // on symbol definition using `.set`-like directives.
-        U32 expression_index;
-        Symbol_Flags flags;
+        Expression_Node  *expression_node;
+        ELF64_Symbol      elf;
+        // Where the symbol has been declared.
+        U32               location;
+        Symbol_Flags      flags;
 };
 
 typedef struct Symbol Symbol;

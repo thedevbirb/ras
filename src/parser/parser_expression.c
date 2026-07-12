@@ -242,7 +242,7 @@ expression_parse_with_flags
                         if (frame->is_right_side_of_next)
                         {
                                 assert_always_m(frame->next);
-                                frame->next->node->index_right = frame->node->index;
+                                frame->next->node->right = frame->node;
                         }
 
                         if (!frame->next || error)
@@ -262,7 +262,7 @@ expression_parse_with_flags
                         // Set central node.
                         frame->node = Expressions_push_empty(expressions, arena);
                         frame->node->kind = Expression_Kind__binary_from_Token_Kind(cursor->current.kind);
-                        frame->node->index_left = left->index;
+                        frame->node->left = left;
                         frame->node->location   = cursor->current.location;
 
                         token_next(cursor, diagnostics, arena);

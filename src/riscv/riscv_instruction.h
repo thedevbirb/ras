@@ -632,7 +632,7 @@ RISCV_Instruction__append
         Fixups            *fixups,
 
         RISCV_Instruction *instruction,
-        U32                expression_index,
+        Expression_Node   *expression_node,
         U16                relocation
 );
 
@@ -640,14 +640,14 @@ internal void
 RISCV_macro_build
 (
 
-        Section     *section,
-        Fixups      *fixups,
+        Section         *section,
+        Fixups          *fixups,
 
-        String8      instruction_name,
-        U32          location,
-        U32          expression_index,
-        OP_Argument *arguments,
-        S32         *values
+        String8          instruction_name,
+        U32              location,
+        Expression_Node *expression_node,
+        OP_Argument     *arguments,
+        S32             *values
 );
 
 // Expand a call pseudo instruction into an `auipc + jalr` pair with the provided register for `jalr`.
@@ -657,11 +657,11 @@ RISCV_call_expand
         Section         *section,
         Fixups          *fixups,
 
-        U8  rd,
-        U8  rs1,
-        U32 expression_index,
-        U16 relocation,
-        U32 location
+        U8               rd,
+        U8               rs1,
+        Expression_Node *expression_node,
+        U16              relocation,
+        U32              location
 );
 
 internal U8

@@ -58,14 +58,14 @@ Fragment_List__fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 s
 internal U8 *
 Fragment_List__variable
 (
-        Fragment_List *fragments,
-        Arena         *arena,
-        U32            location,
-        U32            size_max,
-        U32            size_variable,
-        U32            expression_index,
-        U32            subtype,
-        Relax_State    type
+        Fragment_List   *fragments,
+        Arena           *arena,
+        U32              location,
+        U32              size_max,
+        U32              size_variable,
+        Expression_Node *expression_node,
+        U32              subtype,
+        Relax_State      type
 )
 {
         assert_always_m(size_variable <= size_max);
@@ -73,7 +73,7 @@ Fragment_List__variable
         Fragment *sealed = fragments->last;
 
         sealed->size_variable    = size_variable;
-        sealed->expression_index = expression_index;
+        sealed->expression_node  = expression_node;
         sealed->subtype          = subtype;
         sealed->type             = type;
 
@@ -88,7 +88,7 @@ Fragment_List__variable
 
 // Seal the current fragment with a fill pattern.
 internal void
-Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 repeat_expression_index, S64 pattern, U8 size)
+Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, S64 pattern, U8 size)
 {
         assert_always_m(size <= 8);
         U8 *data = Fragment_List__variable
@@ -98,7 +98,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 re
                 location,
                 size,
                 size,
-                repeat_expression_index,
+                repeat_expression_node,
                 0,
                 Relax_State__Fill
         );
@@ -107,7 +107,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, U32 re
 }
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 alignment_expression_index, U8 pattern, U8 alignment_max)
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *alignment_expression_node, U8 pattern, U8 alignment_max)
 {
         // NOTE: double check more precisely how GNU as overloads some fields, and then decide whether to keep the same
         // layout or not.
@@ -123,7 +123,7 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 a
                 location,
                 size_max,
                 size_variable,
-                alignment_expression_index,
+                alignment_expression_node,
                 alignment_max,
                 Relax_State__Fill
         );

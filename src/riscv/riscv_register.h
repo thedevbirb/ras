@@ -36,7 +36,7 @@ global const Register RISCV_registers[] =
         {String8__literal("tp"),   4},
         {String8__literal("fp"),   8},  /* fp is alias for s0. */
         {String8__literal("s0"),   8},
-        {String8__literal("s1"),   9}
+        {String8__literal("s1"),   9},
         {String8__literal("a0"),  10},
         {String8__literal("a1"),  11},
         {String8__literal("a2"),  12},

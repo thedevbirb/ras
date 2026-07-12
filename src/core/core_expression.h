@@ -77,10 +77,9 @@ struct Expression_Node
         Symbol_Ref *symbol_operand;
         Expression_Kind  kind;
 
-        // Parsing-related fields. These indexes are the positions inside the `Expressions` Xar.
-        U32 index;
-        U32 index_left;
-        U32 index_right;
+        // Parsing-related fields. Pointers to child expression nodes.
+        Expression_Node *left;
+        Expression_Node *right;
         Expression_Kind  evaluation;
 
 };

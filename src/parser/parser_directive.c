@@ -115,7 +115,7 @@ directive_set_like
         String8 name = Token_Cursor__text(cursor);
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
 
-        B32 already_defined_or_equated = symbol->elf.section_index || symbol->expression_index;
+        B32 already_defined_or_equated = symbol->elf.section_index || symbol->expression_node;
         if (already_defined_or_equated)
         {
                 B32 frozen = mode != Set_Mode__Override || !(symbol->flags & Symbol_Flags__Volatile);
@@ -187,12 +187,12 @@ directive_set_like
                 diagnostics,
                 expression_flags
         );
-        symbol->expression_index = expression->index;
+        symbol->expression_node = expression;
 
         if (mode != Set_Mode__Strict_Forward)
         {
 
-                S64 result = expression_evaluate(expressions, expression->index);
+                S64 result = expression_evaluate(expression);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
                         symbol->elf.section_index = ELF_Section_Index__Absolute;
@@ -227,7 +227,7 @@ directive_data
                 // We explicitly convert it to an unsigned value since this is how it's treated as.
                 //
                 // TODO: not very clear behaviour when in case of signed overflow.
-                S64 result = expression_evaluate(expressions, expression->index);
+                S64 result = expression_evaluate(expression);
                 U64 result_unsigned = (U64)result;
 
                 U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, data_directive_size);
@@ -251,7 +251,7 @@ directive_data
                         U32 encoding_offset = section->fragment_list.last->size_fixed - data_directive_size;
 
                         Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-                        fixup->expression_index = expression->index;
+                        fixup->expression_node = expression;
                         fixup->fragment         = section->fragment_list.last;
                         fixup->encoding_offset  = encoding_offset;
                         fixup->size             = data_directive_size;

@@ -1,13 +1,16 @@
 #ifndef CORE_FIXUP_H
 #define CORE_FIXUP_H
 
+// Forward declaration for pointer use.
+typedef struct Expression_Node Expression_Node;
+
 typedef struct Fixup Fixup;
 struct Fixup
 {
         Fixup    *next;
         Fragment *fragment;
 
-        U32 expression_index;
+        Expression_Node *expression_node;
         // Offset in the fragment data where the result must be written to.
         U32 encoding_offset;
 

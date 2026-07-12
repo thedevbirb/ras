@@ -150,7 +150,7 @@ statement_read
                         U16               relocation  =  0;
                         RISCV_Instruction instruction = {0};
 
-                        U32 expression_index_parsed = 0;
+                        Expression_Node *expression_node_parsed = 0;
                         RISCV_Instruction__parse
                         (
                                 arena,
@@ -162,12 +162,11 @@ statement_read
                                 instruction_hash,
                                 &relocation,
                                 &instruction,
-                                &expression_index_parsed
+                                &expression_node_parsed
                         );
 
                         if (instruction.opcode->info & INSN_MACRO)
                         {
-                                Expression_Node *expression = xar_get_m(expressions, expression_index_parsed);
                                 RISCV_instruction_pseudo_append
                                 (
                                         arena,
@@ -176,7 +175,7 @@ statement_read
                                         expressions,
                                         symbols_table,
                                         &instruction,
-                                        expression,
+                                        expression_node_parsed,
                                         relocation
                                 );
                         }
@@ -187,7 +186,7 @@ statement_read
                                         section,
                                         fixups,
                                         &instruction,
-                                        expression_index_parsed,
+                                        expression_node_parsed,
                                         relocation
                                 );
                         }
@@ -398,7 +397,7 @@ statement_read
                                 // Read size
                                 token_next(cursor, diagnostics, arena);
                                 Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                fill_size = expression_evaluate(expressions, size_expression->index);
+                                fill_size = expression_evaluate(size_expression);
                                 if (size_expression->evaluation != Expression_Kind__Constant)
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -434,7 +433,7 @@ statement_read
                                 // Read value
                                 token_next(cursor, diagnostics, arena);
                                 Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                fill_pattern = expression_evaluate(expressions, value_expression->index);
+                                fill_pattern = expression_evaluate(value_expression);
                                 if (value_expression->evaluation != Expression_Kind__Constant)
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -443,7 +442,7 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         }
-                        Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression->index, fill_pattern, fill_size);
+                        Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression, fill_pattern, fill_size);
                 } break;
                 case Directive_Kind__Align:
                 {
@@ -462,7 +461,7 @@ statement_read
 
                         token_next(cursor, diagnostics, arena);
                         Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                        expression_evaluate(expressions, alignment_expression->index);
+                        expression_evaluate( alignment_expression);
 
                         if (alignment_expression->evaluation != Expression_Kind__Constant)
                         {
@@ -480,7 +479,7 @@ statement_read
 
                                 Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
 
-                                S64 pattern_evaluation = expression_evaluate(expressions, pattern_expression->index);
+                                S64 pattern_evaluation = expression_evaluate( pattern_expression);
                                 if (pattern_expression->evaluation != Expression_Kind__Constant)
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -507,7 +506,7 @@ statement_read
                                 // Read bytes_max
                                 token_next(cursor, diagnostics, arena);
                                 Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
-                                S64 bytes_max_evaluation = expression_evaluate(expressions, bytes_max_expression->index);
+                                S64 bytes_max_evaluation = expression_evaluate( bytes_max_expression);
                                 if (bytes_max_expression->evaluation != Expression_Kind__Constant)
                                 {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -543,7 +542,7 @@ statement_read
                                 }
                         }
 
-                        Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression->index, pattern, bytes_max);
+                        Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression, pattern, bytes_max);
                 } break;
                 default: {} break;
                 }

@@ -200,14 +200,14 @@ Sections_Table__add_common(Sections_Table *sections_table)
 internal void
 Section__add_instruction_relaxed
 (
-        Section *section,
-        U32      encoding,
-        U8       encoding_size,
-        U32      location,
-        U8       worst_case_size,
-        U8       best_case_size,
-        U32      expression_index,
-        U32      subtype
+        Section         *section,
+        U32              encoding,
+        U8               encoding_size,
+        U32              location,
+        U8               worst_case_size,
+        U8               best_case_size,
+        Expression_Node *expression_node,
+        U32              subtype
 )
 {
         U8 *data = Fragment_List__variable
@@ -217,7 +217,7 @@ Section__add_instruction_relaxed
                 location,
                 worst_case_size,
                 best_case_size,
-                expression_index,
+                expression_node,
                 subtype,
                 Relax_State__Machine
         );
