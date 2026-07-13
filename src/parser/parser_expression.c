@@ -50,132 +50,136 @@ expression_parse_with_flags
 
         Parenthesis_Frame *parenthesis_frame = 0;
 
+        U16 index = 0;
         for (;;)
         {
+                assert_always_m(index < U16_max && "infinite loop detected");
                 // Iterate until we pop the last frame.
 
                 // Start by reading a null-denotation. We mark we've done this process be setting
-                // `frame->null_denotation_parsed = 1`.
+                // `frame->null_denotation_parsed = 1`. When done, we shouldn't do it again for this frame.
                 //
                 // Every branch advances the current token since it has its own custom logic.
-                switch (cursor->current.kind)
-                {
-                case Token_Kind__Number:
-                {
-                        Token   peek      = token_peek(cursor, diagnostics, arena);
-                        String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
 
-                        B32 identifier_is    = peek.kind == Token_Kind__Identifier;
-                        B32 single_letter_is = identifier_is && (peek_text.count == 1);
-                        B32 forward          = single_letter_is && peek_text.data[0] == 'f';
-                        B32 backward         = single_letter_is && peek_text.data[0] == 'b';
-                        Symbol_Ref *label    = 0;
 
-                        // These two paths can probably collapse.
-                        if (forward || backward)
+                if (frame->null_denotation_parsed == 0)
+                {
+                        switch (cursor->current.kind)
                         {
-                                U32            number        = U32_cast_safe(cursor->current.numerical_value);
-                                Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
-                                               label_numeric->instances += (U32)forward;
-                                String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                                               label         = Symbols_Table__get_or_default(symbols_table, label_name);
+                        case Token_Kind__Number:
+                        {
+                                Token   peek      = token_peek(cursor, diagnostics, arena);
+                                String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
 
-                                if (backward && !label->elf.section_index)
+                                B32 identifier_is    = peek.kind == Token_Kind__Identifier;
+                                B32 single_letter_is = identifier_is && (peek_text.count == 1);
+                                B32 forward          = single_letter_is && peek_text.data[0] == 'f';
+                                B32 backward         = single_letter_is && peek_text.data[0] == 'b';
+                                Symbol_Ref *label    = 0;
+
+                                // These two paths can probably collapse.
+                                if (forward || backward)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                        diagnostic->message    = String8__literal("backward label reference not found");
-                                        diagnostic->location   = cursor->current.location;
-                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        U32            number        = U32_cast_safe(cursor->current.numerical_value);
+                                        Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
+                                                       label_numeric->instances += (U32)forward;
+                                        String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
+                                                       label         = Symbols_Table__get_or_default(symbols_table, label_name);
+
+                                        if (backward && !label->elf.section_index)
+                                        {
+                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                diagnostic->message    = String8__literal("backward label reference not found");
+                                                diagnostic->location   = cursor->current.location;
+                                                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
+                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        }
+
+                                        assert_always_m(!forward || label->elf.section_index == 0);
+
+                                        frame->node->kind       = Expression_Kind__Symbol;
+                                        frame->node->evaluation = Expression_Kind__Symbol;
+                                        frame->node->symbol     = label;
+                                        // Skip the letter
+                                        token_next(cursor, diagnostics, arena);
+                                }
+                                else
+                                {
+                                        frame->node->kind          = Expression_Kind__Constant;
+                                        frame->node->evaluation    = Expression_Kind__Constant;
+                                        frame->node->integer_value = cursor->current.numerical_value;
                                 }
 
-                                assert_always_m(!forward || label->elf.section_index == 0);
+                                frame->node->location         = cursor->current.location;
+                                frame->null_denotation_parsed = 1;
 
-                                frame->node->kind       = Expression_Kind__Symbol;
-                                frame->node->evaluation = Expression_Kind__Symbol;
-                                frame->node->symbol     = label;
-                                // Skip the letter
                                 token_next(cursor, diagnostics, arena);
-                        }
-                        else
+                        } break;
+
+                        case Token_Kind__Identifier:
                         {
-                                frame->node->kind          = Expression_Kind__Constant;
-                                frame->node->evaluation    = Expression_Kind__Constant;
-                                frame->node->integer_value = cursor->current.numerical_value;
-                        }
+                                String8 name = Token_Cursor__text(cursor);
+                                B32 dot = name.count == 1 && name.data[0] == '.';
 
-                        frame->node->location         = cursor->current.location;
-                        frame->null_denotation_parsed = 1;
+                                Symbol_Ref *symbol = 0;
+                                if (dot)
+                                {
+                                        Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
+                                        Symbol_Ref__update_section(&dot_trie->symbol, section);
+                                        symbol = flags & Expression_Flags__Defer_Dot
+                                               ? &dot_trie->symbol
+                                               : Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
+                                }
+                                else
+                                {
+                                        symbol = Symbols_Table__get_or_default(symbols_table, name);
+                                }
 
-                        token_next(cursor, diagnostics, arena);
-                } break;
+                                symbol->flags |= Symbol_Flags__Used;
 
-                case Token_Kind__Identifier:
-                {
-                        String8 name = Token_Cursor__text(cursor);
-                        B32 dot = name.count == 1 && name.data[0] == '.';
+                                frame->node->kind             = Expression_Kind__Symbol;
+                                frame->node->evaluation       = Expression_Kind__Symbol;
+                                frame->node->symbol           = symbol;
+                                frame->node->location         = cursor->current.location;
+                                frame->null_denotation_parsed = 1;
 
-                        Symbol_Ref *symbol = 0;
-                        if (dot)
+                                token_next(cursor, diagnostics, arena);
+                        } break;
+
+                        case Token_Kind__Percentage:
+                        case Token_Kind__Minus:
+                        case Token_Kind__Tilde:
+                        case Token_Kind__Bang:
                         {
-                                Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
-                                Symbol_Ref__update_section(&dot_trie->symbol, section);
-                                symbol = flags & Expression_Flags__Defer_Dot
-                                       ? &dot_trie->symbol
-                                       : Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
-                        }
-                        else
+                                // unary_operator <expression>
+                                frame->node->kind = Expression_Kind_from_unary_Token_Kind(cursor->current.kind);
+                                frame->null_denotation_parsed = 1;
+
+                                Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+                                frame_new->node = Expressions_push_empty(expressions, arena);
+                                frame_new->node->location = cursor->current.location;
+                                frame_new->binding_power_minimum = Binding_Power__Unary;
+                                frame_new->is_right_side_of_next = 1;
+
+                                token_next(cursor, diagnostics, arena);
+                                frame_new->location_begin = cursor->current.location;
+
+                                SLL_stack_push_m(frame, frame_new);
+                                continue;
+                        } break;
+
+                        case Token_Kind__Parenthesis_Left:
                         {
-                                symbol = Symbols_Table__get_or_default(symbols_table, name);
-                        }
+                                // ( <expression> )
+                                Parenthesis_Frame *parenthesis_frame_new = Arena__push_struct_m(scratch.arena, Parenthesis_Frame);
+                                parenthesis_frame_new->location = cursor->current.location;
+                                SLL_stack_push_m(parenthesis_frame, parenthesis_frame_new);
 
-                        symbol->flags |= Symbol_Flags__Used;
+                                token_next(cursor, diagnostics, arena);
+                                continue;
+                        } break;
 
-                        frame->node->kind             = Expression_Kind__Symbol;
-                        frame->node->evaluation       = Expression_Kind__Symbol;
-                        frame->node->symbol           = symbol;
-                        frame->node->location         = cursor->current.location;
-                        frame->null_denotation_parsed = 1;
-
-                        token_next(cursor, diagnostics, arena);
-                } break;
-
-                case Token_Kind__Percentage:
-                case Token_Kind__Minus:
-                case Token_Kind__Tilde:
-                case Token_Kind__Bang:
-                {
-                        // unary_operator <expression>
-                        frame->node->kind = Expression_Kind_from_unary_Token_Kind(cursor->current.kind);
-                        frame->null_denotation_parsed = 1;
-
-                        Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
-                        frame_new->node = Expressions_push_empty(expressions, arena);
-                        frame_new->node->location = cursor->current.location;
-                        frame_new->binding_power_minimum = Binding_Power__Unary;
-                        frame_new->is_right_side_of_next = 1;
-
-                        token_next(cursor, diagnostics, arena);
-                        frame_new->location_begin = cursor->current.location;
-
-                        SLL_stack_push_m(frame, frame_new);
-                        continue;
-                } break;
-
-                case Token_Kind__Parenthesis_Left:
-                {
-                        // ( <expression> )
-                        Parenthesis_Frame *parenthesis_frame_new = Arena__push_struct_m(scratch.arena, Parenthesis_Frame);
-                        parenthesis_frame_new->location = cursor->current.location;
-                        SLL_stack_push_m(parenthesis_frame, parenthesis_frame_new);
-
-                        token_next(cursor, diagnostics, arena);
-                        continue;
-                } break;
-
-                default:
-                {
-                        if (!frame->null_denotation_parsed)
+                        default:
                         {
                                 // Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
                                 // its diagnostic.
@@ -190,8 +194,8 @@ expression_parse_with_flags
                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
 
                                 token_next(cursor, diagnostics, arena);
+                        } break;
                         }
-                } break;
                 }
 
                 // Don't check binding power of a ')', handle it and then check what's next.
@@ -283,6 +287,7 @@ expression_parse_with_flags
                         break;
                 }
 
+                index += 1;
         }
 
         if (parenthesis_frame)
