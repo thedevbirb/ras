@@ -146,16 +146,34 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
 internal void
 Sections_Table__add_common(Sections_Table *sections_table)
 {
-        String8 nil  = String8__literal("");
-        String8 text = String8__literal(".text");
-        String8 data = String8__literal(".data");
-        String8 bss  = String8__literal(".bss");
+        String8 nil     = String8__literal("");
+        String8 text_n  = String8__literal(".text");
+        String8 data_n  = String8__literal(".data");
+        String8 rodata_n = String8__literal(".rodata");
+        String8 bss_n   = String8__literal(".bss");
 
-        // TODO(check-gas): modify flags etc. Moreover, consider notes around the 09/07/2026.
         Sections_Table__get_or_default(sections_table, nil,  0);
-        Sections_Table__get_or_default(sections_table, text, 0);
-        Sections_Table__get_or_default(sections_table, data, 0);
-        Sections_Table__get_or_default(sections_table, bss,  0);
+
+        Section *text                  = Sections_Table__get_or_default(sections_table, text_n, 0);
+                 text->elf.type        = ELF_Section_Header_Type__Program_Data;
+                 text->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
+                 // TODO(compressed): this should probably be 2?
+                 text->elf.alignment   = 4;
+
+        Section *data                  = Sections_Table__get_or_default(sections_table, data_n, 0);
+                 data->elf.type        = ELF_Section_Header_Type__Program_Data;
+                 data->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 data->elf.alignment   = 8;
+
+        Section *rodata                = Sections_Table__get_or_default(sections_table, rodata_n, 0);
+                 rodata->elf.type      = ELF_Section_Header_Type__Program_Data;
+                 rodata->elf.flags     = ELF_Section_Header_Flags__ALLOC;
+                 rodata->elf.alignment = 8;
+
+        Section *bss                   = Sections_Table__get_or_default(sections_table, bss_n, 0);
+                 bss->elf.type         = ELF_Section_Header_Type__No_Data;
+                 bss->elf.flags        = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 bss->elf.alignment    = 8;
 
         return;
 }
@@ -218,6 +236,7 @@ Section__add_instruction_relaxed
                 worst_case_size,
                 best_case_size,
                 expression_node,
+                0,
                 subtype,
                 Relax_State__Machine
         );
@@ -259,5 +278,69 @@ Section__add_instruction_fixed
         }
 
         memory_copy(data, (U8 *)&encoding, encoding_size);
+        return;
+}
+
+// Finish the given section ensuring the last fragment in it has the tail `[alignment fragment][zero-fill fragment]`.
+// This is done for two main reasons:
+// 1. Ensure all sections have a consistent ending layout which can be relied upon.
+// 2. Add final alignment to the sections that might need it. For an example, a code section should end up with a proper
+//    alignment of NOPs to make execution and disassembly safe, while for table sections (`SEC_MERGE | SEC_STRINGS`)
+//    it's good to ensure alignment so that there is no entry of invalid byte size and other tools (like a linker) don't
+//    read over because they're assuming a certain size and less bytes have been written.
+internal void
+Section__finish(Section *section)
+{
+        // TODO(low): this is ELF specific but anyway.
+        U32 alignment = 0;
+
+        B32 code_section  = (section->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0;
+        B32 table_section = (section->elf.flags & ELF_Section_Header_Flags__MERGE)     != 0
+                         || (section->elf.flags & ELF_Section_Header_Flags__STRINGS)   != 0;
+
+        if (code_section)
+        {
+                // We write a power of two, not the exponent.
+                // TODO(compressed): make this 2
+                alignment = 4;
+        }
+
+        if (table_section)
+        {
+                // We take the highest power of two divisor as best alignment effort. If it's not a power of two, and we can't
+                // align properly, we will warn later.
+                U8 trailing_zeroes = count_trailing_zeros(section->elf.entry_size);
+                U8 trailing_zeroes_capped = min_m(31, trailing_zeroes);
+                U32 alignment_entry_size = (1UL << trailing_zeroes_capped);
+                alignment = max_m(alignment_entry_size, alignment);
+        }
+
+        U32 location = section->fragment_list.last->location;
+
+        if (code_section)
+        {
+                Fragment_List__align_code
+                (
+                        &section->fragment_list,
+                        section->arena,
+                        location,
+                        alignment,
+                        alignment
+                );
+        }
+        else
+        {
+                Fragment_List__align
+                (
+                        &section->fragment_list,
+                        section->arena,
+                        location,
+                        alignment,
+                        0,
+                        alignment
+                );
+        }
+
+        Fragment_List__fill(&section->fragment_list, section->arena, location, 0, 0, 0, 0);
         return;
 }

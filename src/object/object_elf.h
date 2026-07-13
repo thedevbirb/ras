@@ -80,19 +80,19 @@ struct ELF32_Section_Header
         U32 entry_size;
 };
 
-typedef struct ELF_Section_Header ELF_Section_Header;
-struct ELF_Section_Header
+typedef struct ELF64_Section_Header ELF64_Section_Header;
+struct ELF64_Section_Header
 {
-  U64        string_table_offset;                /* Section name (string tbl index) */
-  U64        type;                /* Section type */
-  U64        flags;                /* Section flags */
-  Address64        address_virtual;                /* Section virtual addr at execution */
-  Offset64        offset;                /* Section file offset */
-  U64        size;                /* Section size in bytes */
-  U64        link;                /* Link to another section */
-  U64        info;                /* Additional section information */
-  U64        alignment;                /* Section alignment */
-  U64        entry_size;                /* Entry size if section holds table */
+        U64 string_table_offset; /* Section name (string tbl index) */
+        U64 type;                /* Section type */
+        U64 flags;               /* Section flags */
+        U64 address_virtual;     /* Section virtual addr at execution */
+        U64 offset;              /* Section file offset */
+        U64 size;                /* Section size in bytes */
+        U64 link;                /* Link to another section */
+        U64 info;                /* Additional section information */
+        U64 alignment;           /* Section alignment */
+        U64 entry_size;          /* Entry size if section holds table */
 };
 
 /* Special section indices.  */

@@ -122,12 +122,12 @@ Fragment_List__variable
 
 // Seal the current fragment with a fill pattern.
 internal void
-Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, S64 pattern, U8 size);
+Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, U32 repeat_expression_constant, S64 pattern, U8 size);
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U8 alignment_max);
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U32 alignment_max);
 
 internal void
-Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 alignment_max);
+Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U32 alignment_max);
 
 #endif // CORE_FRAGMENT_H

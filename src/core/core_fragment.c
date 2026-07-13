@@ -90,7 +90,7 @@ Fragment_List__variable
 
 // Seal the current fragment with a fill pattern.
 internal void
-Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, S64 pattern, U8 size)
+Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, U32 repeat_expression_constant, S64 pattern, U8 size)
 {
         assert_always_m(size <= 8);
         U8 *data = Fragment_List__variable
@@ -101,7 +101,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expres
                 size,
                 size,
                 repeat_expression_node,
-                0,
+                repeat_expression_constant,
                 0,
                 Relax_State__Fill
         );
@@ -110,7 +110,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expres
 }
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U8 alignment_max)
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U32 alignment_max)
 {
         // NOTE: double check more precisely how GNU as overloads some fields, and then decide whether to keep the same
         // layout or not.
@@ -137,7 +137,7 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 p
 }
 
 internal void
-Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 alignment_max)
+Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U32 alignment_max)
 {
         // TODO(check-gas): maybe a fixup is needed here, checkout `riscv_frag_align_code`.
 

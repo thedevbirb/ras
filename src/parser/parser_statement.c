@@ -274,8 +274,8 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
-                                // TODO(medium): are they ORed? Or overwritten?
-                                section_new->flags = flags;
+                                // TODO(medium, check-gas): are they ORed? Or overwritten?
+                                section_new->elf.flags = flags;
                                 token_next(cursor, diagnostics, arena);
                         }
 
@@ -303,7 +303,7 @@ statement_read
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
-                                section_new->type = type;
+                                section_new->elf.type = type;
                                 token_next(cursor, diagnostics, arena);
                         }
 
@@ -442,7 +442,7 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         }
-                        Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression, fill_pattern, fill_size);
+                        Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression, 0, fill_pattern, fill_size);
                 } break;
                 case Directive_Kind__Align:
                 {

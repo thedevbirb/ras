@@ -302,7 +302,7 @@ directive_align
         // fragment
         U32 location_begin = cursor->current.location;
         U8  pattern   = 0;
-        U8  bytes_max = 0;
+        U32 bytes_max = 0;
 
         token_next(cursor, diagnostics, arena);
         Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
@@ -394,7 +394,7 @@ directive_align
                         diagnostic->ranges[0] = bytes_max_expression->location_range;
                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
-                bytes_max = (U8)bytes_max_evaluation;
+                bytes_max = (U32)bytes_max_evaluation;
 
                 if (bytes_max_evaluation <= 0)
                 {
@@ -409,19 +409,19 @@ directive_align
                 }
                 // NOTE: I don't know what should be an upper limit but there should be one probably.
                 // GNU as allows you to pass zero to NOT provide one which I think can be risky.
-                if (bytes_max_evaluation > 64)
+                if (bytes_max_evaluation > (S64)(1UL << 31))
                 {
                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                         diagnostic->kind     = Diagnostic_Kind__Warning;
-                        diagnostic->message  = String8__literal("capping fill size to 64 bytes");
+                        diagnostic->message  = String8__literal("capping fill size to 2^31 bytes");
                         diagnostic->location  = bytes_max_expression->location_range.v[0];
                         diagnostic->ranges[0] = bytes_max_expression->location_range;
                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                        bytes_max = 8;
+                        bytes_max = (1UL << 31);
                 }
         }
 
-        if ((section->flags & ELF_Section_Header_Flags__EXECINSTR) != 0)
+        if ((section->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0)
         {
                 // TODO(low): notify that pattern is ignored in case of .align code?
                 Fragment_List__align_code(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, bytes_max);

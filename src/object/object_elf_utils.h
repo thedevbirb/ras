@@ -4,7 +4,8 @@
 #define ELF_Section_Header_Flags__cstring  "aeowxEGMST"
 global const String8 ELF_Section_Header_Flags__string8 = String8__literal(ELF_Section_Header_Flags__cstring);
 
-// TODO(low): incomplete compared to what GNU as does.
+// TODO(low, check-gas): incomplete compared to what GNU as does.
+// TODO(low, check-gas): probably some of these flags are incompatible and some warnings/errors should be emitted
 internal ELF_Section_Header_Flags
 ELF_Section_Header_Flags__parse
 (

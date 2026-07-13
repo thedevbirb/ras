@@ -88,17 +88,13 @@ global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
 typedef struct Section Section;
 struct Section
 {
-        Arena         *arena;
-        Fragment_List  fragment_list;
-        Fixup_List     fixup_list;
-        String8        name;
-        U32            index;
-        U32            flags;
-        U32            type;
-        U32            location;
-        // TODO(check-gas): unsupported yet.
-        U8             alignment;
-
+        Arena               *arena;
+        Fragment_List        fragment_list;
+        Fixup_List           fixup_list;
+        String8              name;
+        U32                  location;
+        U32                  index;
+        ELF64_Section_Header elf;
 };
 
 global Section Section__zero = {0};

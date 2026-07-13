@@ -134,5 +134,33 @@ main(int argument_count, char **argument_vector)
                 }
         }
 
+        // Start of an equivalent of GNU as `write_object_file`.
+
+        // Finish sections
+        for (;;)
+        {
+                Sections_Trie_Chunk *chunk_current = sections_table->chunks->first;
+
+                U32 index = 0;
+                for (;;)
+                {
+                        if (index >= chunk_current->count)
+                        {
+                                break;
+                        }
+                        Section *section_current = &chunk_current->nodes[index].section;
+                        Section__finish(section_current);
+                        index += 1;
+                }
+
+
+                if (!chunk_current->next)
+                {
+                        break;
+                }
+
+                chunk_current = chunk_current->next;
+        }
+
         return exit_status;
 }
