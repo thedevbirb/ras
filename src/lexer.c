@@ -30,14 +30,14 @@ Token_Cursor__text(Token_Cursor *cursor)
         return result;
 }
 
-// INVARIANT
+// INVARIANTS:
 //
-// Assumes extra 8 bytes of zero after source->count.
-//
-// We don't want annoying codepaths because I read past one, so I assume the past one is zero.
-// This simplifies a lot checks, where the last character being zero is already enough of a check.
-//
-// TODO: make this function signature the same as token_next, and create a more explicit inner version that just "reads"
+// 1. Assumes extra 4 bytes of zero after source->count.
+//    I don't want annoying codepaths because I read past one, so I assume the past one is zero. This simplifies a lot
+//    checks, where the last character being zero is already enough of a check.
+// 2. Unless the returned token is `Token_Kind__None`, `Token.size` is guaranteed to be greater than zero. Rationale is
+//    that zero-sized tokens should not exist, even in case of `Token_Kind__Error`, as an error character has still size
+//    one.
 internal Token
 lex_at
 (
@@ -49,7 +49,7 @@ lex_at
 {
         U8  *data  = source->data;
         U64  count = source->count;
-        for (U32 i = 0; i < 8; i++)
+        for (U32 i = 0; i < 4; i++)
         {
                 assert_always_m(data[count + i] == 0);
         }
@@ -225,13 +225,13 @@ lex_at
                                         result = digit;
 
                                         index += 1;
-                                        if (data[index] - '0' < 8)
+                                        if ('0' <= data[index] && data[index] < '8')
                                         {
                                                 result = result * 8 + (data[index] - '0');
                                                 index += 1;
                                         }
 
-                                        if (data[index] - '0' < 8)
+                                        if ('0' <= data[index] && data[index] < '8')
                                         {
                                                 result = result * 8 + (data[index] - '0');
                                                 index += 1;
@@ -350,7 +350,7 @@ lex_at
                                 }
                         }
 
-                        if (!quote_ending_found)
+                        if (!quote_ending_found && token.kind != Token_Kind__Error)
                         {
                                         token.kind = Token_Kind__Error;
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -462,11 +462,12 @@ lex_at
                                 {       // Base 10 number
                                         for (;;)
                                         {
-                                                U8 value = (U8)(data[index] - '0');
-                                                if (value >= 10)
+                                                B32 break_should = data[index] < '0' || '9' < data[index];
+                                                if (break_should)
                                                 {
                                                         break;
                                                 }
+                                                U8 value = data[index] - '0';
                                                 token.numerical_value = token.numerical_value * 10 + value;
                                                 index += 1;
                                         }
@@ -480,15 +481,14 @@ lex_at
                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Unexpected];
                                 diagnostic->location = source->start_offset_logical + index;
                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+
+                                index += 1;
                         }
-
-
                 } break;
                 }
 
-                assert_always_m(start_index <= index);
                 B32 loop_infinite_avoided = start_index < index || index >= count || token.kind;
-                assert_always_m(loop_infinite_avoided && "infinite loop edge case");
+                assert_always_m(loop_infinite_avoided && "lexer infinite loop");
 
                 if (token.kind)
                 {
@@ -507,15 +507,17 @@ lex_at
                 }
         }
 
+        assert_always_m(token.size > 0 || token.kind == Token_Kind__None && "zero-sized token");
+
         return token;
 }
 
 internal Token
 token_peek
 (
-        const Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
-        Arena           *arena
+        const Token_Cursor *cursor,
+        Diagnostic_List    *diagnostics,
+        Arena              *arena
 )
 {
         Token result = lex_at(cursor->source, cursor->source_index, diagnostics, arena);

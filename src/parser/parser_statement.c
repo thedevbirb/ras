@@ -467,6 +467,7 @@ statement_read
                         Token_Kind kind = cursor->current.kind;
                         B32 break_should = empty_line
                                 || kind == Token_Kind__None
+                                || kind == Token_Kind__Error
                                 || kind == Token_Kind__Newline
                                 || kind == Token_Kind__Semicolon;
                         if (break_should)

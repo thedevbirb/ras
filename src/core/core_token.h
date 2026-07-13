@@ -6,7 +6,7 @@
 typedef enum Token_Kind
 {
         Token_Kind__None = 0,
-        Token_Kind__Error = 0,
+        Token_Kind__Error,
 
         Token_Kind__Space,
         Token_Kind__Comment,
