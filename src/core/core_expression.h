@@ -112,6 +112,8 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 
+// TODO(low): replace Xar with Expression_Node chunks. See diary.md
+
 #ifndef Expressions__xar_chunks
 #define Expressions__xar_chunks 14
 #endif

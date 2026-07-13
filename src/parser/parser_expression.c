@@ -80,6 +80,8 @@ expression_parse_with_flags
                                 // These two paths can probably collapse.
                                 if (forward || backward)
                                 {
+                                        // TODO(medium): what happens here in case of `Expression_Flags__Defer_Dot` or
+                                        // similar?
                                         U32            number        = U32_cast_safe(cursor->current.numerical_value);
                                         Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
                                                        label_numeric->instances += (U32)forward;
@@ -118,6 +120,7 @@ expression_parse_with_flags
 
                         case Token_Kind__Identifier:
                         {
+                                // TODO(medium): should every identifier, including the dot, be cloned?
                                 String8 name = Token_Cursor__text(cursor);
                                 B32 dot = name.count == 1 && name.data[0] == '.';
 
@@ -247,6 +250,14 @@ expression_parse_with_flags
                         {
                                 assert_always_m(frame->next);
                                 frame->next->node->right = frame->node;
+
+                                // TODO(low): early folding. In this specific point, `frame->next` contains a complete
+                                // subtree with a right and optionally (in case of a binary operator) a left node. As
+                                // such, we could inspect what we have here and attempt an early folding. This depends
+                                // also on whether we've some form of deferred mode or not. Moreover, it would be
+                                // efficient only if `Expression_Node`s were first allocated on a scratch arena (or
+                                // stack), and then allocate on a persistent arena only what's necessary, and memory
+                                // copy from one to the other.
                         }
 
                         if (!frame->next || error)

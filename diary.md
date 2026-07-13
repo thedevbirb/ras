@@ -1192,3 +1192,10 @@ Sat Jul 11 16:24:25 CEST 2026
 
 Support for the E extension is mainly limiting the amount of registers to 16, so during register
 lookup if the number is greater or equal 16, you mark it as missing.
+
+Mon Jul 13 09:45:59 CEST 2026
+
+Regarding the argument about collapsing expressions and symbols together, I think the main drawback
+is really polluting the symbol table chunks with at least one expression node per line. Even `addi
+x1, x0, 1` would create a symbol in those chunks which are also used for the symbol table.
+Otherwise, it would go in whatever space is reserved for storing expressions.

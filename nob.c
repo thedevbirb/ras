@@ -54,6 +54,7 @@ int main(int argc, char **argv)
                         "-Werror=shadow",
                         "-Werror=incompatible-pointer-types",
                         "-Werror=int-conversion",
+                        "-Werror=sign-compare",
                         "-Werror=parentheses",
                         // Clang sanitizers. TODO: add more and more granular
                         "-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
