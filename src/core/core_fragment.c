@@ -64,6 +64,7 @@ Fragment_List__variable
         U32              size_max,
         U32              size_variable,
         Expression_Node *expression_node,
+        S64              expression_constant,
         U32              subtype,
         Relax_State      type
 )
@@ -72,10 +73,11 @@ Fragment_List__variable
         U8 *data = Fragment_List__push(fragments, arena, location, size_max);
         Fragment *sealed = fragments->last;
 
-        sealed->size_variable    = size_variable;
-        sealed->expression_node  = expression_node;
-        sealed->subtype          = subtype;
-        sealed->type             = type;
+        sealed->size_variable       = size_variable;
+        sealed->expression_node     = expression_node;
+        sealed->expression_constant = expression_constant;
+        sealed->subtype             = subtype;
+        sealed->type                = type;
 
         // We have to create another fragment since variable data seal it.
         Fragment *fragment = Arena__push_struct_m(arena, Fragment);
@@ -100,6 +102,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expres
                 size,
                 repeat_expression_node,
                 0,
+                0,
                 Relax_State__Fill
         );
         memory_copy(data, (U8 *)&pattern, size);
@@ -107,7 +110,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expres
 }
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *alignment_expression_node, U8 pattern, U8 alignment_max)
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U8 alignment_max)
 {
         // NOTE: double check more precisely how GNU as overloads some fields, and then decide whether to keep the same
         // layout or not.
@@ -123,9 +126,10 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, Expre
                 location,
                 size_max,
                 size_variable,
-                alignment_expression_node,
+                0,
+                power_of_two,
                 alignment_max,
-                Relax_State__Fill
+                Relax_State__Align
         );
         data[0] = pattern;
 

@@ -463,7 +463,41 @@ statement_read
                         Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
                         expression_evaluate( alignment_expression);
 
-                        if (alignment_expression->evaluation != Expression_Kind__Constant)
+                        if (alignment_expression->evaluation == Expression_Kind__Constant)
+                        {
+                                if (alignment_expression->integer_value < 0)
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        diagnostic->message    = String8__literal("negative alignment, converted to one");
+                                        diagnostic->location   = alignment_expression->location_range.v[0];
+                                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        alignment_expression->integer_value = 1;
+                                }
+                                if (alignment_expression->integer_value > (S64)(2UL << 31))
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        diagnostic->message    = String8__literal("alignment larger than 2^31, capping it");
+                                        diagnostic->location   = alignment_expression->location_range.v[0];
+                                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        alignment_expression->integer_value = (2UL << 31);
+                                }
+                                B32 power_of_two = (alignment_expression->integer_value & ~(alignment_expression->integer_value)) == 0;
+                                if (!power_of_two)
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        diagnostic->message    = String8__literal("alignment not power of two, setting it to next one");
+                                        diagnostic->location   = alignment_expression->location_range.v[0];
+                                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        alignment_expression->integer_value = align_pow_2_m(alignment_expression->integer_value, 2);
+                                }
+                        }
+                        else
                         {
                                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                 diagnostic->message   = String8__literal("constant expression expected");
@@ -542,7 +576,7 @@ statement_read
                                 }
                         }
 
-                        Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression, pattern, bytes_max);
+                        Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, pattern, bytes_max);
                 } break;
                 default: {} break;
                 }

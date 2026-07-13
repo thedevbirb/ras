@@ -57,22 +57,25 @@ typedef struct Fragment Fragment;
 struct Fragment
 {
         // The next fragment in the chain.
-        Fragment    *next;
-        U64          object_file_offset;
+        Fragment         *next;
+        U64               object_file_offset;
         // For relaxation algorithm.
-        U64          object_file_offset_last;
+        U64               object_file_offset_last;
         // Variably-sized fragments are tied to instructions which can expand and most probably
         // have an expression attached to them.
         Expression_Node *expression_node;
+        // Variably-sized fragments are tied to instructions which can expand and most probably
+        // have an expression attached to them.
+        S64              expression_constant;
         // The location in the source code where this fragment has been created.
-        U32          location;
+        U32              location;
         // The fixed number of bytes we have.
-        U32          size_fixed;
+        U32              size_fixed;
         // Opaque 32 bits to store additional information contextual to the `type`.
-        U32          subtype;
+        U32              subtype;
         // The variable number of bytes we have past the fixed ones.
-        U8           size_variable;
-        Relax_State  type;
+        U8               size_variable;
+        Relax_State      type;
 };
 
 typedef struct Fragment_List Fragment_List;
@@ -98,7 +101,6 @@ Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 si
 internal U8 *
 Fragment_List__fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 size);
 
-
 // Push a variable (`size_variable`) amount of bytes, capped by `size_max`, into the fragment.
 // This effectively pushes `size_max` bytes into it, while accounting the size currently used by the relaxable
 // instruction.
@@ -113,6 +115,7 @@ Fragment_List__variable
         U32              size_max,
         U32              size_variable,
         Expression_Node *expression_node,
+        S64              expression_constant,
         U32              subtype,
         Relax_State      type
 );
@@ -122,6 +125,6 @@ internal void
 Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *repeat_expression_node, S64 pattern, U8 size);
 
 internal void
-Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, Expression_Node *alignment_expression_node, U8 pattern, U8 alignment_max);
+Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U8 alignment_max);
 
 #endif // CORE_FRAGMENT_H
