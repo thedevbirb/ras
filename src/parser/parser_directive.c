@@ -279,3 +279,155 @@ directive_data
                 }
         }
 }
+
+internal void
+directive_align
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section
+)
+{
+        // .align <size> [, <pattern> [, <max_bytes>]]
+        //
+        // TODO(low): support omitting some values, e.g. .align 2, , 8
+        //
+        // .align is implementation-defined, in this case we interpret the next expression as a power of
+        // two. See also .p2align.
+        // For this expression, note that a label difference is allowed but there should be no expansion
+        // between them. Probably a good way to check is making sure both are defined within the same
+        // fragment
+        U32 location_begin = cursor->current.location;
+        U8  pattern   = 0;
+        U8  bytes_max = 0;
+
+        token_next(cursor, diagnostics, arena);
+        Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+        expression_evaluate( alignment_expression);
+
+        if (alignment_expression->evaluation == Expression_Kind__Constant)
+        {
+                if (alignment_expression->integer_value < 0)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        diagnostic->message    = String8__literal("negative alignment, converted to one");
+                        diagnostic->location   = alignment_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        alignment_expression->integer_value = 1;
+                }
+                if (alignment_expression->integer_value > (S64)(2UL << 31))
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        diagnostic->message    = String8__literal("alignment larger than 2^31, capping it");
+                        diagnostic->location   = alignment_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        alignment_expression->integer_value = (2UL << 31);
+                }
+                B32 power_of_two = (alignment_expression->integer_value & ~(alignment_expression->integer_value)) == 0;
+                if (!power_of_two)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        diagnostic->message    = String8__literal("alignment not power of two, setting it to next one");
+                        diagnostic->location   = alignment_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = alignment_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        alignment_expression->integer_value = align_pow_2_m(alignment_expression->integer_value, 2);
+                }
+        }
+        else
+        {
+                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                diagnostic->message   = String8__literal("constant expression expected");
+                diagnostic->location  = alignment_expression->location_range.v[0];
+                diagnostic->ranges[0] = alignment_expression->location_range;
+                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+        }
+
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                // Read pattern
+                token_next(cursor, diagnostics, arena);
+
+                Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+
+                S64 pattern_evaluation = expression_evaluate( pattern_expression);
+                if (pattern_expression->evaluation != Expression_Kind__Constant)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->message  = String8__literal("constant expression expected");
+                        diagnostic->location  = pattern_expression->location_range.v[0];
+                        diagnostic->ranges[0] = pattern_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                }
+
+                // TODO: check if between 0 and 255 instead?
+                pattern = (U8)pattern_evaluation;
+                if ((S64)pattern != pattern_evaluation)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->message  = String8__literal("expression result isn't a unsigned 8 bit integer");
+                        diagnostic->location  = pattern_expression->location_range.v[0];
+                        diagnostic->ranges[0] = pattern_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                }
+        }
+
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                // Read bytes_max
+                token_next(cursor, diagnostics, arena);
+                Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                S64 bytes_max_evaluation = expression_evaluate( bytes_max_expression);
+                if (bytes_max_expression->evaluation != Expression_Kind__Constant)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->message  = String8__literal("constant expression expected");
+                        diagnostic->location  = bytes_max_expression->location_range.v[0];
+                        diagnostic->ranges[0] = bytes_max_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                }
+                bytes_max = (U8)bytes_max_evaluation;
+
+                if (bytes_max_evaluation <= 0)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind     = Diagnostic_Kind__Warning;
+                        diagnostic->message  = String8__literal("non-positive max bytes size, ensuring it is zero");
+                        diagnostic->location  = bytes_max_expression->location_range.v[0];
+                        diagnostic->ranges[0] = bytes_max_expression->location_range;
+                        // TODO(low): nicer diagnostic with vsnprintf support in String8
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        bytes_max = 0;
+                }
+                // NOTE: I don't know what should be an upper limit but there should be one probably.
+                // GNU as allows you to pass zero to NOT provide one which I think can be risky.
+                if (bytes_max_evaluation > 64)
+                {
+                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        diagnostic->kind     = Diagnostic_Kind__Warning;
+                        diagnostic->message  = String8__literal("capping fill size to 64 bytes");
+                        diagnostic->location  = bytes_max_expression->location_range.v[0];
+                        diagnostic->ranges[0] = bytes_max_expression->location_range;
+                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        bytes_max = 8;
+                }
+        }
+
+        if ((section->flags & ELF_Section_Header_Flags__EXECINSTR) != 0)
+        {
+                // TODO(low): notify that pattern is ignored in case of .align code?
+                Fragment_List__align_code(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, bytes_max);
+        }
+        else
+        {
+                Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, pattern, bytes_max);
+        }
+}

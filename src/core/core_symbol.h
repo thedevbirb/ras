@@ -71,10 +71,10 @@ struct Symbol_Ref
         // The expression which defines its value, if known. This will be non-null
         // on symbol definition using `.set`-like directives.
         Expression_Node  *expression_node;
-        ELF64_Symbol      elf;
         // Where the symbol has been declared.
         U32               location;
         Symbol_Flags      flags;
+        ELF64_Symbol      elf;
 };
 
 typedef struct Symbol Symbol;

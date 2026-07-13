@@ -118,4 +118,15 @@ directive_data
         U8                       data_directive_size
 );
 
+internal void
+directive_align
+(
+        Arena                   *arena,
+        Token_Cursor            *cursor,
+        Diagnostic_List         *diagnostics,
+        Expressions             *expressions,
+        Symbols_Table           *symbols_table,
+        Section                 *section
+);
+
 #endif // PARSER_DIRECTIVE_H

@@ -127,4 +127,7 @@ Fragment_List__fill(Fragment_List *fragments, Arena *arena, U32 location, Expres
 internal void
 Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 pattern, U8 alignment_max);
 
+internal void
+Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 alignment_max);
+
 #endif // CORE_FRAGMENT_H

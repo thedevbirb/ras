@@ -135,3 +135,27 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 p
 
         return;
 }
+
+internal void
+Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U8 alignment_max)
+{
+        // TODO(check-gas): maybe a fixup is needed here, checkout `riscv_frag_align_code`.
+
+        // TODO(C-extension): use 2 instead of 4, depending on options.
+        U32 alignment = power_of_two < 4 ? 4 : power_of_two;
+
+        Fragment_List__variable
+        (
+                fragments,
+                arena,
+                location,
+                0,
+                0,
+                0,
+                alignment,
+                alignment_max,
+                Relax_State__Align_Code
+        );
+
+        return;
+}
