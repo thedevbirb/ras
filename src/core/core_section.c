@@ -146,11 +146,11 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
 internal void
 Sections_Table__add_common(Sections_Table *sections_table)
 {
-        String8 nil     = String8__literal("");
-        String8 text_n  = String8__literal(".text");
-        String8 data_n  = String8__literal(".data");
+        String8 nil      = String8__literal("");
+        String8 text_n   = String8__literal(".text");
+        String8 data_n   = String8__literal(".data");
         String8 rodata_n = String8__literal(".rodata");
-        String8 bss_n   = String8__literal(".bss");
+        String8 bss_n    = String8__literal(".bss");
 
         Sections_Table__get_or_default(sections_table, nil,  0);
 
@@ -341,6 +341,86 @@ Section__finish(Section *section)
                 );
         }
 
-        Fragment_List__fill(&section->fragment_list, section->arena, location, 0, 0, 0, 0);
+        Fragment__wane(section->fragment_list.last);
         return;
+}
+
+// Given a
+internal U32
+Fragment__branch_length_compute(Fragment *fragment, Section *section, B32 update)
+{
+        U32 length_max           = 8;
+        B32 jump_is              = RELAX_BRANCH_UNCOND(fragment->subtype);
+        B32 branch_compressed_is = RELAX_BRANCH_RVC(fragment->subtype);
+
+        // Assume jumps are in range; the linker will catch any that aren't.
+        length_max = jump_is ? 4 : 8;
+
+        if (update)
+        {
+                fragment->size_variable = RELAX_BRANCH_ENCODE(jump_is, branch_compressed_is, length_max);
+        }
+
+        return length_max;
+}
+
+internal void
+Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
+{
+        // First pass to compute address estimate
+        U64 address = 0;
+
+        for (;;)
+        {
+                Fragment *current = section->fragment_list.first;
+                          current->object_file_offset = address;
+
+                address += current->size_fixed;
+
+                switch (current->type)
+                {
+                // TODO(low): should this be a diagnostic instead.
+                case Relax_State__None: { assert_always_m(0 && "expected finished section"); } break;
+                case Relax_State__Fill: {} // fallthrough
+                case Relax_State__Fill_Nop:
+                {
+                        assert_m(!current->expression_node || !current->expression_constant);
+                        // Add the repeated pattern: repeat times size
+                        address += current->expression_constant * current->size_variable;
+                } break;
+                case Relax_State__Align: {} // fallthrough
+                case Relax_State__Align_Code:
+                {
+                        U32 alignment = (U32)current->expression_constant;
+                        U64 growth    = alignment_distance(address, alignment);
+
+                        U8 pattern_size = current->size_variable;
+                        if (growth % pattern_size != 0)
+                        {
+                                // The padding added should be a multiple of the size of the align pattern.
+                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                diagnostic->message    = String8__format
+                                (
+                                        arena,
+                                        "alignment padding of size %d is not a multiple of alignment pattern size %d", growth, pattern_size
+                                );
+                                diagnostic->location  = current->location;
+                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        }
+
+                        address  += growth;
+                } break;
+                case Relax_State__Machine:
+                {
+                        // TODO: estimate branch size;
+                } break;
+                }
+
+                if (!current->next)
+                {
+                        break;
+                }
+
+                current = current->next;
+        }
 }

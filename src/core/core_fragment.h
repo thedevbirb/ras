@@ -130,4 +130,8 @@ Fragment_List__align(Fragment_List *fragments, Arena *arena, U32 location, U32 p
 internal void
 Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, U32 power_of_two, U32 alignment_max);
 
+// Seal the current fragment by making it a fixed-size fill variant, with no tail.
+internal void
+Fragment__wane(Fragment *fragment);
+
 #endif // CORE_FRAGMENT_H

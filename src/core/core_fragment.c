@@ -49,7 +49,6 @@ Fragment_List__fixed(Fragment_List *fragments, Arena *arena, U32 location, U32 s
         return data;
 }
 
-
 // Push a variable (`size_variable`) amount of bytes, capped by `size_max`, into the fragment.
 // This effectively pushes `size_max` bytes into it, while accounting the size currently used by the relaxable
 // instruction.
@@ -158,4 +157,14 @@ Fragment_List__align_code(Fragment_List *fragments, Arena *arena, U32 location, 
         );
 
         return;
+}
+
+internal void
+Fragment__wane(Fragment *fragment)
+{
+        assert_m(fragment->type == Relax_State__None);
+        fragment->type = Relax_State__Fill;
+        fragment->size_variable       = 0;
+        fragment->expression_constant = 0;
+        fragment->expression_node     = 0;
 }

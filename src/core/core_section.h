@@ -18,6 +18,7 @@ typedef enum ELF_Section
         ELF_Section__Relocations_Text,
         ELF_Section__Relocations_Data,
         ELF_Section__Relocations_Read_Only_Data,
+        ELF_Section__Absolute,
         ELF_Section__COUNT,
 }
 ELF_Section;
@@ -36,6 +37,7 @@ global const char *ELF_Section_strings[ELF_Section__COUNT] =
         [ELF_Section__Relocations_Text]           = ".rela.text",
         [ELF_Section__Relocations_Data]           = ".rela.data",
         [ELF_Section__Relocations_Read_Only_Data] = ".rela.rodata",
+        [ELF_Section__Absolute]                   = "*ABS*",
         // [ELF_Section__Note_GNU_Stack = ".note.GNU-stack",
 };
 
@@ -52,6 +54,7 @@ ELF_Section_Header_Type ELF_Section_Header_Type_from_ELF_Section[ELF_Section__CO
         [ELF_Section__Relocations_Text]           = ELF_Section_Header_Type__Relocations,
         [ELF_Section__Relocations_Data]           = ELF_Section_Header_Type__Relocations,
         [ELF_Section__Relocations_Read_Only_Data] = ELF_Section_Header_Type__Relocations,
+        [ELF_Section__Absolute]                   = ELF_Section_Header_Type__None,
 };
 
 // Default value for section alignments.
@@ -67,7 +70,8 @@ global const U8 ELF_Section_alignments[ELF_Section__COUNT] =
         [ELF_Section__Symbols_Table]     = 8,
         [ELF_Section__Strings_Table]     = 1,
         [ELF_Section__Section_Names]     = 1,
-        [ELF_Section__RISCV_Attributes]  = 1
+        [ELF_Section__RISCV_Attributes]  = 1,
+        [ELF_Section__Absolute]          = 0
 };
 
 global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
@@ -172,5 +176,11 @@ Section__add_instruction_fixed
         U8       encoding_size,
         U32      location
 );
+
+internal void
+Section__finish(Section *section);
+
+// internal void
+// Section__relax(Section *section);
 
 #endif // CORE_SECTION_H

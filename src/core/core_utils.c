@@ -339,3 +339,16 @@ count_leading_zeros(U64 x)
         count += is_zero << 6;
         return count;
 }
+
+internal U64
+alignment_distance(U64 address, U32 alignment)
+{
+        B32 power_of_two = ((alignment & ~alignment) == 0) && alignment;
+        assert_m(power_of_two);
+
+        U64 address_aligned = align_pow_2_m(address, alignment);
+        assert_m(address_aligned >= address);
+
+        U64 result = address_aligned - address;
+        return result;
+}
