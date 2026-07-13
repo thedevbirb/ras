@@ -199,7 +199,7 @@ expression_evaluate(Expression_Node *node_root)
                                 B32 subtract = node->kind == Expression_Kind__Subtract;
 
                                 // same_fragment implies same_section
-                                assert_always_m(!same_section || same_fragment && "same fragment but different section");
+                                assert_always_m((!same_fragment || same_section) && "same fragment but different section");
 
                                 if (same_fragment && subtract)
                                 {

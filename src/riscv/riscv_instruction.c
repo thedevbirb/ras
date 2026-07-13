@@ -67,7 +67,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { "andi",   HASH_andi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ANDI,                              MASK_ANDI,                           match_opcode,         0                              },
 
 { "slli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
-{ "srli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
+{ "srli",   HASH_srli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SRLI,                              MASK_SRLI,                           match_opcode,         0                              },
 { "srai",   HASH_srai,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SRAI,                              MASK_SRAI,                           match_opcode,         0                              },
 { "slliw",  HASH_slliw,  0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SLLIW,                             MASK_SLLIW,                          match_opcode,         0                              },
 { "srliw",  HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SRLIW,                             MASK_SRLIW,                          match_opcode,         0                              },
