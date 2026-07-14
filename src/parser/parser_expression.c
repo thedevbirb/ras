@@ -5,7 +5,7 @@ expression_parse_with_flags
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Section            *section,
+        Sections_Table     *sections_table,
         Diagnostic_List    *diagnostics,
         Expression_Flags    flags
 )
@@ -128,7 +128,7 @@ expression_parse_with_flags
                                 if (dot)
                                 {
                                         Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
-                                        Symbol_Ref__update_section(&dot_trie->symbol, section);
+                                        Symbol_Ref__update_section(&dot_trie->symbol, sections_table->current);
                                         symbol = flags & Expression_Flags__Defer_Dot
                                                ? &dot_trie->symbol
                                                : Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
@@ -322,7 +322,7 @@ expression_parse
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Section            *section,
+        Sections_Table     *sections_table,
         Diagnostic_List    *diagnostics
 )
 {
@@ -332,7 +332,7 @@ expression_parse
                 cursor,
                 expressions,
                 symbols_table,
-                section,
+                sections_table,
                 diagnostics,
                 Expression_Flags__None
         );
@@ -352,7 +352,7 @@ expression_parse_with_relocation
         Token_Cursor             *cursor,
         Expressions              *expressions,
         Symbols_Table            *symbols_table,
-        Section                  *section,
+        Sections_Table           *sections_table,
         Diagnostic_List          *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
@@ -394,6 +394,6 @@ expression_parse_with_relocation
 
                 token_next(cursor, diagnostics, arena);
         }
-        Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+        Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         return result;
 }

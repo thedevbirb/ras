@@ -119,9 +119,9 @@ statement_read
                                 }
                                 symbol->flags            |= Symbol_Flags__Declared;
                                 symbol->location          = cursor->current.location;
-                                symbol->fragment          = section->fragment_list.last;
-                                symbol->elf.value         = section->fragment_list.last->size_fixed;
-                                symbol->elf.section_index = section->index;
+                                symbol->fragment          = sections_table->current->fragment_list.last;
+                                symbol->elf.value         = sections_table->current->fragment_list.last->size_fixed;
+                                symbol->elf.section_index = sections_table->current->index;
 
                                 token_next(cursor, diagnostics, arena);
                                 token_next(cursor, diagnostics, arena);
@@ -158,7 +158,7 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                section,
+                                sections_table,
                                 instruction_hash,
                                 &relocation,
                                 &instruction,
@@ -203,19 +203,19 @@ statement_read
 
                 case Directive_Kind__Word_Double:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, section, fixups, 8);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 8);
                 } break;
                 case Directive_Kind__Word:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, section, fixups, 4);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 4);
                 } break;
                 case Directive_Kind__Word_Half:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, section, fixups, 2);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 2);
                 } break;
                 case Directive_Kind__Byte:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, section, fixups, 1);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 1);
                 } break;
                 case Directive_Kind__String: {} // fallthrough
                 case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
@@ -236,7 +236,7 @@ statement_read
                         text = String8__chop(text, 1);
                         U32 size_escaped = String8__escaped_size(text) + !!null_terminated_string;
 
-                        U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, size_escaped);
+                        U8 *data = Fragment_List__fixed(&sections_table->current->fragment_list, sections_table->current->arena, cursor->current.location, size_escaped);
                         bytes_escaped_fill(text, data, size_escaped);
 
                         token_next(cursor, diagnostics, arena);
@@ -335,7 +335,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                section,
                                 sections_table,
                                 mode
                         );
@@ -349,7 +348,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                section,
                                 sections_table,
                                 Set_Mode__Strict
                         );
@@ -363,7 +361,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                section,
                                 sections_table,
                                 Set_Mode__Strict_Forward
                         );
@@ -390,13 +387,21 @@ statement_read
                         token_next(cursor, diagnostics, arena);
                         U64 location_begin = cursor->current.location;
 
-                        Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                        Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                        expression_evaluate(repeat_expression);
+                        Expression_Node *repeat_expression_argument = repeat_expression;
+                        S64 repeat_expression_evaluation = repeat_expression->integer_value;
+                        if (repeat_expression->evaluation == Expression_Kind__Constant)
+                        {
+                                // It's not needed.
+                                repeat_expression_argument = 0;
+                        }
 
                         if (cursor->current.kind == Token_Kind__Comma && !fill_size_set)
                         {
                                 // Read size
                                 token_next(cursor, diagnostics, arena);
-                                Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 fill_size = expression_evaluate(size_expression);
                                 if (size_expression->evaluation != Expression_Kind__Constant)
                                 {
@@ -432,7 +437,7 @@ statement_read
                         {
                                 // Read value
                                 token_next(cursor, diagnostics, arena);
-                                Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 fill_pattern = expression_evaluate(value_expression);
                                 if (value_expression->evaluation != Expression_Kind__Constant)
                                 {
@@ -442,7 +447,16 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         }
-                        Fragment_List__fill(&section->fragment_list, section->arena, location_begin, repeat_expression, 0, fill_pattern, fill_size);
+                        Fragment_List__fill
+                        (
+                                &sections_table->current->fragment_list,
+                                 sections_table->current->arena,
+                                 location_begin,
+                                 repeat_expression_argument,
+                                 repeat_expression_evaluation,
+                                 fill_pattern,
+                                 fill_size
+                        );
                 } break;
                 case Directive_Kind__Align:
                 {
@@ -453,7 +467,7 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                section
+                                sections_table
                         );
                 } break;
                 default: {} break;

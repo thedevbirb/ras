@@ -66,7 +66,7 @@ binding_set
                 diagnostic->kind       = Diagnostic_Kind__Warning;
                 diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Symbol_Demoted];
                 diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
                 {
@@ -74,7 +74,7 @@ binding_set
                 diagnostic->kind       = Diagnostic_Kind__Note;
                 diagnostic->message    = Diagnostic__previous_declaration_String8;
                 diagnostic->location   = symbol->location;
-                diagnostic->ranges[0] = (Range1_U32){{ symbol->location, symbol->location + name.count }};
+                diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
         }
@@ -95,8 +95,7 @@ directive_set_like
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
-        Sections_Table          *section_table,
+        Sections_Table          *sections_table,
         Set_Mode                 mode
 )
 {
@@ -141,7 +140,7 @@ directive_set_like
                 symbol = Symbols_Table__clone(symbols_table, symbol, name);
         }
 
-        Section *section_maybe = Sections_Table__get(section_table, name);
+        Section *section_maybe = Sections_Table__get(sections_table, name);
         if (section_maybe)
         {
                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -183,7 +182,7 @@ directive_set_like
                 cursor,
                 expressions,
                 symbols_table,
-                section,
+                sections_table,
                 diagnostics,
                 expression_flags
         );
@@ -211,7 +210,7 @@ directive_data
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
+        Sections_Table          *sections_table,
         Fixups                  *fixups,
         U8                       data_directive_size
 )
@@ -223,14 +222,14 @@ directive_data
         U8 bit_size = data_directive_size * 8;
         for (;;)
         {
-                Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                Expression_Node *expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                 // We explicitly convert it to an unsigned value since this is how it's treated as.
                 //
                 // TODO: not very clear behaviour when in case of signed overflow.
                 S64 result = expression_evaluate(expression);
                 U64 result_unsigned = (U64)result;
 
-                U8 *data = Fragment_List__fixed(&section->fragment_list, section->arena, cursor->current.location, data_directive_size);
+                U8 *data = Fragment_List__fixed(&sections_table->current->fragment_list, sections_table->current->arena, cursor->current.location, data_directive_size);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
                         B32 fits = bit_size == 64 ? 1 : (result_unsigned < ((U64)1 << (data_directive_size * 8)));
@@ -248,11 +247,11 @@ directive_data
                 }
                 else
                 {
-                        U32 encoding_offset = section->fragment_list.last->size_fixed - data_directive_size;
+                        U32 encoding_offset = sections_table->current->fragment_list.last->size_fixed - data_directive_size;
 
                         Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
                         fixup->expression_node = expression;
-                        fixup->fragment         = section->fragment_list.last;
+                        fixup->fragment         = sections_table->current->fragment_list.last;
                         fixup->encoding_offset  = encoding_offset;
                         fixup->size             = data_directive_size;
 
@@ -288,7 +287,7 @@ directive_align
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section
+        Sections_Table          *sections_table
 )
 {
         // .align <size> [, <pattern> [, <max_bytes>]]
@@ -305,7 +304,7 @@ directive_align
         U32 bytes_max = 0;
 
         token_next(cursor, diagnostics, arena);
-        Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+        Expression_Node *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         expression_evaluate( alignment_expression);
 
         if (alignment_expression->evaluation == Expression_Kind__Constant)
@@ -356,7 +355,7 @@ directive_align
                 // Read pattern
                 token_next(cursor, diagnostics, arena);
 
-                Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                Expression_Node *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
 
                 S64 pattern_evaluation = expression_evaluate( pattern_expression);
                 if (pattern_expression->evaluation != Expression_Kind__Constant)
@@ -384,7 +383,7 @@ directive_align
         {
                 // Read bytes_max
                 token_next(cursor, diagnostics, arena);
-                Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                Expression_Node *bytes_max_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                 S64 bytes_max_evaluation = expression_evaluate( bytes_max_expression);
                 if (bytes_max_expression->evaluation != Expression_Kind__Constant)
                 {
@@ -421,13 +420,13 @@ directive_align
                 }
         }
 
-        if ((section->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0)
+        if ((sections_table->current->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0)
         {
                 // TODO(low): notify that pattern is ignored in case of .align code?
-                Fragment_List__align_code(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, bytes_max);
+                Fragment_List__align_code(&sections_table->current->fragment_list, sections_table->current->arena, location_begin, alignment_expression->integer_value, bytes_max);
         }
         else
         {
-                Fragment_List__align(&section->fragment_list, section->arena, location_begin, alignment_expression->integer_value, pattern, bytes_max);
+                Fragment_List__align(&sections_table->current->fragment_list, sections_table->current->arena, location_begin, alignment_expression->integer_value, pattern, bytes_max);
         }
 }

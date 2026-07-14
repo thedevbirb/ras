@@ -100,8 +100,7 @@ directive_set_like
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
-        Sections_Table          *section_table,
+        Sections_Table          *sections_table,
         Set_Mode                 mode
 );
 
@@ -113,7 +112,7 @@ directive_data
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
+        Sections_Table          *sections_table,
         Fixups                  *fixups,
         U8                       data_directive_size
 );
@@ -126,7 +125,7 @@ directive_align
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section
+        Sections_Table          *sections_table
 );
 
 #endif // PARSER_DIRECTIVE_H

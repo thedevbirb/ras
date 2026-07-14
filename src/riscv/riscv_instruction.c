@@ -175,7 +175,7 @@ RISCV_Instruction__parse
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
+        Sections_Table          *sections_table,
         U32                      instruction_hash,
 
         U16                     *relocation_out,
@@ -284,7 +284,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Address:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 B32 symbol_is   = expression->kind == Expression_Kind__Symbol;
                                 B32 constant_is = expression->kind == Expression_Kind__Constant;
                                 if (!(symbol_is || constant_is))
@@ -322,7 +322,7 @@ RISCV_Instruction__parse
                                 // a `li` or `call` instruction which, during instruction parsing, are already expanded
                                 // into a known number of instructions (`INSN_MACRO`)
                                 *relocation_out = Relocation_RISC_V__JAL;
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
 
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
@@ -342,7 +342,7 @@ RISCV_Instruction__parse
                         {
                                 // See notes for `OP_Argument__Offset_PC_Relative_20`.
                                 *relocation_out = Relocation_RISC_V__Branch;
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
 
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
@@ -370,7 +370,7 @@ RISCV_Instruction__parse
                                 }
                                 else
                                 {
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, sections_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
                                                 expression_evaluate(expression);
@@ -403,7 +403,7 @@ RISCV_Instruction__parse
                                 else
                                 {
                                         // TODO(refactor): this is mostly in common with OP_Argument__Immediate_I case.
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, sections_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
                                         if (!*relocation_out)
                                         {
                                                 expression_evaluate(expression);
@@ -425,7 +425,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Immediate_I:
                         {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__itype);
+                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, sections_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
                                 if (!*relocation_out)
                                 {
                                        expression_evaluate(expression);
@@ -446,7 +446,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Immediate_U:
                         {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, section, diagnostics, relocation_out, Relocation_Operator_List__utype);
+                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, sections_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
                                 if (!*relocation_out)
                                 {
                                         expression_evaluate(expression);
@@ -481,7 +481,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Immediate_Large:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 expression_evaluate(expression);
                                 if (expression->evaluation != Expression_Kind__Constant)
                                 {
@@ -494,7 +494,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Shift_Amount:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 expression_evaluate(expression);
                                 S64 value = expression->integer_value;
                                 B32 fits = 0 <= value && value < XLEN;
@@ -511,7 +511,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Shift_Amount_5:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 expression_evaluate(expression);
                                 S64 value = expression->integer_value;
                                 B32 fits = 0 <= value && value < (1 << 5);
@@ -528,7 +528,7 @@ RISCV_Instruction__parse
                         } break;
                         case OP_Argument__Call_Expression:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, section, diagnostics);
+                                expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                                 *relocation_out = Relocation_RISC_V__Call_PLT;
                         } break;
                         default: { unreachable_m(); }
