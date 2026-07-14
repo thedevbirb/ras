@@ -13,8 +13,6 @@ enum
         // Sealing a fragment is marked by changing this state to something else. For fixed-size fragments, inspired by
         // GNU as, this is achieved by marking the fragment in a `Relax_State__Fill` of zero size, with no pattern,
         // instead of having a dedicated variant for it.
-        //
-        // TODO(medium): the above is achieved by calling something like `frag_wane`, which is currently unimplemented.
         Relax_State__None,
         // Describes a `.fill <repeat>, <size>, <pattern>` directive:
         // - `expression_node` contains the <repeat> expression.
@@ -48,8 +46,8 @@ enum
 // known number of bytes, followed by some variable number of bytes.
 //
 // Code is made up of instructions, which can be _relaxable_, meaning that they can expand (or shrink) in size to
-// accomodate for example large jumps, whose distance cannot be known upfront until all symbols are resolved. This gives
-// the variable tail of the fragment mentioned earlier.
+// accomodate for example large jumps, whose final distance cannot be known upfront. This gives the variable tail of the
+// fragment mentioned earlier.
 //
 // Fragments are composed of an header (the `Fragment` struct) along with opaque bytes which contain the actual
 // instruction encoding. They're intended to be stored contiguously in memory, i.e. something like `fragment ++ data`.
@@ -58,6 +56,9 @@ struct Fragment
 {
         // The next fragment in the chain.
         Fragment         *next;
+        // The data of the fragment.
+        U8               *data;
+        // Offset within the section
         U64               object_file_offset;
         // For relaxation algorithm.
         U64               object_file_offset_last;

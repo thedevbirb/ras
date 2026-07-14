@@ -20,6 +20,7 @@ internal U8 *
 Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 size)
 {
         U8 *result = 0;
+        Fragment *last_before_push = fragments->last;
 
         U64 capacity_left = Arena__ensure_contiguous_for_size(arena, size);
         if (capacity_left < size || fragments->last == 0)
@@ -34,6 +35,11 @@ Fragment_List__push(Fragment_List *fragments, Arena *arena, U32 location, U32 si
         else
         {
                 result = Arena__push_array_m(arena, U8, size);
+        }
+
+        if (last_before_push != fragments->last)
+        {
+                fragments->last->data = result;
         }
 
         return result;
