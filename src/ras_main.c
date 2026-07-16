@@ -18,6 +18,7 @@
 #include "lexer.h"
 #include "riscv/riscv_include.h"
 #include "parser/parser_include.h"
+#include "write/write_include.h"
 
 #include <base/base_include.c>
 
@@ -25,6 +26,7 @@
 #include "lexer.c"
 #include "riscv/riscv_include.c"
 #include "parser/parser_include.c"
+#include "write/write_include.c"
 
 // Two's complement.
 assert_static_m(-1 == ~0, two_complement);

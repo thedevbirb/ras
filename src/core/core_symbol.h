@@ -3,13 +3,12 @@
 
 #define DOT_SYMBOL_NAME ".L0\x01"
 #define DOT_SYMBOL_HASH 0
+#define FAKE_LABEL_NAME ".L0 "
 
 // Forward declaration for pointer use.
-typedef struct Expression_Node Expression_Node;
+typedef struct Expression Expression;
 
 global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
-
-// TODO(refactor): I don't like that this is the only file that depends on object/ directory due to ELF64_Symbol.
 
 // TODO(track): review some of this variants, they're taken from GAS but not always used.
 typedef enum Symbol_Flags
@@ -67,14 +66,25 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+        Section          *section;
         Fragment         *fragment;
-        // The expression which defines its value, if known. This will be non-null
-        // on symbol definition using `.set`-like directives.
-        Expression_Node  *expression_node;
+        // The expression which defines its value, if appropriate.
+        // Non-null ONLY on symbol definition using `.set`-like directives.
+        Expression  *expression;
+        // ELF value for this symbol, which can mean an offset for labels.
+        U64 value;
         // Where the symbol has been declared.
-        U32               location;
+        U32               location_range;
         Symbol_Flags      flags;
-        ELF64_Symbol      elf;
+
+        U32 location;
+        U32 string_table_offset;
+        // Only 4 bits of it will be read.
+        U8 type;
+        // Only 4 bits of it will be read.
+        U8 binding;
+        U8 visibility;
+
 };
 
 typedef struct Symbol Symbol;
@@ -147,5 +157,7 @@ struct Symbols_Table
         Label_Numeric_Chunk_List *chunks_label;
 };
 
+internal Symbol_Ref *
+Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section);
 
 #endif // CORE_SYMBOL_H

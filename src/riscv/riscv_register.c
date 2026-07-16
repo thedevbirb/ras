@@ -1,5 +1,5 @@
 internal const Register *
-Register_List__lookup(Register_List register_list, String8 string)
+Register_List__lookup(Register_List register_list, String8 string, B32 e_extension_enabled)
 {
         U64 index = 0;
         const Register *result = 0;
@@ -19,5 +19,11 @@ Register_List__lookup(Register_List register_list, String8 string)
                 index += 1;
         }
         assert_always_m(!result || index < register_list.count);
+
+        if (e_extension_enabled && result->number >= 16)
+        {
+                result = 0;
+        }
+
         return result;
 }

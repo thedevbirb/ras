@@ -126,13 +126,13 @@ Evaluation_Frame_State;
 typedef struct Evaluation_Frame Evaluation_Frame;
 struct Evaluation_Frame
 {
-        Expression_Node  *node;
+        Expression  *node;
         Evaluation_Frame *next;
         Evaluation_Frame_State state;
 };
 
 internal S64
-expression_evaluate(Expression_Node *node_root)
+expression_evaluate(Expression *node_root)
 {
         Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
         Evaluation_Frame *frame = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
@@ -145,7 +145,7 @@ expression_evaluate(Expression_Node *node_root)
                 {
                         break;
                 }
-                Expression_Node *node = frame->node;
+                Expression *node = frame->node;
 
                 if (node->evaluation == Expression_Kind__Constant)
                 {
@@ -170,8 +170,8 @@ expression_evaluate(Expression_Node *node_root)
                 }
                 else if (node->right && node->left)
                 {
-                        Expression_Node *left  = node->left;
-                        Expression_Node *right = node->right;
+                        Expression *left  = node->left;
+                        Expression *right = node->right;
 
                         // Assert that both left and right have been evaluated.
                         assert_always_m(left->evaluation);
@@ -194,8 +194,8 @@ expression_evaluate(Expression_Node *node_root)
                                 // Extra checks to ensure undefined symbols are not considered equal.
                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
                                                   && left->symbol->fragment && right->symbol->fragment;
-                                B32 same_section  = (left->symbol->elf.section_index == right->symbol->elf.section_index)
-                                                  && left->symbol->elf.section_index && right->symbol->elf.section_index;
+                                B32 same_section  = (left->symbol->section->index  == right->symbol->section->index)
+                                                  && left->symbol->section->index &&  right->symbol->section->index;
                                 B32 subtract = node->kind == Expression_Kind__Subtract;
 
                                 // same_fragment implies same_section
@@ -209,7 +209,7 @@ expression_evaluate(Expression_Node *node_root)
 
                                 if (subtract && same_section)
                                 {
-                                        node->integer_value = left->symbol->elf.value - right->symbol->elf.value;
+                                        node->integer_value = left->symbol->value - right->symbol->value;
                                 }
                                 else
                                 {
@@ -221,7 +221,7 @@ expression_evaluate(Expression_Node *node_root)
                 }
                 else if (node->right)
                 {
-                        Expression_Node *right = node->right;
+                        Expression *right = node->right;
                         assert_always_m(right->evaluation);
 
                         if (right->evaluation == Expression_Kind__Constant)
@@ -248,10 +248,10 @@ expression_evaluate(Expression_Node *node_root)
                         node->evaluation = node->kind;
 
                         Symbol_Ref *symbol = node->symbol;
-                        if (symbol && symbol->elf.section_index == ELF_Section_Index__Absolute)
+                        if (symbol && symbol->section->index == ELF_Section_Index__Absolute)
                         {
                                 node->evaluation = Expression_Kind__Constant;
-                                node->integer_value = symbol->elf.value;
+                                node->integer_value = symbol->value;
                         }
 
                         result_end = node->integer_value;
@@ -288,10 +288,10 @@ Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount)
         return;
 }
 
-Expression_Node *
+Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena)
 {
-        Expression_Node *node = xar_push_m(expressions, arena);
+        Expression *node = xar_push_m(expressions, arena);
 
         return node;
 }

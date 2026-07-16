@@ -75,7 +75,7 @@ statement_read
                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
                         Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name);
 
-                        assert_always_m(label->elf.section_index == 0 && "numeric label created previously");
+                        assert_always_m(label->section->index == 0 && "numeric label created previously");
                         Symbol_Ref__update_section(label, section);
 
                         Arena__scratch_end_m(scratch);
@@ -117,11 +117,11 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
-                                symbol->flags            |= Symbol_Flags__Declared;
-                                symbol->location          = cursor->current.location;
-                                symbol->fragment          = sections_table->current->fragment_list.last;
-                                symbol->elf.value         = sections_table->current->fragment_list.last->size_fixed;
-                                symbol->elf.section_index = sections_table->current->index;
+                                symbol->flags         |= Symbol_Flags__Declared;
+                                symbol->location       = cursor->current.location;
+                                symbol->fragment       = sections_table->current->fragments.last;
+                                symbol->value          = sections_table->current->fragments.last->data_size;
+                                symbol->section->index = sections_table->current->index;
 
                                 token_next(cursor, diagnostics, arena);
                                 token_next(cursor, diagnostics, arena);
@@ -150,7 +150,7 @@ statement_read
                         U16               relocation  =  0;
                         RISCV_Instruction instruction = {0};
 
-                        Expression_Node *expression_node_parsed = 0;
+                        Expression *expression_parsed = 0;
                         RISCV_Instruction__parse
                         (
                                 arena,
@@ -162,7 +162,7 @@ statement_read
                                 instruction_hash,
                                 &relocation,
                                 &instruction,
-                                &expression_node_parsed
+                                &expression_parsed
                         );
 
                         if (instruction.opcode->info & INSN_MACRO)
@@ -175,7 +175,7 @@ statement_read
                                         expressions,
                                         symbols_table,
                                         &instruction,
-                                        expression_node_parsed,
+                                        expression_parsed,
                                         relocation
                                 );
                         }
@@ -186,16 +186,11 @@ statement_read
                                         section,
                                         fixups,
                                         &instruction,
-                                        expression_node_parsed,
+                                        expression_parsed,
                                         relocation
                                 );
                         }
                 }
-
-                S64  fill_size           = 0;
-                B32  fill_size_set       = 0;
-                S64  fill_pattern        = 0;
-                B32  fill_pattern_set    = 0;
 
                 switch (directive_kind)
                 {
@@ -236,7 +231,7 @@ statement_read
                         text = String8__chop(text, 1);
                         U32 size_escaped = String8__escaped_size(text) + !!null_terminated_string;
 
-                        U8 *data = Fragment_List__fixed(&sections_table->current->fragment_list, sections_table->current->arena, cursor->current.location, size_escaped);
+                        U8 *data = Fragments__push(&sections_table->current->fragments, cursor->current.location, size_escaped);
                         bytes_escaped_fill(text, data, size_escaped);
 
                         token_next(cursor, diagnostics, arena);
@@ -368,98 +363,76 @@ statement_read
                 case Directive_Kind__Zero:
                 {
                         // Equavalent to .fill repeat, 1, 0
-                        fill_pattern     = 0;
-                        fill_pattern_set = 1;
-                } // fallthrough
+                        B32 size_can_be_parsed = 0;
+                        B32 pattern_can_be_parsed = 0;
+                        directive_fill
+                        (
+                                 arena,
+                                 cursor,
+                                 diagnostics,
+                                 expressions,
+                                 symbols_table,
+                                 sections_table,
+                                 size_can_be_parsed,
+                                 pattern_can_be_parsed
+                        );
+                } break;
                 case Directive_Kind__Space:
                 {
                         // Equavalent to .fill repeat, 1, value
-                } // fallthrough
+                        B32 size_can_be_parsed = 0;
+                        B32 pattern_can_be_parsed = 1;
+                        directive_fill
+                        (
+                                 arena,
+                                 cursor,
+                                 diagnostics,
+                                 expressions,
+                                 symbols_table,
+                                 sections_table,
+                                 size_can_be_parsed,
+                                 pattern_can_be_parsed
+                        );
+                } break;
                 case Directive_Kind__Skip:
                 {
                         // Equavalent to .fill repeat, 1, value
-                        fill_size     = 1;
-                        fill_size_set = 1;
-                } // fallthrough
-                case Directive_Kind__Fill:
-                {
-                        // .fill repeat [, size [, value ]]. See GNU as `s_fill` in `read.c`.
-                        token_next(cursor, diagnostics, arena);
-                        U64 location_begin = cursor->current.location;
-
-                        Expression_Node *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
-                        expression_evaluate(repeat_expression);
-                        Expression_Node *repeat_expression_argument = repeat_expression;
-                        S64 repeat_expression_evaluation = repeat_expression->integer_value;
-                        if (repeat_expression->evaluation == Expression_Kind__Constant)
-                        {
-                                // It's not needed.
-                                repeat_expression_argument = 0;
-                        }
-
-                        if (cursor->current.kind == Token_Kind__Comma && !fill_size_set)
-                        {
-                                // Read size
-                                token_next(cursor, diagnostics, arena);
-                                Expression_Node *size_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
-                                fill_size = expression_evaluate(size_expression);
-                                if (size_expression->evaluation != Expression_Kind__Constant)
-                                {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                        diagnostic->location = cursor->current.location;
-                                        diagnostic->message  = String8__literal("constant expression expected");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                }
-                                if (fill_size <= 0)
-                                {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                        diagnostic->kind      = Diagnostic_Kind__Warning;
-                                        diagnostic->location  = size_expression->location_range.v[0];
-                                        diagnostic->ranges[0] = size_expression->location_range;
-                                        // TODO(low): nicer diagnostic with vsnprintf support in String8
-                                        diagnostic->message   = String8__literal("non-positive fill size, ensuring it is zero");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                        fill_size = 0;
-                                }
-                                if (fill_size > 8)
-                                {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                        diagnostic->kind     = Diagnostic_Kind__Warning;
-                                        diagnostic->location  = size_expression->location_range.v[0];
-                                        diagnostic->ranges[0] = size_expression->location_range;
-                                        diagnostic->message  = String8__literal("capping fill size to 8 bytes");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                        fill_size = 8;
-                                }
-                        }
-
-                        if (cursor->current.kind == Token_Kind__Comma && !fill_pattern_set)
-                        {
-                                // Read value
-                                token_next(cursor, diagnostics, arena);
-                                Expression_Node *value_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
-                                fill_pattern = expression_evaluate(value_expression);
-                                if (value_expression->evaluation != Expression_Kind__Constant)
-                                {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                        diagnostic->location = cursor->current.location;
-                                        diagnostic->message  = String8__literal("constant expression expected");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                                }
-                        }
-                        Fragment_List__fill
+                        B32 size_can_be_parsed = 0;
+                        B32 pattern_can_be_parsed = 1;
+                        directive_fill
                         (
-                                &sections_table->current->fragment_list,
-                                 sections_table->current->arena,
-                                 location_begin,
-                                 repeat_expression_argument,
-                                 repeat_expression_evaluation,
-                                 fill_pattern,
-                                 fill_size
+                                 arena,
+                                 cursor,
+                                 diagnostics,
+                                 expressions,
+                                 symbols_table,
+                                 sections_table,
+                                 size_can_be_parsed,
+                                 pattern_can_be_parsed
                         );
                 } break;
+                case Directive_Kind__Fill:
+                {
+                        B32 size_can_be_parsed = 1;
+                        B32 pattern_can_be_parsed = 1;
+                        directive_fill
+                        (
+                                 arena,
+                                 cursor,
+                                 diagnostics,
+                                 expressions,
+                                 symbols_table,
+                                 sections_table,
+                                 size_can_be_parsed,
+                                 pattern_can_be_parsed
+                        );
+                } break;
+                // TODO(medium): this should be clearly refactored a bit. Let's see once all the major components are
+                // extracted into a context struct.
                 case Directive_Kind__Align:
                 {
+                        B32 power_of_two_exponent = 1;
+                        U8 pattern_size           = 1;
                         directive_align
                         (
                                 arena,
@@ -467,7 +440,105 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__P2_Align:
+                {
+                        B32 power_of_two_exponent = 1;
+                        U8 pattern_size           = 1;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__P2_Align_W:
+                {
+                        B32 power_of_two_exponent = 1;
+                        U8 pattern_size           = 2;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__P2_Align_L:
+                {
+                        B32 power_of_two_exponent = 1;
+                        U8 pattern_size           = 4;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__B_Align:
+                {
+                        B32 power_of_two_exponent = 0;
+                        U8 pattern_size           = 1;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__B_Align_W:
+                {
+                        B32 power_of_two_exponent = 0;
+                        U8 pattern_size           = 2;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
+                        );
+                } break;
+                case Directive_Kind__B_Align_L:
+                {
+                        B32 power_of_two_exponent = 0;
+                        U8 pattern_size           = 4;
+                        directive_align
+                        (
+                                arena,
+                                cursor,
+                                diagnostics,
+                                expressions,
+                                symbols_table,
+                                sections_table,
+                                power_of_two_exponent,
+                                pattern_size
                         );
                 } break;
                 default: {} break;

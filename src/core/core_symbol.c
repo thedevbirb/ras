@@ -247,9 +247,9 @@ Symbols_Table__dot(Symbols_Table *symbols_table)
 internal void
 Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
 {
-        symbol->fragment          = section->fragment_list.last;
-        symbol->elf.value         = section->fragment_list.last->size_fixed;
-        symbol->elf.section_index = section->index;
+        symbol->fragment      = section->fragments.last;
+        symbol->value         = section->fragments.last->data_size;
+        symbol->section       = section;
 
         return;
 }
@@ -318,4 +318,13 @@ Symbols_Table__new(void)
 
 
         return symbols_table;
+}
+
+internal Symbol_Ref *
+Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
+{
+        String8 name = String8__literal(FAKE_LABEL_NAME);
+        Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
+        Symbol_Ref__update_section(result, section);
+        return result;
 }

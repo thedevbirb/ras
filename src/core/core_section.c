@@ -134,8 +134,8 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
                 };
                 sections_table->index_next += 1;
                 Fragment *fragment = Arena__push_struct_m(arena, Fragment);
-                Fragment_List *fragment_list = &trie->section.fragment_list;
-                SLL_queue_push_m(fragment_list->first, fragment_list->last, fragment);
+                Fragments *fragments = &trie->section.fragments;
+                SLL_queue_push_m(fragments->first, fragments->last, fragment);
         }
 
 
@@ -157,7 +157,7 @@ Sections_Table__add_common(Sections_Table *sections_table)
         Section *text                  = Sections_Table__get_or_default(sections_table, text_n, 0);
                  text->elf.type        = ELF_Section_Header_Type__Program_Data;
                  text->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
-                 // TODO(compressed): this should probably be 2?
+                 // TODO(C-extension): 2 if C-extension enabled, 4 if not.
                  text->elf.alignment   = 4;
 
         Section *data                  = Sections_Table__get_or_default(sections_table, data_n, 0);
@@ -215,36 +215,6 @@ Sections_Table__add_common(Sections_Table *sections_table)
 //      return *trie_current;
 // }
 
-internal void
-Section__add_instruction_relaxed
-(
-        Section         *section,
-        U32              encoding,
-        U8               encoding_size,
-        U32              location,
-        U8               worst_case_size,
-        U8               best_case_size,
-        Expression_Node *expression_node,
-        U32              subtype
-)
-{
-        U8 *data = Fragment_List__variable
-        (
-                &section->fragment_list,
-                section->arena,
-                location,
-                worst_case_size,
-                best_case_size,
-                expression_node,
-                0,
-                subtype,
-                Relax_State__Machine
-        );
-
-        memory_copy(data, (U8 *)&encoding, encoding_size);
-        return;
-}
-
 // Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
 // track the information of where this instruction has been placed.
 internal void
@@ -258,10 +228,9 @@ Section__add_instruction_fixed
         U32      location
 )
 {
-        U8 *data = Fragment_List__fixed
+        U8 *data = Fragments__push
         (
-                 &section->fragment_list,
-                 section->arena,
+                 &section->fragments,
                  location,
                  encoding_size
         );
@@ -270,8 +239,8 @@ Section__add_instruction_fixed
         // since it might have landed into another fragment because of low capacity of the previous.
         if (fixup)
         {
-                Fragment *last = section->fragment_list.last;
-                U32 encoding_offset = last->size_fixed - encoding_size;
+                Fragment *last = section->fragments.last;
+                U32 encoding_offset = last->data_size - encoding_size;
 
                 fixup->fragment        = last;
                 fixup->encoding_offset = encoding_offset;
@@ -281,146 +250,22 @@ Section__add_instruction_fixed
         return;
 }
 
-// Finish the given section ensuring the last fragment in it has the tail `[alignment fragment][zero-fill fragment]`.
-// This is done for two main reasons:
-// 1. Ensure all sections have a consistent ending layout which can be relied upon.
-// 2. Add final alignment to the sections that might need it. For an example, a code section should end up with a proper
-//    alignment of NOPs to make execution and disassembly safe, while for table sections (`SEC_MERGE | SEC_STRINGS`)
-//    it's good to ensure alignment so that there is no entry of invalid byte size and other tools (like a linker) don't
-//    read over because they're assuming a certain size and less bytes have been written.
-internal void
-Section__finish(Section *section)
-{
-        // TODO(low): this is ELF specific but anyway.
-        U32 alignment = 0;
 
-        B32 code_section  = (section->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0;
-        B32 table_section = (section->elf.flags & ELF_Section_Header_Flags__MERGE)     != 0
-                         || (section->elf.flags & ELF_Section_Header_Flags__STRINGS)   != 0;
-
-        if (code_section)
-        {
-                // We write a power of two, not the exponent.
-                // TODO(compressed): make this 2
-                alignment = 4;
-        }
-
-        if (table_section)
-        {
-                // We take the highest power of two divisor as best alignment effort. If it's not a power of two, and we can't
-                // align properly, we will warn later.
-                U8 trailing_zeroes = count_trailing_zeros(section->elf.entry_size);
-                U8 trailing_zeroes_capped = min_m(31, trailing_zeroes);
-                U32 alignment_entry_size = (1UL << trailing_zeroes_capped);
-                alignment = max_m(alignment_entry_size, alignment);
-        }
-
-        U32 location = section->fragment_list.last->location;
-
-        if (code_section)
-        {
-                Fragment_List__align_code
-                (
-                        &section->fragment_list,
-                        section->arena,
-                        location,
-                        alignment,
-                        alignment
-                );
-        }
-        else
-        {
-                Fragment_List__align
-                (
-                        &section->fragment_list,
-                        section->arena,
-                        location,
-                        alignment,
-                        0,
-                        alignment
-                );
-        }
-
-        Fragment__wane(section->fragment_list.last);
-        return;
-}
-
-// Given a
-internal U32
-Fragment__branch_length_compute(Fragment *fragment, Section *section, B32 update)
-{
-        U32 length_max           = 8;
-        B32 jump_is              = RELAX_BRANCH_UNCOND(fragment->subtype);
-        B32 branch_compressed_is = RELAX_BRANCH_RVC(fragment->subtype);
-
-        // Assume jumps are in range; the linker will catch any that aren't.
-        length_max = jump_is ? 4 : 8;
-
-        if (update)
-        {
-                fragment->size_variable = RELAX_BRANCH_ENCODE(jump_is, branch_compressed_is, length_max);
-        }
-
-        return length_max;
-}
-
-internal void
-Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
-{
-        // First pass to compute address estimate
-        U64 address = 0;
-
-        for (;;)
-        {
-                Fragment *current = section->fragment_list.first;
-                          current->object_file_offset = address;
-
-                address += current->size_fixed;
-
-                switch (current->type)
-                {
-                // TODO(low): should this be a diagnostic instead.
-                case Relax_State__None: { assert_always_m(0 && "expected finished section"); } break;
-                case Relax_State__Fill: {} // fallthrough
-                case Relax_State__Fill_Nop:
-                {
-                        assert_m(!current->expression_node || !current->expression_constant);
-                        // Add the repeated pattern: repeat times size
-                        address += current->expression_constant * current->size_variable;
-                } break;
-                case Relax_State__Align: {} // fallthrough
-                case Relax_State__Align_Code:
-                {
-                        U32 alignment = (U32)current->expression_constant;
-                        U64 growth    = alignment_distance(address, alignment);
-
-                        U8 pattern_size = current->size_variable;
-                        if (growth % pattern_size != 0)
-                        {
-                                // The padding added should be a multiple of the size of the align pattern.
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                                diagnostic->message    = String8__format
-                                (
-                                        arena,
-                                        "alignment padding of size %d is not a multiple of alignment pattern size %d", growth, pattern_size
-                                );
-                                diagnostic->location  = current->location;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                        }
-
-                        address  += growth;
-                } break;
-                case Relax_State__Machine:
-                {
-                        // TODO: estimate branch size;
-                } break;
-                }
-
-                if (!current->next)
-                {
-                        break;
-                }
-
-                current = current->next;
-        }
-}
+// // Given a
+// internal U32
+// Fragment__branch_length_compute(Fragment *fragment, Section *section, B32 update)
+// {
+//         U32 length_max           = 8;
+//         B32 jump_is              = RELAX_BRANCH_UNCOND(fragment->subtype);
+//         B32 branch_compressed_is = RELAX_BRANCH_RVC(fragment->subtype);
+//
+//         // Assume jumps are in range; the linker will catch any that aren't.
+//         length_max = jump_is ? 4 : 8;
+//
+//         if (update)
+//         {
+//                 fragment->size_variable = RELAX_BRANCH_ENCODE(jump_is, branch_compressed_is, length_max);
+//         }
+//
+//         return length_max;
+// }

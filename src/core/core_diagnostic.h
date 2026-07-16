@@ -67,6 +67,11 @@ struct Diagnostic
         String8         message;
         // Logical location where the diagnostic has been emitted.
         U32             location;
+        // TODO(low): flag support. This field is a placeholder for now, but its usage means
+        // that we're interested in seeing the source code where the error occurred, because there isn't any to show.
+        B32             location_disabled;
+        // TODO(low): value support. Most diagnostic should have an unique, numeric identifier to disambiguate.
+        U64             value;
         // Squiggly ('~') ranges to put under the line of the provided logical location.
         Range1_U32      ranges[4];
         // Additional lines with text fixes.
@@ -96,4 +101,3 @@ diagnostic_print
 );
 
 #endif // CORE_DIAGNOSTIC_H
-

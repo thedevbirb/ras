@@ -9,7 +9,7 @@ typedef enum Expression_Flags
 }
 Expression_Flags;
 
-internal Expression_Node *
+internal Expression *
 expression_parse_with_flags
 (
         Arena              *arena,
@@ -21,7 +21,7 @@ expression_parse_with_flags
         Expression_Flags    flags
 );
 
-internal Expression_Node *
+internal Expression *
 expression_parse
 (
         Arena              *arena,
@@ -32,7 +32,7 @@ expression_parse
         Diagnostic_List    *diagnostics
 );
 
-internal Expression_Node *
+internal Expression *
 expression_parse_with_relocation
 (
         Arena                    *arena,

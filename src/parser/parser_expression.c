@@ -1,4 +1,4 @@
-internal Expression_Node *
+internal Expression *
 expression_parse_with_flags
 (
         Arena              *arena,
@@ -19,7 +19,7 @@ expression_parse_with_flags
         struct Frame
         {
                 Frame            *next;
-                Expression_Node  *node;
+                Expression  *node;
                 Binding_Power     binding_power_minimum;
                 B32               is_right_side_of_next;
                 B32               null_denotation_parsed;
@@ -46,7 +46,7 @@ expression_parse_with_flags
         frame->location_begin = cursor->current.location;
 
         // ZII node as initial result;
-        Expression_Node *result = frame->node;
+        Expression *result = frame->node;
 
         Parenthesis_Frame *parenthesis_frame = 0;
 
@@ -88,7 +88,7 @@ expression_parse_with_flags
                                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
                                                        label         = Symbols_Table__get_or_default(symbols_table, label_name);
 
-                                        if (backward && !label->elf.section_index)
+                                        if (backward && !label->section->index)
                                         {
                                                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                                 diagnostic->message    = String8__literal("backward label reference not found");
@@ -97,10 +97,9 @@ expression_parse_with_flags
                                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
 
-                                        assert_always_m(!forward || label->elf.section_index == 0);
+                                        assert_always_m(!forward || label->section->index == 0);
 
                                         frame->node->kind       = Expression_Kind__Symbol;
-                                        frame->node->evaluation = Expression_Kind__Symbol;
                                         frame->node->symbol     = label;
                                         // Skip the letter
                                         token_next(cursor, diagnostics, arena);
@@ -136,12 +135,12 @@ expression_parse_with_flags
                                 else
                                 {
                                         symbol = Symbols_Table__get_or_default(symbols_table, name);
+                                        symbol->section = sections_table->undefined;
                                 }
 
                                 symbol->flags |= Symbol_Flags__Used;
 
                                 frame->node->kind             = Expression_Kind__Symbol;
-                                frame->node->evaluation       = Expression_Kind__Symbol;
                                 frame->node->symbol           = symbol;
                                 frame->node->location         = cursor->current.location;
                                 frame->null_denotation_parsed = 1;
@@ -255,7 +254,7 @@ expression_parse_with_flags
                                 // subtree with a right and optionally (in case of a binary operator) a left node. As
                                 // such, we could inspect what we have here and attempt an early folding. This depends
                                 // also on whether we've some form of deferred mode or not. Moreover, it would be
-                                // efficient only if `Expression_Node`s were first allocated on a scratch arena (or
+                                // efficient only if `Expression`s were first allocated on a scratch arena (or
                                 // stack), and then allocate on a persistent arena only what's necessary, and memory
                                 // copy from one to the other.
                         }
@@ -272,7 +271,7 @@ expression_parse_with_flags
                 else
                 {
                         // <expression> binary_operator <expression>
-                        Expression_Node *left = frame->node;
+                        Expression *left = frame->node;
 
                         // Set central node.
                         frame->node = Expressions_push_empty(expressions, arena);
@@ -315,7 +314,7 @@ expression_parse_with_flags
 
 // NOTE: parsing an expression right now mixes machine-dependent and independent code. It would be nice to provide a
 // common ground for it if it makes sense.
-internal Expression_Node *
+internal Expression *
 expression_parse
 (
         Arena              *arena,
@@ -326,7 +325,7 @@ expression_parse
         Diagnostic_List    *diagnostics
 )
 {
-        Expression_Node *result = expression_parse_with_flags
+        Expression *result = expression_parse_with_flags
         (
                 arena,
                 cursor,
@@ -345,7 +344,7 @@ expression_parse
 //
 // - `addi x1, x0, %lo(foo) + 1` is equivalent to `addi x1, x0, %lo(foo + 1)`.
 // - `addi x1, x0, 1 + %lo(foo)` is invalid.
-internal Expression_Node *
+internal Expression *
 expression_parse_with_relocation
 (
         Arena                    *arena,
@@ -394,6 +393,6 @@ expression_parse_with_relocation
 
                 token_next(cursor, diagnostics, arena);
         }
-        Expression_Node *result = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+        Expression *result = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         return result;
 }

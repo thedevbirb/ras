@@ -93,7 +93,7 @@ typedef struct Section Section;
 struct Section
 {
         Arena               *arena;
-        Fragment_List        fragment_list;
+        Fragments            fragments;
         Fixup_List           fixup_list;
         String8              name;
         U32                  location;
@@ -141,6 +141,10 @@ struct Sections_Table
         Sections_Trie            *root;
         Sections_Trie_Chunk_List *chunks;
         Section                  *current;
+        Section                  *undefined;
+        Section                  *absolute;
+        // TODO(common): unsupported for now;
+        Section                  *common;
         U32                       index_next;
 };
 
@@ -148,22 +152,22 @@ internal Sections_Table *
 Sections_Table__default(void);
 
 internal void
-Sections_Table__add_common(Sections_Table *);
+Sections_Table__add_fundamental(Sections_Table *);
 
 // Forward declaration for pointer use.
-typedef struct Expression_Node Expression_Node;
+typedef struct Expression Expression;
 
 internal void
-Section__add_instruction_relaxed
+Section__add_jump_instruction
 (
-        Section         *section,
-        U32              encoding,
-        U8               encoding_size,
-        U32              location,
-        U8               worst_case_size,
-        U8               best_case_size,
-        Expression_Node *expression_node,
-        U32              subtype
+        Section           *section,
+        U32                encoding,
+        U8                 encoding_size,
+        U32                location,
+        U8                 worst_case_size,
+        U8                 best_case_size,
+        Expression   *expression,
+        U8                 jump_instructions_size
 );
 
 internal void

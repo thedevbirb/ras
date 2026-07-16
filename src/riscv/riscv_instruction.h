@@ -426,34 +426,6 @@
 #define MATCH_REMUW 0x200703b
 #define MASK_REMUW  0xfe00707f
 
-// Macros for encoding relaxation state for RVC branches and far jumps.
-#define RELAX_BRANCH_ENCODE(uncond, rvc, length)        \
-  ((U32)                                                \
-   (0xc0000000                                          \
-    | ((uncond) ? 1 : 0)                                \
-    | ((rvc) ? 2 : 0)                                   \
-    | ((length) << 2)))
-#define RELAX_BRANCH_P(i)      (((i) & 0xf0000000) == 0xc0000000)
-#define RELAX_BRANCH_LENGTH(i) (((i) >> 2) & 0xF)
-#define RELAX_BRANCH_RVC(i)    (((i) & 2) != 0)
-#define RELAX_BRANCH_UNCOND(i) (((i) & 1) != 0)
-
-// Is the given value a sign-extended 32-bit value?
-//
-// Let M = (S64)0x7fffffff = 0x000000007FFFFFFF (bits 0–30 set). Then ~M = 0xFFFFFFFF80000000 (bits 31–63 set).
-// The expression x & ~M keeps only bits 31–63 and discards the lower 31.
-//
-// Two acceptable cases remain:
-//
-// x & ~M == 0  - bits 31–63 are all zero. x is in [0, 0x7FFFFFFF]: a non-negative 32-bit value, zero-extended (which is
-// also valid sign-extension for non-negatives).
-// x & ~M == ~M - bits 31–63 are all ones. x is in [0xFFFFFFFF80000000, 0xFFFFFFFFFFFFFFFF] = [-2^31, -1]: a negative
-// 32-bit value, sign-extended.
-#define sign_extended_32_bit_is_m(x) (((x) &~ (S64)0x7fffffff) == 0 || (((x) &~ (S64)0x7fffffff) == ~(S64)0x7fffffff))
-
-// Is the given value a zero-extended 32-bit value?  Or a negated one?
-#define zero_extended_32_bit_is_m(x) (((x) &~ (S64)0xffffffff) == 0 || (((x) &~ (S64)0xffffffff) == ~(S64)0xffffffff))
-
 typedef U32 insn_t;
 
 // Replace bits MASK << SHIFT of STRUCT with the equivalent bits in
@@ -528,6 +500,9 @@ struct RISCV_Opcode
         RISCV_Instruction_Class instruction_class;
 
         // A 16-bit, null-terminated array describing the arguments for this instruction.
+        //
+        // TODO(medium): don't make this a NULL-terminated array. Add a `U8 count` field and use macros to expand.
+        // This is valid: `array_count_m((Type[]){ __VA_ARGS__ })`.
         U16 *arguments;
 
         // The basic opcode for the instruction.  When assembling, this opcode is modified by the arguments to produce
@@ -632,7 +607,7 @@ RISCV_Instruction__append
         Fixups            *fixups,
 
         RISCV_Instruction *instruction,
-        Expression_Node   *expression_node,
+        Expression   *expression,
         U16                relocation
 );
 
@@ -645,7 +620,7 @@ RISCV_macro_build
 
         String8          instruction_name,
         U32              location,
-        Expression_Node *expression_node,
+        Expression *expression,
         OP_Argument     *arguments,
         S32             *values
 );
@@ -659,7 +634,7 @@ RISCV_call_expand
 
         U8               rd,
         U8               rs1,
-        Expression_Node *expression_node,
+        Expression *expression,
         U16              relocation,
         U32              location
 );
@@ -684,7 +659,7 @@ RISCV_instruction_pseudo_append
         Symbols_Table           *symbols_table,
 
         RISCV_Instruction       *instruction,
-        Expression_Node         *expression,
+        Expression         *expression,
         U16                      relocation
 );
 

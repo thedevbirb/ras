@@ -21,6 +21,12 @@ typedef enum Directive_Kind
         Directive_Kind__Asciz,
         Directive_Kind__String,
         Directive_Kind__Align,
+        Directive_Kind__P2_Align,
+        Directive_Kind__P2_Align_W,
+        Directive_Kind__P2_Align_L,
+        Directive_Kind__B_Align,
+        Directive_Kind__B_Align_W,
+        Directive_Kind__B_Align_L,
         Directive_Kind__Equality,
         Directive_Kind__Set,
         Directive_Kind__Equiv,
@@ -55,6 +61,12 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Asciz]           = String8__literal(".asciz"),
         [Directive_Kind__String]          = String8__literal(".string"),
         [Directive_Kind__Align]           = String8__literal(".align"),
+        [Directive_Kind__P2_Align]        = String8__literal(".p2align"),
+        [Directive_Kind__P2_Align_W]      = String8__literal(".p2alignw"),
+        [Directive_Kind__P2_Align_L]      = String8__literal(".p2alignl"),
+        [Directive_Kind__B_Align]         = String8__literal(".balign"),
+        [Directive_Kind__B_Align_W]       = String8__literal(".balignw"),
+        [Directive_Kind__B_Align_L]       = String8__literal(".balignl"),
         [Directive_Kind__Equality]        = String8__literal(".equ"),
         [Directive_Kind__Set]             = String8__literal(".set"),
         [Directive_Kind__Equiv]           = String8__literal(".equiv"),
@@ -95,37 +107,54 @@ binding_set
 internal void
 directive_set_like
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
-        Set_Mode                 mode
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostic_List *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table,
+        Sections_Table  *sections_table,
+        Set_Mode         mode
 );
 
 internal void
 directive_data
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
-        Fixups                  *fixups,
-        U8                       data_directive_size
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostic_List *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table,
+        Sections_Table  *sections_table,
+        Fixups          *fixups,
+        U8               data_directive_size
 );
 
 internal void
 directive_align
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostic_List *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table,
+        Sections_Table  *sections_table,
+
+        B32              power_of_two_exponent,
+        U8               pattern_size
+);
+
+internal void
+directive_fill
+(
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostic_List *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table,
+        Sections_Table  *sections_table,
+
+        B32              size_can_be_parsed,
+        B32              pattern_can_be_parsed
 );
 
 #endif // PARSER_DIRECTIVE_H

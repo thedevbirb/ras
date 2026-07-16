@@ -212,12 +212,12 @@ typedef struct
 typedef struct ELF32_Symbol ELF32_Symbol;
 struct ELF32_Symbol
 {
-  Offset32        string_table_offset;                /* Symbol name (string tbl index) */
-  Address32        value;                /* Symbol value */
-  U32        size;                /* Symbol size */
-  U8        type_and_binding;                /* Symbol type and binding */
-  U8        visibility;                /* Symbol visibility */
-  ELF32_Section_Index        section_index;                /* Section index */
+        U32  string_table_offset;
+        U32  value;
+        U32  size;
+        U8   type_and_binding;
+        U8   visibility;
+        U16  section_index;
 };
 
 typedef struct ELF64_Symbol ELF64_Symbol;
@@ -231,7 +231,7 @@ struct ELF64_Symbol
         U16 section_index;
 
         // NOTE: for labels, this is offset within the fragment.
-        S64 value;
+        U64 value;
         U64 size;
 };
 

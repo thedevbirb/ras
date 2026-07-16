@@ -170,17 +170,17 @@ RISCV_instruction_size(U32 encoding)
 internal void
 RISCV_Instruction__parse
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
-        U32                      instruction_hash,
+        Arena              *arena,
+        Token_Cursor       *cursor,
+        Diagnostic_List    *diagnostics,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Sections_Table     *sections_table,
+        U32                 instruction_hash,
 
-        U16                     *relocation_out,
-        RISCV_Instruction       *instruction_out,
-        Expression_Node        **expression_node_out
+        U16                *relocation_out,
+        RISCV_Instruction  *instruction_out,
+        Expression        **expression_out
 )
 {
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
@@ -190,7 +190,7 @@ RISCV_Instruction__parse
         token_next(cursor, diagnostics, arena);
         Token_Cursor cursor_start = *cursor;
 
-        Expression_Node *expression = 0;
+        Expression *expression = 0;
         B32 match = 0;
 
         // Iterate over opcode entries with the same name.
@@ -262,7 +262,7 @@ RISCV_Instruction__parse
                         case OP_Argument__RS1:
                         {
                                 String8 text = Token_Cursor__text(cursor);
-                                const Register *reg = Register_List__lookup(RISCV_register_list, text);
+                                const Register *reg = Register_List__lookup(RISCV_register_list, text, 0);
                                 if (!reg)
                                 {
                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
@@ -556,7 +556,7 @@ RISCV_Instruction__parse
                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
-        *expression_node_out = expression;
+        *expression_out = expression;
 
         return;
 }
@@ -568,14 +568,18 @@ RISCV_Instruction__append
         Fixups            *fixups,
 
         RISCV_Instruction *instruction,
-        Expression_Node   *expression_node,
+        Expression        *expression,
         U16                relocation
 )
 {
-        Fixup *fixup     = 0;
-        B32    jump_is   = relocation == Relocation_RISC_V__JAL;
-        B32    relaxable = relocation == Relocation_RISC_V__Branch || jump_is;
-        B32    fixable   = relocation && !relaxable;
+        Fixup *fixup         = 0;
+        B32    jump_is       = relocation == Relocation_RISC_V__JAL;
+        B32    relaxable     = relocation == Relocation_RISC_V__Branch || jump_is;
+        B32    fixable       = relocation && !relaxable;
+        U32    encoding      = instruction->encoding;
+        U8     encoding_size = RISCV_instruction_size(encoding);
+        U32    location      = instruction->location;
+
 
         if (fixable)
         {
@@ -583,28 +587,31 @@ RISCV_Instruction__append
                 // (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
                 // like branches, break this invariant.
                 fixup = Fixups__push(fixups);
-                fixup->expression_node = expression_node;
-                fixup->relocation_type  = relocation;
+                fixup->expression      = expression;
+                fixup->relocation_type = relocation;
         }
-
-        U8 encoding_size = RISCV_instruction_size(instruction->encoding);
 
         if (relaxable)
         {
-                U8 best_case_size  = RISCV_instruction_size(instruction->encoding);
-                U8 worst_case_size = 8;
+                Relax_Info relax_info =
+                {
+                        .jump =
+                        {
+                                .encoding                = encoding,
+                                .compressed_is           = encoding_size == 2,
+                                .unconditional_is        = jump_is,
+                                .instructions_total_size = encoding_size
+                        }
+                };
 
-                U32 subtype = RELAX_BRANCH_ENCODE (jump_is, best_case_size == 2, worst_case_size);
-                Section__add_instruction_relaxed
+                Fragments__variable
                 (
-                        section,
-                        instruction->encoding,
-                        encoding_size,
-                        instruction->location,
-                        worst_case_size,
-                        best_case_size,
-                        expression_node,
-                        subtype
+                        &section->fragments,
+                        location,
+                        relax_info,
+                        Relax_State__Jump,
+                        (U8 *)&encoding,
+                        encoding_size
                 );
         }
         else
@@ -613,7 +620,7 @@ RISCV_Instruction__append
                 (
                         section,
                         fixup,
-                        instruction->encoding,
+                        encoding,
                         encoding_size,
                         instruction->location
                 );
@@ -626,14 +633,15 @@ internal void
 RISCV_macro_build
 (
 
-        Section         *section,
-        Fixups          *fixups,
+        Section     *section,
+        Fixups      *fixups,
 
-        String8          instruction_name,
-        U32              location,
-        Expression_Node *expression_node,
-        OP_Argument     *arguments,
-        S32             *values
+        String8      instruction_name,
+        U32          location,
+        Expression  *expression,
+        // TODO(medium): avoid null-terminated arrays.
+        OP_Argument *arguments,
+        S32         *values
 )
 {
         U32 instruction_hash = FNV_hash_U32(instruction_name);
@@ -663,6 +671,8 @@ RISCV_macro_build
                         case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, value); } break;
                         case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, value); } break;
 
+                        // TODO(medium): I know I've done this to follow GNU as, but this is horrible. Create special
+                        // OP_Argument__Relocation and just do that.
                         case OP_Argument__Immediate_I: {} // fallthrough
                         case OP_Argument__Immediate_U: { relocation = value; } break;
                 }
@@ -671,14 +681,14 @@ RISCV_macro_build
                 values    += 1;
         }
 
-        assert_always_m(relocation ? expression_node != 0 : 1);
+        assert_always_m(relocation ? expression != 0 : 1);
 
         RISCV_Instruction__append
         (
                 section,
                 fixups,
                 &instruction,
-                expression_node,
+                expression,
                 relocation
         );
 }
@@ -692,18 +702,18 @@ RISCV_call_expand
 
         U8               rd,
         U8               rs1,
-        Expression_Node *expression_node,
+        Expression *expression,
         U16              relocation,
         U32              location
 )
 {
-        // Ensure the instructions are in the same fragment
-        OP_Argument *arguments_auipc   = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
-        S32 values_auipc[2]            = {rs1, relocation};
-        OP_Argument *arguments_jalr    = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1);
-        S32 values_jalr[2]             = {rd, rs1};
+        OP_Argument *arguments_auipc = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
+        S32 values_auipc[2]          = {rs1, relocation};
+        OP_Argument *arguments_jalr  = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1);
+        S32 values_jalr[2]           = {rd, rs1};
 
-        Arena__ensure_contiguous_for_size(section->arena, 8);
+        // Ensure both instructions land in the same fragment.
+        Fragments__ensure(&section->fragments, 8);
         RISCV_macro_build
         (
                 section,
@@ -711,7 +721,7 @@ RISCV_call_expand
 
                 String8__literal("auipc"),
                 location,
-                expression_node,
+                expression,
                 arguments_auipc,
                 values_auipc
         );
@@ -726,7 +736,9 @@ RISCV_call_expand
                 arguments_jalr,
                 values_jalr
         );
-        // then?
+        // NOTE: I trust GNU as that is better to seal the fragment now.
+        Fragment__wane(section->fragments.last);
+        Fragments__push_empty_fragment(&section->fragments, location);
 }
 
 // Encodes all the instructions required during a LI pseudo-instruction. Pass `section = NULL` to count only; pass a
@@ -924,7 +936,7 @@ RISCV_instruction_pseudo_append
         Symbols_Table           *symbols_table,
 
         RISCV_Instruction       *instruction,
-        Expression_Node         *expression,
+        Expression         *expression,
         U16                      relocation
 )
 {
@@ -1000,13 +1012,13 @@ RISCV_instruction_pseudo_append
                         OP_Argument *arguments_addi  = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1, OP_Argument__Immediate_I);
                         S32 values_addi[]            = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
-                        Symbol_Ref      *internal_label          = Symbols_Table__internal_label(symbols_table, section);
-                        Expression_Node *expression_addi         = Expressions_push_empty(expressions, arena);
-                                         expression_addi->symbol = internal_label;
-                                         expression_addi->kind   = Expression_Kind__Symbol;
+                        Symbol_Ref *internal_label          = Symbols_Table__internal_label(symbols_table, section);
+                        Expression *expression_addi         = Expressions_push_empty(expressions, arena);
+                                    expression_addi->symbol = internal_label;
+                                    expression_addi->kind   = Expression_Kind__Symbol;
 
                         // Ensure the instructions are in the same fragment
-                        Arena__ensure_contiguous_for_size(section->arena, 8);
+                        Fragments__ensure(&section->fragments, 8);
                         RISCV_macro_build
                         (
                                  section,
@@ -1030,6 +1042,7 @@ RISCV_instruction_pseudo_append
                                  arguments_addi,
                                  values_addi
                         );
+                        // TODO(medium, check-gas): wane and new here?
                 }
         } break;
         case M_LI:

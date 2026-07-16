@@ -56,10 +56,10 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
-// An `Expression_Node` contains information about both a parsed expression and its evaluation, where the latter can
+// An `Expression` contains information about both a parsed expression and its evaluation, where the latter can
 // mutate as more information is providing during multiple evaluation rounds, like during the relaxation process.
-typedef struct Expression_Node Expression_Node;
-struct Expression_Node
+typedef struct Expression Expression;
+struct Expression
 {
         // Location tracking. Consider `1 + 2` as an example.
 
@@ -78,8 +78,8 @@ struct Expression_Node
         Expression_Kind  kind;
 
         // Parsing-related fields. Pointers to child expression nodes.
-        Expression_Node *left;
-        Expression_Node *right;
+        Expression *left;
+        Expression *right;
         Expression_Kind  evaluation;
 
 };
@@ -112,7 +112,7 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 
-// TODO(low): replace Xar with Expression_Node chunks. See diary.md
+// TODO(low): replace Xar with Expression chunks. See diary.md
 
 #ifndef Expressions__xar_chunks
 #define Expressions__xar_chunks 14
@@ -124,14 +124,47 @@ struct Expressions
 {
         Xar_Metadata     metadata;
         Xar_Header       header;
-        Expression_Node *chunks[Expressions__xar_chunks];
+        Expression *chunks[Expressions__xar_chunks];
 };
 
 // MUST be called.
 internal void
 Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount);
 
-Expression_Node *
+Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena);
+
+// Create a constant expression.
+internal Expression *
+Expressions_push_constant(Expressions *expressions, Arena *arena, S64 value)
+{
+        Expression *result = Expressions_push_empty(expressions, arena);
+
+        result->integer_value = value;
+        result->kind          = Expression_Kind__Constant;
+        result->evaluation    = Expression_Kind__Constant;
+        return result;
+}
+
+// Create an expression based on a single symbol
+internal Expression *
+Expression_push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
+{
+        Expression *result = Expressions_push_empty(expressions, arena);
+        result->symbol     = symbol;
+        result->kind       = Expression_Kind__Symbol;
+        result->evaluation = Expression_Kind__Symbol;
+        return result;
+}
+
+// An internal, generated expression is one with no source location range
+internal B32
+Expression__internal_is(Expression *expression)
+{
+        B32 result = expression->location == 0
+                  && expression->location_range.v[0] == 0
+                  && expression->location_range.v[1] == 0;
+        return result;
+}
 
 #endif // CORE_EXPRESSION_H
