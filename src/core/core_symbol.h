@@ -50,9 +50,6 @@ typedef enum Symbol_Flags
         // `Symbol_Flags__Redefined/Symbol_Flags__Skip`
         Symbol_Flags__Removed                    = 1 << 9,
 
-        // Whether the symbol has been declared using a label or directive.
-        Symbol_Flags__Declared                   = 1 << 10,
-
         // Whether the volatile symbol has been actually redefined, and as such it should NOT be written in the object
         // file, but should be kept because something depends on it.
         //

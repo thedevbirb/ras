@@ -491,6 +491,9 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                         Expression *left  = node->left;
                                         Expression *right = node->right;
 
+                                        // This should always be set.
+                                        node->evaluation = node->kind;
+
                                         assert_always_m(left->evaluation);
                                         assert_always_m(right->evaluation);
 

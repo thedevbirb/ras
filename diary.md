@@ -1199,3 +1199,69 @@ Regarding the argument about collapsing expressions and symbols together, I thin
 is really polluting the symbol table chunks with at least one expression node per line. Even `addi
 x1, x0, 1` would create a symbol in those chunks which are also used for the symbol table.
 Otherwise, it would go in whatever space is reserved for storing expressions.
+
+I'm still not very satisfied on the overall error handling strategy. Issues still arise from garbage
+input thrown in which isn't correctly handled by the assembler. What I want is no special handling
+at all. In practice I don't even want error handling: I should emit no-op placeholders when
+something invalid is found (in a ZII fashion), _mark the error_ using diagnostic, and continue. It's
+not easy to get exactly right but I think the code would be much easier then. Currently, I'm going
+into this direction although it isn't always done very well.
+
+Another non-trivial problem is not marking the same diagnostic error many times. For example, if the
+next token to be lexed is invalid, calling `token_peek` and `token_next` will emit the same
+diagnostic twice.
+
+TODO: all diagnostic emitted should have a number associated to it.
+
+Tue Jul 14 17:24:52 CEST 2026
+
+Heads down on refactoring the `Fragment` primitive because it's driving me crazy. In general, I'm
+writing more a target-first version with the goal of avoid many of GNU as compat problems.
+
+Wed Jul 15 10:46:59 CEST 2026
+
+Some basic notes:
+
+- For the RISC-V target, but in practice many others, the `.nop` and `.nops` directives are
+  essentially the same, and can be implemented in the following way:
+  - Read a `size` expression, in bytes. If absolute, then directly emit _at least_ `size` bytes of
+    NOP instructions. If not, create `rs_space_nop` relax state fragment. This is the only case
+    where such relaxation state is used.
+- For the RISC-V target, the `rs_align_code` is emitted in two places:
+    1. When an `.align` directive is invoked in a code section, without a fill pattern provided.
+    2. When adding final section padding during object file creation
+- There are different directives for different alignment pattern sizes, e.g. `.balign`, `.balignw`
+  (2 bytes), `.balignl` (4 bytes).
+- NOP versions are essentially two, a 32-bit one encoded as 0x00000013 and a 16-bit one 0x0001
+- TIL that a risc-v processor with the C extension _can mix_ 32-bit and 16-bit instruction, I
+  thought they were exclusive. After all, it is an _extension_ :)
+
+Usage of the max alignment in `.align` directives is to ensure that for example a loop or function
+starts at a cache-line friendly offset, however only if not too many bytes are required, otherwise
+it's not worth it. Cool!
+
+With this in mind, I think I can greatly simplify some of the fragment management, in particular
+regarding relaxation states.
+
+- 1. A fill variant which accepts a repeat expression. If not provided, it is intended to be zero.
+     Eagerly evaluated at parse time in a `.fill` directive. In GNU as it seems to never happen that
+     a fill frag is created with a literal constant value different than zero. If zeroed, it is a
+     normal seal.
+- 2. An align variant.
+- 3. Jump variant.
+- 4. The `None` variant. In the end this is needed because we want to mark that a fragment should
+     NOT accept more bytes because a variable pattern has already been provided, and would result in
+     a nasty bug.
+
+No code versions of the relaxation states, since those can be resolved right away by injecting the
+two possible NOP patterns very simply.
+
+Fri Jul 17 14:16:41 CEST 2026
+
+Yesterday and today have been spent implementing the symbol resolution algorithm, in the same
+non-recursive fashion of expression evaluation. It is, in every sense, a more generalized expression
+evaluation where symbols, whose values are themselves expressions, can happen. Since so much of the
+functionality is shared between the two, and the ubiquity of symbol definition within assembly, the
+idea is to replace `expression_evaluate` with symbol resolution entirely, with simple flags to skip
+symbol resolution if desired. In case only an expression is found, an ephemeral, stack allocated
+symbol can be created and the expression is attached to it.

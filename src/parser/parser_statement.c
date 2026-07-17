@@ -96,11 +96,11 @@ statement_read
                         B32 label_found = next.kind == Token_Kind__Colon;
                         if (label_found)
                         {
-                                // Label declaration!
                                 Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, sections_table->undefined);
-                                if (symbol->fragment)
+                                if (symbol->section->index != 0)
                                 {
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
+                                        // It also accepts defining the symbol via `.set`, and then as a label.
                                         {
                                         Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                         diagnostic->location   = cursor->current.location;
@@ -117,7 +117,6 @@ statement_read
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
-                                symbol->flags         |= Symbol_Flags__Declared;
                                 symbol->location       = cursor->current.location;
                                 symbol->fragment       = sections_table->current->fragments.last;
                                 symbol->value          = sections_table->current->fragments.last->data_size;

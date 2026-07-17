@@ -52,7 +52,7 @@ binding_set
 
         String8 name = Token_Cursor__text(cursor);
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
-        if (!(symbol->flags & Symbol_Flags__Declared))
+        if (symbol->section->index == 0)
         {
                 // Still give a preliminary location for it so that we can show diagnostics.
                 symbol->location = cursor->current.location;

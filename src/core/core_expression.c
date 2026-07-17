@@ -174,6 +174,8 @@ expression_evaluate(Expression *node_root)
                         Expression *left  = node->left;
                         Expression *right = node->right;
 
+                        node->evaluation = node->kind;
+
                         // Assert that both left and right have been evaluated.
                         assert_always_m(left->evaluation);
                         assert_always_m(right->evaluation);
@@ -229,7 +231,7 @@ expression_evaluate(Expression *node_root)
                         else
                         {
                                 // Absorb it.
-                                node->evaluation = node->evaluation;
+                                node->evaluation = right->evaluation;
                                 node->symbol     = right->symbol;
                         }
                         SLL_stack_pop_m(frame);

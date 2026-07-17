@@ -59,11 +59,11 @@ main(int argument_count, char **argument_vector)
         Thread_Context_select(thread_context);
 
         arguments_shift(&argument_count, &argument_vector);
-        if (argument_count < 2)
-        {
-                usage_print();
-                exit(1);
-        }
+        // if (argument_count < 2)
+        // {
+        //         usage_print();
+        //         exit(1);
+        // }
 
         String8 filename = String8__from_cstring(argument_vector[0]);
         printf("filename: %s\n", filename.data);

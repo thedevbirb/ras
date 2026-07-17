@@ -1,18 +1,18 @@
 #ifndef CORE_EXPRESSION_H
 #define CORE_EXPRESSION_H
 
-// TODO(refactor, high) revisit expression, see diary.
-
-// After the parser processes an item, it ALWAYS advances.
-
-// This can be used both for parsing information and evaluation information.
+// This can be used both for _both_ parsing information and evaluation information.
 //
 // Consider the expression `1 + 2`, which creates a tree rooted in `+`.
 // Such root node will have `Expression_Kind__Add` regarding parsing information,
 // since the token underlying the node contains a plus sign.
+//
 // However, when the expression is evaluated the root can be folded to a constant expression
 // which value is `3`, and so we would track it as a `Expression_Kind__Constant` expression.
 // The use of this enumeration for evaluation purposes is akin to GNU as `operatorT`.
+//
+// When evaluating an expression, using `expression_evaluate` or `Symbol_Ref__resolve`, the `Expression.evaluation`
+// field should always be NOT zero, and in the worst unresolvable case equal to the `Expression.kind` field.
 typedef enum Expression_Kind
 {
         Expression_Kind__None,
