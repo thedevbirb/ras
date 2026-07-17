@@ -56,6 +56,34 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
+internal B32
+Expression_Kind__unary_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Negate
+                  || kind == Expression_Kind__Bitwise_Not
+                  || kind == Expression_Kind__Logical_Not;
+        return result;
+}
+
+internal B32
+Expression_Kind__equality_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Equal
+                  || kind == Expression_Kind__Not_Equal;
+        return result;
+}
+
+internal B32
+Expression_Kind__comparison_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Not_Equal
+                  || kind == Expression_Kind__Less_Than
+                  || kind == Expression_Kind__Less_Equal
+                  || kind == Expression_Kind__Greater_Than
+                  || kind == Expression_Kind__Greater_Equal;
+        return result;
+}
+
 // An `Expression` contains information about both a parsed expression and its evaluation, where the latter can
 // mutate as more information is providing during multiple evaluation rounds, like during the relaxation process.
 typedef struct Expression Expression;

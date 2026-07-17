@@ -505,24 +505,70 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 // Extra checks to ensure undefined symbols are not considered equal.
                                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
                                                                   && left->symbol->fragment && right->symbol->fragment;
+                                                B32 no_undefined_sections = left->symbol->section->index &&  right->symbol->section->index;
                                                 B32 same_section_not_undefined  = (left->symbol->section->index  == right->symbol->section->index)
-                                                                                && left->symbol->section->index &&  right->symbol->section->index;
-                                                B32 subtract = node->kind == Expression_Kind__Subtract;
+                                                                                && no_undefined_sections;
+                                                B32 subtract_is   = node->kind == Expression_Kind__Subtract;
+                                                B32 equality_is   = Expression_Kind__equality_is(node->kind);
+                                                B32 comparison_is = Expression_Kind__comparison_is(node->kind);
 
-                                                if (subtract && same_section_not_undefined && same_fragment)
+                                                B32 valid = (equality_is && no_undefined_sections)
+                                                               || ((subtract_is || comparison_is) && same_section_not_undefined);
+                                                if (valid && same_fragment)
                                                 {
                                                         // Fold to constant.
                                                         node->evaluation = Expression_Kind__Constant;
                                                 }
 
-                                                if (subtract && same_section_not_undefined)
+                                                if (valid)
                                                 {
-                                                        node->integer_value = left->symbol->value - right->symbol->value;
+                                                        node->integer_value = operation_evaluate(node->kind, left->symbol->value, right->symbol->value);
                                                 }
                                                 else
                                                 {
                                                         node->symbol         = left->symbol;
                                                         node->symbol_operand = right->symbol;
+                                                }
+
+                                                if (finalize && !valid)
+                                                {
+                                                        // TODO(medium): needs printf with section info style.
+                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        diagnostic->message    = String8__literal("unsupported binary operator on this expression");
+                                                        diagnostic->location   = node->location;
+                                                        diagnostic->ranges[0]  = node->location_range;
+                                                }
+                                        }
+                                        else
+                                        {
+                                                // We can still absorb something like `symbol_inner <operator> constant`
+                                                Symbol_Ref *symbol_inner = 0;
+                                                S64 integer_value  = 0;
+
+                                                if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Constant)
+                                                {
+                                                        symbol_inner  = left->symbol;
+                                                        integer_value = right->integer_value;
+                                                }
+                                                else if (right->evaluation == Expression_Kind__Symbol && left->evaluation == Expression_Kind__Constant)
+                                                {
+                                                        symbol_inner  = right->symbol;
+                                                        integer_value = left->integer_value;
+                                                }
+
+                                                if (symbol_inner)
+                                                {
+                                                        node->symbol  = symbol_inner;
+                                                        node->integer_value = integer_value;
+                                                }
+
+                                                if (finalize && (node->kind != Expression_Kind__Subtract && node->kind != Expression_Kind__Add))
+                                                {
+                                                        // We have to nitpick with the possible operations.
+                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        diagnostic->message    = String8__literal("unsupported binary operator on non-constant symbols");
+                                                        diagnostic->location   = node->location;
+                                                        diagnostic->ranges[0]  = node->location_range;
                                                 }
                                         }
                                         result = node->integer_value;
@@ -532,12 +578,21 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                 {
                                         Expression *right = node->right;
                                         assert_always_m(right->evaluation);
+                                        assert_always_m(Expression_Kind__unary_is(node->kind) && "parsing internal error");
 
                                         if (right->evaluation == Expression_Kind__Constant)
                                         {
                                                 S64 result_inner    = unary_evaluate(node->kind, right->integer_value);
                                                 node->integer_value = result_inner;
                                                 node->evaluation    = Expression_Kind__Constant;
+                                        }
+                                        else if (node->kind != Expression_Kind__Logical_Not && finalize)
+                                        {
+                                                // TODO(low): report symbol sections with format?
+                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                diagnostic->message    = String8__literal("unsupported unary operator on non-constant symbols");
+                                                diagnostic->location   = node->location;
+                                                diagnostic->ranges[0]  = node->location_range;
                                         }
                                         else
                                         {

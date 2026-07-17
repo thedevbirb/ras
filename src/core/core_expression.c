@@ -60,6 +60,7 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind)
         return result;
 }
 
+// TODO(low): maybe this should be done on U64 so we don't have UB. And division by zero is zero.
 internal S64
 operation_evaluate(Expression_Kind kind, S64 a, S64 b)
 {
@@ -177,11 +178,6 @@ expression_evaluate(Expression *node_root)
                         assert_always_m(left->evaluation);
                         assert_always_m(right->evaluation);
 
-                        // Rethink evaluation model which still keeps the parsed information?
-                        // Example: I can set a label difference to a constant if they belong to the same frag.
-
-                        // example: (symbol1 + 2) * (symbol2 + 4) =
-
                         if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
                         {
                                 S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
@@ -214,12 +210,14 @@ expression_evaluate(Expression *node_root)
                                         node->symbol_operand = right->symbol;
                                 }
                         }
+                        // TODO(high): missing symbol + constant!
                         SLL_stack_pop_m(frame);
                 }
                 else if (node->right)
                 {
                         Expression *right = node->right;
                         assert_always_m(right->evaluation);
+                        assert_always_m(Expression_Kind__unary_is(node->kind) && "parsing internal error");
 
                         if (right->evaluation == Expression_Kind__Constant)
                         {
