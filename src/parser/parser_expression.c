@@ -86,7 +86,7 @@ expression_parse_with_flags
                                         Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
                                                        label_numeric->instances += (U32)forward;
                                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                                                       label         = Symbols_Table__get_or_default(symbols_table, label_name);
+                                                       label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
 
                                         if (backward && !label->section->index)
                                         {
@@ -134,8 +134,7 @@ expression_parse_with_flags
                                 }
                                 else
                                 {
-                                        symbol = Symbols_Table__get_or_default(symbols_table, name);
-                                        symbol->section = sections_table->undefined;
+                                        symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
                                 }
 
                                 symbol->flags |= Symbol_Flags__Used;

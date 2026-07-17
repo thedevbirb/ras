@@ -194,20 +194,17 @@ expression_evaluate(Expression *node_root)
                                 // Extra checks to ensure undefined symbols are not considered equal.
                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
                                                   && left->symbol->fragment && right->symbol->fragment;
-                                B32 same_section  = (left->symbol->section->index  == right->symbol->section->index)
-                                                  && left->symbol->section->index &&  right->symbol->section->index;
+                                B32 same_section_not_undefined = (left->symbol->section->index  == right->symbol->section->index)
+                                                               && left->symbol->section->index &&  right->symbol->section->index;
                                 B32 subtract = node->kind == Expression_Kind__Subtract;
 
-                                // same_fragment implies same_section
-                                assert_always_m((!same_fragment || same_section) && "same fragment but different section");
-
-                                if (same_fragment && subtract)
+                                if (same_fragment && same_section_not_undefined && subtract)
                                 {
                                         // Fold to constant.
                                         node->evaluation = Expression_Kind__Constant;
                                 }
 
-                                if (subtract && same_section)
+                                if (same_section_not_undefined && subtract)
                                 {
                                         node->integer_value = left->symbol->value - right->symbol->value;
                                 }
@@ -247,6 +244,8 @@ expression_evaluate(Expression *node_root)
 
                         node->evaluation = node->kind;
 
+                        // NOTE: actually, symbol could have an expression within it. Following it could lead to
+                        // possible recursive definitions.
                         Symbol_Ref *symbol = node->symbol;
                         if (symbol && symbol->section->index == ELF_Section_Index__Absolute)
                         {

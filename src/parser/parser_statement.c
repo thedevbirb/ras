@@ -73,7 +73,7 @@ statement_read
                         Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
                                        label_numeric->instances += 1;
                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                        Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name);
+                        Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
 
                         assert_always_m(label->section->index == 0 && "numeric label created previously");
                         Symbol_Ref__update_section(label, section);
@@ -97,7 +97,7 @@ statement_read
                         if (label_found)
                         {
                                 // Label declaration!
-                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
+                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, sections_table->undefined);
                                 if (symbol->fragment)
                                 {
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
@@ -121,7 +121,7 @@ statement_read
                                 symbol->location       = cursor->current.location;
                                 symbol->fragment       = sections_table->current->fragments.last;
                                 symbol->value          = sections_table->current->fragments.last->data_size;
-                                symbol->section->index = sections_table->current->index;
+                                symbol->section        = sections_table->current;
 
                                 token_next(cursor, diagnostics, arena);
                                 token_next(cursor, diagnostics, arena);
@@ -307,22 +307,22 @@ statement_read
                 } break;
                 case Directive_Kind__Local:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);
+                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Local);
                 } break;
                 case Directive_Kind__Weak:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);
+                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
                 } break;
                 case Directive_Kind__Globl: {} // fallthrough
                 case Directive_Kind__Global:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global);
+                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Global);
                 } break;
                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                 case Directive_Kind__Set: {} // fallthrough
                 case Directive_Kind__Equality:
                 {
-                        S32 mode = 0;
+                        Set_Mode mode = Set_Mode__Override;
                         directive_set_like
                         (
                                 arena,

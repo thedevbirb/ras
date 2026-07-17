@@ -167,4 +167,10 @@ Expression__internal_is(Expression *expression)
         return result;
 }
 
+internal S64
+unary_evaluate(Expression_Kind kind, S64 a);
+
+internal S64
+operation_evaluation(Expression_Kind kind, S64 a, S64 b);
+
 #endif // CORE_EXPRESSION_H

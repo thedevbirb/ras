@@ -23,7 +23,9 @@ typedef enum Symbol_Flags
         Symbol_Flags__Written                    = 1 << 1,
 
         // Whether symbol value has been completely resolved (used during final pass over symbol table).
-        Symbol_Flags__Resolved                   = 1 << 2,
+        //
+        // TODO: I think `Symbol_Flags__Finalized` is a better term.
+        Symbol_Flags__Finalized                   = 1 << 2,
 
         // Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).
         Symbol_Flags__Resolving                  = 1 << 3,
@@ -66,6 +68,8 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+        // This is a reference to `Symbol.name`
+        String8          *name;
         Section          *section;
         Fragment         *fragment;
         // The expression which defines its value, if appropriate.
@@ -159,5 +163,28 @@ struct Symbols_Table
 
 internal Symbol_Ref *
 Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section);
+
+// Resolution levels for `Symbol_Ref__resolve`.
+typedef enum Resolve_Level
+{
+	Resolve_Level__None             = 0,
+        // Whether the resolve other symbol definitions encountered as well.
+	Resolve_Level__Traverse = 1,
+        // Whether symbols should be finalized after this resolution pass. Implies previous options.
+	Resolve_Level__Finalize = 2,
+}
+Resolve_Level;
+
+// Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
+//
+// 1. Labels don't have an expression. Their value can be read straight into `Symbol_Ref.value`.
+// 2. `Symbol_Flags__Finalized` means the simplification pass reached an end, and the value can be read from
+//    `Symbol_Ref.value`. Undefined symbols and similar should have value zero.
+//
+// NOTE that this will be called on every symbol.
+// TODO(low): replace `expression_evalute` with this, more general version, by wrapping an expression into a
+// stack-allocated symbol, since the core evaluation logic is shared.
+internal S64
+Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level);
 
 #endif // CORE_SYMBOL_H

@@ -133,8 +133,9 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
                         .location = location,
                 };
                 sections_table->index_next += 1;
-                Fragment *fragment = Arena__push_struct_m(arena, Fragment);
-                Fragments *fragments = &trie->section.fragments;
+                Fragment  *fragment         = Arena__push_struct_m(arena, Fragment);
+                Fragments *fragments        = &trie->section.fragments;
+                           fragments->arena = arena;
                 SLL_queue_push_m(fragments->first, fragments->last, fragment);
         }
 
@@ -146,34 +147,59 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
 internal void
 Sections_Table__add_common(Sections_Table *sections_table)
 {
-        String8 nil      = String8__literal("");
-        String8 text_n   = String8__literal(".text");
-        String8 data_n   = String8__literal(".data");
-        String8 rodata_n = String8__literal(".rodata");
-        String8 bss_n    = String8__literal(".bss");
+        String8 undefined_n = String8__literal("*UND*");
+        String8 text_n      = String8__literal(".text");
+        String8 data_n      = String8__literal(".data");
+        String8 rodata_n    = String8__literal(".rodata");
+        String8 bss_n       = String8__literal(".bss");
+        String8 absolute_n  = String8__literal("*ABS*");
+        // TODO(common): precise name?
+        String8 common_n    = String8__literal("*COMMON*");
 
-        Sections_Table__get_or_default(sections_table, nil,  0);
+        U32 location = 0;
+        Section *undefined = Sections_Table__get_or_default(sections_table, undefined_n,  location);
 
-        Section *text                  = Sections_Table__get_or_default(sections_table, text_n, 0);
-                 text->elf.type        = ELF_Section_Header_Type__Program_Data;
-                 text->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
+        // TODO(medium): review flags of these two sections.
+        Section *absolute                = Sections_Table__get_or_default(sections_table, absolute_n, location);
+                 absolute->elf.type      = ELF_Section_Header_Type__No_Data;
+                 absolute->elf.flags     = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 absolute->elf.alignment = 8;
+        absolute->index                  = ELF_Section_Index__Absolute;
+
+        Section *common                  = Sections_Table__get_or_default(sections_table, common_n, location);
+                 common->elf.type        = ELF_Section_Header_Type__No_Data;
+                 common->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 common->elf.alignment   = 8;
+        common->index                    = ELF_Section_Index__Common;
+
+        // TODO(hack): by default next section index is incremented
+        sections_table->index_next = 1;
+
+        Section *text                    = Sections_Table__get_or_default(sections_table, text_n, location);
+                 text->elf.type          = ELF_Section_Header_Type__Program_Data;
+                 text->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
                  // TODO(C-extension): 2 if C-extension enabled, 4 if not.
-                 text->elf.alignment   = 4;
+                 text->elf.alignment     = 4;
 
-        Section *data                  = Sections_Table__get_or_default(sections_table, data_n, 0);
-                 data->elf.type        = ELF_Section_Header_Type__Program_Data;
-                 data->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 data->elf.alignment   = 8;
+        Section *data                    = Sections_Table__get_or_default(sections_table, data_n, location);
+                 data->elf.type          = ELF_Section_Header_Type__Program_Data;
+                 data->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 data->elf.alignment     = 8;
 
-        Section *rodata                = Sections_Table__get_or_default(sections_table, rodata_n, 0);
-                 rodata->elf.type      = ELF_Section_Header_Type__Program_Data;
-                 rodata->elf.flags     = ELF_Section_Header_Flags__ALLOC;
-                 rodata->elf.alignment = 8;
+        Section *rodata                  = Sections_Table__get_or_default(sections_table, rodata_n, location);
+                 rodata->elf.type        = ELF_Section_Header_Type__Program_Data;
+                 rodata->elf.flags       = ELF_Section_Header_Flags__ALLOC;
+                 rodata->elf.alignment   = 8;
 
-        Section *bss                   = Sections_Table__get_or_default(sections_table, bss_n, 0);
-                 bss->elf.type         = ELF_Section_Header_Type__No_Data;
-                 bss->elf.flags        = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 bss->elf.alignment    = 8;
+        Section *bss                     = Sections_Table__get_or_default(sections_table, bss_n, location);
+                 bss->elf.type           = ELF_Section_Header_Type__No_Data;
+                 bss->elf.flags          = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 bss->elf.alignment      = 8;
+
+        sections_table->undefined = undefined;
+        sections_table->absolute  = absolute;
+        sections_table->common    = common;
+        sections_table->current   = text;
 
         return;
 }

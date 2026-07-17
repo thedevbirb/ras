@@ -33,7 +33,7 @@ Section__finish(Section *section)
         }
 
 
-        // TODO(locations): it doesn't make much sense?
+        // TODO(location): it doesn't make much sense?
         U32 location = section->fragments.last->location;
 
         Fragments__align(&section->fragments, location, alignment);
@@ -42,67 +42,102 @@ Section__finish(Section *section)
         return;
 }
 
-// internal void
-// Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
-// {
-//         // First pass to compute address estimate
-//         U64 address = 0;
-//
-//         for (;;)
-//         {
-//                 Fragment *current = section->fragments.first;
-//                           current->object_file_offset = address;
-//
-//                 address += current->size_fixed;
-//                 Relax_flags flags = current->relax_flags;
-//
-//                 switch (flags & Relax_Flags__variants_mask)
-//                 {
-//                 // TODO(low): should this be a diagnostic instead.
-//                 case Relax_Flags__None: { assert_always_m(0 && "expected finished section"); } break;
-//                 case Relax_Flags__Fill
-//                 {
-//                         if (flags & Relax_Flags__Constant_Expression)
-//                         {
-//                                 address += current->relax_state_info.constant * current->size_variable;
-//                         }
-//                         // If non-constant expression-sized, will be checked later.
-//
-//                         // Add the repeated pattern: repeat times size
-//                 } break;
-//                 case Relax_State__Align: {} // fallthrough
-//                 case Relax_State__Align_Code:
-//                 {
-//                         U32 alignment = (U32)current->expression_constant;
-//                         U64 growth    = alignment_distance(address, alignment);
-//
-//                         U8 pattern_size = current->size_variable;
-//                         if (growth % pattern_size != 0)
-//                         {
-//                                 // The padding added should be a multiple of the size of the align pattern.
-//                                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-//                                 diagnostic->message    = String8__format
-//                                 (
-//                                         arena,
-//                                         "alignment padding of size %d is not a multiple of alignment pattern size %d", growth, pattern_size
-//                                 );
-//                                 diagnostic->location  = current->location;
-//                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-//                         }
-//
-//                         address  += growth;
-//                 } break;
-//                 case Relax_State__Machine:
-//                 {
-//                         // TODO: estimate branch size;
-//                 } break;
-//                 }
-//
-//                 if (!current->next)
-//                 {
-//                         break;
-//                 }
-//
-//                 current = current->next;
-//         }
-// }
+// Compute the total size of the instructions needed to relax the jump.
+internal U8
+jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *section)
+{
+        U8 size = 0;
+        if (fragment->relax_state == Relax_State__Jump)
+        {
+                // NOTE: assume jumps are in range; the linker will catch any that aren't.
+                size = jump.unconditional_is ? 4 : 8;
+                Symbol_Ref *symbol = fragment->relax_info.jump.symbol;
+                B32 symbol_defined_is = symbol->section->index != 0;
+                // TODO(weak)
+                B32 symbol_weak_is = 0;
+                B32 section_same_is = symbol_defined_is && symbol->section->index == section->index;
+                B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
+                if (size_can_be_computed)
+                {
+                        // S64 offset = 0;
+                        // if (symbol->section->index == ELF_Section_Index__Absolute)
+                        // {
+                        //
+                        // }
+                }
+        }
+
+        return size;
+}
+
+internal void
+Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
+{
+        // First pass to compute address estimate
+        U64 address = 0;
+        Fragment *current = section->fragments.first;
+
+        for (;;)
+        {
+                current->object_file_offset = address;
+                address += current->data_size;
+
+                Relax_Info relax_info = current->relax_info;
+
+                switch (current->relax_state)
+                {
+                // TODO(low): should this be a diagnostic instead?
+                case Relax_State__None: { assert_always_m(0 && "expected finished fragment"); } break;
+                case Relax_State__Fill:
+                {
+                        // Add the repeated pattern: repeat times size.
+                        // Non-constant repeat will be evaluated later.
+                        Expression *repeat_expression = relax_info.fill_expression;
+                        U64 repeat = repeat_expression && repeat_expression->evaluation == Expression_Kind__Constant
+                                   ? repeat_expression->integer_value : 0;
+                        address += repeat * current->data_variable_size;
+
+                } break;
+                case Relax_State__Align:
+                {
+                        U32 boundary = relax_info.alignment.boundary;
+                        assert_always_m(pow_2_is_m(boundary) || !boundary);
+
+                        U64 address_aligned = align_pow_2_m(address, boundary);
+                        U64 growth          = address_aligned - address;
+                        U8 pattern_size     = current->data_variable_size;
+
+                        if (growth % pattern_size != 0)
+                        {
+                                // The padding added should be a multiple of the size of the align pattern.
+                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                diagnostic->message    = String8__format
+                                (
+                                        arena,
+                                        "alignment padding of size %d is not a multiple of alignment pattern size %d", growth, pattern_size
+                                );
+                                diagnostic->location  = current->location;
+                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                        }
+
+                        address += growth;
+                } break;
+                case Relax_State__Jump:
+                {
+                        Symbol_Ref *symbol = relax_info.jump.symbol;
+                        if (symbol)
+                        {
+                                S64 result = Symbol_Ref__resolve(symbol, arena, diagnostics, 1);
+                                (void)result;
+                        }
+                } break;
+                }
+
+                if (!current->next)
+                {
+                        break;
+                }
+
+                current = current->next;
+        }
+}

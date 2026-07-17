@@ -101,6 +101,7 @@ binding_set
         Token_Cursor            *cursor,
         Diagnostic_List         *diagnostics,
         Symbols_Table           *symbols_table,
+        Sections_Table          *sections_table,
         ELF_Symbol_Binding       binding
 );
 

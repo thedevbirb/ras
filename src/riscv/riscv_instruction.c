@@ -597,7 +597,8 @@ RISCV_Instruction__append
                 {
                         .jump =
                         {
-                                .encoding                = encoding,
+                                .symbol                  = expression->symbol,
+                                .offset                  = expression->integer_value,
                                 .compressed_is           = encoding_size == 2,
                                 .unconditional_is        = jump_is,
                                 .instructions_total_size = encoding_size
@@ -1057,3 +1058,4 @@ RISCV_instruction_pseudo_append
         } break;
         }
 }
+

@@ -134,6 +134,11 @@ main(int argument_count, char **argument_vector)
                                 break;
                         }
                 }
+
+                if (exit_status)
+                {
+                        exit(1);
+                }
         }
 
         // Start of an equivalent of GNU as `write_object_file`.
@@ -177,7 +182,7 @@ main(int argument_count, char **argument_vector)
                                 break;
                         }
                         Section *section_current = &chunk_current->nodes[index].section;
-                        Section__finish(section_current);
+                        Section__relax(section_current, arena, &diagnostics);
                         index += 1;
                 }
 
@@ -188,6 +193,27 @@ main(int argument_count, char **argument_vector)
                 }
 
                 chunk_current = chunk_current->next;
+        }
+
+        if (diagnostics.first)
+        {
+                Diagnostic *current = diagnostics.first;
+                for (;;)
+                {
+                        exit_status |= current->kind == Diagnostic_Kind__Error;
+                        diagnostic_print(current, &source, arena);
+                        current = current->next;
+
+                        if (!current)
+                        {
+                                break;
+                        }
+                }
+
+                if (exit_status)
+                {
+                        exit(1);
+                }
         }
 
         return exit_status;

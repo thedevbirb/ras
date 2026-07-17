@@ -1,5 +1,9 @@
 // Symbol trie utilities.
 
+#include "core_symbol.h"
+
+#include "core_expression.h"
+
 internal Symbols_Trie *
 symbols_trie_chunk_list_push(Arena *arena, Symbols_Trie_Chunk_List *chunks, U64 capacity)
 {
@@ -65,7 +69,8 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbo
                 {
                         Symbols_Trie *trie_new = symbols_trie_chunk_list_push(arena, chunks, Symbols_Trie_Chunk__capacity_default);
                         String8 name_duplicated = String8__duplicate(arena, name);
-                        trie_new->name = name_duplicated;
+                        trie_new->name        = name_duplicated;
+                        trie_new->symbol.name = &trie_new->name;
                         memory_zero_array(trie_new->children);
                         *trie_current = trie_new;
                         initialized = 1;
@@ -226,13 +231,19 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name)
 
 // Get or create a default symbol given its name.
 internal Symbol_Ref *
-Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Section *undefined)
 {
 
         U64 hash = FNV_hash_U64(name);
         Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
+        Symbol_Ref *symbol = &node->symbol;
+        if (!symbol->section)
+        {
+                symbol->section  = undefined;
+                symbol->fragment = undefined->fragments.first;
+        }
 
-        return &node->symbol;
+        return symbol;
 }
 
 // Return the global dot symbol trie.
@@ -326,5 +337,298 @@ Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
         String8 name = String8__literal(FAKE_LABEL_NAME);
         Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
         Symbol_Ref__update_section(result, section);
+        return result;
+}
+
+// Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
+//
+// 1. Labels don't have an expression. Their value can be read straight into `Symbol_Ref.value`.
+// 2. `Symbol_Flags__Finalized` means the simplification pass reached an end, and the value can be read from
+//    `Symbol_Ref.value`. Undefined symbols and similar should have value zero.
+//
+// NOTE that this will be called on every symbol.
+// TODO(low): replace `expression_evalute` with this, more general version, by wrapping an expression into a
+// stack-allocated symbol, since the core evaluation logic is shared.
+internal S64
+Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level)
+{
+        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+
+        typedef enum Frame_State
+        {
+                Frame_State__None                 = 0 << 0,
+                Frame_State__Right_Evaluated      = 1 << 0,
+                Frame_State__Left_Evaluated       = 1 << 1,
+                Frame_State__Evaluated            = 1 << 2,
+                Frame_State__Symbol_Resolved      = 1 << 4,
+        }
+        Frame_State;
+
+        typedef struct Frame Frame;
+        struct Frame
+        {
+                Frame      *next;
+
+                // Contains either one of the two.
+                Symbol_Ref *symbol;
+                Expression *expression;
+
+                B32 expression_depends_on_symbol;
+
+                S64         result;
+                Frame_State state;
+        };
+
+        Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
+        frame->symbol = symbol;
+        S64 result = 0;
+
+        B32 traverse = level >= Resolve_Level__Traverse;
+        B32 finalize = level >= Resolve_Level__Finalize;
+
+        // Notes
+        //
+        // Resolution works by interleaving symbol frames and expression frames. That is, in a frame we are resolving
+        // the value of a symbol. If a symbol has an expression associated to it, then we create a frame to evaluate
+        // that expression.
+        //
+        // Every time a codepath finishes to process a frame, it is popped. Once we have no more frames, we're done.
+
+        U16 index = 0;
+        for (;;)
+        {
+                assert_always_m(index < U16_max && "infinite loop");
+                if (!frame)
+                {
+                        break;
+                }
+                else if (frame->symbol && frame->symbol->flags & Symbol_Flags__Finalized)
+                {
+                        // The simplest case. The symbol is already finalized.
+                        result = frame->symbol->value;
+                        SLL_stack_pop_m(frame);
+                }
+                else if (frame->symbol && !frame->symbol->expression)
+                {
+                        // A symbol without an expression can be either a label definition, or some undefined symbol.
+                        result = frame->symbol->value;
+                        if (!(frame->symbol->flags & Symbol_Flags__Finalized))
+                        {
+                                result += symbol->fragment->object_file_offset;
+                        }
+
+                        if (finalize)
+                        {
+                                frame->symbol->value = result;
+                                frame->symbol->flags |= Symbol_Flags__Finalized;
+                        }
+                        SLL_stack_pop_m(frame);
+                }
+                else if (!(frame->state & Frame_State__Evaluated))
+                {
+                        if (frame->symbol)
+                        {
+                                B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
+                                frame->symbol->flags |= Symbol_Flags__Resolving;
+                                frame->state |= Frame_State__Evaluated;
+                                // We're evaluating a symbol expression in a dedicated frame, which will NOT be marked
+                                // as `Frame_State__Evaluated` yet, for the following reason: if the
+                                // expression does NOT contain symbols to resolve, the new frame will be popped and
+                                // we're done. Otherwise, we have to create a new symbol frame. Once this latter symbol
+                                // is resolved, we can go back to this expression frame, _now mark it as evaluated_
+                                // because we have all information to return a value.
+                                Frame *frame_expression = Arena__push_struct_m(scratch.arena, Frame);
+                                frame_expression->expression = frame->symbol->expression;
+                                SLL_stack_push_m(frame, frame_expression);
+
+                                if (loop_detected)
+                                {
+                                        {
+                                        // TODO(low): finding the previous definition here is NOT trivial.
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->message    = String8__literal("recursive symbol definition found");
+                                        diagnostic->location   = symbol->location;
+                                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+                                        }
+                                        SLL_stack_pop_m(frame);
+                                }
+                        }
+
+                        U16 index_inner = 0;
+                        for (;;)
+                        {
+                                assert_always_m(index_inner < U16_max && "infinite loop");
+                                if (!frame->expression)
+                                {
+                                        break;
+                                }
+                                Expression *node = frame->expression;
+
+                                if (node->evaluation == Expression_Kind__Constant)
+                                {
+                                        result = node->integer_value;
+                                        SLL_stack_pop_m(frame);
+                                }
+                                else if (node->right && !(frame->state & Frame_State__Right_Evaluated))
+                                {
+                                        // We have to evaluate the inner expression
+                                        frame->state |= Frame_State__Right_Evaluated;
+                                        Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+                                        frame_new->expression = node->right;
+                                        SLL_stack_push_m(frame, frame_new);
+                                }
+                                else if (node->left && !(frame->state & Frame_State__Left_Evaluated))
+                                {
+                                        // We have to evaluate the inner expression
+                                        frame->state |= Frame_State__Left_Evaluated;
+                                        Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+                                        frame_new->expression = node->left;
+                                        SLL_stack_push_m(frame, frame_new);
+                                }
+                                else if (node->right && node->left)
+                                {
+                                        Expression *left  = node->left;
+                                        Expression *right = node->right;
+
+                                        assert_always_m(left->evaluation);
+                                        assert_always_m(right->evaluation);
+
+                                        if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
+                                        {
+                                                S64 result_inner    = operation_evaluate(node->kind, left->integer_value, right->integer_value);
+                                                node->integer_value = result_inner;
+                                                node->evaluation    = Expression_Kind__Constant;
+                                        }
+                                        else if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Symbol)
+                                        {
+                                                // Extra checks to ensure undefined symbols are not considered equal.
+                                                B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
+                                                                  && left->symbol->fragment && right->symbol->fragment;
+                                                B32 same_section_not_undefined  = (left->symbol->section->index  == right->symbol->section->index)
+                                                                                && left->symbol->section->index &&  right->symbol->section->index;
+                                                B32 subtract = node->kind == Expression_Kind__Subtract;
+
+                                                if (subtract && same_section_not_undefined && same_fragment)
+                                                {
+                                                        // Fold to constant.
+                                                        node->evaluation = Expression_Kind__Constant;
+                                                }
+
+                                                if (subtract && same_section_not_undefined)
+                                                {
+                                                        node->integer_value = left->symbol->value - right->symbol->value;
+                                                }
+                                                else
+                                                {
+                                                        node->symbol         = left->symbol;
+                                                        node->symbol_operand = right->symbol;
+                                                }
+                                        }
+                                        result = node->integer_value;
+                                        SLL_stack_pop_m(frame);
+                                }
+                                else if (node->right)
+                                {
+                                        Expression *right = node->right;
+                                        assert_always_m(right->evaluation);
+
+                                        if (right->evaluation == Expression_Kind__Constant)
+                                        {
+                                                S64 result_inner    = unary_evaluate(node->kind, right->integer_value);
+                                                node->integer_value = result_inner;
+                                                node->evaluation    = Expression_Kind__Constant;
+                                        }
+                                        else
+                                        {
+                                                // Absorb it.
+                                                node->evaluation = node->evaluation;
+                                                node->symbol     = right->symbol;
+                                        }
+
+                                        result = node->integer_value;
+                                        SLL_stack_pop_m(frame);
+                                }
+                                else
+                                {
+                                        // Leaf reached. Since constant are eagerly set to such evaluation at parse
+                                        // time, this MUST be a symbol.
+                                        assert_always_m(node->left == 0);
+                                        assert_always_m(node->kind == Expression_Kind__Symbol);
+                                        assert_always_m(node->symbol);
+                                        Symbol_Ref *symbol_inner = node->symbol;
+
+                                        node->evaluation = node->kind;
+
+                                        if (symbol_inner->section->index == ELF_Section_Index__Absolute)
+                                        {
+                                                node->evaluation = Expression_Kind__Constant;
+                                                node->integer_value = symbol_inner->value;
+
+                                                if (finalize)
+                                                {
+                                                        symbol_inner->flags |= Symbol_Flags__Finalized;
+                                                }
+
+                                                result = node->integer_value;
+                                                SLL_stack_pop_m(frame);
+                                        }
+                                        else if (frame->state & Frame_State__Symbol_Resolved)
+                                        {
+                                                // probably not integer_value
+                                                node->integer_value = symbol_inner->expression->integer_value;
+                                                SLL_stack_pop_m(frame);
+                                        }
+                                        else if (traverse && symbol_inner->expression)
+                                        {
+                                                frame->state |= Frame_State__Symbol_Resolved;
+                                                Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
+                                                frame_new->symbol = symbol_inner;
+                                                SLL_stack_push_m(frame, frame_new);
+                                        }
+                                        else
+                                        {
+                                                result = node->integer_value;
+                                                SLL_stack_pop_m(frame);
+                                        }
+                                }
+                                index_inner += 1;
+                        }
+
+                }
+                else if (frame->symbol && frame->symbol->expression)
+                {
+                        frame->symbol->flags &= ~Symbol_Flags__Resolving;
+                        // After this loop, the inner expression has been evaluated, and subsequent symbols optionally
+                        // resolved. The value of the symbol is whatever this expression evaluates to, and we can mark
+                        // it as resolved.
+                        if (finalize)
+                        {
+                                frame->symbol->value = frame->symbol->expression->integer_value;
+                                frame->symbol->flags |= Symbol_Flags__Finalized;
+                        }
+
+                        result = frame->symbol->expression->integer_value;
+                        SLL_stack_pop_m(frame);
+                }
+                else
+                {
+                        frame->symbol->flags &= ~Symbol_Flags__Resolving;
+                        result = frame->symbol->value;
+                        if (frame->symbol->flags & Symbol_Flags__Finalized)
+                        {
+                                result += symbol->fragment->object_file_offset;
+                        }
+
+                        if (finalize)
+                        {
+                                frame->symbol->value = result;
+                                frame->symbol->flags |= Symbol_Flags__Finalized;
+                        }
+                }
+                index += 1;
+        }
+        Arena__scratch_end_m(scratch);
+
         return result;
 }

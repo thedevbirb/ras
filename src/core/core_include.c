@@ -3,6 +3,6 @@
 #include "core_token.c"
 #include "core_fragment.c"
 #include "core_section.c"
-#include "core_symbol.c"
 #include "core_diagnostic.c"
 #include "core_expression.c"
+#include "core_symbol.c"

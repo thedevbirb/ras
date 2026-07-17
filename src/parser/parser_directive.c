@@ -37,6 +37,7 @@ binding_set
         Token_Cursor            *cursor,
         Diagnostic_List         *diagnostics,
         Symbols_Table           *symbols_table,
+        Sections_Table          *sections_table,
         ELF_Symbol_Binding       binding
 )
 {
@@ -50,7 +51,7 @@ binding_set
         }
 
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
         if (!(symbol->flags & Symbol_Flags__Declared))
         {
                 // Still give a preliminary location for it so that we can show diagnostics.
@@ -111,7 +112,7 @@ directive_set_like
         }
 
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
 
         B32 already_defined_or_equated = symbol->section->index || symbol->expression;
         if (already_defined_or_equated)
@@ -189,12 +190,11 @@ directive_set_like
 
         if (mode != Set_Mode__Strict_Forward)
         {
-
                 S64 result = expression_evaluate(expression);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
-                        symbol->section->index = ELF_Section_Index__Absolute;
-                        symbol->value          = result;
+                        symbol->section = sections_table->absolute;
+                        symbol->value   = result;
                 }
         }
 

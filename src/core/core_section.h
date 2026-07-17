@@ -152,7 +152,7 @@ internal Sections_Table *
 Sections_Table__default(void);
 
 internal void
-Sections_Table__add_fundamental(Sections_Table *);
+Sections_Table__add_common(Sections_Table *);
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
@@ -183,8 +183,5 @@ Section__add_instruction_fixed
 
 internal void
 Section__finish(Section *section);
-
-// internal void
-// Section__relax(Section *section);
 
 #endif // CORE_SECTION_H

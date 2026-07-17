@@ -3,7 +3,7 @@
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
-typedef struct Section Section;
+typedef struct Symbol_Ref Symbol_Ref;
 
 // The state of the relaxable code contained within a fragment.
 typedef U8 Relax_State;
@@ -41,26 +41,28 @@ enum
 typedef struct Relax_Info_Jump Relax_Info_Jump;
 struct Relax_Info_Jump
 {
-        U32 encoding;
-        U8  compressed_is;
-        U8  unconditional_is;
-        U8  instructions_total_size;
+        Symbol_Ref *symbol;
+        S32         offset;
+        U8          compressed_is;
+        U8          unconditional_is;
+        U8          instructions_total_size;
+        U8          pad;
 };
 
 // Minimum union that provides just enough ergonomics of access.
 typedef union Relax_Info Relax_Info;
 union Relax_Info
 {
+        Relax_Info_Jump jump;
         Expression *fill_expression;
         struct
         {
                 U32 boundary;
                 U32 write_size_max;
         } alignment;
-        Relax_Info_Jump jump;
-        U8 opaque[8];
+        U8 opaque[16];
 };
-assert_static_m(sizeof(Relax_Info) == 8, Relax_Info__sizeof_check);
+assert_static_m(sizeof(Relax_Info) == 16, Relax_Info__sizeof_check);
 
 // The fragment structure represents a portion of assembly code. The most generic way to view it is a container of some
 // known number of bytes, followed by some variable number of bytes.
