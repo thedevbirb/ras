@@ -51,6 +51,7 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
         {
                 // NOTE: assume jumps are in range; the linker will catch any that aren't.
                 size = jump.unconditional_is ? 4 : 8;
+                // The jump target;
                 Symbol_Ref *symbol = fragment->relax_info.jump.symbol;
                 B32 symbol_defined_is = symbol->section->index != 0;
                 // TODO(weak)
@@ -59,24 +60,35 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
                 B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
                 if (size_can_be_computed)
                 {
-                        // S64 offset = 0;
-                        // if (symbol->section->index == ELF_Section_Index__Absolute)
-                        // {
+                        S64 jump_target_offset = symbol->value;
+                        // The branch instruction is placed as the last data in the fragment
+                        S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
+
+                        // TODO(compressed, check-gas): compressed range
                         //
-                        // }
+                        // Check that `distance` fits a signed `RISCV_BRANCH_REACH`, i.e.
+                        // `[RISCV_BRANCH_REACH/2, RISCV_BRANCH_REACH/2)`
+                        // if (compressed && range compressed blah blah)
+                        if ((S64)(distance + RISCV_BRANCH_REACH/2) < (S64)RISCV_BRANCH_REACH)
+                        {
+                                size = 4;
+                        }
+                        // else if (!unconditional && compressed) then this is 6.
                 }
         }
 
         return size;
 }
 
-internal void
+internal B32
 Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
 {
         // First pass to compute address estimate
-        U64 address = 0;
-        Fragment *current = section->fragments.first;
+        Fragments fragments = section->fragments;
 
+        {
+        U64 address = 0;
+        Fragment *current = fragments.first;
         for (;;)
         {
                 current->object_file_offset = address;
@@ -100,12 +112,20 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                 } break;
                 case Relax_State__Align:
                 {
-                        U32 boundary = relax_info.alignment.boundary;
+                        // TODO(medium): `|| 1` not sure if it's a patch or not. I don't know yet whether a zero
+                        // boundary is something we should silently convert to 1 (a no-op) or error.
+                        U32 boundary = relax_info.alignment.boundary || 1;
                         assert_always_m(pow_2_is_m(boundary) || !boundary);
 
                         U64 address_aligned = align_pow_2_m(address, boundary);
                         U64 growth          = address_aligned - address;
                         U8 pattern_size     = current->data_variable_size;
+
+                        if (growth > relax_info.alignment.write_size_max)
+                        {
+                                // Explicitly give up as alignment, as request by the user.
+                                growth = 0;
+                        }
 
                         if (growth % pattern_size != 0)
                         {
@@ -124,11 +144,15 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                 } break;
                 case Relax_State__Jump:
                 {
+                        // TODO(medium): not super super clear here if there is no symbol, for example `j 6`.
                         Symbol_Ref *symbol = relax_info.jump.symbol;
                         if (symbol)
                         {
-                                S64 result = Symbol_Ref__resolve(symbol, arena, diagnostics, 1);
-                                (void)result;
+                                Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Traverse);
+                                U8 size = jump_instructions_total_size(relax_info.jump, current, section);
+                                current->data_variable_size = size;
+                                address += size;
+
                         }
                 } break;
                 }
@@ -140,4 +164,158 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
 
                 current = current->next;
         }
+        }
+
+        // Start of the actual relaxation algorithm
+
+        U32 index          = 0;
+        U32 iterations_max = 0;
+        S64 stretch        = 0;
+        B32 stretched      = 0;
+
+        // To avoid an infinite loop, I follow GNU as heuristic of making this step at most O^2 of the fragments.
+        iterations_max = fragments.count * fragments.count;
+        if (iterations_max < fragments.count)
+        {
+                // Overflow detected
+                iterations_max = fragments.count;
+        }
+
+        B32 error = 0;
+
+        for (;;)
+        {
+                // Cumulative across inner iterations
+                stretch   = 0;
+                stretched = 0;
+
+                Fragment *current = fragments.first;
+                for (;;)
+                {
+                        if (!current)
+                        {
+                                break;
+                        }
+
+                        // TODO(medium) flip relax marker? still not clear the utility.
+                        S64 growth = 0;
+                        U64 offset_was = current->object_file_offset;
+                        U64 offset     = current->object_file_offset += stretch;
+
+                        Relax_Info relax_info = current->relax_info;
+
+                        switch (current->relax_state)
+                        {
+                        case Relax_State__Fill:
+                        {
+                                Expression *expression = relax_info.fill_expression;
+                                if (expression)
+                                {
+                                        // Time to resolve the expression fully
+                                        Symbol_Ref symbol_expression = { .expression = expression };
+                                        Symbol_Ref__resolve(&symbol_expression, arena, diagnostics, Resolve_Level__Traverse);
+                                        if (expression->evaluation != Expression_Kind__Constant)
+                                        {
+                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                diagnostic->message    = String8__literal("filling directive doesn't resolve to constant expression");
+                                                diagnostic->location   = expression->location;
+                                                diagnostic->ranges[0]  = expression->location_range;
+                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+
+                                                // TODO(unsure) Prevent this error from being repeated?
+                                                relax_info.fill_expression = 0;
+                                                expression                 = 0;
+                                                // TODO(unsure) I think we can exit already
+                                                error = 1;
+                                        }
+                                }
+
+                                S64 write_size = expression ? expression->integer_value * current->data_variable_size : 0;
+                                if (write_size < 0)
+                                {
+                                        // TODO(low, check-gas): GNU as doesn't error on the first two passes, and on
+                                        // negative values it is ignored
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->message    = String8__literal("filling directive resolves to negative value");
+                                        diagnostic->location   = expression->location;
+                                        diagnostic->ranges[0]  = expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+
+                                        // TODO(unsure) Prevent this error from being repeated?
+                                        relax_info.fill_expression = 0;
+                                }
+
+                                if (write_size)
+                                {
+                                        // Next fragment MUST exist, see `Section__finish`.
+                                        growth = offset_was + current->data_size + write_size - current->next->object_file_offset;
+                                }
+                        } break;
+                        case Relax_State__Align:
+                        {
+                                // TODO(medium): same consideration about boundary that can be zero.
+                                U32 boundary = relax_info.alignment.boundary || 1;
+                                S64 offset_was_alignment = offset_was + current->data_size;
+                                S64 offset_alignment     = offset     + current->data_size;
+
+                                U64 offset_old = align_pow_2_m(offset_was_alignment, boundary);
+                                U64 offset_new = align_pow_2_m(offset_alignment,     boundary);
+
+                                // Again, give up with above `relax_info.alignment.write_size_max`
+                                U32 write_size_max = relax_info.alignment.write_size_max;
+                                if (write_size_max)
+                                {
+                                        if (offset_old > relax_info.alignment.write_size_max) { offset_old = 0; }
+                                        if (offset_new > relax_info.alignment.write_size_max) { offset_new = 0; }
+                                }
+
+                                // Could be negative, and it's fine!
+                                growth = offset_new - offset_old;
+                        } break;
+                        case Relax_State__Jump:
+                        {
+                                // `riscv_relax_frag`
+                                U8 size_old = relax_info.jump.instructions_total_size;
+                                U8 size_new = jump_instructions_total_size(relax_info.jump, current, section);
+                                current->data_variable_size = size_new;
+                                relax_info.jump.instructions_total_size = size_new;
+                                growth = (S64)size_new - (S64)size_old;
+                        }
+                        }
+
+                        if (growth)
+                        {
+                                stretch += growth;
+                                stretched = 1;
+                        }
+
+
+                        current = current->next;
+                }
+
+
+                index += 1;
+                if (!stretched || error || index >= iterations_max)
+                {
+                        break;
+                }
+        }
+
+        B32 stretched_at_least_once = 0;
+        // Update all the addresses for this iterations.
+
+        Fragment *current = fragments.first;
+        for (;;)
+        {
+                if (!current)
+                {
+                        break;
+                }
+
+                stretched_at_least_once |= current->object_file_offset_last != current->object_file_offset;
+                current->object_file_offset_last = current->object_file_offset;
+                current = current->next;
+        }
+
+        return stretched_at_least_once;
 }

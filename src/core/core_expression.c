@@ -135,133 +135,141 @@ struct Evaluation_Frame
 internal S64
 expression_evaluate(Expression *node_root)
 {
-        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
-        Evaluation_Frame *frame = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-        frame->node = node_root;
-        S64 result_end = 0;
-
-        for (;;)
-        {
-                if (frame == 0 || !frame->node->kind) // or error
-                {
-                        break;
-                }
-                Expression *node = frame->node;
-
-                if (node->evaluation == Expression_Kind__Constant)
-                {
-                        result_end = node->integer_value;
-                        SLL_stack_pop_m(frame);
-                }
-                else if (node->right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
-                {
-                        // We have to evaluate the inner expression
-                        frame->state |= Evaluation_Frame_State__Right_Evaluated;
-                        Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-                        frame_new->node = node->right;
-                        SLL_stack_push_n_m(frame, frame_new, next);
-                }
-                else if (node->left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
-                {
-                        // We have to evaluate the inner expression
-                        frame->state |= Evaluation_Frame_State__Left_Evaluated;
-                        Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
-                        frame_new->node = node->left;
-                        SLL_stack_push_n_m(frame, frame_new, next);
-                }
-                else if (node->right && node->left)
-                {
-                        Expression *left  = node->left;
-                        Expression *right = node->right;
-
-                        node->evaluation = node->kind;
-
-                        // Assert that both left and right have been evaluated.
-                        assert_always_m(left->evaluation);
-                        assert_always_m(right->evaluation);
-
-                        if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
-                        {
-                                S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
-                                node->integer_value = result;
-                                node->evaluation = Expression_Kind__Constant;
-                                result_end = result;
-                        }
-                        else if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Symbol)
-                        {
-                                // Extra checks to ensure undefined symbols are not considered equal.
-                                B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
-                                                  && left->symbol->fragment && right->symbol->fragment;
-                                B32 same_section_not_undefined = (left->symbol->section->index  == right->symbol->section->index)
-                                                               && left->symbol->section->index &&  right->symbol->section->index;
-                                B32 subtract = node->kind == Expression_Kind__Subtract;
-
-                                if (same_fragment && same_section_not_undefined && subtract)
-                                {
-                                        // Fold to constant.
-                                        node->evaluation = Expression_Kind__Constant;
-                                }
-
-                                if (same_section_not_undefined && subtract)
-                                {
-                                        node->integer_value = left->symbol->value - right->symbol->value;
-                                }
-                                else
-                                {
-                                        node->symbol         = left->symbol;
-                                        node->symbol_operand = right->symbol;
-                                }
-                        }
-                        // TODO(high): missing symbol + constant!
-                        SLL_stack_pop_m(frame);
-                }
-                else if (node->right)
-                {
-                        Expression *right = node->right;
-                        assert_always_m(right->evaluation);
-                        assert_always_m(Expression_Kind__unary_is(node->kind) && "parsing internal error");
-
-                        if (right->evaluation == Expression_Kind__Constant)
-                        {
-                                S64 result = unary_evaluate(node->kind, right->integer_value);
-                                node->integer_value = result;
-                                node->evaluation = Expression_Kind__Constant;
-                                result_end = result;
-                        }
-                        else
-                        {
-                                // Absorb it.
-                                node->evaluation = right->evaluation;
-                                node->symbol     = right->symbol;
-                        }
-                        SLL_stack_pop_m(frame);
-                }
-                else
-                {
-                        // Leaf reached.
-                        assert_always_m(node->left == 0);
-                        assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
-
-                        node->evaluation = node->kind;
-
-                        // NOTE: actually, symbol could have an expression within it. Following it could lead to
-                        // possible recursive definitions.
-                        Symbol_Ref *symbol = node->symbol;
-                        if (symbol && symbol->section->index == ELF_Section_Index__Absolute)
-                        {
-                                node->evaluation = Expression_Kind__Constant;
-                                node->integer_value = symbol->value;
-                        }
-
-                        result_end = node->integer_value;
-                        SLL_stack_pop_m(frame);
-                }
-        }
-
-        Arena__scratch_end_m(scratch);
-
-        return result_end;
+        Symbol_Ref symbol = { .expression = node_root };
+        S64 result = Symbol_Ref__resolve(&symbol, 0, 0, Resolve_Level__None);
+        return result;
 }
+
+// internal S64
+// expression_evaluate(Expression *node_root)
+// {
+//         Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+//         Evaluation_Frame *frame = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
+//         frame->node = node_root;
+//         S64 result_end = 0;
+//
+//         for (;;)
+//         {
+//                 if (frame == 0 || !frame->node->kind) // or error
+//                 {
+//                         break;
+//                 }
+//                 Expression *node = frame->node;
+//
+//                 if (node->evaluation == Expression_Kind__Constant)
+//                 {
+//                         result_end = node->integer_value;
+//                         SLL_stack_pop_m(frame);
+//                 }
+//                 else if (node->right && !(frame->state & Evaluation_Frame_State__Right_Evaluated))
+//                 {
+//                         // We have to evaluate the inner expression
+//                         frame->state |= Evaluation_Frame_State__Right_Evaluated;
+//                         Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
+//                         frame_new->node = node->right;
+//                         SLL_stack_push_n_m(frame, frame_new, next);
+//                 }
+//                 else if (node->left && !(frame->state & Evaluation_Frame_State__Left_Evaluated))
+//                 {
+//                         // We have to evaluate the inner expression
+//                         frame->state |= Evaluation_Frame_State__Left_Evaluated;
+//                         Evaluation_Frame *frame_new = Arena__push_struct_m(scratch.arena, Evaluation_Frame);
+//                         frame_new->node = node->left;
+//                         SLL_stack_push_n_m(frame, frame_new, next);
+//                 }
+//                 else if (node->right && node->left)
+//                 {
+//                         Expression *left  = node->left;
+//                         Expression *right = node->right;
+//
+//                         node->evaluation = node->kind;
+//
+//                         // Assert that both left and right have been evaluated.
+//                         assert_always_m(left->evaluation);
+//                         assert_always_m(right->evaluation);
+//
+//                         if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
+//                         {
+//                                 S64 result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
+//                                 node->integer_value = result;
+//                                 node->evaluation = Expression_Kind__Constant;
+//                                 result_end = result;
+//                         }
+//                         else if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Symbol)
+//                         {
+//                                 // Extra checks to ensure undefined symbols are not considered equal.
+//                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
+//                                                   && left->symbol->fragment && right->symbol->fragment;
+//                                 B32 same_section_not_undefined = (left->symbol->section->index  == right->symbol->section->index)
+//                                                                && left->symbol->section->index &&  right->symbol->section->index;
+//                                 B32 subtract = node->kind == Expression_Kind__Subtract;
+//
+//                                 if (same_fragment && same_section_not_undefined && subtract)
+//                                 {
+//                                         // Fold to constant.
+//                                         node->evaluation = Expression_Kind__Constant;
+//                                 }
+//
+//                                 if (same_section_not_undefined && subtract)
+//                                 {
+//                                         node->integer_value = left->symbol->value - right->symbol->value;
+//                                 }
+//                                 else
+//                                 {
+//                                         node->symbol         = left->symbol;
+//                                         node->symbol_operand = right->symbol;
+//                                 }
+//                         }
+//                         // TODO(high): missing symbol + constant!
+//                         SLL_stack_pop_m(frame);
+//                 }
+//                 else if (node->right)
+//                 {
+//                         Expression *right = node->right;
+//                         assert_always_m(right->evaluation);
+//                         assert_always_m(Expression_Kind__unary_is(node->kind) && "parsing internal error");
+//
+//                         if (right->evaluation == Expression_Kind__Constant)
+//                         {
+//                                 S64 result = unary_evaluate(node->kind, right->integer_value);
+//                                 node->integer_value = result;
+//                                 node->evaluation = Expression_Kind__Constant;
+//                                 result_end = result;
+//                         }
+//                         else
+//                         {
+//                                 // Absorb it.
+//                                 node->evaluation = right->evaluation;
+//                                 node->symbol     = right->symbol;
+//                         }
+//                         SLL_stack_pop_m(frame);
+//                 }
+//                 else
+//                 {
+//                         // Leaf reached.
+//                         assert_always_m(node->left == 0);
+//                         assert_always_m(node->kind == Expression_Kind__Constant || node->kind == Expression_Kind__Symbol);
+//
+//                         node->evaluation = node->kind;
+//
+//                         // NOTE: actually, symbol could have an expression within it. Following it could lead to
+//                         // possible recursive definitions.
+//                         Symbol_Ref *symbol = node->symbol;
+//                         if (symbol && symbol->section->index == ELF_Section_Index__Absolute)
+//                         {
+//                                 node->evaluation = Expression_Kind__Constant;
+//                                 node->integer_value = symbol->value;
+//                         }
+//
+//                         result_end = node->integer_value;
+//                         SLL_stack_pop_m(frame);
+//                 }
+//         }
+//
+//         Arena__scratch_end_m(scratch);
+//
+//         return result_end;
+// }
 
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind)

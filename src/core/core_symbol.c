@@ -352,7 +352,8 @@ Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level)
 {
-        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+        assert_always_m(level < Resolve_Level__Finalize || (arena && diagnostics) && "finalization requires arena and diagnostics");
+        Arena_Temporary scratch = arena ? Arena__scratch_begin_m(&arena, 1) : Arena__scratch_begin_m(0, 0);
 
         typedef enum Frame_State
         {
@@ -589,7 +590,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 node->integer_value = result_inner;
                                                 node->evaluation    = Expression_Kind__Constant;
                                         }
-                                        else if (node->kind != Expression_Kind__Logical_Not && finalize)
+                                        else if (finalize && node->kind != Expression_Kind__Logical_Not)
                                         {
                                                 // TODO(low): report symbol sections with format?
                                                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
