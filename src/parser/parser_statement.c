@@ -89,6 +89,7 @@ statement_read
                         B32 dot_start = identifier.data[0] == '.';
                         if (dot_start)
                         {
+                                // TODO(high): common section directive like `.text`, `.data` are unsupported!
                                 directive_kind = Directive_Kind__from_String8(identifier);
                         }
 

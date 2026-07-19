@@ -1,10 +1,3 @@
-// Finish the given section ensuring the last fragment in it has the tail `[alignment fragment][zero-fill fragment]`.
-// This is done for two main reasons:
-// 1. Ensure all sections have a consistent ending layout which can be relied upon.
-// 2. Add final alignment to the sections that might need it. For an example, a code section should end up with a proper
-//    alignment of NOPs to make execution and disassembly safe, while for table sections (`SEC_MERGE | SEC_STRINGS`)
-//    it's good to ensure alignment so that there is no entry of invalid byte size and other tools (like a linker) don't
-//    read over because they're assuming a certain size and less bytes have been written.
 internal void
 Section__finish(Section *section)
 {
@@ -202,13 +195,14 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                         U64 offset_was = current->object_file_offset;
                         U64 offset     = current->object_file_offset += stretch;
 
-                        Relax_Info relax_info = current->relax_info;
+                        // NOTE: we might slighly modify it to suppress diagnostics.
+                        Relax_Info *relax_info = &current->relax_info;
 
                         switch (current->relax_state)
                         {
                         case Relax_State__Fill:
                         {
-                                Expression *expression = relax_info.fill_expression;
+                                Expression *expression = relax_info->fill_expression;
                                 if (expression)
                                 {
                                         // Time to resolve the expression fully
@@ -223,8 +217,8 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                                 // TODO(unsure) Prevent this error from being repeated?
-                                                relax_info.fill_expression = 0;
-                                                expression                 = 0;
+                                                relax_info->fill_expression = 0;
+                                                expression                  = 0;
                                                 // TODO(unsure) I think we can exit already
                                                 error = 1;
                                         }
@@ -242,7 +236,22 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                                         SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                         // TODO(unsure) Prevent this error from being repeated?
-                                        relax_info.fill_expression = 0;
+                                        relax_info->fill_expression = 0;
+                                        write_size = 0;
+                                }
+
+                                B32 padding_invalid = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR && write_size % section->elf.alignment != 0;
+                                if (padding_invalid)
+                                {
+                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        diagnostic->message    = String8__format(arena, "filling directive total write size (%u bytes) disrupts alignment (%u bytes) in code section", write_size, section->elf.alignment);
+                                        diagnostic->location   = expression->location;
+                                        diagnostic->ranges[0]  = expression->location_range;
+                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
+
+                                        // TODO(unsure) Prevent this error from being repeated?
+                                        relax_info->fill_expression = 0;
+                                        write_size = 0;
                                 }
 
                                 if (write_size)
@@ -254,19 +263,19 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                         case Relax_State__Align:
                         {
                                 // TODO(medium): same consideration about boundary that can be zero.
-                                U32 boundary = relax_info.alignment.boundary || 1;
+                                U32 boundary = relax_info->alignment.boundary || 1;
                                 S64 offset_was_alignment = offset_was + current->data_size;
                                 S64 offset_alignment     = offset     + current->data_size;
 
                                 U64 offset_old = align_pow_2_m(offset_was_alignment, boundary);
                                 U64 offset_new = align_pow_2_m(offset_alignment,     boundary);
 
-                                // Again, give up with above `relax_info.alignment.write_size_max`
-                                U32 write_size_max = relax_info.alignment.write_size_max;
+                                // Again, give up with above `relax_info->alignment.write_size_max`
+                                U32 write_size_max = relax_info->alignment.write_size_max;
                                 if (write_size_max)
                                 {
-                                        if (offset_old > relax_info.alignment.write_size_max) { offset_old = 0; }
-                                        if (offset_new > relax_info.alignment.write_size_max) { offset_new = 0; }
+                                        if (offset_old > relax_info->alignment.write_size_max) { offset_old = 0; }
+                                        if (offset_new > relax_info->alignment.write_size_max) { offset_new = 0; }
                                 }
 
                                 // Could be negative, and it's fine!
@@ -275,10 +284,10 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                         case Relax_State__Jump:
                         {
                                 // `riscv_relax_frag`
-                                U8 size_old = relax_info.jump.instructions_total_size;
-                                U8 size_new = jump_instructions_total_size(relax_info.jump, current, section);
+                                U8 size_old = relax_info->jump.instructions_total_size;
+                                U8 size_new = jump_instructions_total_size(relax_info->jump, current, section);
                                 current->data_variable_size = size_new;
-                                relax_info.jump.instructions_total_size = size_new;
+                                relax_info->jump.instructions_total_size = size_new;
                                 growth = (S64)size_new - (S64)size_old;
                         }
                         }
@@ -319,3 +328,24 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
 
         return stretched_at_least_once;
 }
+
+// internal void
+// Section__size(Section *section)
+// {
+//         U32 size = 0;
+//
+//         Fragments fragments = section->fragments;
+//         Fragment *current   = fragments.current;
+//
+//         for (;;)
+//         {
+//                 if (!current)
+//                 {
+//                         break;
+//                 }
+//
+//                 // `cvt_frag_to_fill`
+//
+//                 current = current->next;
+//         }
+// }

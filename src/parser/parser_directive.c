@@ -217,11 +217,14 @@ directive_data
         // Format: .byte|half|word|dword <expr_1> , ..., <expr_n>.
         //
         // Advance to reach the first expression token.
+        U32 location_begin = cursor->current.location;
         token_next(cursor, diagnostics, arena);
         U8 bit_size = data_directive_size * 8;
+        U32 expressions_count = 0;
         for (;;)
         {
                 Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                expressions_count += 1;
                 // We explicitly convert it to an unsigned value since this is how it's treated as.
                 //
                 // TODO: not very clear behaviour when in case of signed overflow.
@@ -268,13 +271,21 @@ directive_data
                 {
                         token_next(cursor, diagnostics, arena);
                 }
-                else
-                {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
-                        diagnostic->location = cursor->current.location;
-                        diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
-                }
+        }
+
+        // Validate that on code section the directive respects alignment. Catching this up early provides better
+        // diagnostics than doing it later.
+        Section *section         = sections_table->current;
+        B32 section_code_is      = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
+        U64 directive_total_size = expressions_count * data_directive_size;
+        B32 padding_invalid      = (directive_total_size % section->elf.alignment) != 0;
+        if (section_code_is && padding_invalid)
+        {
+                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                diagnostic->message    = String8__format(arena, "data directive total size (%u bytes) disrupts alignment (%u bytes) in code section", directive_total_size, section->elf.alignment);
+                diagnostic->location   = location_begin;
+                diagnostic->ranges[0]  = (Range1_U32){{ location_begin, cursor->current.location }};
+                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 }
 
@@ -439,6 +450,7 @@ directive_fill
 
         Expression *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         expression_evaluate(repeat_expression);
+        fill.repeat = repeat_expression;
 
         if (cursor->current.kind == Token_Kind__Comma && size_can_be_parsed)
         {
