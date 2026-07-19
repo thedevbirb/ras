@@ -1265,3 +1265,77 @@ functionality is shared between the two, and the ubiquity of symbol definition w
 idea is to replace `expression_evaluate` with symbol resolution entirely, with simple flags to skip
 symbol resolution if desired. In case only an expression is found, an ephemeral, stack allocated
 symbol can be created and the expression is attached to it.
+Well, I'm very close to a `expr` section lol
+
+---
+
+Small note on jump/branch immediates, which I did already known but not very precisely. On RISC-V
+(but probably other architectures as well), it is not possible to jump on odd addresses, and a
+minimum of 2-byte alignment boundary is assumed. Consider now a branch, which has 12-bits of
+immediate field. This would allow to express a jump up to `1 << 12`, which is 4096. However, the
+first bit of this number should always be zero (must be even!), otherwise it is invalid. The CPU is
+optimized for this, and adds to the program the value of 12-bit immediate, multiplied by two. As
+such, the true range expressed by a branch immediate is `1 << 13`, which is 8192. In the assembly
+code, this translates to being able to write a signed range that must fit in 13 bits, i.e. `[-4096,
+4096)` and the number must be even. GNU `as` checks this evenness way later, during fixup
+resolution, asserting this with a round trip encoding/decoding that must match:
+
+```c
+// riscv.h:224
+#define VALID_BTYPE_IMM(x) (EXTRACT_BTYPE_IMM(ENCODE_BTYPE_IMM(x)) == (x))
+```
+
+---
+
+Some codepaths depends on the extensions available, most often the compressed extension. In GNU `as`
+this is checked with one of the hundreds of globals, however in my implementation I should probably
+pass around, very often a `RISCV_Extensions` struct or flags. I don't know whether some extensions
+might have arguments or are simply toggles.
+
+---
+
+There are these annoying naming differences between "address" and "offset". Until linker perform its
+job, in theory information regarding fragments are "offset" starting from zero, but I'm not sure if
+such naming works well and is used consistently.
+
+Sat Jul 18 15:55:22 CEST 2026
+
+Apparently, even emitting bytes for alignment has some special treatment. It could be that the
+programmer messes up alignment for a certain certain section, and special symbols inside the
+symbols table are emitted so that some tools, like `objdump`, when disassembling, don't show bogus
+data but are explicitly marked as invalid bytes. As such, GNU as doesn't immediately error on
+finding them.
+While there might be some historical reason I'm missing, I don't think it's an appropriate
+behaviour. Fragments ending with an odd number of bytes can be flagged out immediately, with
+appropriate locations. Same for fragments whose size is a multiple of two but not of four. This can
+be addressed in various stages of the assembler, before or after relaxation.
+
+
+Sun Jul 19 18:11:44 CEST 2026
+
+At the cost with maybe _some_ compatibility with existing assemblers, I think the problem above can be addressed at
+a statement level. Consider the following example:
+
+```asm
+.text
+.byte 1
+nop
+```
+
+This simple `.byte` directive can completely disagnaling the whole fragment (and possibly others),
+making subsequent instructions invalid. This would be valid in case the C-extension:
+
+```asm
+.text
+.byte 0x01, 0x00
+c.nop
+```
+
+The above injects two `c.nop` instructions in the `.text` section, where in the first case the
+encoding is written explicitly (I might have messed up the order though). With that said, we can
+enforce the following rules in a _code_ section:
+
+1. If alignment is 2 (e.g. compressed extension enabled), then a `.byte` directive MUST have an even
+   number of expressions.
+2. If alignment is 4, then a `.byte` directive MUST have a multiple of 4 number of expressions, and
+   a `.short` directive a multiple of two.
