@@ -161,6 +161,10 @@ struct Symbols_Table
 internal Symbol_Ref *
 Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section);
 
+// Whether the symbol will need a relocation, and thus shouldn't be removed from the symbols table.
+internal B32
+Symbol_Ref__relocation_needed(Symbol_Ref *symbol);
+
 // Resolution levels for `Symbol_Ref__resolve`.
 typedef enum Resolve_Level
 {
@@ -183,5 +187,8 @@ Resolve_Level;
 // stack-allocated symbol, since the core evaluation logic is shared.
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level);
+
+internal void
+Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostic_List *diagnostics);
 
 #endif // CORE_SYMBOL_H

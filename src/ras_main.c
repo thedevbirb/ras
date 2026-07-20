@@ -93,7 +93,7 @@ main(int argument_count, char **argument_vector)
         Sections_Table *sections_table = Sections_Table__default();
         Sections_Table__add_common(sections_table);
 
-        Symbols_Table *symbols_table = Symbols_Table__new();
+        Symbols_Table *symbols_table = Symbols_Table__new(sections_table);
 
         Arena *arena_fixups = Arena__allocate_m();
         Fixups *fixups = Arena__push_struct_m(arena_fixups, Fixups);

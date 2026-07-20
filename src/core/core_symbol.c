@@ -299,7 +299,7 @@ Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 nu
 
 // Creates a new symbols table with a dedicated arena allocator and by creating the global dot symbol.
 internal Symbols_Table *
-Symbols_Table__new(void)
+Symbols_Table__new(Sections_Table *sections_table)
 {
         Arena *arena_symbols_table = Arena__allocate_m();
         Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
@@ -312,7 +312,9 @@ Symbols_Table__new(void)
 
         // 1. Create global dot
         String8 dot_symbol_name = String8__duplicate(symbols_table->arena, dot_symbol_string);
-        symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_name);
+        Symbols_Trie *dot_trie = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_name);
+        // TODO(low): this sounds a lot like a patch :/
+        Symbol_Ref__update_section(&dot_trie->symbol, sections_table->current);
         // 2. Place numeric labels 0..9 at beginning of chunks.
         U8 index = 0;
         for (;;)
@@ -340,15 +342,20 @@ Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
         return result;
 }
 
+internal B32
+Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
+{
+        U16 section_index = symbol->section->index;
+        B32 result = section_index == ELF_Section_Index__Undefined || section_index == ELF_Section_Index__Common;
+}
+
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
 //
 // 1. Labels don't have an expression. Their value can be read straight into `Symbol_Ref.value`.
 // 2. `Symbol_Flags__Finalized` means the simplification pass reached an end, and the value can be read from
 //    `Symbol_Ref.value`. Undefined symbols and similar should have value zero.
 //
-// NOTE that this will be called on every symbol.
-// TODO(low): replace `expression_evalute` with this, more general version, by wrapping an expression into a
-// stack-allocated symbol, since the core evaluation logic is shared.
+// NOTE that this will be called on every symbol during the finalization process.
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level)
 {
@@ -509,16 +516,29 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 // Extra checks to ensure undefined symbols are not considered equal.
                                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
                                                                   && left->symbol->fragment && right->symbol->fragment;
-                                                B32 no_undefined_sections = left->symbol->section->index &&  right->symbol->section->index;
-                                                B32 same_section_not_undefined  = (left->symbol->section->index  == right->symbol->section->index)
-                                                                                && no_undefined_sections;
+                                                B32 left_relocation_needed  = Symbol_Ref__relocation_needed(left->symbol);
+                                                B32 right_relocation_needed = Symbol_Ref__relocation_needed(right->symbol);
+                                                B32 relocation_needed       = left_relocation_needed || right_relocation_needed;
+                                                // NOTE: label difference shouldn't be erased when across fragments,
+                                                // even after finalization. The linker might further shrink some
+                                                // instructions (e.g. a `call` expansion).
+                                                B32 code_section_present    = left->symbol->section->elf.flags  & ELF_Section_Header_Flags__EXECINSTR
+                                                                           || right->symbol->section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
+                                                B32 same_section_no_relocation_needed  = (left->symbol->section->index  == right->symbol->section->index)
+                                                                                          && !relocation_needed;
                                                 B32 subtract_is   = node->kind == Expression_Kind__Subtract;
                                                 B32 equality_is   = Expression_Kind__equality_is(node->kind);
                                                 B32 comparison_is = Expression_Kind__comparison_is(node->kind);
 
                                                 B32 valid = (equality_is && no_undefined_sections)
-                                                               || ((subtract_is || comparison_is) && same_section_not_undefined);
-                                                if (valid && same_fragment)
+                                                         || ((subtract_is || comparison_is) && same_section_no_relocation_needed && !code_section_present);
+                                                // NOTE: constant folding can always happen within the same fragment.
+                                                // However, since finalization is assumed to happen only after
+                                                // relaxation, which fixes the addresses of fragments, it is safe to
+                                                // perform such operations inter-fragments. Moreover, in previous frames
+                                                // we've already resolved their values.
+                                                B32 constant_folding_allowed = valid && (same_fragment || (same_section_no_relocation_needed && finalize));
+                                                if (constant_folding_allowed)
                                                 {
                                                         // Fold to constant.
                                                         node->evaluation = Expression_Kind__Constant;
@@ -634,11 +654,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                         }
                                         else if (frame->state & Frame_State__Symbol_Resolved)
                                         {
-                                                // probably not integer_value
-                                                node->integer_value = symbol_inner->expression->integer_value;
+                                                node->integer_value = symbol_inner->value;
                                                 SLL_stack_pop_m(frame);
                                         }
-                                        else if (traverse && symbol_inner->expression)
+                                        else if (traverse)
                                         {
                                                 frame->state |= Frame_State__Symbol_Resolved;
                                                 Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
@@ -690,4 +709,33 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
         Arena__scratch_end_m(scratch);
 
         return result;
+}
+
+internal void
+Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostic_List *diagnostics)
+{
+        Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
+        for (;;)
+        {
+                if (!chunk)
+                {
+                        break;
+                }
+
+                U32 index = 0;
+                for (;;)
+                {
+                        if (index >= chunk->count)
+                        {
+                                break;
+                        }
+
+                        Symbol_Ref *symbol = &chunk->nodes[index].symbol;
+                        Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Finalize);
+
+                        index += 1;
+                }
+
+                chunk = chunk->next;
+        }
 }

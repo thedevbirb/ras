@@ -333,3 +333,27 @@ Expression__internal_is(Expression *expression)
                   && expression->location_range.v[1] == 0;
         return result;
 }
+
+// Evaluate all expressions while finalizing symbols. See `Symbol_Ref__finalize`/`Symbols_Table__finalize`.
+//
+// After this is called expressions cannot be reduced further, since now symbols are frozen.
+internal void
+Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostic_List *diagnostics)
+{
+        // TODO(low): I don't like that the sentinel expression should be skipped. I would prefer a no-op here.
+        U64 index = 1;
+        for (;;)
+        {
+                if (index >= expressions->header.count)
+                {
+                        break;
+                }
+
+                Expression *expression = xar_get_m(expressions, index);
+                Symbol_Ref symbol_expression = { .expression = expression };
+                Symbol_Ref__resolve(&symbol_expression, arena, diagnostics, Resolve_Level__Finalize);
+
+                index += 1;
+        }
+        return;
+}

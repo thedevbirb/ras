@@ -9,6 +9,8 @@ write_object_file
         Fixups                  *fixups
 )
 {
+        // NOTE: GNU as creates it after finishing to size all sections, and then after creating it, it if finished and
+        // relaxed. While it may result in a couple more iterations, I think we can just do it now.
         Section__create_riscv_attributes(sections_table);
         Sections_Table__finish(sections_table);
         Sections_Table__relax(sections_table, arena, diagnostics);
@@ -93,31 +95,7 @@ write_object_file
         }
         }
 
-        // finalize symbols.
-        {
-                Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
-        for (;;)
-        {
-                if (!chunk)
-                {
-                        break;
-                }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-
-                        Symbol_Ref *symbol = &chunk->nodes[index].symbol;
-                        Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Finalize);
-
-                        index += 1;
-                }
-
-                chunk = chunk->next;
-        }
-        }
+        // TODO(low): another hint for the expressions section :), this can result in some footguns.
+        Symbols_Table__finalize(symbols_table, arena, diagnostics);
+        Expressions__finalize(expressions, arena, diagnostics);
 }

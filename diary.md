@@ -1025,7 +1025,8 @@ details because otherwise it is of no good use.
       conditions apply.
    4. NOTE: some architectures require section alignment, but it's not the case for RISC-V, which
       `#define md_section_align(sec, size) size`, so a partion of the bottom code of the function is
-      skipped.
+      skipped. EDIT (Mon Jul 20 12:58:24 CEST 2026), this makes also the option `no-pad-section`
+      useless on the target)
 
 6. `create_object_attributes`: for ELF targets this function is invoked to create a custom section
    `.riscv.attributes`. This contains a lot of ELF-specific stuff so that code should be re-examined
@@ -1246,7 +1247,8 @@ regarding relaxation states.
 - 1. A fill variant which accepts a repeat expression. If not provided, it is intended to be zero.
      Eagerly evaluated at parse time in a `.fill` directive. In GNU as it seems to never happen that
      a fill frag is created with a literal constant value different than zero. If zeroed, it is a
-     normal seal.
+     normal seal. (EDIT Mon Jul 20 09:59:54 CEST 2026: actually in `cvt_frag_to_fill` this is done
+     :/).
 - 2. An align variant.
 - 3. Jump variant.
 - 4. The `None` variant. In the end this is needed because we want to mark that a fragment should
@@ -1339,3 +1341,46 @@ enforce the following rules in a _code_ section:
    number of expressions.
 2. If alignment is 4, then a `.byte` directive MUST have a multiple of 4 number of expressions, and
    a `.short` directive a multiple of two.
+
+Lastly, this can happen also with fill-like directives, which could inject a single byte.
+
+Mon Jul 20 11:20:20 CEST 2026
+
+Notice a detail in GNU as for riscv target: inside the `append_insn` function, if the relocation is
+jump-like (that is, a `JAL`-like instruction), then a fixup is not created because it is considered
+relaxable. However that is not really expandable/shrinkable _unless_ the compressed extension is
+enabled, where a 4-byte jump can become a compressed 2-byte instruction.
+
+---
+
+I'm getting a bit more into creating helper macros for iterators to reduce a little bit of
+verbosity. Examples:
+
+```c
+#define each_index(array, index)     (U64 index = 0, index < array_count_m(array); index += 1);
+#define each_node(first, T, element) (T *element = first; !first; first = first->next);
+```
+
+And so on... Because some loops comply to this structure. But I want really consistent loops and not
+having to juggle between a lot of them to understand the conditions.
+
+---
+
+The `.riscv.attributes` section is mandatory according to the psABI specification: https://riscv-non-isa.github.io/riscv-elf-psabi-doc/#_attributes
+
+---
+
+The fixup logic is very dense, and further complicates what does it mean to subtract two symbols. I
+think there is a total of ~7 conditions or similar that establish whether it is well-defined or not,
+because you need to take into account everything: sections, fragments, linker relaxation.
+
+It will probably be one of the challenges, along with proper handling of relocations.
+
+---
+
+A thought I had last week or similar: I think writing a non-toy assembler, which produces proper
+relocatable objects, is very non-trivial because of the amount of contextual knowledge you need to
+have: you need to have some understanding of a lot of parts regarding the assembler itself, and also
+the compiler toolchain in general. It's not like you can implement a certain feature in a isolated
+manner, and complete complete the software by chaining together the features. Something like symbol
+resolution brings every concept together at it's one of the first thing you actually came across.

@@ -180,4 +180,8 @@ unary_evaluate(Expression_Kind kind, S64 a);
 internal S64
 operation_evaluation(Expression_Kind kind, S64 a, S64 b);
 
+// Evaluate all expressions while finalizing symbols. See `Symbol_Ref__resolve`/`Symbols_Table__finalize`.
+internal void
+Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostic_List *diagnostics);
+
 #endif // CORE_EXPRESSION_H
