@@ -92,7 +92,6 @@ main(int argument_count, char **argument_vector)
 
         Sections_Table *sections_table = Sections_Table__default();
         Sections_Table__add_common(sections_table);
-        Section *section = Sections_Table__get(sections_table, String8__literal(".text"));
 
         Symbols_Table *symbols_table = Symbols_Table__new();
 
@@ -113,7 +112,6 @@ main(int argument_count, char **argument_vector)
                 &diagnostics,
                 &expressions,
                 symbols_table,
-                section,
                 sections_table,
                 fixups
         );

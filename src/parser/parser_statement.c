@@ -6,7 +6,6 @@ statement_read
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Section                 *section,
         Sections_Table          *sections_table,
         Fixups                  *fixups
 )
@@ -76,7 +75,7 @@ statement_read
                         Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
 
                         assert_always_m(label->section->index == 0 && "numeric label created previously");
-                        Symbol_Ref__update_section(label, section);
+                        Symbol_Ref__update_section(label, sections_table->current);
 
                         Arena__scratch_end_m(scratch);
                 } break;
@@ -170,7 +169,7 @@ statement_read
                                 RISCV_instruction_pseudo_append
                                 (
                                         arena,
-                                        section,
+                                        sections_table->current,
                                         fixups,
                                         expressions,
                                         symbols_table,
@@ -183,7 +182,7 @@ statement_read
                         {
                                 RISCV_Instruction__append
                                 (
-                                        section,
+                                        sections_table->current,
                                         fixups,
                                         &instruction,
                                         expression_parsed,
@@ -303,7 +302,7 @@ statement_read
                         }
 
 
-                        section = section_new;
+                        sections_table->current = section_new;
                 } break;
                 case Directive_Kind__Local:
                 {
