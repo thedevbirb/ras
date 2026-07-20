@@ -142,73 +142,15 @@ main(int argument_count, char **argument_vector)
         }
 
         // Start of an equivalent of GNU as `write_object_file`.
-
-        // Finish sections
-        for (;;)
-        {
-                Sections_Trie_Chunk *chunk_current = sections_table->chunks->first;
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk_current->count)
-                        {
-                                break;
-                        }
-                        Section *section_current = &chunk_current->nodes[index].section;
-                        Section__finish(section_current);
-                        index += 1;
-                }
-
-
-                if (!chunk_current->next)
-                {
-                        break;
-                }
-
-                chunk_current = chunk_current->next;
-        }
-
-        // Relax
-        // TODO(medium): max iterations?
-        U32 relaxation_passes = 0;
-        for (;;)
-        {
-                relaxation_passes += 1;
-                B32 changed = 0;
-                for (;;)
-                {
-                        Sections_Trie_Chunk *chunk_current = sections_table->chunks->first;
-
-                        U32 index = 0;
-                        for (;;)
-                        {
-                                if (index >= chunk_current->count)
-                                {
-                                        break;
-                                }
-                                Section *section_current = &chunk_current->nodes[index].section;
-                                B32 relax_changed_address = Section__relax(section_current, arena, &diagnostics);
-                                changed |= relax_changed_address;
-                                index += 1;
-                        }
-
-
-                        if (!chunk_current->next)
-                        {
-                                break;
-                        }
-
-                        chunk_current = chunk_current->next;
-                }
-
-                if (!changed)
-                {
-                        // Finally done!
-                        break;
-                }
-        }
-        printf("relaxation completed in %u passes\n", relaxation_passes);
+        write_object_file
+        (
+                arena,
+                &diagnostics,
+                &expressions,
+                // symbols_table,
+                sections_table,
+                fixups
+        );
 
         if (diagnostics.first)
         {
