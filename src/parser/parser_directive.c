@@ -220,6 +220,7 @@ directive_data
         U32 location_begin = cursor->current.location;
         token_next(cursor, diagnostics, arena);
         U8 bit_size = data_directive_size * 8;
+        assert_always_m(bit_size <= 64);
         U32 expressions_count = 0;
         for (;;)
         {
@@ -249,13 +250,17 @@ directive_data
                 }
                 else
                 {
-                        U32 encoding_offset = sections_table->current->fragments.last->data_size - data_directive_size;
-
                         Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
-                        fixup->expression = expression;
-                        fixup->fragment         = sections_table->current->fragments.last;
-                        fixup->encoding_offset  = encoding_offset;
-                        fixup->size             = data_directive_size;
+                        fixup->expression           = expression;
+                        fixup->fragment             = sections_table->current->fragments.last;
+                        fixup->fragment_write_area  = sections_table->current->fragments.last->data - data_directive_size;
+                        fixup->fragment_write_size  = data_directive_size;
+                        // NOTE: first two are a placeholder for the equivalent of `BFD_RELOC_8`/`BFD_RELOC_16`. In case
+                        // this expression won't simply down to a subtraction, it will error.
+                        fixup->relocation_type      = bit_size == 8  ? Relocation_RISC_V__Add_8
+                                                    : bit_size == 16 ? Relocation_RISC_V__Add_16
+                                                    : bit_size == 32 ? Relocation_RISC_V__32_Bit
+                                                    : Relocation_RISC_V__64_Bit;
 
                         SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
                 }

@@ -266,10 +266,11 @@ Section__add_instruction_fixed
         if (fixup)
         {
                 Fragment *last = section->fragments.last;
-                U32 encoding_offset = last->data_size - encoding_size;
+                U8 *fragment_write_area = last->data + (last->data_size - encoding_size);
 
-                fixup->fragment        = last;
-                fixup->encoding_offset = encoding_offset;
+                fixup->fragment            = last;
+                fixup->fragment_write_area = fragment_write_area;
+                fixup->fragment_write_size = encoding_size;
         }
 
         memory_copy(data, (U8 *)&encoding, encoding_size);

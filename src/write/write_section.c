@@ -45,7 +45,7 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
                 // NOTE: assume jumps are in range; the linker will catch any that aren't.
                 size = jump.unconditional_is ? 4 : 8;
                 // The jump target;
-                Symbol_Ref *symbol = fragment->relax_info.jump.symbol;
+                Symbol_Ref *symbol = fragment->relax_info.jump.expression->symbol;
                 B32 symbol_defined_is = symbol->section->index != 0;
                 // TODO(weak)
                 B32 symbol_weak_is = 0;
@@ -138,7 +138,7 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                 case Relax_State__Jump:
                 {
                         // TODO(medium): not super super clear here if there is no symbol, for example `j 6`.
-                        Symbol_Ref *symbol = relax_info.jump.symbol;
+                        Symbol_Ref *symbol = relax_info.jump.expression->symbol;
                         if (symbol)
                         {
                                 Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Traverse);
@@ -330,9 +330,15 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
 }
 
 // Akin to GNU as `cvt_frag_to_fill`, converts every fragment into a `Relax_State__Fill` of fixed, immutable size.
+//
+// NOTE: in GNU as, this is done when sizing a segment but it could be done in a separate place since, at least in our
+// case, it's we are not changing the size of fragments.
 internal void
 Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *expressions, Arena *arena, Fixups *fixups)
 {
+        U32 data_size_before          = fragment->data_size;
+        U8  data_variable_size_before = fragment->data_variable_size;
+
         Relax_State  relax_state =  fragment->relax_state;
         Relax_Info  *relax_info  = &fragment->relax_info;
 
@@ -405,14 +411,15 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
+                                // Expression *symbol_expression = Expressions__push_symbol(
+
                                 Fixup *fixup = Fixups__push(fixups);
-                                fixup->fragment = fragment;
-                                // TODO(high): this should be the symbol!
-                                fixup->expression = 0;
+                                fixup->fragment            = fragment;
+                                fixup->expression          = relax_info->jump.expression;
                                 // TODO(high): review this positioning.
-                                fixup->encoding_offset = fragment->data_size + sizeof(instruction_1);
-                                fixup->size = sizeof(instruction_2);
-                                fixup->relocation_type = Relocation_RISC_V__JAL;
+                                fixup->fragment_write_area = fragment->data_variable_buffer + sizeof(instruction_1);
+                                fixup->fragment_write_size = sizeof(instruction_2);
+                                fixup->relocation_type     = Relocation_RISC_V__JAL;
 
                                 memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
                                 memory_copy(fragment->data_variable_buffer + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
@@ -421,26 +428,28 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         else if (instructions_total_size == 4)
                         {
                                 U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
-                                // Just emit a fixup. TODO: wasn't this done before?
                                 Fixup *fixup = Fixups__push(fixups);
-                                fixup->fragment = fragment;
-                                // TODO(high): this should be the symbol!
-                                fixup->expression = 0;
+                                fixup->fragment            = fragment;
+                                fixup->expression          = relax_info->jump.expression;
                                 // TODO(high): review this positioning.
-                                fixup->encoding_offset = fragment->data_size;
-                                fixup->size = instructions_total_size;
-                                fixup->relocation_type = relocation_type;
+                                fixup->fragment_write_area = fragment->data_variable_buffer;
+                                fixup->fragment_write_size = instructions_total_size;
+                                fixup->relocation_type     = relocation_type;
                         }
                         else
                         {
                                 unreachable_m();
                         }
 
-                        fragment->relax_info  = (Relax_Info){0};
+                        Expression *repeat_expression = Expressions__push_constant(expressions, arena, 1);
+                        fragment->relax_info  = (Relax_Info){ .fill_expression = repeat_expression };
                         fragment->relax_state = Relax_State__Fill;
                 }
         } break;
         }
+
+        assert_always_m(data_size_before          == fragment->data_size);
+        assert_always_m(data_variable_size_before == fragment->data_variable_size);
 
         return;
 }

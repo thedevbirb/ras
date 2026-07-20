@@ -41,8 +41,7 @@ enum
 typedef struct Relax_Info_Jump Relax_Info_Jump;
 struct Relax_Info_Jump
 {
-        Symbol_Ref *symbol;
-        S32         offset;
+        Expression *expression;
         U8          compressed_is;
         U8          unconditional_is;
         U8          instructions_total_size;

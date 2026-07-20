@@ -11,11 +11,12 @@ struct Fixup
         Fragment    *fragment;
 
         Expression  *expression;
-        // Offset in the fragment data where the result must be written to.
-        U32          encoding_offset;
+        // Pointer to location in the fragment fixed or variable data where the patch should be written.
+        U8          *fragment_write_area;
 
         U16          relocation_type;
-        U8           size;
+        // Size of the patch to be written.
+        U8           fragment_write_size;
         U8           flags;
 };
 

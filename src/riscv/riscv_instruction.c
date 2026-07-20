@@ -574,7 +574,12 @@ RISCV_Instruction__append
 {
         Fixup *fixup         = 0;
         B32    jump_is       = relocation == Relocation_RISC_V__JAL;
+        // NOTE: although jumps are assumed to be in range, if the compressed extension is enabled
+        // then this might get reduced to a compressed 2-byte instruction.
         B32    relaxable     = relocation == Relocation_RISC_V__Branch || jump_is;
+        // NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
+        // (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
+        // like branches, break this invariant.
         B32    fixable       = relocation && !relaxable;
         U32    encoding      = instruction->encoding;
         U8     encoding_size = RISCV_instruction_size(encoding);
@@ -583,9 +588,6 @@ RISCV_Instruction__append
 
         if (fixable)
         {
-                // NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
-                // (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
-                // like branches, break this invariant.
                 fixup = Fixups__push(fixups);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
@@ -597,8 +599,7 @@ RISCV_Instruction__append
                 {
                         .jump =
                         {
-                                .symbol                  = expression->symbol,
-                                .offset                  = expression->integer_value,
+                                .expression              = expression,
                                 .compressed_is           = encoding_size == 2,
                                 .unconditional_is        = jump_is,
                                 .instructions_total_size = encoding_size
