@@ -100,6 +100,8 @@ write_object_file
                                 Fragment__convert_to_fill(fragment, section, expressions, arena, fixups);
                                 fragment = fragment->next;
                         }
+
+                        index += 1;
                 }
 
 
@@ -115,7 +117,6 @@ write_object_file
         for (;;)
         {
                 Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-
                 U32 index = 0;
                 for (;;)
                 {
@@ -131,15 +132,17 @@ write_object_file
 
                         section->elf.size = fragment_last->object_file_offset + fragment_last->data_size;
 
-                        if (section->elf.size && (section->elf.size % section->elf.entry_size))
+                        if (section->elf.entry_size && (section->elf.size % section->elf.entry_size))
                         {
                                 Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
                                 diagnostic->kind       = Diagnostic_Kind__Warning;
-                                diagnostic->message    = String8__format(arena, "section `%*.s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
-                                                                         section->name.count, section->name, section->elf.size, section->elf.entry_size);
+                                diagnostic->message    = String8__format(arena, "section '%*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
+                                                                         section->name.count, section->name.data, section->elf.size, section->elf.entry_size);
                                 diagnostic->location   = section->location;
                                 SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
+
+                        index += 1;
                 }
 
 

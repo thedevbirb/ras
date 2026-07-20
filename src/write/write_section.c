@@ -387,7 +387,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                 Expression *fill_expression = Expressions__push_constant(expressions, arena, repeat_count);
                 fragment->relax_info  = (Relax_Info){ .fill_expression = fill_expression };
                 fragment->relax_state = Relax_State__Fill;
-        }
+        } break;
         case Relax_State__Jump:
         {
                 // Expand branches into multi-instruction sequences.
