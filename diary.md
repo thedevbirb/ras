@@ -356,7 +356,7 @@ The following is a list of gotchas and quirks I have found while using `gas`, sp
 # General logs:
 
 
-Wed Apr 22 11:02:53 CEST 2026
+### Wed Apr 22 11:02:53 CEST 2026
 
 It's hard. It's genuinely hard. It's hard to allocate time where you don't code, but you design and
 understand, while maintaining the rigour and not chase the productiveness feeling. In practice,
@@ -364,7 +364,7 @@ spending time designing and understanding is the most productive thing you can d
 time is cheap, coding is inevitably slower, regardless of AI
 
 
-Fri May 22 16:01:36 CEST 2026
+### Fri May 22 16:01:36 CEST 2026
 
 Updating again this diary after I decided to take a break and look into the job market. Happy to be
 back again to coding. I want to complete this project, and while not add every feature, I want it to
@@ -385,7 +385,7 @@ retrofit also for other projects.
 
 I still need to go back to design again. It's very hard.
 
-Sun May 24 12:38:38 CEST 2026
+### Sun May 24 12:38:38 CEST 2026
 
 Ok the lexer now yields one token at a time. This has some downstream consequences on the parser. In
 particular, the parser will invoke the lexer to parser statements and fill every information while
@@ -405,7 +405,7 @@ parser context. Then, the parser should switch to an alternate input source, pro
 information itself. Then, how to handle recursive expansion? Again, as a Lexer stack.
 I can think of the Lexer cursor as my current stack frame.
 
-Mon May 25 11:40:08 CEST 2026
+### Mon May 25 11:40:08 CEST 2026
 
 Pivoting again with the design. I wonder whether I should do fragments as well. Keeping an in-memory
 IR for both tokens and statements sounded "simple" but at the cost of high memory usage and its
@@ -438,7 +438,7 @@ I don't want know whether we want ALL side-effects to happen. Let's think for ex
 directives. That's not the job of the parser I think to open the new file. However, it's part of the
 parser job to start filling the various tables, and ensure the produced statement is well-formed.
 
-Tue May 26 11:44:28 CEST 2026
+### Tue May 26 11:44:28 CEST 2026
 
 Today I'm tackling the challenge of making a completely non-recursive pratt parser. I think it's a
 nice one, and something I could write a blog + live coding video of it.
@@ -448,7 +448,7 @@ practice to think about which stuff is architecture or OS specific.
 
 The core of the non-recursive pratt parser is done, and it works. Very happy with it.
 
-Wed May 27 12:08:10 CEST 2026
+### Wed May 27 12:08:10 CEST 2026
 
 Scratch arenas, declared in thread-local storage are very cool. With them, you can essentially get
 more customizable stacks along with the one we're stuck with. I was a bit unsure about having
@@ -470,7 +470,7 @@ strings, and requires creating them with always a null terminator, and pointing 
 beginning of source, with the previous position providing the header. The memory cost is negligible.
 I'm not sure however whether to make it the default string type here.
 
-Thu May 28 17:33:42 CEST 2026
+### Thu May 28 17:33:42 CEST 2026
 
 Done a bit of diagnostic refactory, inspired partly to what llvm does. In general if you remove C++
 madness llvm is generally packed with good ideas.
@@ -487,7 +487,7 @@ I feel like I'm stealing ideas, but in practice I don't know whether I can get a
 They're just too handy as a concept, since there is some data you can write right away and parsing
 time and other were you want to add placeholders.
 
-Fri May 29 10:53:29 CEST 2026
+### Fri May 29 10:53:29 CEST 2026
 
 Studying fragments has been interesting. In order for them to really work, they need to encode a
 statement IR. The reason is, a fragment must capture information about a variable-size
@@ -504,7 +504,7 @@ see hierarchies where there aren't meant to be. The program needs to transform d
 rest is cruft to adhere to a mental model, of which the program, your goal, and your users, don't
 care about.
 
-Thu Jun  4 14:29:43 CEST 2026
+### Thu Jun  4 14:29:43 CEST 2026
 
 Yesteday I completed part of the refactoring towards more procedural code. Now I'm reading about
 fragments in GNU as. Fragments are organized as a linked-list, and divided per section, meaning that
@@ -523,16 +523,16 @@ as in an array, with no pointer chasing penalties, because you can iterate seque
 precisely as you need without reallocation costs or overestimated capacity. And you can still get
 O(1) by saving pointers instead of indexes in case your problem allows you to.
 
-Fri Jun  5 14:22:05 CEST 2026
+### Fri Jun  5 14:22:05 CEST 2026
 
 I'm implementing a lot of GNU as ideas right now, and while some of that C code might look arcaic is
 really packed with good ideas.
 
-Sat Jun  6 15:39:24 CEST 2026
+### Sat Jun  6 15:39:24 CEST 2026
 
 I'm on track, and I feel productive. It's good.
 
-Mon Jun  8 10:32:52 CEST 2026
+### Mon Jun  8 10:32:52 CEST 2026
 
 A very interesting challenge of an assembler, or a compiler, it to being able to manage invalid
 input as you process, recover from it while tracking errors and continuing. From this point of view,
@@ -554,7 +554,7 @@ redefined multiple times, however it still points to the last definition. Exampl
 If code in between references the first occurrence `BASE` than that symbol node pointer is used and
 kept. It also holds for forward references.
 
-Tue Jun  9 13:21:12 CEST 2026
+### Tue Jun  9 13:21:12 CEST 2026
 
 Found a bug in GNU as:
 ```asm
@@ -591,7 +591,7 @@ pronto is not defined it's not accepted because it would be unresolved.
 
 So constant/absolute and unresolved must be determined by checking the symbols.
 
-Wed Jun 17 18:46:31 CEST 2026
+### Wed Jun 17 18:46:31 CEST 2026
 
 Long break due to family. Added initial .align support. I need to think about how to test the
 assembler. Recent posts by Ryan Fleury made me way less bullish about unit testing and alike. While
@@ -601,7 +601,7 @@ test a specific software is important, and every software is different so someth
 be built each time. Similar to writing the perfect data structures to resolve your problem and not
 rely on glueing together off the shelf solutions.
 
-Thu Jun 18 15:07:58 CEST 2026
+### Thu Jun 18 15:07:58 CEST 2026
 
 Starting to look into basic arithmetic I instruction support in this new iteration. I see that GNU
 as sometimes can be overly strict. Consider the example:
@@ -639,7 +639,7 @@ it but it helps knowing about it.
 
 Tables should go in .c files instead of header files. My bad.
 
-Fri Jun 19 12:07:38 CEST 2026
+### Fri Jun 19 12:07:38 CEST 2026
 
 Once again, I'm surprised how many smart solutions there are in GNU gas. I'm getting a bit more fond
 of the format chars for encoding arbitrary instructions. It may not be perfect, but then I see the
@@ -649,7 +649,7 @@ variants for the same instruction quite elegantly.
 I'm considering my own encoding table variant, but I want to use String16 with enumerations instead
 of chars. I think less shenanigans are involved although you get a bigger table.
 
-Sat Jun 20 14:26:18 CEST 2026
+### Sat Jun 20 14:26:18 CEST 2026
 
 Probably writing good old fashioned advice, but go slow to go fast. Maybe I would have been faster
 if I forced myself to read most of GNU as code before starting at all.
@@ -730,13 +730,13 @@ with `addi x1, x0, %lo(1234)`. Commit used: `fb7b22bbeac9f26043f3aa92228c6ade7e2
     yet. Information about the relocation is taken from the fixup field, and it's finally written in
     the appropriate object file section buffer.
 
-Tue Jun 23 16:34:06 CEST 2026
+### Tue Jun 23 16:34:06 CEST 2026
 
 Previous analysis of GNU as lifecycle has been very helpful because it gives a rough track on the
 things that should be done, in what order and with which information. I feel more comfortable know
 trying to trace down a path.
 
-Tue Jun 30 16:39:44 CEST 2026
+### Tue Jun 30 16:39:44 CEST 2026
 
 I'm noticing that GNU as does this pessimistic-by-default pattern where it assumes the pessimistic
 case (for example an instruction encoding) and then simplifies it later. The reason for doing this
@@ -746,7 +746,7 @@ This is not to say you should always assume the worst case, but in this context 
 meaningful improvement in performance by doing pessimitic-by-default, and it results in less code
 which is arguably better.
 
-Wed Jul  1 12:10:44 CEST 2026
+### Wed Jul  1 12:10:44 CEST 2026
 
 I should strive to avoid any kind of global variable and nil-terminated list, unless in very
 specific cases (e.g. linked lists).
@@ -772,7 +772,7 @@ I still think it can be handled a bit better, with two possible approaches:
 1. You check that `x_op_symbol` is null, and error otherwise OR
 2. Since GNU as always expands a branch to a branch + jal, created the fixup directly in the jal.
 
-Fri Jul  3 14:24:18 CEST 2026
+### Fri Jul  3 14:24:18 CEST 2026
 
 Yesterday I felt slow, today I feel fast and effective. You never know how it is!
 Now I'm in a very good spot regarding assembling. Still no logic for actually writing to the object
@@ -793,12 +793,12 @@ Have to start handling the dot. The requirements are the following:
 3. in fixups we track the "value" of the dot along with its fragment
 4. The "value" of the dot is the current fragment fixed offset
 
-Sun Jul  5 18:42:15 CEST 2026
+### Sun Jul  5 18:42:15 CEST 2026
 
 The dot symbol clones should be saved in the same arenas, however by not setting an hash for it we
 make it virtually non-existent.
 
-Mon Jul  6 09:18:34 CEST 2026
+### Mon Jul  6 09:18:34 CEST 2026
 
 Now it's time to re-add support for local numeric labels. There is some accounting to be done to
 track the number of instances created. Moreover, GNU as doesn't impose limits on how high the
@@ -835,7 +835,7 @@ Ok next in priority is probably a robust handling of the various .equ directives
 lot to learn there, especially due to the relationship between symbols and expressions and deferring
 evaluation.
 
-Tue Jul  7 08:57:27 CEST 2026
+### Tue Jul  7 08:57:27 CEST 2026
 
 In GNU as, the .eqv directory completely defers even the dot valuation, so when is met instead of
 taking a snapshot of it, the global dot symbol is used instead.
@@ -863,7 +863,7 @@ example, in GNU as, the following doesn't loop:
 Running with a more complete.s example shows a lot to do still, in terms of basic instruction
 support, error handling etc.
 
-Wed Jul  8 14:14:12 CEST 2026
+### Wed Jul  8 14:14:12 CEST 2026
 
 Sometimes the syntax of GNU as can be unexpected, again
 
@@ -880,7 +880,7 @@ RV64I assembler though, there are some places to fix in case of a 32-bit target.
 
 In essence, I need to go over and study `write_object_file` from GNU as.
 
-Thu Jul  9 09:35:28 CEST 2026 / Fri Jul 10 10:27:35 CEST 2026
+### Thu Jul  9 09:35:28 CEST 2026 / Fri Jul 10 10:27:35 CEST 2026
 
 Right after the assembly pass is done, GNU as calls `md_finish`/`riscv_md_finish`, which fills the
 content of the `.riscv.attributes` section if required by configuration. I can skip this for now.
@@ -1102,7 +1102,7 @@ details because otherwise it is of no good use.
 11. Lastly, there is another pass on the symbol table that filters away all unwanted symbols from
     the object file.
 
-Fri Jul 10 15:37:52 CEST 2026
+### Fri Jul 10 15:37:52 CEST 2026
 
 Now that I'm closer to the end of reading GNU as, I can say again that some parts of it are very
 clever, and in other parts there are a lot of patches. While there are some generalizations that
@@ -1117,7 +1117,7 @@ knowledge and a non-trivial amount of time. There are so many choices to be made
 and relationship with other tooling like compilers, linkers etc.. It's really a non-trivial piece of
 software that is run everyday and does so much. My deepest respect for people writing this software!
 
-Fri Jul 10 18:01:50 CEST 2026
+### Fri Jul 10 18:01:50 CEST 2026
 
 TODO(refactor, high) revisit expression allocation strategies.
 
@@ -1189,12 +1189,12 @@ Apart from this, more optimizations could be achieved for creating less full sym
 parsing, I could peek ahead some binary operations and eagerly collapse into a symbol plus number or
 similar.
 
-Sat Jul 11 16:24:25 CEST 2026
+### Sat Jul 11 16:24:25 CEST 2026
 
 Support for the E extension is mainly limiting the amount of registers to 16, so during register
 lookup if the number is greater or equal 16, you mark it as missing.
 
-Mon Jul 13 09:45:59 CEST 2026
+### Mon Jul 13 09:45:59 CEST 2026
 
 Regarding the argument about collapsing expressions and symbols together, I think the main drawback
 is really polluting the symbol table chunks with at least one expression node per line. Even `addi
@@ -1214,12 +1214,12 @@ diagnostic twice.
 
 TODO: all diagnostic emitted should have a number associated to it.
 
-Tue Jul 14 17:24:52 CEST 2026
+### Tue Jul 14 17:24:52 CEST 2026
 
 Heads down on refactoring the `Fragment` primitive because it's driving me crazy. In general, I'm
 writing more a target-first version with the goal of avoid many of GNU as compat problems.
 
-Wed Jul 15 10:46:59 CEST 2026
+### Wed Jul 15 10:46:59 CEST 2026
 
 Some basic notes:
 
@@ -1258,7 +1258,7 @@ regarding relaxation states.
 No code versions of the relaxation states, since those can be resolved right away by injecting the
 two possible NOP patterns very simply.
 
-Fri Jul 17 14:16:41 CEST 2026
+### Fri Jul 17 14:16:41 CEST 2026
 
 Yesterday and today have been spent implementing the symbol resolution algorithm, in the same
 non-recursive fashion of expression evaluation. It is, in every sense, a more generalized expression
@@ -1300,7 +1300,7 @@ There are these annoying naming differences between "address" and "offset". Unti
 job, in theory information regarding fragments are "offset" starting from zero, but I'm not sure if
 such naming works well and is used consistently.
 
-Sat Jul 18 15:55:22 CEST 2026
+### Sat Jul 18 15:55:22 CEST 2026
 
 Apparently, even emitting bytes for alignment has some special treatment. It could be that the
 programmer messes up alignment for a certain certain section, and special symbols inside the
@@ -1313,7 +1313,7 @@ appropriate locations. Same for fragments whose size is a multiple of two but no
 be addressed in various stages of the assembler, before or after relaxation.
 
 
-Sun Jul 19 18:11:44 CEST 2026
+### Sun Jul 19 18:11:44 CEST 2026
 
 At the cost with maybe _some_ compatibility with existing assemblers, I think the problem above can be addressed at
 a statement level. Consider the following example:
@@ -1344,7 +1344,7 @@ enforce the following rules in a _code_ section:
 
 Lastly, this can happen also with fill-like directives, which could inject a single byte.
 
-Mon Jul 20 11:20:20 CEST 2026
+### Mon Jul 20 11:20:20 CEST 2026
 
 Notice a detail in GNU as for riscv target: inside the `append_insn` function, if the relocation is
 jump-like (that is, a `JAL`-like instruction), then a fixup is not created because it is considered
