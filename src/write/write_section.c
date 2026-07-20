@@ -454,23 +454,111 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
         return;
 }
 
-// internal void
-// Section__size(Section *section)
-// {
-//         U32 size = 0;
-//
-//         Fragments fragments = section->fragments;
-//         Fragment *current   = fragments.current;
-//
-//         for (;;)
-//         {
-//                 if (!current)
-//                 {
-//                         break;
-//                 }
-//
-//                 // `cvt_frag_to_fill`
-//
-//                 current = current->next;
-//         }
-// }
+internal void
+Section__create_riscv_attributes(Sections_Table *sections_table)
+{
+        // TODO(low): hardcoded at the moment, will be configurable later.
+        U8 data[] =
+        {
+                // format-version 'A'
+                'A',
+                // subsection length = 25
+                0x19, 0x00, 0x00, 0x00,
+                'r', 'i', 's', 'c', 'v', 0x00,
+                // Tag_File
+                0x01,
+                // file_tag_data_length = 15
+                0x0F, 0x00, 0x00, 0x00,
+                // Tag_RISCV_arch = 5
+                0x05,
+                // "rv64i2p1\0"
+                'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
+        };
+
+        U32 location    = 0;
+        String8 name = String8__literal(".riscv.attributes");
+        Section *section = Sections_Table__get_or_default(sections_table, name, location);
+        section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
+        section->elf.flags     = 0;
+        section->elf.alignment = 1;
+
+        U8 *destination = Fragments__push(&section->fragments, location, sizeof(data));
+        memory_copy(destination, data, sizeof(data));
+}
+
+
+
+// TODO(low): this could be replaced by a iterator macro
+internal void
+Sections_Table__finish(Sections_Table *sections_table)
+{
+        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
+        for (;;)
+        {
+                if (!chunk)
+                {
+                        break;
+                }
+
+                U32 index = 0;
+                for (;;)
+                {
+                        if (index >= chunk->count)
+                        {
+                                break;
+                        }
+                        Section *section = &chunk->nodes[index].section;
+                        Section__finish(section);
+                        index += 1;
+                }
+
+
+                chunk = chunk->next;
+        }
+}
+
+
+// Perform the relaxation algorithm across every section and every fragment.
+internal void
+Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostic_List *diagnostics)
+{
+        // TODO(medium): max iterations?
+        U32 relaxation_passes = 0;
+        for (;;)
+        {
+                relaxation_passes += 1;
+                B32 changed = 0;
+                for (;;)
+                {
+                        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
+
+                        U32 index = 0;
+                        for (;;)
+                        {
+                                if (index >= chunk->count)
+                                {
+                                        break;
+                                }
+                                Section *section = &chunk->nodes[index].section;
+                                B32 relax_changed_address = Section__relax(section, arena, diagnostics);
+                                changed |= relax_changed_address;
+                                index += 1;
+                        }
+
+
+                        if (!chunk->next)
+                        {
+                                break;
+                        }
+
+                        chunk = chunk->next;
+                }
+
+                if (!changed)
+                {
+                        // Finally done!
+                        break;
+                }
+        }
+        printf("relaxation completed in %u passes\n", relaxation_passes);
+}

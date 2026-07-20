@@ -150,6 +150,7 @@ typedef U32 ELF_Section_Header_Type;
 #define ELF_Section_Header_Type__HISUNW                  0x6fffffff /* Sun-specific high bound.  */
 #define ELF_Section_Header_Type__HIOS                    0x6fffffff /* End OS-specific type */
 #define ELF_Section_Header_Type__LOPROC                  0x70000000 /* Start of processor-specific */
+#define ELF_Section_Header_Type__RISCV_Attributes        0x70000003
 #define ELF_Section_Header_Type__HIPROC                  0x7fffffff /* End of processor-specific */
 #define ELF_Section_Header_Type__LOUSER                  0x80000000 /* Start of application-specific */
 #define ELF_Section_Header_Type__HIUSER                  0x8fffffff /* End of application-specific */

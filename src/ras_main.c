@@ -145,7 +145,7 @@ main(int argument_count, char **argument_vector)
                 arena,
                 &diagnostics,
                 &expressions,
-                // symbols_table,
+                symbols_table,
                 sections_table,
                 fixups
         );

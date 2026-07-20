@@ -4,15 +4,24 @@ write_object_file
         Arena                   *arena,
         Diagnostic_List         *diagnostics,
         Expressions             *expressions,
-        // Symbols_Table           *symbols_table,
+        Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
         Fixups                  *fixups
 )
 {
-        // Finish sections
+        Section__create_riscv_attributes(sections_table);
+        Sections_Table__finish(sections_table);
+        Sections_Table__relax(sections_table, arena, diagnostics);
+
+        // Convert frag to fill
+        {
+        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
         for (;;)
         {
-                Sections_Trie_Chunk *chunk = sections_table->chunks->first;
+                if (!chunk)
+                {
+                        break;
+                }
 
                 U32 index = 0;
                 for (;;)
@@ -21,74 +30,7 @@ write_object_file
                         {
                                 break;
                         }
-                        Section *section = &chunk->nodes[index].section;
-                        Section__finish(section);
-                        index += 1;
-                }
-
-
-                if (!chunk->next)
-                {
-                        break;
-                }
-
-                chunk = chunk->next;
-        }
-
-        // Relax
-        // TODO(medium): max iterations?
-        U32 relaxation_passes = 0;
-        for (;;)
-        {
-                relaxation_passes += 1;
-                B32 changed = 0;
-                for (;;)
-                {
-                        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-
-                        U32 index = 0;
-                        for (;;)
-                        {
-                                if (index >= chunk->count)
-                                {
-                                        break;
-                                }
-                                Section *section = &chunk->nodes[index].section;
-                                B32 relax_changed_address = Section__relax(section, arena, diagnostics);
-                                changed |= relax_changed_address;
-                                index += 1;
-                        }
-
-
-                        if (!chunk->next)
-                        {
-                                break;
-                        }
-
-                        chunk = chunk->next;
-                }
-
-                if (!changed)
-                {
-                        // Finally done!
-                        break;
-                }
-        }
-        printf("relaxation completed in %u passes\n", relaxation_passes);
-
-        // Convert frag to fill
-        for (;;)
-        {
-                Sections_Trie_Chunk *chunk_current = sections_table->chunks->first;
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk_current->count)
-                        {
-                                break;
-                        }
-                        Section  *section  = &chunk_current->nodes[index].section;
+                        Section  *section  = &chunk->nodes[index].section;
                         Fragment *fragment = section->fragments.first;
                         for (;;)
                         {
@@ -104,19 +46,20 @@ write_object_file
                         index += 1;
                 }
 
+                chunk = chunk->next;
+        }
+        }
 
-                if (!chunk_current->next)
+        // Size sections
+        {
+        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
+        for (;;)
+        {
+                if (!chunk)
                 {
                         break;
                 }
 
-                chunk_current = chunk_current->next;
-        }
-
-        // Size sections
-        for (;;)
-        {
-                Sections_Trie_Chunk *chunk = sections_table->chunks->first;
                 U32 index = 0;
                 for (;;)
                 {
@@ -146,11 +89,35 @@ write_object_file
                 }
 
 
-                if (!chunk->next)
+                chunk = chunk->next;
+        }
+        }
+
+        // finalize symbols.
+        {
+                Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
+        for (;;)
+        {
+                if (!chunk)
                 {
                         break;
                 }
 
+                U32 index = 0;
+                for (;;)
+                {
+                        if (index >= chunk->count)
+                        {
+                                break;
+                        }
+
+                        Symbol_Ref *symbol = &chunk->nodes[index].symbol;
+                        Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Finalize);
+
+                        index += 1;
+                }
+
                 chunk = chunk->next;
+        }
         }
 }
