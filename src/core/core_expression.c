@@ -302,3 +302,34 @@ Expressions_push_empty(Expressions *expressions, Arena *arena)
 
         return node;
 }
+
+Expression *
+Expressions__push_constant(Expressions *expressions, Arena *arena, S64 constant)
+{
+        Expression *node = xar_push_m(expressions, arena);
+
+        node->integer_value = constant;
+        node->kind          = Expression_Kind__Constant;
+        node->evaluation    = Expression_Kind__Constant;
+
+        return node;
+}
+
+internal Expression *
+Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
+{
+        Expression *result = Expressions_push_empty(expressions, arena);
+        result->symbol     = symbol;
+        result->kind       = Expression_Kind__Symbol;
+        result->evaluation = Expression_Kind__Symbol;
+        return result;
+}
+
+internal B32
+Expression__internal_is(Expression *expression)
+{
+        B32 result = expression->location == 0
+                  && expression->location_range.v[0] == 0
+                  && expression->location_range.v[1] == 0;
+        return result;
+}

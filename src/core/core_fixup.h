@@ -7,16 +7,16 @@ typedef struct Expression Expression;
 typedef struct Fixup Fixup;
 struct Fixup
 {
-        Fixup    *next;
-        Fragment *fragment;
+        Fixup       *next;
+        Fragment    *fragment;
 
-        Expression *expression;
+        Expression  *expression;
         // Offset in the fragment data where the result must be written to.
-        U32 encoding_offset;
+        U32          encoding_offset;
 
-        U16 relocation_type;
-        U8  size;
-        U8  flags;
+        U16          relocation_type;
+        U8           size;
+        U8           flags;
 };
 
 typedef struct Fixup_List Fixup_List;

@@ -424,8 +424,6 @@ directive_align
                 alignment.write_size_max = (U32)write_size_max;
         }
 
-
-
         Fragments__align(&sections_table->current->fragments, location_begin, alignment);
 }
 

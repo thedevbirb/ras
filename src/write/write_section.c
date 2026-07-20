@@ -329,6 +329,122 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
         return stretched_at_least_once;
 }
 
+// Akin to GNU as `cvt_frag_to_fill`, converts every fragment into a `Relax_State__Fill` of fixed, immutable size.
+internal void
+Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *expressions, Arena *arena, Fixups *fixups)
+{
+        Relax_State  relax_state =  fragment->relax_state;
+        Relax_Info  *relax_info  = &fragment->relax_info;
+
+        switch (relax_state)
+        {
+        case Relax_State__Fill: {} break;
+        case Relax_State__Align:
+        {
+                U64 write_size = fragment->next->object_file_offset - fragment->object_file_offset - fragment->data_size;
+
+                B32 code_section_is = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
+                if (code_section_is)
+                {
+                        U64 section_alignment = section->elf.alignment;
+                        U64 boundary          = relax_info->alignment.boundary;
+                        // TODO(low) at the moment we panic, but we can convert this into a fairly elaborate diagnostic.
+                        // In essence, this should NOT happen due to previous steps.
+                        assert_always_m(boundary < section_alignment || boundary % section_alignment == 0);
+                        assert_always_m(write_size % section_alignment == 0);
+
+                        U64 data_variable_buffer_size = array_count_m(fragment->data_variable_buffer);
+
+                        U8  null_variable_bytes_pattern[array_count_m(fragment->data_variable_buffer)] = {0};
+                        B32 null_variable_bytes_set = memory_match(fragment->data_variable_buffer, &null_variable_bytes_pattern, array_count_m(fragment->data_variable_buffer));
+
+                        if (null_variable_bytes_set)
+                        {
+                                // Insert NOPs.
+
+                                // Check whether we can get away with just no-ops or we need a compressed version.
+                                B32 compressed_needed = write_size % 2 != 0;
+                                assert_always_m(!compressed_needed || section_alignment != 2);
+
+                                U32 pattern      = compressed_needed ? ENCODING_C_NOP : ENCODING_NOP;
+                                U8  pattern_size = compressed_needed ? 2 : 4;
+
+                                fragment->data_variable_size = pattern_size;
+                                assert_always_m(pattern_size <= data_variable_buffer_size);
+                                memory_copy(fragment->data_variable_buffer, (U8 *)&pattern, pattern_size);
+                        }
+
+                }
+
+                U32 repeat_count = write_size / (fragment->data_variable_size || 1);
+                // TODO(low): not ideal to create expressions right now though
+                Expression *fill_expression = Expressions__push_constant(expressions, arena, repeat_count);
+                fragment->relax_info  = (Relax_Info){ .fill_expression = fill_expression };
+                fragment->relax_state = Relax_State__Fill;
+        }
+        case Relax_State__Jump:
+        {
+                // Expand branches into multi-instruction sequences.
+
+                // TODO(compressed): support it
+                if (relax_info->jump.compressed_is)
+                {
+                        unreachable_m();
+                }
+                else
+                {
+                        U8 instructions_total_size = relax_info->jump.instructions_total_size;
+                        assert_always_m(fragment->data_variable_size == instructions_total_size);
+                        assert_always_m(array_count_m(fragment->data_variable_buffer) >= instructions_total_size);
+
+                        if (instructions_total_size == 8)
+                        {
+                                // This MUST be a branch, because we assume jumps are of the right size.
+                                assert_always_m(!relax_info->jump.unconditional_is && "jumps should be assumed to be in range");
+                                // Invert the condition, and branch over the jump.
+                                U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
+                                U32 instruction_2 = MATCH_JAL;
+
+                                Fixup *fixup = Fixups__push(fixups);
+                                fixup->fragment = fragment;
+                                // TODO(high): this should be the symbol!
+                                fixup->expression = 0;
+                                // TODO(high): review this positioning.
+                                fixup->encoding_offset = fragment->data_size + sizeof(instruction_1);
+                                fixup->size = sizeof(instruction_2);
+                                fixup->relocation_type = Relocation_RISC_V__JAL;
+
+                                memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
+                                memory_copy(fragment->data_variable_buffer + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
+
+                        }
+                        else if (instructions_total_size == 4)
+                        {
+                                U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
+                                // Just emit a fixup. TODO: wasn't this done before?
+                                Fixup *fixup = Fixups__push(fixups);
+                                fixup->fragment = fragment;
+                                // TODO(high): this should be the symbol!
+                                fixup->expression = 0;
+                                // TODO(high): review this positioning.
+                                fixup->encoding_offset = fragment->data_size;
+                                fixup->size = instructions_total_size;
+                                fixup->relocation_type = relocation_type;
+                        }
+                        else
+                        {
+                                unreachable_m();
+                        }
+
+                        fragment->relax_info  = (Relax_Info){0};
+                        fragment->relax_state = Relax_State__Fill;
+                }
+        } break;
+        }
+
+        return;
+}
+
 // internal void
 // Section__size(Section *section)
 // {

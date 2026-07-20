@@ -164,36 +164,15 @@ Expressions_push_empty(Expressions *expressions, Arena *arena);
 
 // Create a constant expression.
 internal Expression *
-Expressions_push_constant(Expressions *expressions, Arena *arena, S64 value)
-{
-        Expression *result = Expressions_push_empty(expressions, arena);
-
-        result->integer_value = value;
-        result->kind          = Expression_Kind__Constant;
-        result->evaluation    = Expression_Kind__Constant;
-        return result;
-}
+Expressions__push_constant(Expressions *expressions, Arena *arena, S64 value);
 
 // Create an expression based on a single symbol
 internal Expression *
-Expression_push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
-{
-        Expression *result = Expressions_push_empty(expressions, arena);
-        result->symbol     = symbol;
-        result->kind       = Expression_Kind__Symbol;
-        result->evaluation = Expression_Kind__Symbol;
-        return result;
-}
+Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol);
 
 // An internal, generated expression is one with no source location range
 internal B32
-Expression__internal_is(Expression *expression)
-{
-        B32 result = expression->location == 0
-                  && expression->location_range.v[0] == 0
-                  && expression->location_range.v[1] == 0;
-        return result;
-}
+Expression__internal_is(Expression *expression);
 
 internal S64
 unary_evaluate(Expression_Kind kind, S64 a);
