@@ -61,7 +61,6 @@ expression_parse_with_flags
                 //
                 // Every branch advances the current token since it has its own custom logic.
 
-
                 if (frame->null_denotation_parsed == 0)
                 {
                         switch (cursor->current.kind)
@@ -176,6 +175,8 @@ expression_parse_with_flags
                                 parenthesis_frame_new->location = cursor->current.location;
                                 SLL_stack_push_m(parenthesis_frame, parenthesis_frame_new);
 
+                                frame->binding_power_minimum = Binding_Power__None;
+
                                 token_next(cursor, diagnostics, arena);
                                 continue;
                         } break;
@@ -199,24 +200,6 @@ expression_parse_with_flags
                         }
                 }
 
-                // Don't check binding power of a ')', handle it and then check what's next.
-                if (cursor->current.kind == Token_Kind__Parenthesis_Right)
-                {
-                        if (parenthesis_frame)
-                        {
-                                SLL_stack_pop_m(parenthesis_frame);
-                        }
-                        else
-                        {
-                                error = Arena__push_struct_m(arena, Diagnostic);
-                                error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
-                                error->location = cursor->current.location;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
-                        }
-                        token_next(cursor, diagnostics, arena);
-                }
-
-
                 // The `binding_power_minimum` is used to describe precedence. Operator tokens have an associated power
                 // that is transferred to the next null denotation to preserve context.
                 //
@@ -236,12 +219,32 @@ expression_parse_with_flags
                 // immediately. Consider `-4 + 3`, when the plus sign is read the minimum binding power would be unary,
                 // so we know that the expression is completed.
                 //
-                // From this, we can understand that parenthesis are simply tokens with zero binding power, used to
+                // From this, we can understand that (right) parenthesis are simply tokens with zero binding power, used to
                 // conclude expressions. If we had `(4 + 3) * 5`, reading the right parenthesis after 3, where the
-                // former has zero binding power, would conclude reading the expression `4 + 3`.
+                // former has zero binding power, would conclude reading the expression `4 + 3`. Left parenthesis behave
+                // the same, e.g. in `4 - (3 + 5)` we want to force `3` to have no binding power, so that we parse the
+                // `3 + 5` subexpression correctly.
 
                 Binding_Power next_power = Binding_Power_from_Token_Kind(cursor->current.kind);
                 B32 pop = next_power <= frame->binding_power_minimum || cursor->source_index >= cursor->source->count;
+
+                // Minor housekeeping of parenthesis.
+                if (cursor->current.kind == Token_Kind__Parenthesis_Right)
+                {
+                        if (parenthesis_frame)
+                        {
+                                SLL_stack_pop_m(parenthesis_frame);
+                        }
+                        else
+                        {
+                                error = Arena__push_struct_m(arena, Diagnostic);
+                                error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
+                                error->location = cursor->current.location;
+                                SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
+                        }
+                        token_next(cursor, diagnostics, arena);
+                }
+
                 if (pop)
                 {
                         if (frame->is_right_side_of_next)
