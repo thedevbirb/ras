@@ -95,6 +95,6 @@ write_object_file
         }
 
         // TODO(low): another hint for the expressions section :), this can result in some footguns.
-        Symbols_Table__finalize(symbols_table, arena, diagnostics);
-        Expressions__finalize(expressions, arena, diagnostics);
+        Symbols_Table__finalize(symbols_table, diagnostics);
+        Expressions__finalize(expressions, diagnostics);
 }

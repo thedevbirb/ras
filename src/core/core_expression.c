@@ -136,7 +136,7 @@ internal S64
 expression_evaluate(Expression *node_root)
 {
         Symbol_Ref symbol = { .expression = node_root };
-        S64 result = Symbol_Ref__resolve(&symbol, 0, 0, Resolve_Level__None);
+        S64 result = Symbol_Ref__resolve(&symbol, 0, Resolve_Level__None);
         return result;
 }
 
@@ -338,7 +338,7 @@ Expression__internal_is(Expression *expression)
 //
 // After this is called expressions cannot be reduced further, since now symbols are frozen.
 internal void
-Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostics *diagnostics)
+Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
 {
         // TODO(low): I don't like that the sentinel expression should be skipped. I would prefer a no-op here.
         U64 index = 1;
@@ -351,7 +351,7 @@ Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostics *diagn
 
                 Expression *expression = xar_get_m(expressions, index);
                 Symbol_Ref symbol_expression = { .expression = expression };
-                Symbol_Ref__resolve(&symbol_expression, arena, diagnostics, Resolve_Level__Finalize);
+                Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
 
                 index += 1;
         }

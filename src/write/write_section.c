@@ -140,7 +140,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         Symbol_Ref *symbol = relax_info.jump.expression->symbol;
                         if (symbol)
                         {
-                                Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Traverse);
+                                Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Traverse);
                                 U8 size = jump_instructions_total_size(relax_info.jump, current, section);
                                 current->data_variable_size = size;
                                 address += size;
@@ -206,7 +206,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 {
                                         // Time to resolve the expression fully
                                         Symbol_Ref symbol_expression = { .expression = expression };
-                                        Symbol_Ref__resolve(&symbol_expression, arena, diagnostics, Resolve_Level__Traverse);
+                                        Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Traverse);
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {
                                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);

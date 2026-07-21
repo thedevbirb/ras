@@ -358,10 +358,10 @@ Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
 //
 // NOTE that this will be called on every symbol during the finalization process.
 internal S64
-Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, Resolve_Level level)
+Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level)
 {
-        assert_always_m(level < Resolve_Level__Finalize || (arena && diagnostics) && "finalization requires arena and diagnostics");
-        Arena_Temporary scratch = arena ? Arena__scratch_begin_m(&arena, 1) : Arena__scratch_begin_m(0, 0);
+        assert_always_m(level < Resolve_Level__Finalize || diagnostics && "finalization requires diagnostics");
+        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
 
         typedef enum Frame_State
         {
@@ -702,7 +702,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 }
 
 internal void
-Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostics *diagnostics)
+Symbols_Table__finalize(Symbols_Table *symbols_table, Diagnostics *diagnostics)
 {
         Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
         for (;;)
@@ -721,7 +721,7 @@ Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostics 
                         }
 
                         Symbol_Ref *symbol = &chunk->nodes[index].symbol;
-                        Symbol_Ref__resolve(symbol, arena, diagnostics, Resolve_Level__Finalize);
+                        Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
 
                         index += 1;
                 }
