@@ -76,12 +76,12 @@ struct Token_Cursor
 
 internal String8 Token_Cursor__text(Token_Cursor *);
 
-internal Token lex_at(const Source *, U32 index_current, Diagnostic_List *, Arena *);
+internal Token lex_at(const Source *, U32 index_current, Diagnostics *);
 
-internal Token token_peek(const Token_Cursor *, Diagnostic_List *, Arena *);
-internal void  token_next(      Token_Cursor *, Diagnostic_List *, Arena *);
+internal Token token_peek(Token_Cursor const *, Diagnostics *);
+internal void  token_next(Token_Cursor *,       Diagnostics *);
 
-internal void  token_advance_to_new_statement(Token_Cursor *, Diagnostic_List *, Arena *);
+internal void  token_advance_to_new_statement(Token_Cursor *, Diagnostics *, Arena *);
 
 #endif // LEXER_H
 

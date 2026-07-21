@@ -41,10 +41,9 @@ Token_Cursor__text(Token_Cursor *cursor)
 internal Token
 lex_at
 (
-        const Source    *source,
-        U32              index_current,
-        Diagnostic_List *diagnostics,
-        Arena           *arena
+        const Source *source,
+        U32           index_current,
+        Diagnostics  *diagnostics
 )
 {
         U8  *data  = source->data;
@@ -181,10 +180,9 @@ lex_at
                         if (index >= count)
                         {
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Unterminated];
                                 diagnostic->location = source->start_offset_logical + index;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                         }
 
@@ -211,10 +209,9 @@ lex_at
                                         if (error_index)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
                                                 diagnostic->location = source->start_offset_logical + error_index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                         result = result * 16 + first;
                                         index += 1;
@@ -243,10 +240,9 @@ lex_at
                                         if (result == escape_value_invalid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
                                                 diagnostic->location = source->start_offset_logical + index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                         index += 1;
                                 }
@@ -254,10 +250,9 @@ lex_at
                         else if (data[index] == '\n')
                         {
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported];
                                 diagnostic->location = source->start_offset_logical + index;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
                         else
                         {
@@ -269,10 +264,9 @@ lex_at
                         {
                                 // Could add hint here?
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Unterminated];
                                 diagnostic->location = source->start_offset_logical + index;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         index += 1;
@@ -304,10 +298,9 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
                                                 diagnostic->location = source->start_offset_logical + index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
 
                                         B32 hex_prefix = data[index] == 'x';
@@ -325,10 +318,9 @@ lex_at
                                                 if (error_index)
                                                 {
                                                         token.kind = Token_Kind__Error;
-                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid];
                                                         diagnostic->location = source->start_offset_logical + error_index;
-                                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                                 }
                                         }
                                 }
@@ -343,20 +335,18 @@ lex_at
                                 else if (data[index] == '\n')
                                 {
                                         token.kind = Token_Kind__Error;
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__String_Multiline_Unsupported];
                                         diagnostic->location = source->start_offset_logical + index;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         }
 
                         if (!quote_ending_found && token.kind != Token_Kind__Error)
                         {
                                         token.kind = Token_Kind__Error;
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__String_Literal_Unterminated];
                                         diagnostic->location = source->start_offset_logical + index;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
                 } break;
                 default:
@@ -403,10 +393,9 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid];
                                                 diagnostic->location = source->start_offset_logical + index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
                                 else if (digit == '0' && next == 'b')
@@ -427,10 +416,9 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Binary_Literal_Invalid];
                                                 diagnostic->location = source->start_offset_logical + index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
                                 else if (digit == '0' && U8_ascii_digit_is(next))
@@ -452,10 +440,9 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Octal_Literal_Invalid];
                                                 diagnostic->location = source->start_offset_logical + index;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
                                 else
@@ -477,10 +464,9 @@ lex_at
                         {
                                 // NOTE: decide on whether erroring after a while bunch on invalid tokens are read.
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Unexpected];
                                 diagnostic->location = source->start_offset_logical + index;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                 index += 1;
                         }
@@ -515,12 +501,11 @@ lex_at
 internal Token
 token_peek
 (
-        const Token_Cursor *cursor,
-        Diagnostic_List    *diagnostics,
-        Arena              *arena
+        Token_Cursor const *cursor,
+        Diagnostics        *diagnostics
 )
 {
-        Token result = lex_at(cursor->source, cursor->source_index, diagnostics, arena);
+        Token result = lex_at(cursor->source, cursor->source_index, diagnostics);
         return result;
 }
 
@@ -528,13 +513,12 @@ token_peek
 internal void
 token_next
 (
-        Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
-        Arena           *arena
+        Token_Cursor *cursor,
+        Diagnostics  *diagnostics
 )
 {
         cursor->previous = cursor->current;
-        cursor->current  = token_peek(cursor, diagnostics, arena);
+        cursor->current  = token_peek(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__None)
         {
                 cursor->source_index = cursor->current.index + cursor->current.size;
@@ -552,13 +536,13 @@ token_next
 // token_advance_to_new_statment
 // (
 //         Token_Cursor    *cursor,
-//         Diagnostic_List *diagnostics,
+//         Diagnostics *diagnostics,
 //         Arena           *arena
 // )
 // {
 //         for (;;)
 //         {
-//                 token_next(cursor, diagnostics, arena);
+//                 token_next(cursor, diagnostics);
 //                 B32 break_should = Token_Kind__end_of_statement(cursor->previous.kind)
 //                                 || cursor->current.kind == Token_Kind__None;
 //                 if (break_should)

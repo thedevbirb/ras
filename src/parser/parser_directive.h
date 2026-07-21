@@ -97,12 +97,11 @@ Set_Mode;
 internal void
 binding_set
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
-        Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
-        ELF_Symbol_Binding       binding
+        Token_Cursor        *cursor,
+        Diagnostics         *diagnostics,
+        Symbols_Table       *symbols_table,
+        Sections_Table      *sections_table,
+        ELF_Symbol_Binding   binding
 );
 
 internal void
@@ -110,7 +109,7 @@ directive_set_like
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,
@@ -122,7 +121,7 @@ directive_data
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,
@@ -135,7 +134,7 @@ directive_align
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,
@@ -149,7 +148,7 @@ directive_fill
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,

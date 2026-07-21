@@ -6,7 +6,7 @@ expression_parse_with_flags
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Sections_Table     *sections_table,
-        Diagnostic_List    *diagnostics,
+        Diagnostics    *diagnostics,
         Expression_Flags    flags
 )
 {
@@ -37,8 +37,6 @@ expression_parse_with_flags
 
         Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
-        Diagnostic *error = 0;
-
         Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
         frame->node  = Expressions_push_empty(expressions, arena);
 
@@ -67,7 +65,7 @@ expression_parse_with_flags
                         {
                         case Token_Kind__Number:
                         {
-                                Token   peek      = token_peek(cursor, diagnostics, arena);
+                                Token   peek      = token_peek(cursor, diagnostics);
                                 String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
 
                                 B32 identifier_is    = peek.kind == Token_Kind__Identifier;
@@ -89,11 +87,10 @@ expression_parse_with_flags
 
                                         if (backward && !label->section->index)
                                         {
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("backward label reference not found");
                                                 diagnostic->location   = cursor->current.location;
                                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
 
                                         assert_always_m(!forward || label->section->index == 0);
@@ -101,7 +98,7 @@ expression_parse_with_flags
                                         frame->node->kind       = Expression_Kind__Symbol;
                                         frame->node->symbol     = label;
                                         // Skip the letter
-                                        token_next(cursor, diagnostics, arena);
+                                        token_next(cursor, diagnostics);
                                 }
                                 else
                                 {
@@ -113,7 +110,7 @@ expression_parse_with_flags
                                 frame->node->location         = cursor->current.location;
                                 frame->null_denotation_parsed = 1;
 
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         } break;
 
                         case Token_Kind__Identifier:
@@ -143,7 +140,7 @@ expression_parse_with_flags
                                 frame->node->location         = cursor->current.location;
                                 frame->null_denotation_parsed = 1;
 
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         } break;
 
                         case Token_Kind__Percentage:
@@ -161,7 +158,7 @@ expression_parse_with_flags
                                 frame_new->binding_power_minimum = Binding_Power__Unary;
                                 frame_new->is_right_side_of_next = 1;
 
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                                 frame_new->location_begin = cursor->current.location;
 
                                 SLL_stack_push_m(frame, frame_new);
@@ -177,7 +174,7 @@ expression_parse_with_flags
 
                                 frame->binding_power_minimum = Binding_Power__None;
 
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                                 continue;
                         } break;
 
@@ -189,13 +186,12 @@ expression_parse_with_flags
                                 frame->null_denotation_parsed = 1;
                                 frame->node->location = cursor->current.location;
 
-                                error = Arena__push_struct_m(arena, Diagnostic);
-                                error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
-                                error->location = cursor->current.location;
-                                error->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
+                                diagnostic->location   = cursor->current.location;
+                                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
 
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         } break;
                         }
                 }
@@ -231,18 +227,15 @@ expression_parse_with_flags
                 // Minor housekeeping of parenthesis.
                 if (cursor->current.kind == Token_Kind__Parenthesis_Right)
                 {
-                        if (parenthesis_frame)
+                        if (!parenthesis_frame)
                         {
-                                SLL_stack_pop_m(parenthesis_frame);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
+                                diagnostic->location   = cursor->current.location;
                         }
-                        else
-                        {
-                                error = Arena__push_struct_m(arena, Diagnostic);
-                                error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
-                                error->location = cursor->current.location;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
-                        }
-                        token_next(cursor, diagnostics, arena);
+
+                        SLL_stack_pop_m(parenthesis_frame);
+                        token_next(cursor, diagnostics);
                 }
 
                 if (pop)
@@ -261,7 +254,7 @@ expression_parse_with_flags
                                 // copy from one to the other.
                         }
 
-                        if (!frame->next || error)
+                        if (!frame->next)
                         {
                                 // Save the result before popping the last frame.
                                 result = frame->node;
@@ -281,7 +274,7 @@ expression_parse_with_flags
                         frame->node->left = left;
                         frame->node->location   = cursor->current.location;
 
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
 
                         // Prepare new frame
                         Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
@@ -304,10 +297,9 @@ expression_parse_with_flags
 
         if (parenthesis_frame)
         {
-                error = Arena__push_struct_m(arena, Diagnostic);
-                error->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Unclosed];
-                error->location = parenthesis_frame->location;
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, error);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Unclosed];
+                diagnostic->location   = parenthesis_frame->location;
         }
 
         Arena_Temporary__end(scratch);
@@ -319,12 +311,12 @@ expression_parse_with_flags
 internal Expression *
 expression_parse
 (
-        Arena              *arena,
-        Token_Cursor       *cursor,
-        Expressions        *expressions,
-        Symbols_Table      *symbols_table,
-        Sections_Table     *sections_table,
-        Diagnostic_List    *diagnostics
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table,
+        Sections_Table  *sections_table,
+        Diagnostics     *diagnostics
 )
 {
         Expression *result = expression_parse_with_flags
@@ -354,7 +346,7 @@ expression_parse_with_relocation
         Expressions              *expressions,
         Symbols_Table            *symbols_table,
         Sections_Table           *sections_table,
-        Diagnostic_List          *diagnostics,
+        Diagnostics          *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
         Relocation_Operator_List  relocation_match_list
@@ -367,7 +359,7 @@ expression_parse_with_relocation
                 *relocation_out = 0;
 
                 // Parse relocation
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
                 String8 text = Token_Cursor__text(cursor);
 
                 U64 index = 0;
@@ -386,14 +378,13 @@ expression_parse_with_relocation
 
                 if (!(*relocation_out))
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                         diagnostic->message    = String8__literal("invalid relocation operator for instruction");
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
 
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
         }
         Expression *result = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         return result;

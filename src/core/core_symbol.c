@@ -347,6 +347,7 @@ Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
 {
         U16 section_index = symbol->section->index;
         B32 result = section_index == ELF_Section_Index__Undefined || section_index == ELF_Section_Index__Common;
+        return result;
 }
 
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
@@ -357,7 +358,7 @@ Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
 //
 // NOTE that this will be called on every symbol during the finalization process.
 internal S64
-Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level)
+Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, Resolve_Level level)
 {
         assert_always_m(level < Resolve_Level__Finalize || (arena && diagnostics) && "finalization requires arena and diagnostics");
         Arena_Temporary scratch = arena ? Arena__scratch_begin_m(&arena, 1) : Arena__scratch_begin_m(0, 0);
@@ -453,11 +454,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                 {
                                         {
                                         // TODO(low): finding the previous definition here is NOT trivial.
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("recursive symbol definition found");
                                         diagnostic->location   = symbol->location;
                                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                         SLL_stack_pop_m(frame);
                                 }
@@ -530,7 +530,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 B32 equality_is   = Expression_Kind__equality_is(node->kind);
                                                 B32 comparison_is = Expression_Kind__comparison_is(node->kind);
 
-                                                B32 valid = (equality_is && no_undefined_sections)
+                                                B32 valid = (equality_is && !relocation_needed)
                                                          || ((subtract_is || comparison_is) && same_section_no_relocation_needed && !code_section_present);
                                                 // NOTE: constant folding can always happen within the same fragment.
                                                 // However, since finalization is assumed to happen only after
@@ -557,7 +557,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 if (finalize && !valid)
                                                 {
                                                         // TODO(medium): needs printf with section info style.
-                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->message    = String8__literal("unsupported binary operator on this expression");
                                                         diagnostic->location   = node->location;
                                                         diagnostic->ranges[0]  = node->location_range;
@@ -589,7 +589,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 if (finalize && (node->kind != Expression_Kind__Subtract && node->kind != Expression_Kind__Add))
                                                 {
                                                         // We have to nitpick with the possible operations.
-                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->message    = String8__literal("unsupported binary operator on non-constant symbols");
                                                         diagnostic->location   = node->location;
                                                         diagnostic->ranges[0]  = node->location_range;
@@ -613,7 +613,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                         else if (finalize && node->kind != Expression_Kind__Logical_Not)
                                         {
                                                 // TODO(low): report symbol sections with format?
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("unsupported unary operator on non-constant symbols");
                                                 diagnostic->location   = node->location;
                                                 diagnostic->ranges[0]  = node->location_range;
@@ -628,12 +628,11 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                         result = node->integer_value;
                                         SLL_stack_pop_m(frame);
                                 }
-                                else
+                                else if (node->kind == Expression_Kind__Symbol)
                                 {
                                         // Leaf reached. Since constant are eagerly set to such evaluation at parse
                                         // time, this MUST be a symbol.
                                         assert_always_m(node->left == 0);
-                                        assert_always_m(node->kind == Expression_Kind__Symbol);
                                         assert_always_m(node->symbol);
                                         Symbol_Ref *symbol_inner = node->symbol;
 
@@ -669,6 +668,17 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
                                                 result = node->integer_value;
                                                 SLL_stack_pop_m(frame);
                                         }
+                                }
+                                else
+                                {
+                                        // We have an empty node. It might happen (e.g. writing `()`), but warn about it
+                                        assert_always_m(node->kind == Expression_Kind__None);
+                                        SLL_stack_pop_m(frame);
+                                        // Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        // diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        // diagnostic->message    = String8__literal("empty expression found, evaluates to zero");
+                                        // diagnostic->location   = node->location;
+                                        // diagnostic->ranges[0]  = node->location_range;
                                 }
                                 index_inner += 1;
                         }
@@ -712,7 +722,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnosti
 }
 
 internal void
-Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostic_List *diagnostics)
+Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostics *diagnostics)
 {
         Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
         for (;;)

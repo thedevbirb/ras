@@ -33,21 +33,19 @@ Directive_Kind__from_String8(String8 source)
 internal void
 binding_set
 (
-        Arena                   *arena,
         Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
+        Diagnostics             *diagnostics,
         Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
         ELF_Symbol_Binding       binding
 )
 {
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__Identifier)
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location = cursor->current.location;
                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         String8 name = Token_Cursor__text(cursor);
@@ -63,20 +61,18 @@ binding_set
         if (demoted)
         {
                 {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->kind       = Diagnostic_Kind__Warning;
                 diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Symbol_Demoted];
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
                 {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->kind       = Diagnostic_Kind__Note;
                 diagnostic->message    = Diagnostic__previous_declaration_String8;
                 diagnostic->location   = symbol->location;
                 diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
         }
         else
@@ -84,7 +80,7 @@ binding_set
                 symbol->binding = binding;
         }
 
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
 }
 
 internal void
@@ -92,7 +88,7 @@ directive_set_like
 (
         Arena                   *arena,
         Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
+        Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
@@ -102,13 +98,12 @@ directive_set_like
         // TODO(medium): check no conflicts with section names and register names. GNU as doesn't seem to error on using a
         // register name like `sp` though, which I think can be quite confusing/error prone.
 
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__Identifier)
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location = cursor->current.location;
                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         String8 name = Token_Cursor__text(cursor);
@@ -121,19 +116,17 @@ directive_set_like
                 if (frozen)
                 {
                         {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->message    = String8__literal("symbol cannot be redefined");
                         diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0]  = Token__range(cursor->current);
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
                         {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->kind       = Diagnostic_Kind__Note;
                         diagnostic->message    = Diagnostic__previous_declaration_String8;
                         diagnostic->location   = symbol->location;
                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
                 }
 
@@ -143,11 +136,10 @@ directive_set_like
         Section *section_maybe = Sections_Table__get(sections_table, name);
         if (section_maybe)
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__literal("cannot create a symbol with the same name of a section");
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = Token__range(cursor->current);
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         symbol->location = cursor->current.location;
@@ -163,17 +155,16 @@ directive_set_like
                 expression_flags |= Expression_Flags__Defer_Dot;
         }
 
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         if (cursor->current.kind == Token_Kind__Comma)
         {
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
         }
         else
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location = cursor->current.location;
                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         Expression *expression = expression_parse_with_flags
@@ -206,7 +197,7 @@ directive_data
 (
         Arena                   *arena,
         Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
+        Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
@@ -218,7 +209,7 @@ directive_data
         //
         // Advance to reach the first expression token.
         U32 location_begin = cursor->current.location;
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         U8 bit_size = data_directive_size * 8;
         assert_always_m(bit_size <= 64);
         U32 expressions_count = 0;
@@ -240,12 +231,11 @@ directive_data
 
                         if (!fits)
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->kind      = Diagnostic_Kind__Warning;
                                 diagnostic->location  = expression->location_range.v[0];
                                 diagnostic->message   = String8__literal("value too large, truncated");
                                 diagnostic->ranges[0] = expression->location_range;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
                 }
                 else
@@ -274,7 +264,7 @@ directive_data
 
                 if (cursor->current.kind == Token_Kind__Comma)
                 {
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                 }
         }
 
@@ -286,11 +276,10 @@ directive_data
         B32 padding_invalid      = (directive_total_size % section->elf.alignment) != 0;
         if (section_code_is && padding_invalid)
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__format(arena, "data directive total size (%u bytes) disrupts alignment (%u bytes) in code section", directive_total_size, section->elf.alignment);
                 diagnostic->location   = location_begin;
                 diagnostic->ranges[0]  = (Range1_U32){{ location_begin, cursor->current.location }};
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 }
 
@@ -299,7 +288,7 @@ directive_align
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,
@@ -316,7 +305,7 @@ directive_align
         U32 location_begin = cursor->current.location;
         Alignment alignment = {0};
 
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         Expression *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
         expression_evaluate(alignment_expression);
 
@@ -327,22 +316,20 @@ directive_align
                 // both very large values and negative ones are unsupported.
                 if ((value > 32 && power_of_two_exponent) || value > U32_max)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->message    = String8__literal("alignment larger than 2^32 bytes");
                         diagnostic->location   = alignment_expression->location_range.v[0];
                         diagnostic->ranges[0]  = alignment_expression->location_range;
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         value = 0;
                 }
                 B32 bytes_boundary_invalid = !power_of_two_exponent && !pow_2_is_m(value) && !value;
                 if (bytes_boundary_invalid)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->kind       = Diagnostic_Kind__Warning;
                         diagnostic->message    = String8__literal("alignment boundary not a power of two");
                         diagnostic->location   = alignment_expression->location_range.v[0];
                         diagnostic->ranges[0]  = alignment_expression->location_range;
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         value = 0;
                 }
 
@@ -350,17 +337,16 @@ directive_align
         }
         else
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message   = String8__literal("constant expression expected");
                 diagnostic->location  = alignment_expression->location_range.v[0];
                 diagnostic->ranges[0] = alignment_expression->location_range;
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         if (cursor->current.kind == Token_Kind__Comma)
         {
                 // Read pattern
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
 
                 if (cursor->current.kind != Token_Kind__Comma)
                 {
@@ -369,21 +355,19 @@ directive_align
                         U64 pattern_evaluation = (U64)expression_evaluate(pattern_expression);
                         if (pattern_expression->evaluation != Expression_Kind__Constant)
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = String8__literal("constant expression expected");
                                 diagnostic->location  = pattern_expression->location_range.v[0];
                                 diagnostic->ranges[0] = pattern_expression->location_range;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         U64 pattern = pattern_evaluation >> (64 - pattern_size);
                         if (pattern != pattern_evaluation)
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message  = String8__literal("alignment pattern larger than pattern size");
                                 diagnostic->location  = pattern_expression->location_range.v[0];
                                 diagnostic->ranges[0] = pattern_expression->location_range;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         alignment.pattern = pattern;
@@ -393,37 +377,34 @@ directive_align
         if (cursor->current.kind == Token_Kind__Comma)
         {
                 // Read bytes_max
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
                 Expression *write_size_max_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                 S64 write_size_max = expression_evaluate(write_size_max_expression);
                 if (write_size_max_expression->evaluation != Expression_Kind__Constant)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->message  = String8__literal("constant expression expected");
                         diagnostic->location  = write_size_max_expression->location_range.v[0];
                         diagnostic->ranges[0] = write_size_max_expression->location_range;
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
                 if (write_size_max <= 0)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->kind     = Diagnostic_Kind__Warning;
                         diagnostic->message  = String8__literal("non-positive max alignment write size, ensuring it is zero");
                         diagnostic->location  = write_size_max_expression->location_range.v[0];
                         diagnostic->ranges[0] = write_size_max_expression->location_range;
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         write_size_max = 0;
                 }
                 // NOTE: I don't know what should be an upper limit but there should be one probably.
                 // GNU as allows you to pass zero to NOT provide one which I think can be risky.
                 if (write_size_max > U32_max)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->kind     = Diagnostic_Kind__Warning;
                         diagnostic->message  = String8__literal("capping fill size to 2^31 bytes");
                         diagnostic->location  = write_size_max_expression->location_range.v[0];
                         diagnostic->ranges[0] = write_size_max_expression->location_range;
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         write_size_max = U32_max;
                 }
                 alignment.write_size_max = (U32)write_size_max;
@@ -437,7 +418,7 @@ directive_fill
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostic_List *diagnostics,
+        Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Sections_Table  *sections_table,
@@ -447,7 +428,7 @@ directive_fill
 )
 {
         // .fill repeat [, size [, value ]]. See GNU as `s_fill` in `read.c`.
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         U64 location_begin = cursor->current.location;
         Fill fill = { .pattern_size = 1 };
 
@@ -458,7 +439,7 @@ directive_fill
         if (cursor->current.kind == Token_Kind__Comma && size_can_be_parsed)
         {
                 // Read size
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
                 Expression *size_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                 S64 fill_size = expression_evaluate(size_expression);
                 B32 constant = size_expression->evaluation == Expression_Kind__Constant;
@@ -467,10 +448,9 @@ directive_fill
 
                 if (fill_size != fill_capped || !constant)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location = cursor->current.location;
                         diagnostic->message  = String8__literal("expected constant size expression between 1 and 8 included");
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
                 fill.pattern_size = fill_capped;
         }
@@ -478,15 +458,14 @@ directive_fill
         if (cursor->current.kind == Token_Kind__Comma && pattern_can_be_parsed)
         {
                 // Read value
-                token_next(cursor, diagnostics, arena);
+                token_next(cursor, diagnostics);
                 Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
                 U64 fill_pattern = (U64)expression_evaluate(pattern_expression);
                 if (pattern_expression->evaluation != Expression_Kind__Constant)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location = cursor->current.location;
                         diagnostic->message  = String8__literal("constant expression expected");
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
                 fill.pattern = fill_pattern;
         }

@@ -3,7 +3,7 @@ statement_read
 (
         Arena                   *arena,
         Token_Cursor            *cursor,
-        Diagnostic_List         *diagnostics,
+        Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
@@ -12,7 +12,7 @@ statement_read
 {
 
         U32 source_index_start = cursor->source_index;
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
 
         B32 progress = 1;
         B32 error =  0;
@@ -40,12 +40,12 @@ statement_read
                 // no-op, continue;
                 case Token_Kind__Newline:
                 {
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         empty_line = 1;
                 } break;
                 case Token_Kind__Semicolon:
                 {
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         empty_line = 1;
                 } break;
                 case Token_Kind__Number:
@@ -54,19 +54,18 @@ statement_read
 
                         // Should be a numeric label definition, e.g. 1:
                         U32 number = U32_cast_safe(cursor->current.numerical_value);
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         B32 label_definition = cursor->current.kind == Token_Kind__Colon;
                         if (label_definition)
                         {
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         }
                         else
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__literal("expected ':' for numeric label declaration");
                                 diagnostic->location   = cursor->current.location;
                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
@@ -92,7 +91,7 @@ statement_read
                                 directive_kind = Directive_Kind__from_String8(identifier);
                         }
 
-                        Token next = token_peek(cursor, diagnostics, arena);
+                        Token next = token_peek(cursor, diagnostics);
                         B32 label_found = next.kind == Token_Kind__Colon;
                         if (label_found)
                         {
@@ -102,19 +101,17 @@ statement_read
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
                                         // It also accepts defining the symbol via `.set`, and then as a label.
                                         {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
                                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                         {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->kind       = Diagnostic_Kind__Note;
                                         diagnostic->location   = symbol->location;
                                         diagnostic->message    = Diagnostic__previous_declaration_String8;
                                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + identifier.count }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
                                 symbol->location       = cursor->current.location;
@@ -122,8 +119,8 @@ statement_read
                                 symbol->value          = sections_table->current->fragments.last->data_size;
                                 symbol->section        = sections_table->current;
 
-                                token_next(cursor, diagnostics, arena);
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
+                                token_next(cursor, diagnostics);
                         }
 
                         B32 instruction_expected = !label_found && !directive_kind;
@@ -135,11 +132,10 @@ statement_read
                 default:
                 {
                         // Sort of catch-all
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Line_Invalid];
                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         error = 1;
                 } break;
                 }
@@ -215,13 +211,12 @@ statement_read
                 case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
                 case Directive_Kind__Ascii:
                 {
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         if (cursor->current.kind != Token_Kind__String)
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->location = cursor->current.location;
                                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         // Can be of the form `"\nhello\n", so with quotes and optional escaped characters.
@@ -233,26 +228,25 @@ statement_read
                         U8 *data = Fragments__push(&sections_table->current->fragments, cursor->current.location, size_escaped);
                         bytes_escaped_fill(text, data, size_escaped);
 
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                 } break;
                 case Directive_Kind__Section:
                 {
                         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
                         Section *section_new = Sections_Table__get_or_default(sections_table, name, cursor->current.location);
 
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                         if (cursor->current.kind == Token_Kind__Comma)
                         {
                                 // Read flags.
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                                 if (cursor->current.kind != Token_Kind__String)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location = cursor->current.location;
                                         diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                                 String8 text    = Token_Cursor__text(cursor);
                                 String8 content = String8__skip_chop(text);
@@ -260,45 +254,42 @@ statement_read
 
                                 if (flags == ELF_Section_Header_Flags__Invalid)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->kind       = Diagnostic_Kind__Error;
                                         diagnostic->location = cursor->current.location;
                                         diagnostic->message  = String8__literal("invalid section flags, expected: " ELF_Section_Header_Flags__cstring);
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
                                 // TODO(medium, check-gas): are they ORed? Or overwritten?
                                 section_new->elf.flags = flags;
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         }
 
                         if (cursor->current.kind == Token_Kind__Comma)
                         {
                                 // Parse type.
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                                 if (cursor->current.kind != Token_Kind__At)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = String8__literal("invalid section type syntax, expected @type");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                                 String8 text    = Token_Cursor__text(cursor);
                                 String8 content = String8__skip_chop(text);
                                 ELF_Section_Header_Type type = ELF_Section_Header_Type__from_String8(content);
                                 if (type == ELF_Section_Header_Type__Invalid)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->kind       = Diagnostic_Kind__Error;
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = String8__literal("invalid section type");
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                                 section_new->elf.type = type;
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         }
 
 
@@ -306,16 +297,16 @@ statement_read
                 } break;
                 case Directive_Kind__Local:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Local);
+                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Local);
                 } break;
                 case Directive_Kind__Weak:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
+                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
                 } break;
                 case Directive_Kind__Globl: {} // fallthrough
                 case Directive_Kind__Global:
                 {
-                        binding_set(arena, cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Global);
+                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Global);
                 } break;
                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                 case Directive_Kind__Set: {} // fallthrough
@@ -559,16 +550,15 @@ statement_read
                                 break;
                         }
                         junk_location_end = cursor->current.location + cursor->current.size;
-                        token_next(cursor, diagnostics, arena);
+                        token_next(cursor, diagnostics);
                 }
 
                 if (junk_location_end)
                 {
-                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location   = junk_location_begin;
                         diagnostic->message    = String8__literal("junk found at the end of line");
                         diagnostic->ranges[0]  = (Range1_U32){{ junk_location_begin, junk_location_end }};
-                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                 }
         }
 

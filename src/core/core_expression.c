@@ -338,7 +338,7 @@ Expression__internal_is(Expression *expression)
 //
 // After this is called expressions cannot be reduced further, since now symbols are frozen.
 internal void
-Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostic_List *diagnostics)
+Expressions__finalize(Expressions *expressions, Arena *arena, Diagnostics *diagnostics)
 {
         // TODO(low): I don't like that the sentinel expression should be skipped. I would prefer a no-op here.
         U64 index = 1;

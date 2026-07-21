@@ -186,9 +186,9 @@ Resolve_Level;
 // TODO(low): replace `expression_evalute` with this, more general version, by wrapping an expression into a
 // stack-allocated symbol, since the core evaluation logic is shared.
 internal S64
-Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostic_List *diagnostics, Resolve_Level level);
+Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, Resolve_Level level);
 
 internal void
-Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostic_List *diagnostics);
+Symbols_Table__finalize(Symbols_Table *symbols_table, Arena *arena, Diagnostics *diagnostics);
 
 #endif // CORE_SYMBOL_H

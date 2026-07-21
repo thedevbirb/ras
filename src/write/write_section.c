@@ -74,7 +74,7 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
 }
 
 internal B32
-Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
+Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 {
         // First pass to compute address estimate
         Fragments fragments = section->fragments;
@@ -123,14 +123,13 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                         if (growth % pattern_size != 0)
                         {
                                 // The padding added should be a multiple of the size of the align pattern.
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__format
                                 (
                                         arena,
                                         "alignment padding of size %d is not a multiple of alignment pattern size %d", growth, pattern_size
                                 );
                                 diagnostic->location  = current->location;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         address += growth;
@@ -210,11 +209,10 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                                         Symbol_Ref__resolve(&symbol_expression, arena, diagnostics, Resolve_Level__Traverse);
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("filling directive doesn't resolve to constant expression");
                                                 diagnostic->location   = expression->location;
                                                 diagnostic->ranges[0]  = expression->location_range;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                                 // TODO(unsure) Prevent this error from being repeated?
                                                 relax_info->fill_expression = 0;
@@ -229,11 +227,10 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                                 {
                                         // TODO(low, check-gas): GNU as doesn't error on the first two passes, and on
                                         // negative values it is ignored
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("filling directive resolves to negative value");
                                         diagnostic->location   = expression->location;
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                         // TODO(unsure) Prevent this error from being repeated?
                                         relax_info->fill_expression = 0;
@@ -243,11 +240,10 @@ Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics)
                                 B32 padding_invalid = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR && write_size % section->elf.alignment != 0;
                                 if (padding_invalid)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__format(arena, "filling directive total write size (%u bytes) disrupts alignment (%u bytes) in code section", write_size, section->elf.alignment);
                                         diagnostic->location   = expression->location;
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
 
                                         // TODO(unsure) Prevent this error from being repeated?
                                         relax_info->fill_expression = 0;
@@ -520,7 +516,7 @@ Sections_Table__finish(Sections_Table *sections_table)
 
 // Perform the relaxation algorithm across every section and every fragment.
 internal void
-Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostic_List *diagnostics)
+Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostics *diagnostics)
 {
         // TODO(medium): max iterations?
         U32 relaxation_passes = 0;

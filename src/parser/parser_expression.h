@@ -17,7 +17,7 @@ expression_parse_with_flags
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Sections_Table     *sections_table,
-        Diagnostic_List    *diagnostics,
+        Diagnostics    *diagnostics,
         Expression_Flags    flags
 );
 
@@ -29,7 +29,7 @@ expression_parse
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Sections_Table     *sections_table,
-        Diagnostic_List    *diagnostics
+        Diagnostics    *diagnostics
 );
 
 internal Expression *
@@ -40,7 +40,7 @@ expression_parse_with_relocation
         Expressions              *expressions,
         Symbols_Table            *symbols_table,
         Sections_Table           *sections_table,
-        Diagnostic_List          *diagnostics,
+        Diagnostics          *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
         Relocation_Operator_List  relocation_match_list

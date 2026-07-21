@@ -83,13 +83,45 @@ struct Diagnostic
 //
 // 1. Configuration, e.g. transform warning in errors.
 // 2. Maybe counter of errors to abort on too many of them?
-typedef struct Diagnostic_List Diagnostic_List;
-struct Diagnostic_List
+typedef struct Diagnostics Diagnostics;
+struct Diagnostics
 {
+        Arena      *arena;
+        // A valid, empty diagnostic to return.
+        //
+        // TODO(low): use this to implement the pattern of at most one diagnostic per line:
+        // Call `Diagnostics__limit` to set a maximum amount of diagnostics to emit. Then manually recall
+        // `Diagnostics__limit_reset` to reset it.
+        Diagnostic *dummy;
         Diagnostic *first;
         Diagnostic *last;
         U32         count;
 };
+
+internal Diagnostics *
+Diagnostics__new(Arena *arena)
+{
+        Diagnostics *result = Arena__push_struct_m(arena, Diagnostics);
+        Diagnostic  *dummy  = Arena__push_struct_m(arena, Diagnostic);
+
+        *result = (Diagnostics){ .arena = arena, .dummy = dummy };
+        return result;
+}
+
+internal Diagnostic *
+Diagnostics__push(Diagnostics *diagnostics)
+{
+        Diagnostic *result = Arena__push_struct_m(diagnostics->arena, Diagnostic);
+        SLL_queue_push_m(diagnostics->first, diagnostics->last, result);
+        return result;
+}
+
+internal Diagnostic *
+Diagnostics__push_conditional(Diagnostics *diagnostics, B32 condition)
+{
+        Diagnostic *result = condition ? Diagnostics__push(diagnostics) : diagnostics->dummy;
+        return result;
+}
 
 // TODO(feature): support multiple sources.
 internal void

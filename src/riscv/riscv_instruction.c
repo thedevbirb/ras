@@ -172,7 +172,7 @@ RISCV_Instruction__parse
 (
         Arena              *arena,
         Token_Cursor       *cursor,
-        Diagnostic_List    *diagnostics,
+        Diagnostics    *diagnostics,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Sections_Table     *sections_table,
@@ -187,7 +187,7 @@ RISCV_Instruction__parse
         String8 opcode_name = String8__from_cstring(opcode->name);
 
         Token opcode_token = cursor->current;
-        token_next(cursor, diagnostics, arena);
+        token_next(cursor, diagnostics);
         Token_Cursor cursor_start = *cursor;
 
         Expression *expression = 0;
@@ -218,42 +218,39 @@ RISCV_Instruction__parse
                                 Token token_before_comma = cursor->previous;
                                 if (cursor->current.kind == Token_Kind__Comma)
                                 {
-                                        token_next(cursor, diagnostics, arena);
+                                        token_next(cursor, diagnostics);
                                 }
                                 else
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = token_before_comma.location + token_before_comma.size;
                                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Parenthesis_Left:
                         {
                                 if (cursor->current.kind == Token_Kind__Parenthesis_Left)
                                 {
-                                        token_next(cursor, diagnostics, arena);
+                                        token_next(cursor, diagnostics);
                                 }
                                 else
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = String8__literal("'(' expected");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Parenthesis_Right:
                         {
                                 if (cursor->current.kind == Token_Kind__Parenthesis_Right)
                                 {
-                                        token_next(cursor, diagnostics, arena);
+                                        token_next(cursor, diagnostics);
                                 }
                                 else
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = String8__literal("')' expected");
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__RD:  {} // fallthrough
@@ -265,11 +262,10 @@ RISCV_Instruction__parse
                                 const Register *reg = Register_List__lookup(RISCV_register_list, text, 0);
                                 if (!reg)
                                 {
-                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                        diagnostic->location   = cursor->current.location;
                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
                                 U8 register_number = reg ? reg->number : Register__invalid_number;
@@ -280,7 +276,7 @@ RISCV_Instruction__parse
                                        case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, register_number); } break;
                                        case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
                                 }
-                                token_next(cursor, diagnostics, arena);
+                                token_next(cursor, diagnostics);
                         } break;
                         case OP_Argument__Address:
                         {
@@ -289,11 +285,10 @@ RISCV_Instruction__parse
                                 B32 constant_is = expression->kind == Expression_Kind__Constant;
                                 if (!(symbol_is || constant_is))
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("expression must be either symbol or a constant");
                                         diagnostic->location   = expression->location_range.v[0];
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
                                 if (symbol_is)
@@ -304,11 +299,10 @@ RISCV_Instruction__parse
                                 B32 constant_fits = sign_extended_32_bit_is_m(expression->integer_value);
                                 if (constant_is && !constant_fits)
                                 {
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("offset too large for this opcode");
                                         diagnostic->location   = expression->location_range.v[0];
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Offset_PC_Relative_20:
@@ -331,11 +325,10 @@ RISCV_Instruction__parse
                                 {
                                         // TODO(low): this diagnostic could be better, I should probably support re-lexing
                                         // from a specific location to get the exact token.
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
                                         diagnostic->location   = expression->location_range.v[0];
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Offset_PC_Relative_12:
@@ -351,11 +344,10 @@ RISCV_Instruction__parse
                                 {
                                         // TODO(low): this diagnostic could be better, I should probably support re-lexing
                                         // from a specific location to get the exact token.
-                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
                                         diagnostic->location   = expression->location_range.v[0];
                                         diagnostic->ranges[0]  = expression->location_range;
-                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Offset_Store:
@@ -456,11 +448,10 @@ RISCV_Instruction__parse
                                                 B32 fits = 0 <= result && result < (S64)(1 << 20);
                                                 if (!fits)
                                                 {
-                                                        Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->location   = expression->location_range.v[0];
                                                         diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
                                                         diagnostic->ranges[0]  = expression->location_range;
-                                                        SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                                 }
 
                                                 // TODO(medium): GNU as does this at a later step, and by default emits a
@@ -471,11 +462,10 @@ RISCV_Instruction__parse
                                         else
                                         {
 
-                                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
                                                 diagnostic->location   = expression->location_range.v[0];
                                                 diagnostic->ranges[0]  = expression->location_range;
-                                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                         }
                                 }
                         } break;
@@ -485,11 +475,10 @@ RISCV_Instruction__parse
                                 expression_evaluate(expression);
                                 if (expression->evaluation != Expression_Kind__Constant)
                                 {
-                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                        diagnostic->message    = String8__literal("Constant expression expected");
                                        diagnostic->location   = expression->location_range.v[0];
                                        diagnostic->ranges[0]  = expression->location_range;
-                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
                         } break;
                         case OP_Argument__Shift_Amount:
@@ -500,11 +489,10 @@ RISCV_Instruction__parse
                                 B32 fits = 0 <= value && value < XLEN;
                                 if (expression->evaluation != Expression_Kind__Constant || !fits)
                                 {
-                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                        diagnostic->message    = String8__literal("shift amount doesn't fit register size");
                                        diagnostic->location   = expression->location_range.v[0];
                                        diagnostic->ranges[0]  = expression->location_range;
-                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
 	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
@@ -517,11 +505,10 @@ RISCV_Instruction__parse
                                 B32 fits = 0 <= value && value < (1 << 5);
                                 if (expression->evaluation != Expression_Kind__Constant || !fits)
                                 {
-                                       Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                        diagnostic->message    = String8__literal("shift amount doesn't fit register size");
                                        diagnostic->location   = expression->location_range.v[0];
                                        diagnostic->ranges[0]  = expression->location_range;
-                                       SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                                 }
 
 	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
@@ -549,11 +536,10 @@ RISCV_Instruction__parse
 
         if (!match)
         {
-                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location   = opcode_token.location;
                 diagnostic->message    = String8__literal("unrecognized opcode");
                 diagnostic->ranges[0]  = Token__range(opcode_token);
-                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
         }
 
         *expression_out = expression;

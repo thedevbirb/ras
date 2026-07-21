@@ -17,7 +17,7 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
 
 // Perform the relaxation algorithm on the given section.
 internal B32
-Section__relax(Section *section, Arena *arena, Diagnostic_List *diagnostics);
+Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics);
 
 // Create the .riscv.attributes section with hardcoded data for RV64I.
 internal void
@@ -29,7 +29,7 @@ Sections_Table__finish(Sections_Table *sections_table);
 
 // Perform the relaxation algorithm across every section and every fragment.
 internal void
-Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostic_List *diagnostics);
+Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostics *diagnostics);
 
 #endif // WRITE_SECTION_H
 

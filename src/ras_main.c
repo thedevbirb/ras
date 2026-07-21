@@ -102,14 +102,14 @@ main(int argument_count, char **argument_vector)
         Expressions expressions = {0};
         Expressions__initialize(&expressions, arena, 12);
 
-        Diagnostic_List diagnostics = {0};
+        Diagnostics *diagnostics = Diagnostics__new(Arena__allocate_m());
 
         Token_Cursor cursor = { .source = &source, .source_index = 0 };
         statement_read
         (
                 arena,
                 &cursor,
-                &diagnostics,
+                diagnostics,
                 &expressions,
                 symbols_table,
                 sections_table,
@@ -118,41 +118,41 @@ main(int argument_count, char **argument_vector)
 
         B32 exit_status = 0;
 
-        if (diagnostics.first)
-        {
-                Diagnostic *current = diagnostics.first;
-                for (;;)
-                {
-                        exit_status |= current->kind == Diagnostic_Kind__Error;
-                        diagnostic_print(current, &source, arena);
-                        current = current->next;
-
-                        if (!current)
-                        {
-                                break;
-                        }
-                }
-
-                if (exit_status)
-                {
-                        exit(1);
-                }
-        }
+        // if (diagnostics.first)
+        // {
+        //         Diagnostic *current = diagnostics.first;
+        //         for (;;)
+        //         {
+        //                 exit_status |= current->kind == Diagnostic_Kind__Error;
+        //                 diagnostic_print(current, &source, arena);
+        //                 current = current->next;
+        //
+        //                 if (!current)
+        //                 {
+        //                         break;
+        //                 }
+        //         }
+        //
+        //         if (exit_status)
+        //         {
+        //                 exit(1);
+        //         }
+        // }
 
         // Start of an equivalent of GNU as `write_object_file`.
         write_object_file
         (
                 arena,
-                &diagnostics,
+                diagnostics,
                 &expressions,
                 symbols_table,
                 sections_table,
                 fixups
         );
 
-        if (diagnostics.first)
+        if (diagnostics->first)
         {
-                Diagnostic *current = diagnostics.first;
+                Diagnostic *current = diagnostics->first;
                 for (;;)
                 {
                         exit_status |= current->kind == Diagnostic_Kind__Error;

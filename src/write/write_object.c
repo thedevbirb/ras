@@ -2,7 +2,7 @@ internal void
 write_object_file
 (
         Arena                   *arena,
-        Diagnostic_List         *diagnostics,
+        Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
         Sections_Table          *sections_table,
@@ -79,12 +79,11 @@ write_object_file
 
                         if (section->elf.entry_size && (section->elf.size % section->elf.entry_size))
                         {
-                                Diagnostic *diagnostic = Arena__push_struct_m(arena, Diagnostic);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->kind       = Diagnostic_Kind__Warning;
                                 diagnostic->message    = String8__format(arena, "section '%*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
                                                                          section->name.count, section->name.data, section->elf.size, section->elf.entry_size);
                                 diagnostic->location   = section->location;
-                                SLL_queue_push_m(diagnostics->first, diagnostics->last, diagnostic);
                         }
 
                         index += 1;
