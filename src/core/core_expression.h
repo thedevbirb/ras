@@ -100,12 +100,17 @@ struct Expression
 
 
         // Evaluation-related fields, in a relocation friendly format.
+
+        // NOTE: this field has a double meaning: if the expression evaluates to a constant, i.e.
+        // `Expression_Kind__Constant`, then this is the value of the expression. Otherwise, this represents an
+        // _offset_, in the `symbol + offset` format.
         S64 integer_value;
         Symbol_Ref *symbol;
         Symbol_Ref *symbol_operand;
         Expression_Kind  kind;
 
         // Parsing-related fields. Pointers to child expression nodes.
+
         Expression *left;
         Expression *right;
         Expression_Kind  evaluation;

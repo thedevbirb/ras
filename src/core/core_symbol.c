@@ -373,35 +373,31 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
         }
         Frame_State;
 
-        typedef struct Frame Frame;
-        struct Frame
-        {
-                Frame      *next;
-
-                // Contains either one of the two.
-                Symbol_Ref *symbol;
-                Expression *expression;
-
-                B32 expression_depends_on_symbol;
-
-                S64         result;
-                Frame_State state;
-        };
-
-        Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
-        frame->symbol = symbol;
-        S64 result = 0;
-
-        B32 traverse = level >= Resolve_Level__Traverse;
-        B32 finalize = level >= Resolve_Level__Finalize;
-
-        // Notes
-        //
         // Resolution works by interleaving symbol frames and expression frames. That is, in a frame we are resolving
         // the value of a symbol. If a symbol has an expression associated to it, then we create a frame to evaluate
         // that expression.
         //
         // Every time a codepath finishes to process a frame, it is popped. Once we have no more frames, we're done.
+        typedef struct Frame Frame;
+        struct Frame
+        {
+                Frame      *next;
+
+                Symbol_Ref *symbol;
+                Expression *expression;
+
+                Frame_State state;
+        };
+
+        Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
+        frame->symbol = symbol;
+
+        // Should be updated before popping every frame. The result before popping the last frame is what we need to
+        // return.
+        S64 result = 0;
+
+        B32 traverse = level >= Resolve_Level__Traverse;
+        B32 finalize = level >= Resolve_Level__Finalize;
 
         U16 index = 0;
         for (;;)
@@ -439,7 +435,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                         {
                                 B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
                                 frame->symbol->flags |= Symbol_Flags__Resolving;
-                                frame->state |= Frame_State__Evaluated;
+                                frame->state         |= Frame_State__Evaluated;
                                 // We're evaluating a symbol expression in a dedicated frame, which will NOT be marked
                                 // as `Frame_State__Evaluated` yet, for the following reason: if the
                                 // expression does NOT contain symbols to resolve, the new frame will be popped and
@@ -455,7 +451,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                         {
                                         // TODO(low): finding the previous definition here is NOT trivial.
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("recursive symbol definition found");
+                                        diagnostic->message    = String8__literal("recursive symbolic expression found");
                                         diagnostic->location   = symbol->location;
                                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
                                         }
@@ -466,6 +462,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                         U16 index_inner = 0;
                         for (;;)
                         {
+                                // NOTE: An `Expression_Kind__Symbol` should be also checked for its
+                                // `Expression.integer_value` due to folding of symbols and constant required by
+                                // correctly expressing canonical relocations of the format `<symbol> + <addend>`.
+
                                 assert_always_m(index_inner < U16_max && "infinite loop");
                                 if (!frame->expression)
                                 {
@@ -507,21 +507,23 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 
                                         if (left->evaluation == Expression_Kind__Constant && right->evaluation == Expression_Kind__Constant)
                                         {
-                                                S64 result_inner    = operation_evaluate(node->kind, left->integer_value, right->integer_value);
-                                                node->integer_value = result_inner;
+                                                result = operation_evaluate(node->kind, left->integer_value, right->integer_value);
+                                                node->integer_value = result;
                                                 node->evaluation    = Expression_Kind__Constant;
                                         }
                                         else if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Symbol)
                                         {
-                                                // Extra checks to ensure undefined symbols are not considered equal.
+                                                // A lot of checks are needed to understand whether an operation between
+                                                // symbols can be performed.
+
                                                 B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
                                                                   && left->symbol->fragment && right->symbol->fragment;
                                                 B32 left_relocation_needed  = Symbol_Ref__relocation_needed(left->symbol);
                                                 B32 right_relocation_needed = Symbol_Ref__relocation_needed(right->symbol);
                                                 B32 relocation_needed       = left_relocation_needed || right_relocation_needed;
-                                                // NOTE: label difference shouldn't be erased when across fragments,
+                                                // NOTE: label difference shouldn't be erased when across _code_ fragments,
                                                 // even after finalization. The linker might further shrink some
-                                                // instructions (e.g. a `call` expansion).
+                                                // instructions (e.g. a `call` might become a 1-instruction jump).
                                                 B32 code_section_present    = left->symbol->section->elf.flags  & ELF_Section_Header_Flags__EXECINSTR
                                                                            || right->symbol->section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
                                                 B32 same_section_no_relocation_needed  = (left->symbol->section->index  == right->symbol->section->index)
@@ -531,22 +533,25 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                                 B32 comparison_is = Expression_Kind__comparison_is(node->kind);
 
                                                 B32 valid = (equality_is && !relocation_needed)
-                                                         || ((subtract_is || comparison_is) && same_section_no_relocation_needed && !code_section_present);
+                                                         || ((subtract_is || comparison_is) && same_section_no_relocation_needed);
                                                 // NOTE: constant folding can always happen within the same fragment.
                                                 // However, since finalization is assumed to happen only after
                                                 // relaxation, which fixes the addresses of fragments, it is safe to
                                                 // perform such operations inter-fragments. Moreover, in previous frames
                                                 // we've already resolved their values.
-                                                B32 constant_folding_allowed = valid && (same_fragment || (same_section_no_relocation_needed && finalize));
-                                                if (constant_folding_allowed)
-                                                {
-                                                        // Fold to constant.
-                                                        node->evaluation = Expression_Kind__Constant;
-                                                }
+                                                B32 constant_folding_allowed = valid && (same_fragment || (same_section_no_relocation_needed && !code_section_present && finalize));
 
                                                 if (valid)
                                                 {
-                                                        node->integer_value = operation_evaluate(node->kind, left->symbol->value, right->symbol->value);
+                                                        // Both symbols might have some offsets to take into account.
+                                                        S64 left_value  = left->symbol->value  + left->integer_value;
+                                                        S64 right_value = right->symbol->value + right->integer_value;
+                                                        result = operation_evaluate(node->kind, left_value, right_value);
+                                                        if (constant_folding_allowed)
+                                                        {
+                                                                node->evaluation = Expression_Kind__Constant;
+                                                                node->integer_value = result;
+                                                        }
                                                 }
                                                 else
                                                 {
@@ -565,7 +570,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                         }
                                         else
                                         {
-                                                // We can still absorb something like `symbol_inner <operator> constant`
+                                                // We _might_ have a symbol and a constant. In such case, we can fold it.
                                                 Symbol_Ref *symbol_inner = 0;
                                                 S64 integer_value  = 0;
 
@@ -582,8 +587,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 
                                                 if (symbol_inner)
                                                 {
-                                                        node->symbol  = symbol_inner;
+                                                        // Folding logic
+                                                        node->symbol        = symbol_inner;
                                                         node->integer_value = integer_value;
+                                                        node->evaluation    = Expression_Kind__Symbol;
                                                 }
 
                                                 if (finalize && (node->kind != Expression_Kind__Subtract && node->kind != Expression_Kind__Add))
@@ -595,7 +602,6 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                                         diagnostic->ranges[0]  = node->location_range;
                                                 }
                                         }
-                                        result = node->integer_value;
                                         SLL_stack_pop_m(frame);
                                 }
                                 else if (node->right)
@@ -606,8 +612,8 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 
                                         if (right->evaluation == Expression_Kind__Constant)
                                         {
-                                                S64 result_inner    = unary_evaluate(node->kind, right->integer_value);
-                                                node->integer_value = result_inner;
+                                                result = unary_evaluate(node->kind, right->integer_value);
+                                                node->integer_value = result;
                                                 node->evaluation    = Expression_Kind__Constant;
                                         }
                                         else if (finalize && node->kind != Expression_Kind__Logical_Not)
@@ -625,14 +631,14 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                                 node->symbol     = right->symbol;
                                         }
 
-                                        result = node->integer_value;
                                         SLL_stack_pop_m(frame);
                                 }
-                                else if (node->kind == Expression_Kind__Symbol)
+                                else
                                 {
                                         // Leaf reached. Since constant are eagerly set to such evaluation at parse
                                         // time, this MUST be a symbol.
                                         assert_always_m(node->left == 0);
+                                        assert_always_m(node->kind == Expression_Kind__Symbol);
                                         assert_always_m(node->symbol);
                                         Symbol_Ref *symbol_inner = node->symbol;
 
@@ -640,7 +646,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 
                                         if (symbol_inner->section->index == ELF_Section_Index__Absolute)
                                         {
-                                                node->evaluation = Expression_Kind__Constant;
+                                                node->evaluation    = Expression_Kind__Constant;
                                                 node->integer_value = symbol_inner->value;
 
                                                 if (finalize)
@@ -653,7 +659,6 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                         }
                                         else if (frame->state & Frame_State__Symbol_Resolved)
                                         {
-                                                node->integer_value = symbol_inner->value;
                                                 SLL_stack_pop_m(frame);
                                         }
                                         else if (traverse)
@@ -665,27 +670,17 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
                                         }
                                         else
                                         {
-                                                result = node->integer_value;
                                                 SLL_stack_pop_m(frame);
                                         }
-                                }
-                                else
-                                {
-                                        // We have an empty node. It might happen (e.g. writing `()`), but warn about it
-                                        assert_always_m(node->kind == Expression_Kind__None);
-                                        SLL_stack_pop_m(frame);
-                                        // Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        // diagnostic->kind       = Diagnostic_Kind__Warning;
-                                        // diagnostic->message    = String8__literal("empty expression found, evaluates to zero");
-                                        // diagnostic->location   = node->location;
-                                        // diagnostic->ranges[0]  = node->location_range;
                                 }
                                 index_inner += 1;
                         }
 
                 }
-                else if (frame->symbol && frame->symbol->expression)
+                else
                 {
+                        assert_always_m(frame->symbol && frame->symbol->expression && "internal logic bug");
+
                         frame->symbol->flags &= ~Symbol_Flags__Resolving;
                         // After this loop, the inner expression has been evaluated, and subsequent symbols optionally
                         // resolved. The value of the symbol is whatever this expression evaluates to, and we can mark
@@ -698,21 +693,6 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Arena *arena, Diagnostics *diagnostics, 
 
                         result = frame->symbol->expression->integer_value;
                         SLL_stack_pop_m(frame);
-                }
-                else
-                {
-                        frame->symbol->flags &= ~Symbol_Flags__Resolving;
-                        result = frame->symbol->value;
-                        if (frame->symbol->flags & Symbol_Flags__Finalized)
-                        {
-                                result += symbol->fragment->object_file_offset;
-                        }
-
-                        if (finalize)
-                        {
-                                frame->symbol->value = result;
-                                frame->symbol->flags |= Symbol_Flags__Finalized;
-                        }
                 }
                 index += 1;
         }
