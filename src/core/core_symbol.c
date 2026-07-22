@@ -547,11 +547,14 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                         S64 left_value  = left->symbol->value  + left->integer_value;
                                                         S64 right_value = right->symbol->value + right->integer_value;
                                                         result = operation_evaluate(node->kind, left_value, right_value);
-                                                        if (constant_folding_allowed)
-                                                        {
-                                                                node->evaluation = Expression_Kind__Constant;
-                                                                node->integer_value = result;
-                                                        }
+                                                }
+
+                                                if (constant_folding_allowed)
+                                                {
+                                                        node->evaluation     = Expression_Kind__Constant;
+                                                        node->integer_value  = result;
+                                                        node->symbol         = 0;
+                                                        node->symbol_operand = 0;
                                                 }
                                                 else
                                                 {
@@ -570,19 +573,20 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         }
                                         else
                                         {
-                                                // We _might_ have a symbol and a constant. In such case, we can fold it.
+                                                // We _might_ have a `(<symbol> + <offset>) + <constant>`. In such case,
+                                                // we can fold it.
                                                 Symbol_Ref *symbol_inner = 0;
                                                 S64 integer_value  = 0;
 
                                                 if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Constant)
                                                 {
                                                         symbol_inner  = left->symbol;
-                                                        integer_value = right->integer_value;
+                                                        integer_value = operation_evaluate(node->kind, left->integer_value, right->integer_value);
                                                 }
                                                 else if (right->evaluation == Expression_Kind__Symbol && left->evaluation == Expression_Kind__Constant)
                                                 {
                                                         symbol_inner  = right->symbol;
-                                                        integer_value = left->integer_value;
+                                                        integer_value = operation_evaluate(node->kind, right->integer_value, left->integer_value);
                                                 }
 
                                                 if (symbol_inner)
@@ -615,6 +619,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 result = unary_evaluate(node->kind, right->integer_value);
                                                 node->integer_value = result;
                                                 node->evaluation    = Expression_Kind__Constant;
+                                                node->symbol        = 0;
                                         }
                                         else if (finalize && node->kind != Expression_Kind__Logical_Not)
                                         {
