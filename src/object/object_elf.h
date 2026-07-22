@@ -3584,8 +3584,8 @@ typedef U16 Relocation_RISC_V;
 #define Relocation_RISC_V__Sub_64                                         40
 #define Relocation_RISC_V__GOT_32_PC_Relative                             41
 #define Relocation_RISC_V__Align                                          43
-#define Relocation_RISC_V__Compressed_Branch                              44
-#define Relocation_RISC_V__Compressed_Jump                                45
+#define Relocation_RISC_V__Branch_Compressed                              44
+#define Relocation_RISC_V__Jump_Compressed                                45
 #define Relocation_RISC_V__Relax                                          51
 #define Relocation_RISC_V__Sub_6                                          52
 #define Relocation_RISC_V__Set_6                                          53

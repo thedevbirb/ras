@@ -100,7 +100,7 @@ write_object_file
 }
 
 internal void
-Fixup__apply(Fixup *fixup, Fixups *fixups, Expressions *expressions, Diagnostics *diagnostics)
+Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
 {
         // Whether a RELAX relocation can be emitted
         B32 relaxable = 0;
@@ -204,8 +204,6 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Expressions *expressions, Diagnostics
                 if (0) { break; }
         } // fallthrough
         case Relocation_RISC_V__64_Bit:
-        case Relocation_RISC_V__16_Bit:
-        case Relocation_RISC_V__8_Bit:
         {
                 if (expression->symbol && expression->symbol_operand)
                 {
@@ -227,23 +225,27 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Expressions *expressions, Diagnostics
                         fixup->flags |= Fixup_Flags__Done;
                 }
         } break;
+        // TODO(high): `Relocation_RISC_V__16_Bit` and `Relocation_RISC_V__8_bit` don't exist in the ELF specification,
+        // yet we want to make fixups for them that can only be resolved, otherwise error.
 
         case Relocation_RISC_V__JAL:
         {
+                assert_always_m(fixup->fragment_write_size == sizeof(U32));
+
                 S64 target = expression->integer_value;
                 target    += expression->symbol ? expression->symbol->value : 0;
-                S64 distance = target - fixup->fragment->object_file_address;
+                S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
 
-                U32 encoding = 0;
-                U32 encoding = memory_copy((U8 *)&encoding, write_area, sizeof(encoding));
-                encoding |= encode_immediate_j_m(distance);
-                memory_copy(write_arena, (U8 *)&encoding, sizeof(encoding));
+                U32 encoding = U32_little_endian_get(write_area);
+                encoding    |= encode_immediate_j_m(distance);
+                U32_little_endian_put(write_area, encoding);
 
-                B32 valid_immediate = valid_immediate_j_m(distance);
+                B32 valid_immediate = validate_immediate_j_m(distance);
                 if (!valid_immediate)
                 {
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__format(diagnostics->arena, "invalid J-type offset: %lld", distance);
+                        diagnostic->kind       = Diagnostic_Kind__Error;
+                        diagnostic->message    = String8__format(diagnostics->arena, "invalid J-type offset (%lld)", distance);
                         diagnostic->location   = expression->location;
                         diagnostic->ranges[0]  = expression->location_range;
                 }
@@ -251,7 +253,9 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Expressions *expressions, Diagnostics
                 // TODO(.option): support
                 B32 relax = 1;
                 // TODO(check-gas)
-                B32 local_label = !expression->symbol->expression && symbol->binding == ELF_Symbol_Binding__Local;
+                B32 local_label = expression->symbol
+                               && !expression->symbol->expression
+                               && expression->symbol->binding == ELF_Symbol_Binding__Local;
 
                 if (!relax && local_label && valid_immediate)
                 {
@@ -259,11 +263,141 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Expressions *expressions, Diagnostics
                 }
         } break;
 
+        case Relocation_RISC_V__Branch:
+        {
+                assert_always_m(fixup->fragment_write_size == sizeof(U32));
+
+                S64 target = expression->integer_value;
+                target    += expression->symbol ? expression->symbol->value : 0;
+                S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
+
+                U32 encoding = U32_little_endian_get(write_area);
+                encoding    |= encode_immediate_b_m(distance);
+                U32_little_endian_put(write_area, encoding);
+
+                B32 valid_immediate = validate_immediate_b_m(distance);
+                if (!valid_immediate)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->kind       = Diagnostic_Kind__Error;
+                        diagnostic->message    = String8__format(diagnostics->arena, "B-type offset out of range (%lld)", distance);
+                        diagnostic->location   = expression->location;
+                        diagnostic->ranges[0]  = expression->location_range;
+                }
+
+                // TODO(.option): support
+                B32 relax = 1;
+                // TODO(check-gas)
+                B32 local_label = expression->symbol
+                               && !expression->symbol->expression
+                               && expression->symbol->binding == ELF_Symbol_Binding__Local;
+
+                if (!relax && local_label && valid_immediate)
+                {
+                        fixup->flags |= Fixup_Flags__Done;
+                }
+
+                relaxable = 1;
+        } break;
+
+        case Relocation_RISC_V__Branch_Compressed:
+        {
+                assert_always_m(fixup->fragment_write_size == sizeof(U16));
+
+                S64 target = expression->integer_value;
+                target    += expression->symbol ? expression->symbol->value : 0;
+                S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
+
+                U16 encoding = 0;
+                memory_copy((U8 *)&encoding, write_area, sizeof(encoding));
+                encoding |= encode_immediate_cb_m(distance);
+                memory_copy(write_area, (U8 *)&encoding, sizeof(encoding));
+
+                B32 valid_immediate = validate_immediate_cb_m(distance);
+                if (!valid_immediate)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->kind       = Diagnostic_Kind__Error;
+                        diagnostic->message    = String8__format(diagnostics->arena, "compressed B-type offset out of range (%lld)", distance);
+                        diagnostic->location   = expression->location;
+                        diagnostic->ranges[0]  = expression->location_range;
+                }
+
+                // TODO(.option): support
+                B32 relax = 1;
+                // TODO(check-gas)
+                B32 local_label = expression->symbol
+                               && !expression->symbol->expression
+                               && expression->symbol->binding == ELF_Symbol_Binding__Local;
+
+                if (!relax && local_label && valid_immediate)
+                {
+                        fixup->flags |= Fixup_Flags__Done;
+                }
+
+                relaxable = 1;
+        } break;
+
+        case Relocation_RISC_V__Jump_Compressed:
+        {
+                assert_always_m(fixup->fragment_write_size == sizeof(U16));
+
+                S64 target = expression->integer_value;
+                target    += expression->symbol ? expression->symbol->value : 0;
+                S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
+
+                U16 encoding = 0;
+                memory_copy((U8 *)&encoding, write_area, sizeof(encoding));
+                encoding |= encode_immediate_cj_m(distance);
+                memory_copy(write_area, (U8 *)&encoding, sizeof(encoding));
+
+                B32 valid_immediate = validate_immediate_cj_m(distance);
+                if (!valid_immediate)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->kind       = Diagnostic_Kind__Error;
+                        diagnostic->message    = String8__format(diagnostics->arena, "compressed J-type offset out of range (%lld)", distance);
+                        diagnostic->location   = expression->location;
+                        diagnostic->ranges[0]  = expression->location_range;
+                }
+
+                // TODO(.option): support
+                B32 relax = 1;
+                // TODO(check-gas)
+                B32 local_label = expression->symbol
+                               && !expression->symbol->expression
+                               && expression->symbol->binding == ELF_Symbol_Binding__Local;
+
+                if (!relax && local_label && valid_immediate)
+                {
+                        fixup->flags |= Fixup_Flags__Done;
+                }
+
+                relaxable = 1;
+        } break;
+        }
+
+        if (!(fixup->flags & Fixup_Flags__Done) && expression->symbol_operand)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__format
+                        (
+                                diagnostics->arena,
+                                "Cannot resolve %*s - %s", String8__varg(*(expression->symbol->name)), String8__varg(*(expression->symbol_operand->name))
+                        );
+                diagnostic->location   = expression->location;
+                diagnostic->ranges[0]  = expression->location_range;
+        }
+
+        if (relaxable && expression->symbol)
+        {
+                Fixup *fixup_relax = Fixups__push_at(fixups, fixup);
+                fixup_relax->relocation_type = Relocation_RISC_V__Relax;
         }
 }
 
 internal void
-Fixups__resolve(Fixups *fixups, Section *section, Diagnostics *diagnostics)
+Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics)
 {
         Fixup *fixup = fixups->first;
 
@@ -293,7 +427,7 @@ Fixups__resolve(Fixups *fixups, Section *section, Diagnostics *diagnostics)
 
                 if (processable_is)
                 {
-                        // apply fix
+                        Fixup__apply(fixup, fixups, diagnostics);
                 }
 
                 fixup = fixup->next;

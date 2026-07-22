@@ -598,7 +598,7 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
                 ),                                                         \
                 13                                                         \
         )
-#define extract_immediate_j_m(x)
+#define extract_immediate_j_m(x)                                                \
         sign_extend_m                                                      \
         (                                                                  \
                 (                                                          \
@@ -615,6 +615,96 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 #define validate_immediate_s_m(x) (extract_immediate_s_m(encode_immediate_s_m(x)) == (x))
 #define validate_immediate_b_m(x) (extract_immediate_b_m(encode_immediate_b_m(x)) == (x))
 #define validate_immediate_j_m(x) (extract_immediate_j_m(encode_immediate_j_m(x)) == (x))
+
+// TODO(medium): does it make sense for all of these to be macros?
+
+// Compressed (RVC) instruction immediate encoding/decoding.
+// Format names follow the RISC-V specification (Chapter 28).
+
+// CI-format: 16-bit encoding
+// [ funct3  |i5|   rd/rs1      |  imm[4:0]     | op]
+// Immediate: sign_extend({i5, imm[4:0]}, 6)
+#define encode_immediate_ci_m(x)                (shift_right_mask_m(x, 0, 5) << 2 | shift_right_mask_m(x, 5, 1) << 12)
+#define extract_immediate_ci_m(x)               sign_extend_m((shift_right_mask_m(x, 2, 5) | (shift_right_mask_m(x, 12, 1) << 5)), 6)
+#define validate_immediate_ci_m(x)              (extract_immediate_ci_m(encode_immediate_ci_m(x)) == (x))
+
+// CIW-format: 16-bit encoding
+// [ funct3  |       imm[7:0]            | rd' | op]
+// Immediate: {imm[7:0]}
+#define encode_immediate_ciw_m(x)               (shift_right_mask_m(x, 0, 8) << 5)
+#define extract_immediate_ciw_m(x)              (shift_right_mask_m(x, 5, 8))
+#define validate_immediate_ciw_m(x)             (extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == (x))
+
+// CL-format: 16-bit encoding
+// [ funct3  | i4| i3| i2| rs1'   |i1|i0| rd' | op]
+// Immediate: {i4, i3, i2, i1, i0}
+#define encode_immediate_cl_m(x)                (shift_right_mask_m(x, 0, 2) << 5 | shift_right_mask_m(x, 2, 3) << 10)
+#define extract_immediate_cl_m(x)               (shift_right_mask_m(x, 5, 2) | shift_right_mask_m(x, 10, 3) << 2)
+#define validate_immediate_cl_m(x)              (extract_immediate_cl_m(encode_immediate_cl_m(x)) == (x))
+
+// CS-format: 16-bit encoding
+// [ funct3  | i2| i1| i0| rs1'   |i4|i3| rs2'| op]
+// Immediate: {i4, i3, i2, i1, i0}
+#define encode_immediate_cs_m(x)                (shift_right_mask_m(x, 0, 3) << 10 | shift_right_mask_m(x, 3, 2) << 5)
+#define extract_immediate_cs_m(x)               (shift_right_mask_m(x, 10, 3) | shift_right_mask_m(x, 5, 2) << 3)
+#define validate_immediate_cs_m(x)              (extract_immediate_cs_m(encode_immediate_cs_m(x)) == (x))
+
+// CSS-format: 16-bit encoding
+// [ funct3  |      imm[5:0]         |   rs2    | op]
+// Immediate: {imm[5:0]}
+#define encode_immediate_css_m(x)               (shift_right_mask_m(x, 0, 6) << 7)
+#define extract_immediate_css_m(x)              (shift_right_mask_m(x, 7, 6))
+#define validate_immediate_css_m(x)             (extract_immediate_css_m(encode_immediate_css_m(x)) == (x))
+
+// CB-format: 16-bit encoding
+// [ funct3  |i8|i4|i3| rs1'   |i7|i6|i2|i1|i5| op]
+// Immediate: sign_extend({i8, i7:i6, i5, i4:i3, i2:i1, 0}, 9)
+#define encode_immediate_cb_m(x)                                                        \
+(                                                                                       \
+        (shift_right_mask_m(x,  1, 2) <<  3) | (shift_right_mask_m(x,  3, 2) << 10) |   \
+        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 2) <<  5) |   \
+        (shift_right_mask_m(x,  8, 1) << 12)                                            \
+)
+#define extract_immediate_cb_m(x)                                                       \
+        sign_extend_m                                                                   \
+        (                                                                               \
+                (                                                                       \
+                (shift_right_mask_m(x,  3, 2) <<  1) |                                  \
+                (shift_right_mask_m(x, 10, 2) <<  3) |                                  \
+                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
+                (shift_right_mask_m(x,  5, 2) <<  6) |                                  \
+                (shift_right_mask_m(x, 12, 1) <<  8)                                    \
+                ),                                                                      \
+                9                                                                       \
+        )
+#define validate_immediate_cb_m(x)              (extract_immediate_cb_m(encode_immediate_cb_m(x)) == (x))
+
+// CJ-format: 16-bit encoding
+// [ funct3  |i11|i4|i9|i8|i10|i6|i7|i3|i2|i1|i5| op]
+// Immediate: sign_extend({i11, i10, i9:i8, i7, i6, i5, i4, i3:i1, 0}, 12)
+#define encode_immediate_cj_m(x)                                                        \
+(                                                                                       \
+        (shift_right_mask_m(x,  1, 3) <<  3) | (shift_right_mask_m(x,  4, 1) << 11) |   \
+        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 1) <<  7) |   \
+        (shift_right_mask_m(x,  7, 1) <<  6) | (shift_right_mask_m(x,  8, 2) <<  9) |   \
+        (shift_right_mask_m(x, 10, 1) <<  8) | (shift_right_mask_m(x, 11, 1) << 12)     \
+)
+#define extract_immediate_cj_m(x)                                                       \
+        sign_extend_m                                                                   \
+        (                                                                               \
+                (                                                                       \
+                (shift_right_mask_m(x,  3, 3) <<  1) |                                  \
+                (shift_right_mask_m(x, 11, 1) <<  4) |                                  \
+                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
+                (shift_right_mask_m(x,  7, 1) <<  6) |                                  \
+                (shift_right_mask_m(x,  6, 1) <<  7) |                                  \
+                (shift_right_mask_m(x,  9, 2) <<  8) |                                  \
+                (shift_right_mask_m(x,  8, 1) << 10) |                                  \
+                (shift_right_mask_m(x, 12, 1) << 11)                                    \
+                ),                                                                      \
+                12                                                                      \
+        )
+#define validate_immediate_cj_m(x)              (extract_immediate_cj_m(encode_immediate_cj_m(x)) == (x))
 
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash);
