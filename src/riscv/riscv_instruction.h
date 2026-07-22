@@ -527,6 +527,8 @@ struct RISCV_Opcode
         // If pinfo is not INSN_MACRO, then this is a bit mask for the relevant portions of the opcode when
         // disassembling.  If the actual opcode anded with the match field equals the opcode field, then we have found
         // the correct instruction.  If pinfo is INSN_MACRO, then this field is the macro identifier.
+        //
+        // TODO(medium): this overloaded field in case of a macro is also quite ugly. There is the `info` field already!
         U32 mask;
 
         // A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
@@ -568,11 +570,51 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 #define encode_immediate_u_m(x)  (shift_right_mask_m(x, 0, 20) << 12)
 #define encode_immediate_s_m(x) ((shift_right_mask_m(x, 0, 5)  <<  7) | shift_right_mask_m(x, 5, 7) << 24)
 // imm[12|10:5] rs2 rs1 000 imm[4:1|11] <opcode>
-#define encode_immediate_b_m(x)                                                        \
-(                                                                                      \
-        (shift_right_mask_m(x, 11, 1) <<  7) | (shift_right_mask_m(x,  1, 4)  <<  8) | \
-        (shift_right_mask_m(x,  5, 6) << 25) | (shift_right_mask_m(x, 12, 1)  << 31)   \
+#define encode_immediate_b_m(x)                                                         \
+(                                                                                       \
+        (shift_right_mask_m(x, 11, 1) <<  7) | (shift_right_mask_m(x,  1, 4)  <<  8) |  \
+        (shift_right_mask_m(x,  5, 6) << 25) | (shift_right_mask_m(x, 12, 1)  << 31)    \
 )
+// imm[20|10:1|11|19:12] rd <opcode>
+#define encode_immediate_j_m(x)                                                         \
+(                                                                                       \
+        (shift_right_mask_m(x, 12,  8) << 12) | (shift_right_mask_m(x, 11,  1) << 20) | \
+        (shift_right_mask_m(x,  1, 10) << 21) | (shift_right_mask_m(x, 20,  1) << 31)   \
+)
+
+#define sign_extend_m(x, bits) ((S64)(((U64)(x) << (64 - (bits))) >> (64 - (bits))))
+
+#define extract_immediate_i_m(x) sign_extend_m((shift_right_mask_m(x, 20, 12)), 12)
+#define extract_immediate_u_m(x) (shift_right_mask_m(x, 12, 20))
+#define extract_immediate_s_m(x) sign_extend_m((shift_right_mask_m(x, 7, 5) | (shift_right_mask_m(x, 25, 7) << 5)), 12)
+#define extract_immediate_b_m(x)                                           \
+        sign_extend_m                                                      \
+        (                                                                  \
+                (                                                          \
+                (shift_right_mask_m(x,  7, 1) << 11) |                     \
+                (shift_right_mask_m(x,  8, 4) <<  1) |                     \
+                (shift_right_mask_m(x, 25, 6) <<  5) |                     \
+                (shift_right_mask_m(x, 31, 1) << 12)                       \
+                ),                                                         \
+                13                                                         \
+        )
+#define extract_immediate_j_m(x)
+        sign_extend_m                                                      \
+        (                                                                  \
+                (                                                          \
+                (shift_right_mask_m(x, 12,  8) << 12) |                    \
+                (shift_right_mask_m(x, 20,  1) << 11) |                    \
+                (shift_right_mask_m(x, 21, 10) <<  1) |                    \
+                (shift_right_mask_m(x, 31,  1) << 20)                      \
+                ),                                                         \
+                21                                                         \
+        )
+
+#define validate_immediate_i_m(x) (extract_immediate_i_m(encode_immediate_i_m(x)) == (x))
+#define validate_immediate_u_m(x) (extract_immediate_u_m(encode_immediate_u_m(x)) == (x))
+#define validate_immediate_s_m(x) (extract_immediate_s_m(encode_immediate_s_m(x)) == (x))
+#define validate_immediate_b_m(x) (extract_immediate_b_m(encode_immediate_b_m(x)) == (x))
+#define validate_immediate_j_m(x) (extract_immediate_j_m(encode_immediate_j_m(x)) == (x))
 
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash);

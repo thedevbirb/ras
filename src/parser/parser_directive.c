@@ -252,7 +252,7 @@ directive_data
                                                     : bit_size == 32 ? Relocation_RISC_V__32_Bit
                                                     : Relocation_RISC_V__64_Bit;
 
-                        SLL_queue_push_m(fixups->list.first, fixups->list.last, fixup);
+                        SLL_queue_push_m(fixups->first, fixups->last, fixup);
                 }
 
                 B32 break_should_directive =  cursor->source_index >= cursor->source->count

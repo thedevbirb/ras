@@ -2,6 +2,31 @@
 
 #define shift_right_mask_m(x, shift, bits)  (((x) >> (shift)) & ((1 << (bits)) - 1))
 
+internal U32
+U32_little_endian_get(const void *pointer)
+{
+        const U8 *bytes = (const U8 *)pointer;
+        U32 result = 0;
+
+        result |= (U32)bytes[0];
+        result |= (U32)bytes[1] << 8;
+        result |= (U32)bytes[2] << 16;
+        result |= (U32)bytes[3] << 24;
+        return result;
+}
+
+internal void
+U32_little_endian_put(void *pointer, U32 value)
+{
+        U8 *bytes = (U8 *)pointer;
+
+        bytes[0] = (value >>  0) & 0xFF;
+        bytes[1] = (value >>  8) & 0xFF;
+        bytes[2] = (value >> 16) & 0xFF;
+        bytes[3] = (value >> 24) & 0xFF;
+        return;
+}
+
 internal String8
 String8__skip_chop(String8 token_string)
 {

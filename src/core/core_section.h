@@ -94,7 +94,7 @@ struct Section
 {
         Arena               *arena;
         Fragments            fragments;
-        Fixup_List           fixup_list;
+        Fixups               fixups;
         String8              name;
         U32                  location;
         U32                  index;

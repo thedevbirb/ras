@@ -407,8 +407,6 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
-                                // Expression *symbol_expression = Expressions__push_symbol(
-
                                 Fixup *fixup = Fixups__push(fixups);
                                 fixup->fragment            = fragment;
                                 fixup->expression          = relax_info->jump.expression;
