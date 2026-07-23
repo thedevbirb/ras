@@ -566,9 +566,9 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
         return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
 }
 
-#define encode_immediate_i_m(x)  (shift_right_mask_m(x, 0, 12) << 20)
-#define encode_immediate_u_m(x)  (shift_right_mask_m(x, 0, 20) << 12)
-#define encode_immediate_s_m(x) ((shift_right_mask_m(x, 0, 5)  <<  7) | shift_right_mask_m(x, 5, 7) << 24)
+#define encode_immediate_i_m(x)  (shift_right_mask_m(x,  0,  12) << 20)
+#define encode_immediate_u_m(x)  (shift_right_mask_m(x, 12,  20) << 12)
+#define encode_immediate_s_m(x) ((shift_right_mask_m(x,  0,   5) <<  7) | shift_right_mask_m(x, 5, 7) << 24)
 // imm[12|10:5] rs2 rs1 000 imm[4:1|11] <opcode>
 #define encode_immediate_b_m(x)                                                         \
 (                                                                                       \
@@ -615,8 +615,6 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 #define validate_immediate_s_m(x) (extract_immediate_s_m(encode_immediate_s_m(x)) == (x))
 #define validate_immediate_b_m(x) (extract_immediate_b_m(encode_immediate_b_m(x)) == (x))
 #define validate_immediate_j_m(x) (extract_immediate_j_m(encode_immediate_j_m(x)) == (x))
-
-// TODO(medium): does it make sense for all of these to be macros?
 
 // Compressed (RVC) instruction immediate encoding/decoding.
 // Format names follow the RISC-V specification (Chapter 28).
@@ -705,6 +703,36 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
                 12                                                                      \
         )
 #define validate_immediate_cj_m(x)              (extract_immediate_cj_m(encode_immediate_cj_m(x)) == (x))
+
+#ifndef shift_right_mask_m
+#define shift_right_mask_m(x, shift, bits)  (((x) >> (shift)) & ((1 << (bits)) - 1))
+#endif
+
+internal U32 encode_immediate_i(S64 x)   { return encode_immediate_i_m(x); }
+internal U32 encode_immediate_u(S64 x)   { return encode_immediate_u_m(x); }
+internal U32 encode_immediate_s(S64 x)   { return encode_immediate_s_m(x); }
+internal U32 encode_immediate_b(S64 x)   { return encode_immediate_b_m(x); }
+internal U32 encode_immediate_j(S64 x)   { return encode_immediate_j_m(x); }
+internal U32 encode_immediate_ci(S64 x)  { return encode_immediate_ci_m(x); }
+internal U32 encode_immediate_ciw(S64 x) { return encode_immediate_ciw_m(x); }
+internal U32 encode_immediate_cl(S64 x)  { return encode_immediate_cl_m(x); }
+internal U32 encode_immediate_cs(S64 x)  { return encode_immediate_cs_m(x); }
+internal U32 encode_immediate_css(S64 x) { return encode_immediate_css_m(x); }
+internal U32 encode_immediate_cb(S64 x)  { return encode_immediate_cb_m(x); }
+internal U32 encode_immediate_cj(S64 x)  { return encode_immediate_cj_m(x); }
+
+internal B32 validate_immediate_i(S64 x)   { return extract_immediate_i_m(encode_immediate_i_m(x)) == x; }
+internal B32 validate_immediate_u(S64 x)   { return extract_immediate_u_m(encode_immediate_u_m(x)) == x; }
+internal B32 validate_immediate_s(S64 x)   { return extract_immediate_s_m(encode_immediate_s_m(x)) == x; }
+internal B32 validate_immediate_b(S64 x)   { return extract_immediate_b_m(encode_immediate_b_m(x)) == x; }
+internal B32 validate_immediate_j(S64 x)   { return extract_immediate_j_m(encode_immediate_j_m(x)) == x; }
+internal B32 validate_immediate_ci(S64 x)  { return extract_immediate_ci_m(encode_immediate_ci_m(x)) == x; }
+internal B32 validate_immediate_ciw(S64 x) { return extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == x; }
+internal B32 validate_immediate_cl(S64 x)  { return extract_immediate_cl_m(encode_immediate_cl_m(x)) == x; }
+internal B32 validate_immediate_cs(S64 x)  { return extract_immediate_cs_m(encode_immediate_cs_m(x)) == x; }
+internal B32 validate_immediate_css(S64 x) { return extract_immediate_css_m(encode_immediate_css_m(x)) == x; }
+internal B32 validate_immediate_cb(S64 x)  { return extract_immediate_cb_m(encode_immediate_cb_m(x)) == x; }
+internal B32 validate_immediate_cj(S64 x)  { return extract_immediate_cj_m(encode_immediate_cj_m(x)) == x; }
 
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash);

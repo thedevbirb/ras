@@ -320,16 +320,18 @@ RISCV_Instruction__parse
 
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
+                                //
+                                // TODO(medium): actually the fixup will take the whole expression, so this is okay
                                 expression_evaluate(expression);
-                                if (expression->symbol_operand)
-                                {
-                                        // TODO(low): this diagnostic could be better, I should probably support re-lexing
-                                        // from a specific location to get the exact token.
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
-                                        diagnostic->location   = expression->location_range.v[0];
-                                        diagnostic->ranges[0]  = expression->location_range;
-                                }
+                                // if (expression->symbol_operand)
+                                // {
+                                //         // TODO(low): this diagnostic could be better, I should probably support re-lexing
+                                //         // from a specific location to get the exact token.
+                                //         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                //         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
+                                //         diagnostic->location   = expression->location_range.v[0];
+                                //         diagnostic->ranges[0]  = expression->location_range;
+                                // }
                         } break;
                         case OP_Argument__Offset_PC_Relative_12:
                         {
@@ -340,15 +342,17 @@ RISCV_Instruction__parse
                                 // For branches we can't support a fixup. While GNU as silently ignores additional
                                 // symbols, here we either warn or error.
                                 expression_evaluate(expression);
-                                if (expression->symbol_operand)
-                                {
-                                        // TODO(low): this diagnostic could be better, I should probably support re-lexing
-                                        // from a specific location to get the exact token.
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
-                                        diagnostic->location   = expression->location_range.v[0];
-                                        diagnostic->ranges[0]  = expression->location_range;
-                                }
+                                //
+                                // TODO(medium): actually the fixup will take the whole expression, so this is okay
+                                // if (expression->symbol_operand)
+                                // {
+                                //         // TODO(low): this diagnostic could be better, I should probably support re-lexing
+                                //         // from a specific location to get the exact token.
+                                //         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                //         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
+                                //         diagnostic->location   = expression->location_range.v[0];
+                                //         diagnostic->ranges[0]  = expression->location_range;
+                                // }
                         } break;
                         case OP_Argument__Offset_Store:
                         {
@@ -574,9 +578,11 @@ RISCV_Instruction__append
 
         if (fixable)
         {
-                fixup = Fixups__push(fixups);
+                fixup                  = Arena__push_struct_m(fixups->arena, Fixup);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
+                fixup->section_index   = section->index;
+                DLL_push_front_m(fixups->first, fixups->last, fixup);
         }
 
         if (relaxable)

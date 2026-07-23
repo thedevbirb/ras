@@ -1,9 +1,10 @@
 #ifndef CORE_SYMBOL_H
 #define CORE_SYMBOL_H
 
-#define DOT_SYMBOL_NAME ".L0\x01"
+#define INTERNAL_SYMBOL_PREFIX ".L"
+#define DOT_SYMBOL_NAME (INTERNAL_SYMBOL_PREFIX "\x01")
 #define DOT_SYMBOL_HASH 0
-#define FAKE_LABEL_NAME ".L0 "
+#define FAKE_LABEL_NAME (INTERNAL_SYMBOL_PREFIX "0 ")
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
@@ -157,6 +158,9 @@ struct Symbols_Table
         Symbols_Trie_Chunk_List  *chunks;
         Label_Numeric_Chunk_List *chunks_label;
 };
+
+internal B32
+Symbol_Ref__internal_is(Symbol_Ref *symbol);
 
 internal Symbol_Ref *
 Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section);

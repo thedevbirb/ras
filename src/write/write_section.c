@@ -407,13 +407,15 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
-                                Fixup *fixup = Fixups__push(fixups);
-                                fixup->fragment            = fragment;
+                                Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
                                 fixup->expression          = relax_info->jump.expression;
+                                fixup->fragment            = fragment;
                                 // TODO(high): review this positioning.
                                 fixup->fragment_write_area = fragment->data_variable_buffer + sizeof(instruction_1);
                                 fixup->fragment_write_size = sizeof(instruction_2);
                                 fixup->relocation_type     = Relocation_RISC_V__JAL;
+                                fixup->section_index       = section->index;
+                                DLL_push_front_m(fixups->first, fixups->last, fixup);
 
                                 memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
                                 memory_copy(fragment->data_variable_buffer + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
@@ -422,13 +424,15 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         else if (instructions_total_size == 4)
                         {
                                 U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
-                                Fixup *fixup = Fixups__push(fixups);
+                                Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
                                 fixup->fragment            = fragment;
                                 fixup->expression          = relax_info->jump.expression;
                                 // TODO(high): review this positioning.
                                 fixup->fragment_write_area = fragment->data_variable_buffer;
                                 fixup->fragment_write_size = instructions_total_size;
                                 fixup->relocation_type     = relocation_type;
+                                fixup->section_index       = section->index;
+                                DLL_push_front_m(fixups->first, fixups->last, fixup);
                         }
                         else
                         {

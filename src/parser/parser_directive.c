@@ -245,14 +245,12 @@ directive_data
                         fixup->fragment             = sections_table->current->fragments.last;
                         fixup->fragment_write_area  = sections_table->current->fragments.last->data - data_directive_size;
                         fixup->fragment_write_size  = data_directive_size;
-                        // NOTE: first two are a placeholder for the equivalent of `BFD_RELOC_8`/`BFD_RELOC_16`. In case
-                        // this expression won't simply down to a subtraction, it will error.
-                        fixup->relocation_type      = bit_size == 8  ? Relocation_RISC_V__Add_8
-                                                    : bit_size == 16 ? Relocation_RISC_V__Add_16
+                        fixup->relocation_type      = bit_size == 8  ? Fixup__8_Bit
+                                                    : bit_size == 16 ? Fixup__16_Bit
                                                     : bit_size == 32 ? Relocation_RISC_V__32_Bit
                                                     : Relocation_RISC_V__64_Bit;
 
-                        SLL_queue_push_m(fixups->first, fixups->last, fixup);
+                        DLL_push_front_m(fixups->first, fixups->last, fixup);
                 }
 
                 B32 break_should_directive =  cursor->source_index >= cursor->source->count

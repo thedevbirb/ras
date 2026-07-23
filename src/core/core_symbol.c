@@ -1,7 +1,6 @@
 // Symbol trie utilities.
 
 #include "core_symbol.h"
-
 #include "core_expression.h"
 
 internal Symbols_Trie *
@@ -197,7 +196,7 @@ label_numeric_get_or_default(Arena *arena, Label_Numeric_Chunk_List *chunks, U64
 internal String8
 label_numeric_string(Arena *arena, Label_Numeric label)
 {
-        String8 result = String8__format(arena, ".L%u\x02%u", label.number, label.instances);
+        String8 result = String8__format(arena, "%s%u\x02%u", INTERNAL_SYMBOL_PREFIX, label.number, label.instances);
         return result;
 }
 
@@ -331,6 +330,17 @@ Symbols_Table__new(Sections_Table *sections_table)
 
 
         return symbols_table;
+}
+
+internal B32
+Symbol_Ref__internal_is(Symbol_Ref *symbol)
+{
+        String8 target        = String8__new((U8 *)INTERNAL_SYMBOL_PREFIX, sizeof(INTERNAL_SYMBOL_PREFIX));
+        String8 substring     = String8__substring(*symbol->name, sizeof(INTERNAL_SYMBOL_PREFIX));
+        B32 internal_name_has = String8__match_exact(target, substring);
+
+        B32 result = symbol->expression == 0 && internal_name_has;
+        return result;
 }
 
 internal Symbol_Ref *
@@ -554,12 +564,6 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                         node->evaluation     = Expression_Kind__Constant;
                                                         node->integer_value  = result;
                                                         node->symbol         = 0;
-                                                        node->symbol_operand = 0;
-                                                }
-                                                else
-                                                {
-                                                        node->symbol         = left->symbol;
-                                                        node->symbol_operand = right->symbol;
                                                 }
 
                                                 if (finalize && !valid)

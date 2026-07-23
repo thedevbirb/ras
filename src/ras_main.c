@@ -75,6 +75,7 @@ main(int argument_count, char **argument_vector)
         assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
         U64 file_in_size = (U64)file_in_statistics.st_size;
 
+        // TODO(medium): non-trivial lifetime relationship between the source and diagnostics.
         Arena *arena = Arena__allocate_m();
         U8 *input_data_mapped = mmap_file(file_descriptor, file_in_size);
         assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");

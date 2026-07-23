@@ -82,18 +82,11 @@ global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
 };
 
 // A data structure modelling an object file section, in memory.
-//
-// Helpful references:
-//
-// 1. https://refspecs.linuxfoundation.org/elf/elf.pdf
-// 2. https://sourceware.org/git/?p=glibc.git;a=blob;f=elf/elf.h
-
-// INVARIANT: the arena is used write to the fragment list only.
 typedef struct Section Section;
 struct Section
 {
-        Arena               *arena;
         Fragments            fragments;
+        // NOTE: if using `Sections_Table`, the lifetime of these is the same of it.
         Fixups               fixups;
         String8              name;
         U32                  location;

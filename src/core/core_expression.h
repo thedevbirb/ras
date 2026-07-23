@@ -1,7 +1,7 @@
 #ifndef CORE_EXPRESSION_H
 #define CORE_EXPRESSION_H
 
-// This can be used both for _both_ parsing information and evaluation information.
+// Enumeration which  can be used both for _both_ parsing information and evaluation information.
 //
 // Consider the expression `1 + 2`, which creates a tree rooted in `+`.
 // Such root node will have `Expression_Kind__Add` regarding parsing information,
@@ -11,10 +11,15 @@
 // which value is `3`, and so we would track it as a `Expression_Kind__Constant` expression.
 // The use of this enumeration for evaluation purposes is akin to GNU as `operatorT`.
 //
-// When evaluating an expression, using `expression_evaluate` or `Symbol_Ref__resolve`, the `Expression.evaluation`
-// field should always be NOT zero, and in the worst unresolvable case equal to the `Expression.kind` field.
+// Similarly, in an expression like `undefined_1 - undefined_2`, since both symbols are unknown, the evaluation of the
+// `-` node is `Evaluation_Kind__Subtract`, meaning that the expression evaluates to a "subtract" expression.
+//
+// As such, after evaluating an expression, using `expression_evaluate` or `Symbol_Ref__resolve`, the
+// `Expression.evaluation` field should NOT be zero, and in the worst unresolvable case equal to the `Expression.kind`
+// field.
 typedef enum Expression_Kind
 {
+        // The expression hasn't been evaluated
         Expression_Kind__None,
 
         // Leaf nodes
@@ -99,21 +104,19 @@ struct Expression
         Range1_U32 location_range;
 
 
-        // Evaluation-related fields, in a relocation friendly format.
+        // Evaluation-related fields, in the relocation friendly format `<symbol> + <addend>`.
 
-        // NOTE: this field has a double meaning: if the expression evaluates to a constant, i.e.
-        // `Expression_Kind__Constant`, then this is the value of the expression. Otherwise, this represents an
-        // _offset_, in the `symbol + offset` format.
-        S64 integer_value;
-        Symbol_Ref *symbol;
-        Symbol_Ref *symbol_operand;
-        Expression_Kind  kind;
+        // The value of a constant expression, or an offset to be applied to `Expression.symbol`.
+        S64              integer_value;
+        // The symbol this expression evaluates to.
+        Symbol_Ref      *symbol;
+        Expression_Kind  evaluation;
 
         // Parsing-related fields. Pointers to child expression nodes.
 
-        Expression *left;
-        Expression *right;
-        Expression_Kind  evaluation;
+        Expression      *left;
+        Expression      *right;
+        Expression_Kind  kind;
 
 };
 
@@ -155,9 +158,9 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 typedef struct Expressions Expressions;
 struct Expressions
 {
-        Xar_Metadata     metadata;
-        Xar_Header       header;
-        Expression *chunks[Expressions__xar_chunks];
+        Xar_Metadata  metadata;
+        Xar_Header    header;
+        Expression   *chunks[Expressions__xar_chunks];
 };
 
 // MUST be called.

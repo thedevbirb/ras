@@ -124,11 +124,11 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
         B32 zero_is = Section__zero_is(&trie->section);
         if (zero_is)
         {
+                // TODO(low): support configuration for it.
                 Arena *arena = Arena__allocate_m();
                 trie->section = (Section)
                 {
-                        .arena    = arena,
-                        .name     = name,
+                        .name     = String8__duplicate(sections_table->arena, name),
                         .index    = sections_table->index_next,
                         .location = location,
                 };
@@ -138,7 +138,6 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
                            fragments->arena = arena;
                 SLL_queue_push_m(fragments->first, fragments->last, fragment);
         }
-
 
         return &trie->section;
 }
