@@ -227,6 +227,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                         B32 relax = 1;
                         if (!relax)
                         {
+                                // TODO(low): we could even pop `entry`?
                                 fixup->flags |= Fixup_Flags__Done;
                         }
                 }

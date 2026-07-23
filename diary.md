@@ -1384,3 +1384,76 @@ have: you need to have some understanding of a lot of parts regarding the assemb
 the compiler toolchain in general. It's not like you can implement a certain feature in a isolated
 manner, and complete complete the software by chaining together the features. Something like symbol
 resolution brings every concept together at it's one of the first thing you actually came across.
+
+### Tue Jul 21 09:51:45 CEST 2026
+
+For fixups, I realize I really need some kind of symbol + addend absorption at the leaf level.
+Consider the case `symbol_1 - (symbol_2 + 2)`, where both symbols are undefined. The expression
+parser will produce an expression rooted in `-`, with a right node rooted in `+`. The expression
+evaluator would fail the evaluate `+` node as a symbol with addend right now, which isn't ideal. The
+constant should be absorbed as an offset and used for other computations, such that even something a
+bit more complicated like `(symbol_1 + 1) - (symbol_2 + 2)` simplifies to `symbol_1 - (symbol_2 -
+1)`.
+
+### Wed Jul 22 14:36:15 CEST 2026
+
+Basic fixup resolution has been implemented, essentially ported from GNU as. Really not happy with
+the result so far but it's fine as I'm internalizing how the actual resolution logic works.
+
+The codebase logic is starting to get non-trivial, because a lot of assembly logic is non-trivial
+and very edge case oriented. As elaborated in other notes, there are a lot of exceptions to handle.
+In some way, I wonder whether this is a design flaw of some kind, mixed with some patches made over
+time. I don't know how much I can reduce the overhead or simplify this in code, though.
+
+Along the same lines, there are some parts of the codebase that still don't feel like
+library-oriented, even if in theory, some of these functions _could_ be used standalone. The reason
+is that they assume inputs come kinda well-formed from previous steps. I have mixed feeling about
+this, meaning that I'd like to address it, but at the same time I think it sounds unreasonable to
+make every function defensive against possible corrupted inputs with a huge amount of checks and
+similar.
+I relate part of the discussion above with the usage of sum types. In this code, I tend to not use
+it very much, meaning that while it is necessary to keep track of a certain variant, the data of the
+variant itself might live in a flattened struct (a product type), and if needed some assertions are
+done to ensure no invalid states are created. In a strict sum type, this would encoded in the type
+itself, and you're forced to always do pattern matching, sometimes leading to very unnecessarily
+verbose code because most variants have a very similar _data shape_. Not using such strict typing
+however comes with _some_ responsibility, and it's not always trivial to highlight the right states
+and shapes. However, when you do it, I think you get code that is much more true to its data
+transformation nature, and it's very succinct. I like that I _can_ experiment with this. It makes me
+learn.
+
+---
+
+There is some review of lifetimes and arena to do, and to better document them. In particular,
+fixups are per section but have the lifetime of the sections table: individual sections have arenas
+for fragments only, to ensure their contiguity; fixups are more sparse and having a dedicated arena
+for each section for them is just overkill.
+
+### Thu Jul 23 13:59:09 CEST 2026
+
+Fixup resolution was not trivial and, while not complete, packed with details. Good to know but I
+want to get closer to the finish line.
+I have a feeling that it is always too easy to fall into looking for generalized solutions for a
+problem, and most of the type by really understanding what is the intended usage you can code the
+minimal solution which does the job.
+Concrete example: saving in the `Fixups` struct information about `%pcrel_hi` found during expansion
+of instructions like `la rd, symbol`. Such instruction emits essentially this code:
+
+```asm
+.Linternal_label:
+auipc rd, %pcrel_hi(symbol)
+addi rd, rd, %pcrel_lo(.Linternal_label)
+```
+
+Saving information about these `%pcrel_hi` occurrence (object file offset, which symbol etc) is
+quite important because they'll be matched by a `%pcrel_lo` relocation operator _quickly after_. So
+how do you store such data? Hash trie? Overkill. Hashmap? Annoying regrowable, doesn't play well
+with arena allocators we're using. Dynamic arrays? Similar story. C not having generics doesn't also
+help here because using such containers requires some level of boilerplate or you have to trade it
+off with a little bit of security in their usage (with a good API it is not very concerning, and
+probably very easy to spot now with LLMs, btw)
+However, remember the property that during fixup resolution, such information is recorded and
+quickly after consumed: we can just save them in a stack. Yes, the boring linked list that, with an
+arena, you can also guarantee contiguity of data. For basically every use case of this data, you'll
+put it at the top of the stack, and the next fixup you'll read it. Everything is constant time. No
+regrow problems. The simplest possible implementation!
