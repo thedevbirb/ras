@@ -123,6 +123,9 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
         case Relocation_RISC_V__Set_Unsigned_LEB128: { todo_m(); } break;
         case Relocation_RISC_V__Sub_Unsigned_LEB128: { todo_m(); } break;
 
+        case Relocation_RISC_V__Call:     { relaxable = 1; } break;
+        case Relocation_RISC_V__Call_PLT: { relaxable = 1; } break;
+
         // TODO(tprel): support
         case Relocation_RISC_V__Thread_Pointer_Relative_High_20:       { relaxable = 1; } break;
         case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type: { relaxable = 1; } break;
@@ -232,8 +235,12 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                 U64 object_file_offset = fixup->expression->symbol->value + fixup->expression->integer_value;
                 PC_Relative_High *entry = PC_Relative_High__find(fixups->pc_relative_high, fixup->section_index, object_file_offset);
 
-                B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
-                B32 evaluatable = symbol_internal_is && entry->expression->symbol->section->index == fixup->section_index;
+                B32 evaluatable = 0;
+                if (entry)
+                {
+                    B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
+                    evaluatable = symbol_internal_is && entry->expression->symbol->section->index == fixup->section_index;
+                }
 
                 if (evaluatable)
                 {
