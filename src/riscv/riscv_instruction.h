@@ -1,6 +1,10 @@
 #ifndef RISCV_INSTRUCTION_H
 #define RISCV_INSTRUCTION_H
 
+//------------------------------------------------------------------------------
+// Compile-time configuration
+//------------------------------------------------------------------------------
+
 // TODO(32-bit): both of this should not relied upon too much, and ideally be configurable
 // depending on either on (currently unsupported) runtime/compile options.
 #define INSTRUCTION_SIZE 4
@@ -24,6 +28,10 @@
 
 #define RISCV_RVC_IMMEDIATE_REACH    (1LL << 6)
 
+//------------------------------------------------------------------------------
+// Opcode constants
+//------------------------------------------------------------------------------
+
 #define OPCODE_LUI                     0x37
 #define OPCODE_AUIPC                   0x17
 #define OPCODE_JAL                     0x6F
@@ -38,6 +46,10 @@
 #define OPCODE_FENCE                   0x0F
 #define OPCODE_ECALL                   0x73
 #define OPCODE_EBREAK                  0x73
+
+//------------------------------------------------------------------------------
+// Funct3 constants
+//------------------------------------------------------------------------------
 
 #define FUNCT3_JALR                    0x00
 #define FUNCT3_BEQ                     0x00
@@ -78,7 +90,6 @@
 #define FUNCT3_AND                     0x07
 #define FUNCT3_ECALL                   0x73
 #define FUNCT3_EBREAK                  0x73
-#define FUNCT3_EBREAK                  0x73
 #define FUNCT3_FENCE                   0x0F
 #define FUNCT3_FENCE_TSO               0x0F
 #define FUNCT3_PAUSE                   0x0F
@@ -94,14 +105,15 @@
 #define FUNCT3_SRLW                    0x05
 #define FUNCT3_SRAW                    0x05
 
+//------------------------------------------------------------------------------
+// Funct6 / Funct7 constants
+//------------------------------------------------------------------------------
+
 // NOTE: On 64-bit, the shift amount grows to 6 bits (since registers are 64 bits wide), so shamt uses bits [25:20] and
 // funct7 shrinks to a 6-bit funct6 in bits [31:26].
 #define FUNCT6_SLLI                    0x00
 #define FUNCT6_SRLI                    0x00
 #define FUNCT6_SRAI                    0x10
-// #define FUNCT7_SLLI                 0x00
-// #define FUNCT7_SRLI                 0x00
-// #define FUNCT7_SRAI                 0x20
 
 #define FUNCT7_ADD                     0x00
 #define FUNCT7_SUB                     0x20
@@ -123,25 +135,199 @@
 #define FUNCT7_SRLIW                   0x00
 #define FUNCT7_SRAIW                   0x20
 
+//------------------------------------------------------------------------------
+// Encoding macros and functions
+//------------------------------------------------------------------------------
 
-// R-type encoding (32 bits):
-// [31:25] funct7 | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
+// All these macros convert from and to 64-bit unsigned integers.
+//
+// Reminder of C99/C11 integer promotion rules
+//
+// Integer promotions: if type is smaller than int (char, short, unsigned char etc) -> convert to int, preserving value.
+//
+// Usual arithmetic conversions for binary operators
+// (+, -, *, /, %, &, |, ^, ==, <, etc):
+//
+//   Same rank:    unsigned wins
+//   unsigned int  + int          -> unsigned int
+//   unsigned long + int          -> unsigned long
+//   long          + unsigned int -> long (if long covers unsigned int), else unsigned long
+//   int64_t       + uint32_t     -> int64_t (signed is wider → signed)
+//
+// Shifts (<<, >>):
+//   Promote left operand only. No usual arithmetic conversions.
+//   Result type = promoted left operand.
+
+// Yields a zero-mask or one-mask depending on the sign of bit 31.
+#define immediate_sign_mask_m(x) (-((U32)(x) >> 31 & 1))
+
+#define sign_extend_m(x, bits) ((S64)((U64)(x) << (64 - (bits))) >> (64 - (bits)))
+
+// --- Standard (32-bit) instruction immediates ---
+
+#define encode_immediate_i_m(x)  (shift_right_mask_m(x,  0,  12) << 20)
+#define extract_immediate_i_m(x) ((U64)(shift_right_mask_m(x, 20, 12) | (U64)immediate_sign_mask_m(x) << 12))
+
+#define encode_immediate_u_m(x)  (shift_right_mask_m(x, 12, 20) << 12)
+#define extract_immediate_u_m(x) (shift_right_mask_m(x, 12, 20) << 12 | (U64)immediate_sign_mask_m(x) << 32)
+
+// imm[11:5] rs2 rs1 funct3 imm[4:0] opcode
+#define encode_immediate_s_m(x) ((shift_right_mask_m(x,  0,   5) <<  7) | shift_right_mask_m(x, 5, 7) << 24)
+#define extract_immdiate_s_m(x) ((shift_right_mask_m(x,  7,   5)) | shift_right_mask_m(x, 25, 7) << 5 | immediate_sign_mask_m(x) << 12)
+// imm[12|10:5] rs2 rs1 000 imm[4:1|11] <opcode>
+#define encode_immediate_b_m(x)                                                         \
+(                                                                                       \
+        (shift_right_mask_m(x, 11, 1) <<  7) | (shift_right_mask_m(x,  1, 4)  <<  8) |  \
+        (shift_right_mask_m(x,  5, 6) << 25) | (shift_right_mask_m(x, 12, 1)  << 31)    \
+)
+// imm[20|10:1|11|19:12] rd <opcode>
+#define encode_immediate_j_m(x)                                                         \
+(                                                                                       \
+        (shift_right_mask_m(x, 12,  8) << 12) | (shift_right_mask_m(x, 11,  1) << 20) | \
+        (shift_right_mask_m(x,  1, 10) << 21) | (shift_right_mask_m(x, 20,  1) << 31)   \
+)
+
+#define extract_immediate_s_m(x) sign_extend_m((shift_right_mask_m(x, 7, 5) | (shift_right_mask_m(x, 25, 7) << 5)), 12)
+#define extract_immediate_b_m(x)                                           \
+        sign_extend_m                                                      \
+        (                                                                  \
+                (                                                          \
+                (shift_right_mask_m(x,  7, 1) << 11) |                     \
+                (shift_right_mask_m(x,  8, 4) <<  1) |                     \
+                (shift_right_mask_m(x, 25, 6) <<  5) |                     \
+                (shift_right_mask_m(x, 31, 1) << 12)                       \
+                ),                                                         \
+                13                                                         \
+        )
+#define extract_immediate_j_m(x)                                           \
+        sign_extend_m                                                      \
+        (                                                                  \
+                (                                                          \
+                (shift_right_mask_m(x, 12,  8) << 12) |                    \
+                (shift_right_mask_m(x, 20,  1) << 11) |                    \
+                (shift_right_mask_m(x, 21, 10) <<  1) |                    \
+                (shift_right_mask_m(x, 31,  1) << 20)                      \
+                ),                                                         \
+                21                                                         \
+        )
+
+#define validate_immediate_i_m(x) (extract_immediate_i_m(encode_immediate_i_m(x)) == (x))
+#define validate_immediate_u_m(x) (extract_immediate_u_m(encode_immediate_u_m(x)) == (x))
+#define validate_immediate_s_m(x) (extract_immediate_s_m(encode_immediate_s_m(x)) == (x))
+#define validate_immediate_b_m(x) (extract_immediate_b_m(encode_immediate_b_m(x)) == (x))
+#define validate_immediate_j_m(x) (extract_immediate_j_m(encode_immediate_j_m(x)) == (x))
+
+// --- Compressed (RVC) instruction immediates ---
+// Format names follow the RISC-V specification (Chapter 28).
+
+// CI-format: 16-bit encoding
+// [ funct3  |i5|   rd/rs1      |  imm[4:0]     | op]
+// Immediate: sign_extend({i5, imm[4:0]}, 6)
+#define encode_immediate_ci_m(x)                (shift_right_mask_m(x, 0, 5) << 2 | shift_right_mask_m(x, 5, 1) << 12)
+#define extract_immediate_ci_m(x)               sign_extend_m((shift_right_mask_m(x, 2, 5) | (shift_right_mask_m(x, 12, 1) << 5)), 6)
+#define validate_immediate_ci_m(x)              (extract_immediate_ci_m(encode_immediate_ci_m(x)) == (x))
+
+// CIW-format: 16-bit encoding
+// [ funct3  |       imm[7:0]            | rd' | op]
+// Immediate: {imm[7:0]}
+#define encode_immediate_ciw_m(x)               (shift_right_mask_m(x, 0, 8) << 5)
+#define extract_immediate_ciw_m(x)              (shift_right_mask_m(x, 5, 8))
+#define validate_immediate_ciw_m(x)             (extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == (x))
+
+// CL-format: 16-bit encoding
+// [ funct3  | i4| i3| i2| rs1'   |i1|i0| rd' | op]
+// Immediate: {i4, i3, i2, i1, i0}
+#define encode_immediate_cl_m(x)                (shift_right_mask_m(x, 0, 2) << 5 | shift_right_mask_m(x, 2, 3) << 10)
+#define extract_immediate_cl_m(x)               (shift_right_mask_m(x, 5, 2) | shift_right_mask_m(x, 10, 3) << 2)
+#define validate_immediate_cl_m(x)              (extract_immediate_cl_m(encode_immediate_cl_m(x)) == (x))
+
+// CS-format: 16-bit encoding
+// [ funct3  | i2| i1| i0| rs1'   |i4|i3| rs2'| op]
+// Immediate: {i4, i3, i2, i1, i0}
+#define encode_immediate_cs_m(x)                (shift_right_mask_m(x, 0, 3) << 10 | shift_right_mask_m(x, 3, 2) << 5)
+#define extract_immediate_cs_m(x)               (shift_right_mask_m(x, 10, 3) | shift_right_mask_m(x, 5, 2) << 3)
+#define validate_immediate_cs_m(x)              (extract_immediate_cs_m(encode_immediate_cs_m(x)) == (x))
+
+// CSS-format: 16-bit encoding
+// [ funct3  |      imm[5:0]         |   rs2    | op]
+// Immediate: {imm[5:0]}
+#define encode_immediate_css_m(x)               (shift_right_mask_m(x, 0, 6) << 7)
+#define extract_immediate_css_m(x)              (shift_right_mask_m(x, 7, 6))
+#define validate_immediate_css_m(x)             (extract_immediate_css_m(encode_immediate_css_m(x)) == (x))
+
+// CB-format: 16-bit encoding
+// [ funct3  |i8|i4|i3| rs1'   |i7|i6|i2|i1|i5| op]
+// Immediate: sign_extend({i8, i7:i6, i5, i4:i3, i2:i1, 0}, 9)
+#define encode_immediate_cb_m(x)                                                        \
+(                                                                                       \
+        (shift_right_mask_m(x,  1, 2) <<  3) | (shift_right_mask_m(x,  3, 2) << 10) |   \
+        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 2) <<  5) |   \
+        (shift_right_mask_m(x,  8, 1) << 12)                                            \
+)
+#define extract_immediate_cb_m(x)                                                       \
+        sign_extend_m                                                                   \
+        (                                                                               \
+                (                                                                       \
+                (shift_right_mask_m(x,  3, 2) <<  1) |                                  \
+                (shift_right_mask_m(x, 10, 2) <<  3) |                                  \
+                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
+                (shift_right_mask_m(x,  5, 2) <<  6) |                                  \
+                (shift_right_mask_m(x, 12, 1) <<  8)                                    \
+                ),                                                                      \
+                9                                                                       \
+        )
+#define validate_immediate_cb_m(x)              (extract_immediate_cb_m(encode_immediate_cb_m(x)) == (x))
+
+// CJ-format: 16-bit encoding
+// [ funct3  |i11|i4|i9|i8|i10|i6|i7|i3|i2|i1|i5| op]
+// Immediate: sign_extend({i11, i10, i9:i8, i7, i6, i5, i4, i3:i1, 0}, 12)
+#define encode_immediate_cj_m(x)                                                        \
+(                                                                                       \
+        (shift_right_mask_m(x,  1, 3) <<  3) | (shift_right_mask_m(x,  4, 1) << 11) |   \
+        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 1) <<  7) |   \
+        (shift_right_mask_m(x,  7, 1) <<  6) | (shift_right_mask_m(x,  8, 2) <<  9) |   \
+        (shift_right_mask_m(x, 10, 1) <<  8) | (shift_right_mask_m(x, 11, 1) << 12)     \
+)
+#define extract_immediate_cj_m(x)                                                       \
+        sign_extend_m                                                                   \
+        (                                                                               \
+                (                                                                       \
+                (shift_right_mask_m(x,  3, 3) <<  1) |                                  \
+                (shift_right_mask_m(x, 11, 1) <<  4) |                                  \
+                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
+                (shift_right_mask_m(x,  7, 1) <<  6) |                                  \
+                (shift_right_mask_m(x,  6, 1) <<  7) |                                  \
+                (shift_right_mask_m(x,  9, 2) <<  8) |                                  \
+                (shift_right_mask_m(x,  8, 1) << 10) |                                  \
+                (shift_right_mask_m(x, 12, 1) << 11)                                    \
+                ),                                                                      \
+                12                                                                      \
+        )
+#define validate_immediate_cj_m(x)              (extract_immediate_cj_m(encode_immediate_cj_m(x)) == (x))
+
+#ifndef shift_right_mask_m
+#define shift_right_mask_m(x, shift, bits)  (((U64)(x) >> (shift)) & ((1ULL << (bits)) - 1))
+#endif
+
+// --- Instruction encoding constructors ---
+// These build a complete 32-bit instruction word from register/immediate fields.
+
+// R-type: [31:25] funct7 | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
 #define instruction_r_encode_m(rd, rs1, rs2, opcode, funct3, funct7)                                           \
-         (((U32)(opcode)       & 0x7F) <<  0) | /* bits  6:0                     */                            \
-         (((U32)(rd)           & 0x1F) <<  7) | /* bits 11:7                     */                            \
-         (((U32)(funct3)       & 0x07) << 12) | /* bits 14:12                    */                            \
-         (((U32)(rs1)          & 0x1F) << 15) | /* bits 19:15                    */                            \
-         (((U32)(rs2)          & 0x1F) << 20) | /* bits 24:20                    */                            \
-         (((U32)(funct7)       & 0x7F) << 25)   /* bits 31:25                    */
+         (((U32)(opcode)       & 0x7F) <<  0) |                                                                \
+         (((U32)(rd)           & 0x1F) <<  7) |                                                                \
+         (((U32)(funct3)       & 0x07) << 12) |                                                                \
+         (((U32)(rs1)          & 0x1F) << 15) |                                                                \
+         (((U32)(rs2)          & 0x1F) << 20) |                                                                \
+         (((U32)(funct7)       & 0x7F) << 25)
 
-// I-type encoding (32 bits):
-// [31:20] imm[11:0] | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
+// I-type: [31:20] imm[11:0] | [19:15] rs1 | [14:12] funct3 | [11:7] rd | [6:0] opcode
 #define instruction_i_encode_m(rd, rs1, imm, opcode, funct3)                                                   \
-        (((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
-        (((U32)(rd)           &  0x1F) <<  7) | /* bits 11:7                     */                            \
-        (((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
-        (((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
-        (((U32)(imm)          & 0xFFF) << 20)   /* bits 31:20                    */
+        (((U32)(opcode)       &  0x7F) <<  0) |                                                                \
+        (((U32)(rd)           &  0x1F) <<  7) |                                                                \
+        (((U32)(funct3)       &  0x07) << 12) |                                                                \
+        (((U32)(rs1)          &  0x1F) << 15) |                                                                \
+        (((U32)(imm)          & 0xFFF) << 20)
 
 #define instruction_i_shift_encode_m(rd, rs1, shamt, opcode, funct3, funct6)                                   \
         instruction_i_encode_m(rd, rs1, ((funct6) << 6) | ((shamt) & 0x3F), opcode, funct3)
@@ -149,40 +335,72 @@
 #define instruction_i_shift_wide_encode_m(rd, rs1, shamt, opcode, funct3, funct7)                              \
         instruction_i_encode_m(rd, rs1, (funct7 << 5) | (shamt & 0x1F), opcode, funct3)
 
-// S-type encoding (32 bits):
-// [31:25] imm[11:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] imm[4:0] | [6:0] opcode
+// S-type: [31:25] imm[11:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:7] imm[4:0] | [6:0] opcode
 #define instruction_s_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
-        (((U32)(opcode)       &  0x7F) <<  0) | /* bits  6:0                     */                            \
-        (((U32)(imm)          &  0x1F) <<  7) | /* bits 11:7                     */                            \
-        (((U32)(funct3)       &  0x07) << 12) | /* bits 14:12                    */                            \
-        (((U32)(rs1)          &  0x1F) << 15) | /* bits 19:15                    */                            \
-        (((U32)(rs2)          &  0x1F) << 20) | /* bits 24:20                    */                            \
-        (((U32)(imm)          & 0xFE0) << 25)   /* bits 31:25                    */
+        (((U32)(opcode)       &  0x7F) <<  0) |                                                                \
+        (((U32)(imm)          &  0x1F) <<  7) |                                                                \
+        (((U32)(funct3)       &  0x07) << 12) |                                                                \
+        (((U32)(rs1)          &  0x1F) << 15) |                                                                \
+        (((U32)(rs2)          &  0x1F) << 20) |                                                                \
+        (((U32)(imm)          & 0xFE0) << 25)
 
-// B-type encoding (32 bits):
-// [31] imm[12] | [30:25] imm[10:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:8] imm[4:1] | [7] imm[11] | [6:0] opcode
+// B-type: [31] imm[12] | [30:25] imm[10:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:8] imm[4:1] | [7] imm[11] | [6:0] opcode
 #define instruction_b_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
-        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-        (((U32)((imm) >> 11)         &  0x01) <<  7) | /* bit   7     imm[11]    */                            \
-        (((U32)((imm) >>  1)         &  0x0F) <<  8) | /* bits 11:8   imm[4:1]   */                            \
-        (((U32)(funct3)              &  0x07) << 12) | /* bits 14:12             */                            \
-        (((U32)(rs1)                 &  0x1F) << 15) | /* bits 19:15             */                            \
-        (((U32)(rs2)                 &  0x1F) << 20) | /* bits 24:20             */                            \
-        (((U32)((imm) >>  5)         &  0x3F) << 25) | /* bits 30:25  imm[10:5]  */                            \
-        (((U32)((imm) >> 12)         &  0x01) << 31)   /* bit  31     imm[12]    */
+        (((U32)(opcode)              &  0x7F) <<  0) |                                                         \
+        (((U32)((imm) >> 11)         &  0x01) <<  7) |                                                         \
+        (((U32)((imm) >>  1)         &  0x0F) <<  8) |                                                         \
+        (((U32)(funct3)              &  0x07) << 12) |                                                         \
+        (((U32)(rs1)                 &  0x1F) << 15) |                                                         \
+        (((U32)(rs2)                 &  0x1F) << 20) |                                                         \
+        (((U32)((imm) >>  5)         &  0x3F) << 25) |                                                         \
+        (((U32)((imm) >> 12)         &  0x01) << 31)
 
+// U-type: [31:12] imm[31:12] | [11:7] rd | [6:0] opcode
 #define instruction_u_encode_m(rd, imm, opcode)                                                                \
-        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-        (((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
-        (((U32)(imm)             & 0xFFFFF) << 12)     /* bits 31:12  imm[31:12] */
+        (((U32)(opcode)              &  0x7F) <<  0) |                                                         \
+        (((U32)(rd)                  &  0x1F) <<  7) |                                                         \
+        (((U32)(imm)             & 0xFFFFF) << 12)
 
+// J-type: [31] imm[20] | [30:21] imm[10:1] | [20] imm[11] | [19:12] imm[19:12] | [11:7] rd | [6:0] opcode
 #define instruction_j_encode_m(rd, imm, opcode)                                                                \
-        (((U32)(opcode)              &  0x7F) <<  0) | /* bits  6:0              */                            \
-        (((U32)(rd)                  &  0x1F) <<  7) | /* bits 11:7              */                            \
-        (((U32)((imm) >> 12)         &  0xFF) << 12) | /* bits 19:12 imm[19:12]  */                            \
-        (((U32)((imm) >> 11)         &  0x01) << 20) | /* bit  20     imm[11]    */                            \
-        (((U32)((imm) >>  1)         &  0x3FF) << 21) | /* bits 30:21 imm[10:1]  */                            \
-        (((U32)((imm) >> 20)         &  0x01) << 31)   /* bit  31     imm[20]    */
+        (((U32)(opcode)              &  0x7F) <<  0) |                                                         \
+        (((U32)(rd)                  &  0x1F) <<  7) |                                                         \
+        (((U32)((imm) >> 12)         &  0xFF) << 12) |                                                         \
+        (((U32)((imm) >> 11)         &  0x01) << 20) |                                                         \
+        (((U32)((imm) >>  1)         &  0x3FF) << 21) |                                                        \
+        (((U32)((imm) >> 20)         &  0x01) << 31)
+
+// --- Wrapper functions ---
+
+internal U32 encode_immediate_i(S64 x)     { return encode_immediate_i_m(x);   }
+internal U32 encode_immediate_u(S64 x)     { return encode_immediate_u_m(x);   }
+internal U32 encode_immediate_s(S64 x)     { return encode_immediate_s_m(x);   }
+internal U32 encode_immediate_b(S64 x)     { return encode_immediate_b_m(x);   }
+internal U32 encode_immediate_j(S64 x)     { return encode_immediate_j_m(x);   }
+internal U32 encode_immediate_ci(S64 x)    { return encode_immediate_ci_m(x);  }
+internal U32 encode_immediate_ciw(S64 x)   { return encode_immediate_ciw_m(x); }
+internal U32 encode_immediate_cl(S64 x)    { return encode_immediate_cl_m(x);  }
+internal U32 encode_immediate_cs(S64 x)    { return encode_immediate_cs_m(x);  }
+internal U32 encode_immediate_css(S64 x)   { return encode_immediate_css_m(x); }
+internal U32 encode_immediate_cb(S64 x)    { return encode_immediate_cb_m(x);  }
+internal U32 encode_immediate_cj(S64 x)    { return encode_immediate_cj_m(x);  }
+
+internal B32 validate_immediate_i(S64 x)   { return (S64)extract_immediate_i_m(encode_immediate_i_m(x)) == x;     }
+internal B32 validate_immediate_u(S64 x)   { return (S64)extract_immediate_u_m(encode_immediate_u_m(x)) == x;     }
+internal B32 validate_immediate_s(S64 x)   { return (S64)extract_immediate_s_m(encode_immediate_s_m(x)) == x;     }
+internal B32 validate_immediate_b(S64 x)   { return (S64)extract_immediate_b_m(encode_immediate_b_m(x)) == x;     }
+internal B32 validate_immediate_j(S64 x)   { return (S64)extract_immediate_j_m(encode_immediate_j_m(x)) == x;     }
+internal B32 validate_immediate_ci(S64 x)  { return (S64)extract_immediate_ci_m(encode_immediate_ci_m(x)) == x;   }
+internal B32 validate_immediate_ciw(S64 x) { return (S64)extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == x; }
+internal B32 validate_immediate_cl(S64 x)  { return (S64)extract_immediate_cl_m(encode_immediate_cl_m(x)) == x;   }
+internal B32 validate_immediate_cs(S64 x)  { return (S64)extract_immediate_cs_m(encode_immediate_cs_m(x)) == x;   }
+internal B32 validate_immediate_css(S64 x) { return (S64)extract_immediate_css_m(encode_immediate_css_m(x)) == x; }
+internal B32 validate_immediate_cb(S64 x)  { return (S64)extract_immediate_cb_m(encode_immediate_cb_m(x)) == x;   }
+internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(encode_immediate_cj_m(x)) == x;   }
+
+//------------------------------------------------------------------------------
+// Predefined instruction encodings
+//------------------------------------------------------------------------------
 
 #define ENCODING_C_NOP  0x0001
 #define ENCODING_NOP    0x00000013
@@ -192,8 +410,9 @@
 #define ENCODING_PAUSE  0x0100000F
 #define ENCODING_TSO    0x8330000F
 
-
-/* RV fields.  */
+//------------------------------------------------------------------------------
+// RV field masks and shift amounts
+//------------------------------------------------------------------------------
 
 #define OP_MASK_OP              0x7f
 #define OP_SH_OP                0
@@ -230,21 +449,10 @@
 #define OP_MASK_FUNCT2          0x3
 #define OP_SH_FUNCT2            25
 
-#define MATCH_ADDI 0x13
-#define MASK_ADDI  0x707f
-#define MATCH_SLLI_RV32 0x1013
-#define MASK_SLLI_RV32  0xfe00707f
-#define MATCH_SRLI_RV32 0x5013
-#define MASK_SRLI_RV32  0xfe00707f
-#define MATCH_SRAI_RV32 0x40005013
-#define MASK_SRAI_RV32  0xfe00707f
-
 // RISC-V GAS constants
 
 #define X_RA  1
 #define X_T1  6
-
-#define CSR_CYCLE 0xC00
 
 // MASK_RD / MASK_RS1 / MASK_RS2 / MASK_IMM — field bit masks for match/mask construction
 #define MASK_RD     0x00000F80   // bits 11:7
@@ -269,6 +477,18 @@
 #define M_LA    3
 #define M_Lx    4
 
+//------------------------------------------------------------------------------
+// MATCH / MASK constants for each instruction
+//------------------------------------------------------------------------------
+
+#define MATCH_ADDI 0x13
+#define MASK_ADDI  0x707f
+#define MATCH_SLLI_RV32 0x1013
+#define MASK_SLLI_RV32  0xfe00707f
+#define MATCH_SRLI_RV32 0x5013
+#define MASK_SRLI_RV32  0xfe00707f
+#define MATCH_SRAI_RV32 0x40005013
+#define MASK_SRAI_RV32  0xfe00707f
 #define MATCH_FRFLAGS 0x102073
 #define MASK_FRFLAGS  0xfffff07f
 #define MATCH_FSFLAGS 0x101073
@@ -321,8 +541,6 @@
 #define MASK_LUI  0x7f
 #define MATCH_AUIPC 0x17
 #define MASK_AUIPC  0x7f
-#define MATCH_ADDI 0x13
-#define MASK_ADDI  0x707f
 #define MATCH_SLLI 0x1013
 #define MASK_SLLI  0xfc00707f
 #define MATCH_SLTI 0x2013
@@ -438,6 +656,10 @@
 #define MATCH_REMUW 0x200703b
 #define MASK_REMUW  0xfe00707f
 
+//------------------------------------------------------------------------------
+// Bit-field insertion helpers
+//------------------------------------------------------------------------------
+
 typedef U32 insn_t;
 
 // Replace bits MASK << SHIFT of STRUCT with the equivalent bits in
@@ -451,6 +673,10 @@ typedef U32 insn_t;
 
 #define INSERT_IMM(n, s, INSN, VALUE) \
   INSERT_BITS ((INSN).insn_opcode, VALUE, (1UL<<n) - 1, s)
+
+//------------------------------------------------------------------------------
+// Types and declarations
+//------------------------------------------------------------------------------
 
 typedef enum RISCV_Instruction_Class
 {
@@ -489,7 +715,6 @@ enum
 };
 
 #define OP_arguments_m(...) ((OP_Argument[]){ __VA_ARGS__, 0 })
-
 
 // This structure holds information for a particular instruction.
 //
@@ -565,174 +790,6 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
         unused_m(opcode);
         return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
 }
-
-#define encode_immediate_i_m(x)  (shift_right_mask_m(x,  0,  12) << 20)
-#define encode_immediate_u_m(x)  (shift_right_mask_m(x, 12,  20) << 12)
-#define encode_immediate_s_m(x) ((shift_right_mask_m(x,  0,   5) <<  7) | shift_right_mask_m(x, 5, 7) << 24)
-// imm[12|10:5] rs2 rs1 000 imm[4:1|11] <opcode>
-#define encode_immediate_b_m(x)                                                         \
-(                                                                                       \
-        (shift_right_mask_m(x, 11, 1) <<  7) | (shift_right_mask_m(x,  1, 4)  <<  8) |  \
-        (shift_right_mask_m(x,  5, 6) << 25) | (shift_right_mask_m(x, 12, 1)  << 31)    \
-)
-// imm[20|10:1|11|19:12] rd <opcode>
-#define encode_immediate_j_m(x)                                                         \
-(                                                                                       \
-        (shift_right_mask_m(x, 12,  8) << 12) | (shift_right_mask_m(x, 11,  1) << 20) | \
-        (shift_right_mask_m(x,  1, 10) << 21) | (shift_right_mask_m(x, 20,  1) << 31)   \
-)
-
-#define sign_extend_m(x, bits) ((S64)(((U64)(x) << (64 - (bits))) >> (64 - (bits))))
-
-#define extract_immediate_i_m(x) sign_extend_m((shift_right_mask_m(x, 20, 12)), 12)
-#define extract_immediate_u_m(x) (shift_right_mask_m(x, 12, 20))
-#define extract_immediate_s_m(x) sign_extend_m((shift_right_mask_m(x, 7, 5) | (shift_right_mask_m(x, 25, 7) << 5)), 12)
-#define extract_immediate_b_m(x)                                           \
-        sign_extend_m                                                      \
-        (                                                                  \
-                (                                                          \
-                (shift_right_mask_m(x,  7, 1) << 11) |                     \
-                (shift_right_mask_m(x,  8, 4) <<  1) |                     \
-                (shift_right_mask_m(x, 25, 6) <<  5) |                     \
-                (shift_right_mask_m(x, 31, 1) << 12)                       \
-                ),                                                         \
-                13                                                         \
-        )
-#define extract_immediate_j_m(x)                                                \
-        sign_extend_m                                                      \
-        (                                                                  \
-                (                                                          \
-                (shift_right_mask_m(x, 12,  8) << 12) |                    \
-                (shift_right_mask_m(x, 20,  1) << 11) |                    \
-                (shift_right_mask_m(x, 21, 10) <<  1) |                    \
-                (shift_right_mask_m(x, 31,  1) << 20)                      \
-                ),                                                         \
-                21                                                         \
-        )
-
-#define validate_immediate_i_m(x) (extract_immediate_i_m(encode_immediate_i_m(x)) == (x))
-#define validate_immediate_u_m(x) (extract_immediate_u_m(encode_immediate_u_m(x)) == (x))
-#define validate_immediate_s_m(x) (extract_immediate_s_m(encode_immediate_s_m(x)) == (x))
-#define validate_immediate_b_m(x) (extract_immediate_b_m(encode_immediate_b_m(x)) == (x))
-#define validate_immediate_j_m(x) (extract_immediate_j_m(encode_immediate_j_m(x)) == (x))
-
-// Compressed (RVC) instruction immediate encoding/decoding.
-// Format names follow the RISC-V specification (Chapter 28).
-
-// CI-format: 16-bit encoding
-// [ funct3  |i5|   rd/rs1      |  imm[4:0]     | op]
-// Immediate: sign_extend({i5, imm[4:0]}, 6)
-#define encode_immediate_ci_m(x)                (shift_right_mask_m(x, 0, 5) << 2 | shift_right_mask_m(x, 5, 1) << 12)
-#define extract_immediate_ci_m(x)               sign_extend_m((shift_right_mask_m(x, 2, 5) | (shift_right_mask_m(x, 12, 1) << 5)), 6)
-#define validate_immediate_ci_m(x)              (extract_immediate_ci_m(encode_immediate_ci_m(x)) == (x))
-
-// CIW-format: 16-bit encoding
-// [ funct3  |       imm[7:0]            | rd' | op]
-// Immediate: {imm[7:0]}
-#define encode_immediate_ciw_m(x)               (shift_right_mask_m(x, 0, 8) << 5)
-#define extract_immediate_ciw_m(x)              (shift_right_mask_m(x, 5, 8))
-#define validate_immediate_ciw_m(x)             (extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == (x))
-
-// CL-format: 16-bit encoding
-// [ funct3  | i4| i3| i2| rs1'   |i1|i0| rd' | op]
-// Immediate: {i4, i3, i2, i1, i0}
-#define encode_immediate_cl_m(x)                (shift_right_mask_m(x, 0, 2) << 5 | shift_right_mask_m(x, 2, 3) << 10)
-#define extract_immediate_cl_m(x)               (shift_right_mask_m(x, 5, 2) | shift_right_mask_m(x, 10, 3) << 2)
-#define validate_immediate_cl_m(x)              (extract_immediate_cl_m(encode_immediate_cl_m(x)) == (x))
-
-// CS-format: 16-bit encoding
-// [ funct3  | i2| i1| i0| rs1'   |i4|i3| rs2'| op]
-// Immediate: {i4, i3, i2, i1, i0}
-#define encode_immediate_cs_m(x)                (shift_right_mask_m(x, 0, 3) << 10 | shift_right_mask_m(x, 3, 2) << 5)
-#define extract_immediate_cs_m(x)               (shift_right_mask_m(x, 10, 3) | shift_right_mask_m(x, 5, 2) << 3)
-#define validate_immediate_cs_m(x)              (extract_immediate_cs_m(encode_immediate_cs_m(x)) == (x))
-
-// CSS-format: 16-bit encoding
-// [ funct3  |      imm[5:0]         |   rs2    | op]
-// Immediate: {imm[5:0]}
-#define encode_immediate_css_m(x)               (shift_right_mask_m(x, 0, 6) << 7)
-#define extract_immediate_css_m(x)              (shift_right_mask_m(x, 7, 6))
-#define validate_immediate_css_m(x)             (extract_immediate_css_m(encode_immediate_css_m(x)) == (x))
-
-// CB-format: 16-bit encoding
-// [ funct3  |i8|i4|i3| rs1'   |i7|i6|i2|i1|i5| op]
-// Immediate: sign_extend({i8, i7:i6, i5, i4:i3, i2:i1, 0}, 9)
-#define encode_immediate_cb_m(x)                                                        \
-(                                                                                       \
-        (shift_right_mask_m(x,  1, 2) <<  3) | (shift_right_mask_m(x,  3, 2) << 10) |   \
-        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 2) <<  5) |   \
-        (shift_right_mask_m(x,  8, 1) << 12)                                            \
-)
-#define extract_immediate_cb_m(x)                                                       \
-        sign_extend_m                                                                   \
-        (                                                                               \
-                (                                                                       \
-                (shift_right_mask_m(x,  3, 2) <<  1) |                                  \
-                (shift_right_mask_m(x, 10, 2) <<  3) |                                  \
-                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
-                (shift_right_mask_m(x,  5, 2) <<  6) |                                  \
-                (shift_right_mask_m(x, 12, 1) <<  8)                                    \
-                ),                                                                      \
-                9                                                                       \
-        )
-#define validate_immediate_cb_m(x)              (extract_immediate_cb_m(encode_immediate_cb_m(x)) == (x))
-
-// CJ-format: 16-bit encoding
-// [ funct3  |i11|i4|i9|i8|i10|i6|i7|i3|i2|i1|i5| op]
-// Immediate: sign_extend({i11, i10, i9:i8, i7, i6, i5, i4, i3:i1, 0}, 12)
-#define encode_immediate_cj_m(x)                                                        \
-(                                                                                       \
-        (shift_right_mask_m(x,  1, 3) <<  3) | (shift_right_mask_m(x,  4, 1) << 11) |   \
-        (shift_right_mask_m(x,  5, 1) <<  2) | (shift_right_mask_m(x,  6, 1) <<  7) |   \
-        (shift_right_mask_m(x,  7, 1) <<  6) | (shift_right_mask_m(x,  8, 2) <<  9) |   \
-        (shift_right_mask_m(x, 10, 1) <<  8) | (shift_right_mask_m(x, 11, 1) << 12)     \
-)
-#define extract_immediate_cj_m(x)                                                       \
-        sign_extend_m                                                                   \
-        (                                                                               \
-                (                                                                       \
-                (shift_right_mask_m(x,  3, 3) <<  1) |                                  \
-                (shift_right_mask_m(x, 11, 1) <<  4) |                                  \
-                (shift_right_mask_m(x,  2, 1) <<  5) |                                  \
-                (shift_right_mask_m(x,  7, 1) <<  6) |                                  \
-                (shift_right_mask_m(x,  6, 1) <<  7) |                                  \
-                (shift_right_mask_m(x,  9, 2) <<  8) |                                  \
-                (shift_right_mask_m(x,  8, 1) << 10) |                                  \
-                (shift_right_mask_m(x, 12, 1) << 11)                                    \
-                ),                                                                      \
-                12                                                                      \
-        )
-#define validate_immediate_cj_m(x)              (extract_immediate_cj_m(encode_immediate_cj_m(x)) == (x))
-
-#ifndef shift_right_mask_m
-#define shift_right_mask_m(x, shift, bits)  (((x) >> (shift)) & ((1 << (bits)) - 1))
-#endif
-
-internal U32 encode_immediate_i(S64 x)   { return encode_immediate_i_m(x); }
-internal U32 encode_immediate_u(S64 x)   { return encode_immediate_u_m(x); }
-internal U32 encode_immediate_s(S64 x)   { return encode_immediate_s_m(x); }
-internal U32 encode_immediate_b(S64 x)   { return encode_immediate_b_m(x); }
-internal U32 encode_immediate_j(S64 x)   { return encode_immediate_j_m(x); }
-internal U32 encode_immediate_ci(S64 x)  { return encode_immediate_ci_m(x); }
-internal U32 encode_immediate_ciw(S64 x) { return encode_immediate_ciw_m(x); }
-internal U32 encode_immediate_cl(S64 x)  { return encode_immediate_cl_m(x); }
-internal U32 encode_immediate_cs(S64 x)  { return encode_immediate_cs_m(x); }
-internal U32 encode_immediate_css(S64 x) { return encode_immediate_css_m(x); }
-internal U32 encode_immediate_cb(S64 x)  { return encode_immediate_cb_m(x); }
-internal U32 encode_immediate_cj(S64 x)  { return encode_immediate_cj_m(x); }
-
-internal B32 validate_immediate_i(S64 x)   { return extract_immediate_i_m(encode_immediate_i_m(x)) == x; }
-internal B32 validate_immediate_u(S64 x)   { return extract_immediate_u_m(encode_immediate_u_m(x)) == x; }
-internal B32 validate_immediate_s(S64 x)   { return extract_immediate_s_m(encode_immediate_s_m(x)) == x; }
-internal B32 validate_immediate_b(S64 x)   { return extract_immediate_b_m(encode_immediate_b_m(x)) == x; }
-internal B32 validate_immediate_j(S64 x)   { return extract_immediate_j_m(encode_immediate_j_m(x)) == x; }
-internal B32 validate_immediate_ci(S64 x)  { return extract_immediate_ci_m(encode_immediate_ci_m(x)) == x; }
-internal B32 validate_immediate_ciw(S64 x) { return extract_immediate_ciw_m(encode_immediate_ciw_m(x)) == x; }
-internal B32 validate_immediate_cl(S64 x)  { return extract_immediate_cl_m(encode_immediate_cl_m(x)) == x; }
-internal B32 validate_immediate_cs(S64 x)  { return extract_immediate_cs_m(encode_immediate_cs_m(x)) == x; }
-internal B32 validate_immediate_css(S64 x) { return extract_immediate_css_m(encode_immediate_css_m(x)) == x; }
-internal B32 validate_immediate_cb(S64 x)  { return extract_immediate_cb_m(encode_immediate_cb_m(x)) == x; }
-internal B32 validate_immediate_cj(S64 x)  { return extract_immediate_cj_m(encode_immediate_cj_m(x)) == x; }
 
 internal const RISCV_Opcode *
 RISCV_Opcode__table_find(U32 instruction_hash);
