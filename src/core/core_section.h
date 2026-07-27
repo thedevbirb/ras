@@ -85,6 +85,9 @@ global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
 typedef struct Section Section;
 struct Section
 {
+        Section             *previous;
+        Section             *next;
+
         Fragments            fragments;
         String8              name;
         U32                  location;
@@ -101,27 +104,6 @@ struct Sections_Trie
         Sections_Trie  *children[4];
 };
 
-typedef struct Sections_Trie_Chunk Sections_Trie_Chunk;
-struct Sections_Trie_Chunk
-{
-        Sections_Trie_Chunk *next;
-        Sections_Trie       *nodes;
-        U64 count;
-        U64 capacity;
-};
-
-global U64 Sections_Trie_Chunk__capacity_default = 4096;
-
-typedef struct Sections_Trie_Chunk_List Sections_Trie_Chunk_List;
-struct Sections_Trie_Chunk_List
-{
-        U64 count;
-        Sections_Trie_Chunk *first;
-        Sections_Trie_Chunk *last;
-};
-
-
-
 // Assumptions:
 //
 // 1. It's append only. In an assembler sections are only created, and might be modified.
@@ -130,13 +112,18 @@ struct Sections_Table
 {
         Arena                    *arena;
         Sections_Trie            *root;
-        Sections_Trie_Chunk_List *chunks;
+
+        // The underlying doubly-linked list collection. It contains only non-virtual sections, so it excludes the
+        // undefined, absolute and common section.
+        Section                  *first;
+        Section                  *last;
+
         Section                  *current;
         Section                  *undefined;
         Section                  *absolute;
-        // TODO(common): unsupported for now;
+        // TODO(common): unsupported;
         Section                  *common;
-        U32                       index_next;
+        U32                       count;
 };
 
 internal Sections_Table *
@@ -144,6 +131,9 @@ Sections_Table__default(void);
 
 internal void
 Sections_Table__add_common(Sections_Table *);
+
+internal U32
+Sections_Table__count(Sections_Table *sections_table);
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;

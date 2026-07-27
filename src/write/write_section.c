@@ -484,38 +484,6 @@ Section__create_riscv_attributes(Sections_Table *sections_table)
         memory_copy(destination, data, sizeof(data));
 }
 
-
-
-// TODO(low): this could be replaced by a iterator macro
-internal void
-Sections_Table__finish(Sections_Table *sections_table)
-{
-        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-        for (;;)
-        {
-                if (!chunk)
-                {
-                        break;
-                }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-                        Section *section = &chunk->nodes[index].section;
-                        Section__finish(section);
-                        index += 1;
-                }
-
-
-                chunk = chunk->next;
-        }
-}
-
-
 // Perform the relaxation algorithm across every section and every fragment.
 internal void
 Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostics *diagnostics)
@@ -526,30 +494,10 @@ Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostics 
         {
                 relaxation_passes += 1;
                 B32 changed = 0;
-                for (;;)
+                for each_node_m(sections_table->first, section)
                 {
-                        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-
-                        U32 index = 0;
-                        for (;;)
-                        {
-                                if (index >= chunk->count)
-                                {
-                                        break;
-                                }
-                                Section *section = &chunk->nodes[index].section;
-                                B32 relax_changed_address = Section__relax(section, arena, diagnostics);
-                                changed |= relax_changed_address;
-                                index += 1;
-                        }
-
-
-                        if (!chunk->next)
-                        {
-                                break;
-                        }
-
-                        chunk = chunk->next;
+                        B32 relax_changed_address = Section__relax(section, arena, diagnostics);
+                        changed |= relax_changed_address;
                 }
 
                 if (!changed)

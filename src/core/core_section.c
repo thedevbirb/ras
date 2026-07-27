@@ -6,26 +6,6 @@ Section__zero_is(Section *s)
 }
 
 Sections_Trie *
-Sections_Trie_Chunk_List__push(Sections_Trie_Chunk_List *chunks, Arena *arena, U64 capacity)
-{
-        if (chunks->last == 0 || chunks->last->count >= chunks->last->capacity)
-        {
-                Sections_Trie_Chunk *chunk_new = Arena__push_struct_m(arena, Sections_Trie_Chunk);
-                chunk_new->nodes = Arena__push_array_m(arena, Sections_Trie, capacity);
-                chunk_new->capacity = capacity;
-
-                SLL_queue_push_m(chunks->first, chunks->last, chunk_new);
-                chunks->count += 1;
-        }
-
-        Sections_Trie_Chunk *chunk_last = chunks->last;
-        Sections_Trie *result = &chunk_last->nodes[chunk_last->count];
-        chunk_last->count += 1;
-
-        return result;
-}
-
-Sections_Trie *
 Sections_Trie__get(Sections_Trie *trie, U64 hash, String8 name)
 {
         Sections_Trie *result = 0;
@@ -54,7 +34,7 @@ Sections_Trie__get(Sections_Trie *trie, U64 hash, String8 name)
 }
 
 Sections_Trie *
-Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, Sections_Trie_Chunk_List *chunks, U64 hash, String8 name)
+Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, U64 hash, String8 name)
 {
         B32 initialized = 0;
         B32 match = 0;
@@ -65,7 +45,7 @@ Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, Sections_Trie_
         {
                 if (*trie_current == 0)
                 {
-                        Sections_Trie *trie_new = Sections_Trie_Chunk_List__push(chunks, arena, Sections_Trie_Chunk__capacity_default);
+                        Sections_Trie *trie_new = Arena__push_struct_m(arena, Sections_Trie);
                         memory_zero_array(trie_new->children);
                         *trie_current = trie_new;
                         initialized = 1;
@@ -89,14 +69,12 @@ Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, Sections_Trie_
         return *trie_current;
 }
 
-
 internal Sections_Table *
 Sections_Table__default(void)
 {
         Arena *arena = Arena__allocate_m();
         Sections_Table *sections_table = Arena__push_struct_m(arena, Sections_Table);
         sections_table->arena  = arena;
-        sections_table->chunks = Arena__push_struct_m(arena, Sections_Trie_Chunk_List);
         return sections_table;
 }
 
@@ -119,20 +97,21 @@ internal Section *
 Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32 location)
 {
         U64 hash = FNV_hash_U64(name);
-        Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, sections_table->chunks, hash, name);
+        Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, hash, name);
 
         B32 zero_is = Section__zero_is(&trie->section);
         if (zero_is)
         {
+                sections_table->count += 1;
+                DLL_push_front_m(sections_table->first, sections_table->last, &trie->section);
+
                 // TODO(low): support configuration for it.
                 Arena *arena = Arena__allocate_m();
                 trie->section = (Section)
                 {
                         .name     = String8__duplicate(sections_table->arena, name),
-                        .index    = sections_table->index_next,
                         .location = location,
                 };
-                sections_table->index_next += 1;
                 Fragment  *fragment         = Arena__push_struct_m(arena, Fragment);
                 Fragments *fragments        = &trie->section.fragments;
                            fragments->arena = arena;
@@ -146,13 +125,15 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
 internal void
 Sections_Table__add_common(Sections_Table *sections_table)
 {
-        String8 undefined_n = String8__literal("*UND*");
+        Section *first = sections_table->first;
+        Section *last  = sections_table->last;
+
+        String8 undefined_n = String8__literal("*UNDEFINED*");
         String8 text_n      = String8__literal(".text");
         String8 data_n      = String8__literal(".data");
         String8 rodata_n    = String8__literal(".rodata");
         String8 bss_n       = String8__literal(".bss");
-        String8 absolute_n  = String8__literal("*ABS*");
-        // TODO(common): precise name?
+        String8 absolute_n  = String8__literal("*ABSOLUTE*");
         String8 common_n    = String8__literal("*COMMON*");
 
         U32 location = 0;
@@ -163,16 +144,13 @@ Sections_Table__add_common(Sections_Table *sections_table)
                  absolute->elf.type      = ELF_Section_Header_Type__No_Data;
                  absolute->elf.flags     = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
                  absolute->elf.alignment = 8;
-        absolute->index                  = ELF_Section_Index__Absolute;
+                 absolute->index         = ELF_Section_Index__Absolute;
 
         Section *common                  = Sections_Table__get_or_default(sections_table, common_n, location);
                  common->elf.type        = ELF_Section_Header_Type__No_Data;
                  common->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
                  common->elf.alignment   = 8;
-        common->index                    = ELF_Section_Index__Common;
-
-        // TODO(hack): by default next section index is incremented
-        sections_table->index_next = 1;
+                 common->index           = ELF_Section_Index__Common;
 
         Section *text                    = Sections_Table__get_or_default(sections_table, text_n, location);
                  text->elf.type          = ELF_Section_Header_Type__Program_Data;
@@ -198,47 +176,19 @@ Sections_Table__add_common(Sections_Table *sections_table)
         sections_table->undefined = undefined;
         sections_table->absolute  = absolute;
         sections_table->common    = common;
-        sections_table->current   = text;
+
+        if (!sections_table->current)
+        {
+                sections_table->current = text;
+        }
+
+
+        // Restore previous first/last
+        sections_table->first = first;
+        sections_table->last  = last;
 
         return;
 }
-
-// Sections_Trie *
-// sections_trie_push(Arena *arena, Sections_Trie_Chunk_List *chunks, Sections_Trie **trie_ptr, U64 hash, Section *value)
-// {
-//      B32 initialized = 0;
-//      B32 match = 0;
-//
-//      Sections_Trie **trie_current = trie_ptr;
-//      U64 hash_shifted = hash;
-//      for (;;)
-//      {
-//              if (*trie_current == 0)
-//              {
-//                      Sections_Trie *trie_new = sections_trie_chunk_list_push(arena, chunks, Sections_Trie_Chunk__capacity_default);
-//                      trie_new->section = *value;
-//                      memory_zero_array(trie_new->children);
-//                      *trie_current = trie_new;
-//                      initialized = 1;
-//              }
-//
-//              if (!initialized && (*trie_current)->key && String8__match_exact(*(*trie_current)->key, value->key))
-//              {
-//                      match = 1;
-//              }
-//
-//              B32 break_should = initialized || match;
-//              if (break_should)
-//              {
-//                      break;
-//              }
-//
-//              trie_current = &(*trie_current)->children[(hash_shifted >> 62)];
-//              hash_shifted = hash_shifted << 2;
-//      }
-//
-//      return *trie_current;
-// }
 
 // Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
 // track the information of where this instruction has been placed.

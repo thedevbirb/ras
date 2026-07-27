@@ -70,7 +70,7 @@ struct Symbol_Ref
         Fragment         *fragment;
         // The expression which defines its value, if appropriate.
         // Non-null ONLY on symbol definition using `.set`-like directives.
-        Expression  *expression;
+        Expression       *expression;
         // ELF value for this symbol, which can mean an offset for labels.
         U64 value;
         // Where the symbol has been declared.
