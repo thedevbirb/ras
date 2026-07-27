@@ -38,7 +38,7 @@ Fragments__push(Fragments *fragments, U32 location, U32 size)
         B32  arena_block_new_needed    = capacity_left < size;
         B32  fragment_seal_last_needed = arena_block_new_needed && fragments->last;
         B32  fragment_new_needed       = arena_block_new_needed || fragments->last == 0;
-        B32  fragment_new_created      = 0;
+        B32  buffer_new_needed         = 0;
 
         assert_always_m(capacity_left < fragments->arena->reserved_size && "underflow");
         assert_always_m(fragments->last->relax_state == Relax_State__None && "cannot push to sealed fragment");
@@ -61,14 +61,21 @@ Fragments__push(Fragments *fragments, U32 location, U32 size)
         if (fragment_new_needed)
         {
                 Fragments__push_empty_fragment(fragments, location);
-                fragment_new_created = 1;
+                buffer_new_needed = 1;
         }
 
-        result = Arena__push_array_m(fragments->arena, U8, size);
-
-        if (fragment_new_created)
+        buffer_new_needed |= fragments->last->data == 0;
+        if (buffer_new_needed)
         {
+                result = Arena__push_array_m(fragments->arena, U8, size);
                 fragments->last->data = result;
+        }
+        else
+        {
+                // `Arena__push_array_m` ensure data has a minimum of 8 byte alignment.
+                // In this case we want to keep appending into an already aligned byte array, so we need a 1-byte
+                // alignment to ensure contiguity.
+                result = Arena__push_array_aligned_m(fragments->arena, U8, size, cc_align_of(U8));
         }
 
         fragments->last->data_size += size;
