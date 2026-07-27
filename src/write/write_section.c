@@ -414,7 +414,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 fixup->fragment_write_area = fragment->data_variable_buffer + sizeof(instruction_1);
                                 fixup->fragment_write_size = sizeof(instruction_2);
                                 fixup->relocation_type     = Relocation_RISC_V__JAL;
-                                fixup->section_index       = section->index;
+                                fixup->section             = section;
                                 DLL_push_front_m(fixups->first, fixups->last, fixup);
 
                                 memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
@@ -431,7 +431,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 fixup->fragment_write_area = fragment->data_variable_buffer;
                                 fixup->fragment_write_size = instructions_total_size;
                                 fixup->relocation_type     = relocation_type;
-                                fixup->section_index       = section->index;
+                                fixup->section             = section;
                                 DLL_push_front_m(fixups->first, fixups->last, fixup);
                         }
                         else

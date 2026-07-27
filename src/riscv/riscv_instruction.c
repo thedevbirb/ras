@@ -581,7 +581,7 @@ RISCV_Instruction__append
                 fixup                  = Arena__push_struct_m(fixups->arena, Fixup);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
-                fixup->section_index   = section->index;
+                fixup->section         = section;
                 DLL_push_front_m(fixups->first, fixups->last, fixup);
         }
 

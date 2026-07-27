@@ -1,8 +1,9 @@
 #ifndef CORE_FIXUP_H
 #define CORE_FIXUP_H
 
-// Forward declaration for pointer use.
+// Forward declarations for pointer use.
 typedef struct Expression Expression;
+typedef struct Section Section;
 
 #define Fixup__8_Bit  (Relocation_RISC_V__COUNT + 0)
 #define Fixup__16_Bit (Relocation_RISC_V__COUNT + 1)
@@ -33,7 +34,7 @@ struct Fixup
         // Pointer to location in the fragment fixed or variable data where the patch should be written.
         U8          *fragment_write_area;
 
-        U16          section_index;
+        Section     *section;
         U16          relocation_type;
         // Size of the patch to be written.
         U8           fragment_write_size;
@@ -46,12 +47,12 @@ struct PC_Relative_High
 {
         PC_Relative_High *next;
         Expression       *expression;
-        U16               section_index;
+        Section          *section;
         U64               object_file_offset;
 };
 
 internal PC_Relative_High *
-PC_Relative_High__find(PC_Relative_High *pc_relative_high, U16 section_index, U64 object_file_offset)
+PC_Relative_High__find(PC_Relative_High *pc_relative_high, Section *section, U64 object_file_offset)
 {
         PC_Relative_High *current = pc_relative_high;
         PC_Relative_High *result  = 0;
@@ -62,7 +63,7 @@ PC_Relative_High__find(PC_Relative_High *pc_relative_high, U16 section_index, U6
                         break;
                 }
 
-                result = current->section_index == section_index
+                result = current->section == section
                       && current->object_file_offset == object_file_offset
                        ? current : 0;
 

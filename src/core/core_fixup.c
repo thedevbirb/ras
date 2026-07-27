@@ -187,7 +187,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
         case Relocation_RISC_V__PC_Relative_High_20:
         {
                 B32 symbol_internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section->index == fixup->section_index;
+                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section == fixup->section;
                 if (evaluatable)
                 {
                         S64 position = fixup->expression->symbol->value;
@@ -195,7 +195,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                         S64 target   = (position + offset) - fixup->fragment->object_file_offset;
 
                         PC_Relative_High *pc_relative_high = Arena__push_struct_m(fixups->arena, PC_Relative_High);
-                        pc_relative_high->section_index      = fixup->section_index;
+                        pc_relative_high->section            = fixup->section;
                         pc_relative_high->object_file_offset = fixup->fragment->object_file_offset;
                         pc_relative_high->expression         = fixup->expression;
 
@@ -238,13 +238,13 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
         case Relocation_RISC_V__PC_Relative_Low_12_I_Type:
         {
                 U64 object_file_offset = fixup->expression->symbol->value + fixup->expression->integer_value;
-                PC_Relative_High *entry = PC_Relative_High__find(fixups->pc_relative_high, fixup->section_index, object_file_offset);
+                PC_Relative_High *entry = PC_Relative_High__find(fixups->pc_relative_high, fixup->section, object_file_offset);
 
                 B32 evaluatable = 0;
                 if (entry)
                 {
                     B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
-                    evaluatable = symbol_internal_is && entry->expression->symbol->section->index == fixup->section_index;
+                    evaluatable = symbol_internal_is && entry->expression->symbol->section == fixup->section;
                 }
 
                 if (evaluatable)
