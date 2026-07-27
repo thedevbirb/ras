@@ -85,5 +85,20 @@ struct Fixups
         PC_Relative_High *pc_relative_high;
 };
 
+// Fixup handling functions. These should be used after sections have been relaxed, and after all symbols and
+// expressions have been `Symbol_Ref__finalize`d.
+
+internal void
+Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding);
+
+internal void
+Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics);
+
+internal void
+Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics);
+
+internal void
+Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics);
+
 #endif // CORE_FIXUP_H
 
