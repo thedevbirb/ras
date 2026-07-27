@@ -299,10 +299,10 @@ statement_read
                 {
                         binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Local);
                 } break;
-                case Directive_Kind__Weak:
-                {
-                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
-                } break;
+                // case Directive_Kind__Weak:
+                // {
+                //         binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
+                // } break;
                 case Directive_Kind__Globl: {} // fallthrough
                 case Directive_Kind__Global:
                 {

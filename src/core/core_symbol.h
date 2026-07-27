@@ -24,8 +24,6 @@ typedef enum Symbol_Flags
         Symbol_Flags__Written                    = 1 << 1,
 
         // Whether symbol value has been completely resolved (used during final pass over symbol table).
-        //
-        // TODO: I think `Symbol_Flags__Finalized` is a better term.
         Symbol_Flags__Finalized                   = 1 << 2,
 
         // Whether the symbol value is currently being resolved (used to detect loops in symbol dependencies).

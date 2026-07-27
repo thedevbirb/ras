@@ -58,6 +58,35 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
 
         // Try to patch, will warn later if the operation wasn't possible.
 
+        // Try to simply the fixup expression in case we have just a chain of equations to undefined / common symbols.
+        // Example:
+        // ```asm
+        // .set a, global + 1
+        // .set b, a - 2
+        // addi a0, zero, %lo(b)
+        // ```
+        // The fixup expression should simplify to `global - 2`.
+        for (;;)
+        {
+                Symbol_Ref *symbol           = fixup->expression->symbol;
+                Expression *expression_inner = symbol           ? symbol->expression       : 0;
+                Symbol_Ref *symbol_inner     = expression_inner ? expression_inner->symbol : 0;
+
+                B32 undefined_or_common_inner = symbol_inner
+                        ? symbol_inner->section->index == 0 || symbol_inner->section->index == ELF_Section_Index__Common
+                        : 0;
+
+                if (undefined_or_common_inner)
+                {
+                        fixup->expression->symbol = symbol_inner;
+                        fixup->expression->integer_value += expression_inner->integer_value;
+                }
+                else
+                {
+                        break;
+                }
+        }
+
         switch (fixup->relocation_type)
         {
         default: { unreachable_m(); }
@@ -155,7 +184,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                 {
                         S64 position = fixup->expression->symbol->value;
                         S64 offset   = fixup->expression->integer_value;
-                        S64 target   = (position + offset) - fixup->object_file_offset;
+                        S64 target   = (position + offset) - fixup->fragment->object_file_offset;
 
                         PC_Relative_High *pc_relative_high = Arena__push_struct_m(fixups->arena, PC_Relative_High);
                         pc_relative_high->section_index      = fixup->section_index;
@@ -257,6 +286,13 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                 fixup_relax->relocation_type = Relocation_RISC_V__Relax;
                 DLL_insert_m(fixups->first, fixups->last, fixup, fixup_relax);
         }
+
+        if (!(fixup->flags & Fixup_Flags__Done))
+        {
+                if (fixup->expression->symbol) { fixup->expression->symbol->flags |= Symbol_Flags__Relocation; }
+        }
+
+        return;
 }
 
 internal void
@@ -394,35 +430,11 @@ write_object_file
         }
 
         // TODO(low): another hint for the expressions section :), this can result in some footguns.
+        // In a similar fashion, I wonder whether the notion of finalization would make sense also for `Expression`s: if
+        // the symbols contained in an expressions are finalized, it's not possible that from now one we get different
+        // results.
         Symbols_Table__finalize(symbols_table, diagnostics);
         Expressions__finalize(expressions, diagnostics);
-
-        // Fix sections
-        {
-        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-        for (;;)
-        {
-                if (!chunk)
-                {
-                        break;
-                }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-                        Section *section = &chunk->nodes[index].section;
-                        Fixups__resolve(&section->fixups, diagnostics);
-
-                        index += 1;
-                }
-
-
-                chunk = chunk->next;
-        }
-        }
+        Fixups__resolve(fixups, diagnostics);
 }
 

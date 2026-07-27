@@ -86,8 +86,6 @@ typedef struct Section Section;
 struct Section
 {
         Fragments            fragments;
-        // NOTE: if using `Sections_Table`, the lifetime of these is the same of it.
-        Fixups               fixups;
         String8              name;
         U32                  location;
         U32                  index;
