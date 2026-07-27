@@ -23,6 +23,7 @@ statement_read
                 U32            instruction_hash       = 0;
                 B32            null_terminated_string = 0;
                 B32            empty_line             = 0;
+                B32            label_found            = 0;
 
                 progress = source_index_start < cursor->source_index;
                 B32 break_should_outer = cursor->current.kind == Token_Kind__None
@@ -55,8 +56,8 @@ statement_read
                         // Should be a numeric label definition, e.g. 1:
                         U32 number = U32_cast_safe(cursor->current.numerical_value);
                         token_next(cursor, diagnostics);
-                        B32 label_definition = cursor->current.kind == Token_Kind__Colon;
-                        if (label_definition)
+                        label_found = cursor->current.kind == Token_Kind__Colon;
+                        if (label_found)
                         {
                                 token_next(cursor, diagnostics);
                         }
@@ -78,9 +79,9 @@ statement_read
 
                         Arena__scratch_end_m(scratch);
                 } break;
-                // Instructions, directives and label start with an identifier. We have to discriminate further.
                 case Token_Kind__Identifier:
                 {
+                        // Instructions, directives and label start with an identifier. We have to discriminate further.
 
                         String8 identifier = Token_Cursor__text(cursor);
 
@@ -92,7 +93,7 @@ statement_read
                         }
 
                         Token next = token_peek(cursor, diagnostics);
-                        B32 label_found = next.kind == Token_Kind__Colon;
+                        label_found = next.kind == Token_Kind__Colon;
                         if (label_found)
                         {
                                 Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, sections_table->undefined);
@@ -541,6 +542,7 @@ statement_read
                 {
                         Token_Kind kind = cursor->current.kind;
                         B32 break_should = empty_line
+                                || label_found
                                 || kind == Token_Kind__None
                                 || kind == Token_Kind__Error
                                 || kind == Token_Kind__Newline
