@@ -64,6 +64,7 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+        Symbol_Ref       *next;
         // This is a reference to `Symbol.name`
         String8          *name;
         Section          *section;
@@ -87,6 +88,10 @@ struct Symbol_Ref
 
 };
 
+global const Symbol_Ref Symbol_Ref__zero = {0};
+
+internal B32 Symbol_Ref__zero_is(Symbol_Ref *symbol) { B32 result = memory_match_struct(&Symbol_Ref__zero, symbol); return result; }
+
 typedef struct Symbol Symbol;
 struct Symbol
 {
@@ -102,50 +107,13 @@ struct Symbols_Trie
         Symbols_Trie *children[4];
 };
 
-typedef struct Symbols_Trie_Chunk Symbols_Trie_Chunk;
-struct Symbols_Trie_Chunk
-{
-        Symbols_Trie_Chunk *next;
-        Symbols_Trie       *nodes;
-        U64 count;
-        U64 capacity;
-};
-
-#define Symbols_Trie_Chunk__capacity_default 4096
-
-typedef struct Symbols_Trie_Chunk_List Symbols_Trie_Chunk_List;
-struct Symbols_Trie_Chunk_List
-{
-        U64 count;
-        Symbols_Trie_Chunk *first;
-        Symbols_Trie_Chunk *last;
-};
-
 typedef struct Label_Numeric Label_Numeric;
 struct Label_Numeric
 {
-        U32 number;
-        U32 instances;
+        Label_Numeric *next;
+        U32            number;
+        U32            instances;
 };
-
-typedef struct Label_Numeric_Chunk Label_Numeric_Chunk;
-struct Label_Numeric_Chunk
-{
-        Label_Numeric_Chunk *next;
-        Label_Numeric *nodes;
-        U64 count;
-        U64 capacity;
-};
-
-typedef struct Label_Numeric_Chunk_List Label_Numeric_Chunk_List;
-struct Label_Numeric_Chunk_List
-{
-        U64 count;
-        Label_Numeric_Chunk *first;
-        Label_Numeric_Chunk *last;
-};
-
-#define Label_Numeric_Chunk__capacity_default 4096
 
 typedef struct Symbols_Table Symbols_Table;
 struct Symbols_Table
@@ -153,8 +121,13 @@ struct Symbols_Table
         // A dedicated arena for every data, including symbols names, that are saved here.
         Arena                    *arena;
         Symbols_Trie             *root;
-        Symbols_Trie_Chunk_List  *chunks;
-        Label_Numeric_Chunk_List *chunks_label;
+
+        Symbol_Ref               *first;
+        Symbol_Ref               *last;
+        U32                       count;
+
+        Label_Numeric            *label_numeric_first;
+        Label_Numeric            *label_numeric_last;
 };
 
 internal B32

@@ -3,26 +3,6 @@
 #include "core_symbol.h"
 #include "core_expression.h"
 
-internal Symbols_Trie *
-symbols_trie_chunk_list_push(Arena *arena, Symbols_Trie_Chunk_List *chunks, U64 capacity)
-{
-        if (chunks->last == 0 || chunks->last->count >= chunks->last->capacity)
-        {
-                Symbols_Trie_Chunk *chunk_new = Arena__push_struct_m(arena, Symbols_Trie_Chunk);
-                chunk_new->nodes = Arena__push_array_m(arena, Symbols_Trie, capacity);
-                chunk_new->capacity = capacity;
-
-                SLL_queue_push_m(chunks->first, chunks->last, chunk_new);
-                chunks->count += 1;
-        }
-
-        Symbols_Trie_Chunk *chunk_last = chunks->last;
-        Symbols_Trie *result = &chunk_last->nodes[chunk_last->count];
-        chunk_last->count += 1;
-
-        return result;
-}
-
 // TODO: check whether get, get_or_default and create can be unified in a single implementation with "modes".
 
 internal Symbols_Trie *
@@ -55,7 +35,7 @@ symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
 
 // NOTE: we need a reference to the root pointer so that in case it's null we can change it.
 internal Symbols_Trie *
-symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, U64 hash, String8 name)
+symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
 {
         B32 initialized = 0;
         B32 match = 0;
@@ -66,7 +46,7 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbo
         {
                 if (*trie_current == 0)
                 {
-                        Symbols_Trie *trie_new = symbols_trie_chunk_list_push(arena, chunks, Symbols_Trie_Chunk__capacity_default);
+                        Symbols_Trie *trie_new = Arena__push_struct_m(arena, Symbols_Trie);
                         String8 name_duplicated = String8__duplicate(arena, name);
                         trie_new->name        = name_duplicated;
                         trie_new->symbol.name = &trie_new->name;
@@ -95,7 +75,7 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbo
 
 // Always create a new symbol, by marking a current definition as `Redefined` if it exist, without dropping it.
 internal Symbols_Trie *
-symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie **root, U64 hash, String8 name)
+symbols_trie_create(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
 {
         B32 initialized = 0;
 
@@ -105,7 +85,7 @@ symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie 
         {
                 if (*trie_current == 0)
                 {
-                        Symbols_Trie *trie_new = symbols_trie_chunk_list_push(arena, chunks, Symbols_Trie_Chunk__capacity_default);
+                        Symbols_Trie *trie_new = Arena__push_struct_m(arena, Symbols_Trie);
                         trie_new->name = name;
                         memory_zero_array(trie_new->children);
                         *trie_current = trie_new;
@@ -133,66 +113,6 @@ symbols_trie_create(Arena *arena, Symbols_Trie_Chunk_List *chunks, Symbols_Trie 
 
 // Label numeric utilities
 
-internal Label_Numeric *
-label_numeric_chunk_list_push(Arena *arena, Label_Numeric_Chunk_List *chunks, U64 capacity)
-{
-        if (chunks->last == 0 || chunks->last->count >= chunks->last->capacity)
-        {
-                Label_Numeric_Chunk *chunk_new = Arena__push_struct_m(arena, Label_Numeric_Chunk);
-                chunk_new->nodes = Arena__push_array_m(arena, Label_Numeric, capacity);
-                chunk_new->capacity = capacity;
-
-                SLL_queue_push_m(chunks->first, chunks->last, chunk_new);
-                chunks->count += 1;
-        }
-
-        Label_Numeric_Chunk *chunk_last = chunks->last;
-        Label_Numeric *result = &chunk_last->nodes[chunk_last->count];
-        chunk_last->count += 1;
-
-        return result;
-}
-
-internal Label_Numeric *
-label_numeric_get_or_default(Arena *arena, Label_Numeric_Chunk_List *chunks, U64 capacity, U32 label)
-{
-        B32 found = 0;
-        Label_Numeric_Chunk *current = chunks->first;
-        Label_Numeric *result = 0;
-
-        for (;;)
-        {
-                B32 break_should = found || current == 0;
-                if (break_should)
-                {
-                        break;
-                }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        B32 break_should_inner = found || index >= current->count;
-                        if (break_should_inner)
-                        {
-                                break;
-                        }
-                        result = &(current->nodes[index]);
-                        found = result->number == label;
-
-                        index += 1;
-                }
-
-                current = current->next;
-        }
-
-        if (!found)
-        {
-                result = label_numeric_chunk_list_push(arena, chunks, capacity);
-        }
-
-        return result;
-}
-
 internal String8
 label_numeric_string(Arena *arena, Label_Numeric label)
 {
@@ -201,20 +121,6 @@ label_numeric_string(Arena *arena, Label_Numeric label)
 }
 
 // Symbols Table API
-
-internal Symbols_Trie *
-Symbols_Table__last(Symbols_Table *symbols_table)
-{
-        Symbols_Trie *result = 0;
-        if (symbols_table->root)
-        {
-                Symbols_Trie_Chunk *chunk_last = symbols_table->chunks->last;
-                // Valid because there is at least the root.
-                result = &chunk_last->nodes[chunk_last->count - 1];
-        }
-
-        return result;
-}
 
 // Get or create a default symbol given its name.
 internal Symbol_Ref *
@@ -228,18 +134,21 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name)
         return result;
 }
 
-// Get or create a default symbol given its name.
+// Get or create a default symbol given its name, attaching it to the given section
 internal Symbol_Ref *
-Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Section *undefined)
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Section *section)
 {
 
         U64 hash = FNV_hash_U64(name);
-        Symbols_Trie *node = symbols_trie_get_or_default(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
-        Symbol_Ref *symbol = &node->symbol;
-        if (!symbol->section)
+        Symbols_Trie *node   = symbols_trie_get_or_default(symbols_table->arena, &symbols_table->root, hash, name);
+        Symbol_Ref   *symbol = &node->symbol;
+        B32 zero_is = Symbol_Ref__zero_is(symbol);
+        if (zero_is)
         {
-                symbol->section  = undefined;
-                symbol->fragment = undefined->fragments.first;
+                symbol->section  = section;
+                symbol->fragment = section->fragments.first;
+                SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
+                symbols_table->count += 1;
         }
 
         return symbol;
@@ -268,8 +177,7 @@ internal Symbols_Trie *
 Symbols_Table__create_trie(Symbols_Table *symbols_table, String8 name)
 {
         U64 hash = FNV_hash_U64(name);
-        // Symbols_Trie *last = Symbols_Table__last(symbols_table);
-        Symbols_Trie *result = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, hash, name);
+        Symbols_Trie *result = symbols_trie_create(symbols_table->arena, &symbols_table->root, hash, name);
         return result;
 }
 
@@ -292,8 +200,31 @@ Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, String8 n
 internal Label_Numeric *
 Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 number)
 {
-        Label_Numeric *label = label_numeric_get_or_default(symbols_table->arena, symbols_table->chunks_label, Label_Numeric_Chunk__capacity_default, number);
-        return label;
+
+        B32 found = 0;
+        Label_Numeric *first   = symbols_table->label_numeric_first;
+        Label_Numeric *last    = symbols_table->label_numeric_last;
+        Label_Numeric *current = first;
+        Label_Numeric *result  = 0;
+
+        for (;;)
+        {
+                B32 break_should = found || current == 0;
+                if (break_should)
+                {
+                        break;
+                }
+                found = current->number == number;
+                current = current->next;
+        }
+
+        if (!found)
+        {
+                result = Arena__push_struct_m(symbols_table->arena, Label_Numeric);
+                result->number = number;
+                SLL_queue_push_m(first, last, result);
+        }
+        return result;
 }
 
 // Creates a new symbols table with a dedicated arena allocator and by creating the global dot symbol.
@@ -303,17 +234,12 @@ Symbols_Table__new(Sections_Table *sections_table)
         Arena *arena_symbols_table = Arena__allocate_m();
         Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
 
-        symbols_table->arena        = arena_symbols_table;
-        symbols_table->chunks_label = Arena__push_struct_m(arena_symbols_table, Label_Numeric_Chunk_List);
-        symbols_table->chunks       = Arena__push_struct_m(arena_symbols_table, Symbols_Trie_Chunk_List);
+        symbols_table->arena = arena_symbols_table;
 
         // Initialization steps
 
         // 1. Create global dot
-        String8 dot_symbol_name = String8__duplicate(symbols_table->arena, dot_symbol_string);
-        Symbols_Trie *dot_trie = symbols_trie_create(symbols_table->arena, symbols_table->chunks, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_name);
-        // TODO(low): this sounds a lot like a patch :/
-        Symbol_Ref__update_section(&dot_trie->symbol, sections_table->current);
+        Symbols_Table__get_or_default(symbols_table, dot_symbol_string, sections_table->current);
         // 2. Place numeric labels 0..9 at beginning of chunks.
         U8 index = 0;
         for (;;)
@@ -322,9 +248,7 @@ Symbols_Table__new(Sections_Table *sections_table)
                 {
                         break;
                 }
-                Label_Numeric *label = label_numeric_chunk_list_push(symbols_table->arena, symbols_table->chunks_label, Label_Numeric_Chunk__capacity_default);
-                label->number = index;
-
+                Symbols_Table__label_numeric_get_or_default(symbols_table, index);
                 index += 1;
         }
 
@@ -710,31 +634,12 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
         return result;
 }
 
+// TODO(low): not worth a separate function.
 internal void
 Symbols_Table__finalize(Symbols_Table *symbols_table, Diagnostics *diagnostics)
 {
-        Symbols_Trie_Chunk *chunk = symbols_table->chunks->first;
-        for (;;)
+        for each_node_m(symbols_table->first, symbol)
         {
-                if (!chunk)
-                {
-                        break;
-                }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-
-                        Symbol_Ref *symbol = &chunk->nodes[index].symbol;
-                        Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
-
-                        index += 1;
-                }
-
-                chunk = chunk->next;
+                Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
         }
 }

@@ -6,7 +6,7 @@ expression_parse_with_flags
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Sections_Table     *sections_table,
-        Diagnostics    *diagnostics,
+        Diagnostics        *diagnostics,
         Expression_Flags    flags
 )
 {
