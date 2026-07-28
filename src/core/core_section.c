@@ -1,10 +1,3 @@
-internal B32
-Section__zero_is(Section *s)
-{
-        B32 result = memory_match_struct(s, &Section__zero);
-        return result;
-}
-
 Sections_Trie *
 Sections_Trie__get(Sections_Trie *trie, U64 hash, String8 name)
 {
@@ -69,14 +62,8 @@ Sections_Trie__get_or_default(Sections_Trie **root, Arena *arena, U64 hash, Stri
         return *trie_current;
 }
 
-internal Sections_Table *
-Sections_Table__default(void)
-{
-        Arena *arena = Arena__allocate_m();
-        Sections_Table *sections_table = Arena__push_struct_m(arena, Sections_Table);
-        sections_table->arena  = arena;
-        return sections_table;
-}
+// TODO(medium): should add all boilerplate containing special section attributes, see https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections.
+// We just need a struct containing type and attributes and a String8 table.
 
 internal Section *
 Sections_Table__get(Sections_Table *sections_table, String8 name)
@@ -99,7 +86,8 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
         U64 hash = FNV_hash_U64(name);
         Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, hash, name);
 
-        B32 zero_is = Section__zero_is(&trie->section);
+        Section zero = {0};
+        B32 zero_is = memory_match_struct(&trie->section, &zero);
         if (zero_is)
         {
                 sections_table->count += 1;
@@ -121,67 +109,25 @@ Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32
         return &trie->section;
 }
 
-
+// Add the undefined, absolute and common sections.
 internal void
-Sections_Table__add_common(Sections_Table *sections_table)
+Sections_Table__add_internal(Sections_Table *sections_table)
 {
         Section *first = sections_table->first;
         Section *last  = sections_table->last;
 
-        String8 undefined_n = String8__literal("*UNDEFINED*");
-        String8 text_n      = String8__literal(".text");
-        String8 data_n      = String8__literal(".data");
-        String8 rodata_n    = String8__literal(".rodata");
-        String8 bss_n       = String8__literal(".bss");
-        String8 absolute_n  = String8__literal("*ABSOLUTE*");
-        String8 common_n    = String8__literal("*COMMON*");
-
         U32 location = 0;
-        Section *undefined = Sections_Table__get_or_default(sections_table, undefined_n,  location);
+        Section *undefined       = Sections_Table__get_or_default(sections_table, section_name_undefined,  location);
 
-        // TODO(medium): review flags of these two sections.
-        Section *absolute                = Sections_Table__get_or_default(sections_table, absolute_n, location);
-                 absolute->elf.type      = ELF_Section_Header_Type__No_Data;
-                 absolute->elf.flags     = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 absolute->elf.alignment = 8;
-                 absolute->index         = ELF_Section_Index__Absolute;
+        Section *absolute        = Sections_Table__get_or_default(sections_table, section_name_absolute, location);
+                 absolute->index = ELF_Section_Index__Absolute;
 
-        Section *common                  = Sections_Table__get_or_default(sections_table, common_n, location);
-                 common->elf.type        = ELF_Section_Header_Type__No_Data;
-                 common->elf.flags       = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 common->elf.alignment   = 8;
-                 common->index           = ELF_Section_Index__Common;
-
-        Section *text                    = Sections_Table__get_or_default(sections_table, text_n, location);
-                 text->elf.type          = ELF_Section_Header_Type__Program_Data;
-                 text->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
-                 // TODO(C-extension): 2 if C-extension enabled, 4 if not.
-                 text->elf.alignment     = 4;
-
-        Section *data                    = Sections_Table__get_or_default(sections_table, data_n, location);
-                 data->elf.type          = ELF_Section_Header_Type__Program_Data;
-                 data->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 data->elf.alignment     = 8;
-
-        Section *rodata                  = Sections_Table__get_or_default(sections_table, rodata_n, location);
-                 rodata->elf.type        = ELF_Section_Header_Type__Program_Data;
-                 rodata->elf.flags       = ELF_Section_Header_Flags__ALLOC;
-                 rodata->elf.alignment   = 8;
-
-        Section *bss                     = Sections_Table__get_or_default(sections_table, bss_n, location);
-                 bss->elf.type           = ELF_Section_Header_Type__No_Data;
-                 bss->elf.flags          = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
-                 bss->elf.alignment      = 8;
+        Section *common          = Sections_Table__get_or_default(sections_table, section_name_common, location);
+                 common->index   = ELF_Section_Index__Common;
 
         sections_table->undefined = undefined;
         sections_table->absolute  = absolute;
         sections_table->common    = common;
-
-        if (!sections_table->current)
-        {
-                sections_table->current = text;
-        }
-
 
         // Restore previous first/last
         sections_table->first = first;
@@ -189,6 +135,39 @@ Sections_Table__add_common(Sections_Table *sections_table)
 
         return;
 }
+
+// Add the .text, .data, .bss sections. Sets .text as the current section if unset.
+internal void
+Sections_Table__add_basic(Sections_Table *sections_table)
+{
+        U32 location = 0;
+        Section *text                    = Sections_Table__get_or_default(sections_table, section_name_text, location);
+                 text->elf.type          = ELF_Section_Header_Type__Program_Data;
+                 text->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR;
+                 // TODO(configuration): depends on extensions.
+                 text->elf.alignment     = 4;
+
+        Section *data                    = Sections_Table__get_or_default(sections_table, section_name_data, location);
+                 data->elf.type          = ELF_Section_Header_Type__Program_Data;
+                 data->elf.flags         = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 // TODO(configuration): depends on extensions.
+                 data->elf.alignment     = 8;
+
+        Section *bss                     = Sections_Table__get_or_default(sections_table, section_name_bss, location);
+                 bss->elf.type           = ELF_Section_Header_Type__No_Data;
+                 bss->elf.flags          = ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE;
+                 // TODO(configuration): depends on extensions.
+                 data->elf.alignment     = 8;
+
+        if (!sections_table->current)
+        {
+                sections_table->current = text;
+        }
+
+        return;
+}
+
+
 
 // Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
 // track the information of where this instruction has been placed.
@@ -225,23 +204,3 @@ Section__add_instruction_fixed
         memory_copy(data, (U8 *)&encoding, encoding_size);
         return;
 }
-
-
-// // Given a
-// internal U32
-// Fragment__branch_length_compute(Fragment *fragment, Section *section, B32 update)
-// {
-//         U32 length_max           = 8;
-//         B32 jump_is              = RELAX_BRANCH_UNCOND(fragment->subtype);
-//         B32 branch_compressed_is = RELAX_BRANCH_RVC(fragment->subtype);
-//
-//         // Assume jumps are in range; the linker will catch any that aren't.
-//         length_max = jump_is ? 4 : 8;
-//
-//         if (update)
-//         {
-//                 fragment->size_variable = RELAX_BRANCH_ENCODE(jump_is, branch_compressed_is, length_max);
-//         }
-//
-//         return length_max;
-// }

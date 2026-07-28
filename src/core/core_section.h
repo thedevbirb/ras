@@ -1,85 +1,15 @@
 #ifndef CORE_SECTION_H
 #define CORE_SECTION_H
 
+global const String8 section_name_text      = String8__literal(".text");
+global const String8 section_name_data      = String8__literal(".data");
+global const String8 section_name_bss       = String8__literal(".bss");
+global const String8 section_name_undefined = String8__literal("*UNDEFINED*");
+global const String8 section_name_absolute  = String8__literal("*ABSOLUTE*");
+global const String8 section_name_common    = String8__literal("*COMMON*");
 
-// TODO(refactor): make some stuff into elf if applicable
-
-typedef enum ELF_Section
-{
-        ELF_Section__None = 0,
-        ELF_Section__Text,
-        ELF_Section__Data,
-        ELF_Section__Read_Only_Data,
-        ELF_Section__BSS,
-        ELF_Section__Symbols_Table,
-        ELF_Section__Strings_Table,
-        ELF_Section__Section_Names,
-        ELF_Section__RISCV_Attributes,
-        ELF_Section__Relocations_Text,
-        ELF_Section__Relocations_Data,
-        ELF_Section__Relocations_Read_Only_Data,
-        ELF_Section__Absolute,
-        ELF_Section__COUNT,
-}
-ELF_Section;
-
-global const char *ELF_Section_strings[ELF_Section__COUNT] =
-{
-        [ELF_Section__None]                       = "",
-        [ELF_Section__Text]                       = ".text",
-        [ELF_Section__Data]                       = ".data",
-        [ELF_Section__Read_Only_Data]             = ".rodata",
-        [ELF_Section__BSS]                        = ".bss",
-        [ELF_Section__Symbols_Table]              = ".symtab",
-        [ELF_Section__Strings_Table]              = ".strtab",
-        [ELF_Section__Section_Names]              = ".shstrtab",
-        [ELF_Section__RISCV_Attributes]           = ".riscv.attributes",
-        [ELF_Section__Relocations_Text]           = ".rela.text",
-        [ELF_Section__Relocations_Data]           = ".rela.data",
-        [ELF_Section__Relocations_Read_Only_Data] = ".rela.rodata",
-        [ELF_Section__Absolute]                   = "*ABS*",
-        // [ELF_Section__Note_GNU_Stack = ".note.GNU-stack",
-};
-
-ELF_Section_Header_Type ELF_Section_Header_Type_from_ELF_Section[ELF_Section__COUNT] =
-{
-        [ELF_Section__None]                       = ELF_Section_Header_Type__None,
-        [ELF_Section__Text]                       = ELF_Section_Header_Type__Program_Data,
-        [ELF_Section__Data]                       = ELF_Section_Header_Type__Program_Data,
-        [ELF_Section__Read_Only_Data]             = ELF_Section_Header_Type__Program_Data,
-        [ELF_Section__BSS]                        = ELF_Section_Header_Type__No_Data,
-        [ELF_Section__Symbols_Table]              = ELF_Section_Header_Type__Symbols_Table,
-        [ELF_Section__Strings_Table]              = ELF_Section_Header_Type__Strings_Table,
-        [ELF_Section__Section_Names]              = ELF_Section_Header_Type__Strings_Table,
-        [ELF_Section__Relocations_Text]           = ELF_Section_Header_Type__Relocations,
-        [ELF_Section__Relocations_Data]           = ELF_Section_Header_Type__Relocations,
-        [ELF_Section__Relocations_Read_Only_Data] = ELF_Section_Header_Type__Relocations,
-        [ELF_Section__Absolute]                   = ELF_Section_Header_Type__None,
-};
-
-// Default value for section alignments.
-global const U8 ELF_Section_alignments[ELF_Section__COUNT] =
-{
-        [ELF_Section__None]              = 0,
-        [ELF_Section__Text]              = 4,
-        [ELF_Section__Data]              = 8,
-        [ELF_Section__Read_Only_Data]    = 8,
-        [ELF_Section__BSS]               = 8,
-        [ELF_Section__Relocations_Text]  = 8,
-        [ELF_Section__Relocations_Data]  = 8,
-        [ELF_Section__Symbols_Table]     = 8,
-        [ELF_Section__Strings_Table]     = 1,
-        [ELF_Section__Section_Names]     = 1,
-        [ELF_Section__RISCV_Attributes]  = 1,
-        [ELF_Section__Absolute]          = 0
-};
-
-global const U8 ELF_Section_relocations[ELF_Section__COUNT] =
-{
-        [ELF_Section__Text]             = ELF_Section__Relocations_Text,
-        [ELF_Section__Data]             = ELF_Section__Relocations_Data,
-        [ELF_Section__Read_Only_Data]   = ELF_Section__Relocations_Read_Only_Data,
-};
+// Forward declaration for pointer use.
+typedef struct Expression Expression;
 
 // A data structure modelling an object file section, in memory.
 typedef struct Section Section;
@@ -90,12 +20,16 @@ struct Section
 
         Fragments            fragments;
         String8              name;
+        // TODO(low): probably useless.
         U32                  location;
+
+        // Output fields.
+
+        // This can be reliably set only close to object file writing, unless the section is either undefined, absolute,
+        // or common. As such, use this for section comparison only against those. Otherwise, compare section pointers.
         U32                  index;
         ELF64_Section_Header elf;
 };
-
-global Section Section__zero = {0};
 
 typedef struct Sections_Trie Sections_Trie;
 struct Sections_Trie
@@ -104,9 +38,6 @@ struct Sections_Trie
         Sections_Trie  *children[4];
 };
 
-// Assumptions:
-//
-// 1. It's append only. In an assembler sections are only created, and might be modified.
 typedef struct Sections_Table Sections_Table;
 struct Sections_Table
 {
@@ -129,14 +60,11 @@ struct Sections_Table
 internal Sections_Table *
 Sections_Table__default(void);
 
-internal void
-Sections_Table__add_common(Sections_Table *);
+internal Section *
+Sections_Table__get(Sections_Table *sections_table, String8 name);
 
-internal U32
-Sections_Table__count(Sections_Table *sections_table);
-
-// Forward declaration for pointer use.
-typedef struct Expression Expression;
+internal Section *
+Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32 location);
 
 internal void
 Section__add_jump_instruction
@@ -147,7 +75,7 @@ Section__add_jump_instruction
         U32                location,
         U8                 worst_case_size,
         U8                 best_case_size,
-        Expression   *expression,
+        Expression        *expression,
         U8                 jump_instructions_size
 );
 
