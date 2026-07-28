@@ -85,7 +85,7 @@ expression_parse_with_flags
                                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
                                                        label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
 
-                                        if (backward && !label->section->index)
+                                        if (backward && label->section == ELF_Section_Index__Undefined)
                                         {
                                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("backward label reference not found");
@@ -93,7 +93,7 @@ expression_parse_with_flags
                                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
                                         }
 
-                                        assert_always_m(!forward || label->section->index == 0);
+                                        assert_always_m(!forward || label->section->index == ELF_Section_Index__Undefined);
 
                                         frame->node->kind       = Expression_Kind__Symbol;
                                         frame->node->symbol     = label;

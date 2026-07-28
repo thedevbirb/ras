@@ -279,8 +279,8 @@ Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
 internal B32
 Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
 {
-        U16 section_index = symbol->section->index;
-        B32 result = section_index == ELF_Section_Index__Undefined || section_index == ELF_Section_Index__Common;
+        B32 result = symbol->section->index == ELF_Section_Index__Undefined
+                  || symbol->section->index == ELF_Section_Index__Common;
         return result;
 }
 
@@ -460,7 +460,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 // instructions (e.g. a `call` might become a 1-instruction jump).
                                                 B32 code_section_present    = left->symbol->section->elf.flags  & ELF_Section_Header_Flags__EXECINSTR
                                                                            || right->symbol->section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
-                                                B32 same_section_no_relocation_needed  = (left->symbol->section->index  == right->symbol->section->index)
+                                                B32 same_section_no_relocation_needed  = (left->symbol->section  == right->symbol->section)
                                                                                           && !relocation_needed;
                                                 B32 subtract_is   = node->kind == Expression_Kind__Subtract;
                                                 B32 equality_is   = Expression_Kind__equality_is(node->kind);

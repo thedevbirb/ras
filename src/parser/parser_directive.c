@@ -50,7 +50,7 @@ binding_set
 
         String8 name = Token_Cursor__text(cursor);
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
-        if (symbol->section->index == 0)
+        if (symbol->section->index == ELF_Section_Index__Undefined)
         {
                 // Still give a preliminary location for it so that we can show diagnostics.
                 symbol->location = cursor->current.location;
@@ -109,7 +109,7 @@ directive_set_like
         String8 name = Token_Cursor__text(cursor);
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
 
-        B32 already_defined_or_equated = symbol->section->index || symbol->expression;
+        B32 already_defined_or_equated = symbol->section != ELF_Section_Index__Undefined || symbol->expression;
         if (already_defined_or_equated)
         {
                 B32 frozen = mode != Set_Mode__Override || !(symbol->flags & Symbol_Flags__Volatile);

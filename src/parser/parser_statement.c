@@ -74,7 +74,7 @@ statement_read
                         String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
                         Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
 
-                        assert_always_m(label->section->index == 0 && "numeric label created previously");
+                        assert_always_m(label->section->index == ELF_Section_Index__Undefined && "numeric label created previously");
                         Symbol_Ref__update_section(label, sections_table->current);
 
                         Arena__scratch_end_m(scratch);
@@ -97,7 +97,7 @@ statement_read
                         if (label_found)
                         {
                                 Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, sections_table->undefined);
-                                if (symbol->section->index != 0)
+                                if (symbol->section->index != ELF_Section_Index__Undefined)
                                 {
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
                                         // It also accepts defining the symbol via `.set`, and then as a label.

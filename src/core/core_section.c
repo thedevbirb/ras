@@ -84,12 +84,16 @@ internal Section *
 Sections_Table__get_or_default(Sections_Table *sections_table, String8 name, U32 location)
 {
         U64 hash = FNV_hash_U64(name);
-        Sections_Trie *trie = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, hash, name);
+        Sections_Trie *trie    = Sections_Trie__get_or_default(&sections_table->root, sections_table->arena, hash, name);
+        Section       *section = &trie->section;
 
         Section zero = {0};
-        B32 zero_is = memory_match_struct(&trie->section, &zero);
+        B32 zero_is = memory_match_struct(section, &zero);
         if (zero_is)
         {
+                // TODO(medium): patch. It would default to zero, which is the undefined section, which we often compare
+                // against. Code smell.
+                section->index == ELF_Section_Index__XINDEX;
                 sections_table->count += 1;
                 DLL_push_front_m(sections_table->first, sections_table->last, &trie->section);
 
