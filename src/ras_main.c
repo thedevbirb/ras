@@ -59,25 +59,31 @@ main(int argument_count, char **argument_vector)
         Thread_Context_select(thread_context);
 
         arguments_shift(&argument_count, &argument_vector);
-        // if (argument_count < 2)
-        // {
-        //         usage_print();
-        //         exit(1);
-        // }
+        if (argument_count < 2)
+        {
+                usage_print();
+                exit(1);
+        }
 
-        String8 filename = String8__from_cstring(argument_vector[0]);
-        printf("filename: %s\n", filename.data);
-        int file_descriptor = open((char *)filename.data, O_RDONLY);
-        assert_always_m(file_descriptor > 0 && "failed to find input file");
+        String8 filename_in  = String8__from_cstring(argument_vector[0]);
+        String8 filename_out = String8__from_cstring(argument_vector[1]);
+        printf("input: %s\n", filename_in.data);
+        printf("output: %s\n", filename_out.data);
+
+        int file_descriptor_in = open((char *)filename_in.data, O_RDONLY);
+        assert_always_m(file_descriptor_in > 0 && "failed to find input file");
+
+        int file_descriptor_out = open((char *)filename_out.data, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        assert_always_m(file_descriptor_out >= 0 && "failed to open output file");
 
         struct stat file_in_statistics;
-        assert_always_m(fstat(file_descriptor, &file_in_statistics) == 0 && "failed to call fstat on input file");
+        assert_always_m(fstat(file_descriptor_in, &file_in_statistics) == 0 && "failed to call fstat on input file");
         assert_always_m(file_in_statistics.st_size >= 0 && "file size is negative");
         U64 file_in_size = (U64)file_in_statistics.st_size;
 
         // TODO(medium): non-trivial lifetime relationship between the source and diagnostics.
         Arena *arena = Arena__allocate_m();
-        U8 *input_data_mapped = mmap_file(file_descriptor, file_in_size);
+        U8 *input_data_mapped = mmap_file(file_descriptor_in, file_in_size);
         assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");
 
         String8 input = { .data = input_data_mapped, .count = file_in_size };
@@ -85,14 +91,17 @@ main(int argument_count, char **argument_vector)
         Source source =
         {
                 .data = input.data,
-                .name = filename.data,
+                .name = filename_in.data,
 
                 .count = input.count,
-                .name_count = filename.count,
+                .name_count = filename_in.count,
         };
 
-        Sections_Table *sections_table = Sections_Table__default();
-        Sections_Table__add_common(sections_table);
+        Arena *arena_sections_table = Arena__allocate_m();
+        Sections_Table *sections_table = Arena__push_struct_m(arena_sections_table, Sections_Table);
+        sections_table->arena = arena_sections_table;
+        Sections_Table__add_internal(sections_table);
+        Sections_Table__add_basic(sections_table);
 
         Symbols_Table *symbols_table = Symbols_Table__new(sections_table);
 
@@ -148,7 +157,8 @@ main(int argument_count, char **argument_vector)
                 &expressions,
                 symbols_table,
                 sections_table,
-                fixups
+                fixups,
+                file_descriptor_out
         );
 
         if (diagnostics->first)
