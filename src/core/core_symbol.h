@@ -219,6 +219,13 @@ Symbol_Ref__internal_is(Symbol_Ref *symbol);
 internal Symbol_Ref *
 Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section);
 
+// Create a section associated to the provided symbol.
+internal void
+Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol);
+
+internal void
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table);
+
 internal Symbol_Ref *
 Symbols_Table__get(Symbols_Table *symbols_table, String8 name);
 

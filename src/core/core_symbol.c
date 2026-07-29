@@ -222,6 +222,40 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         symbols_table->section_count += 1;
 }
 
+internal void
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
+{
+        // TODO(low): hardcoded at the moment, will be configurable later.
+        U8 data[] =
+        {
+                // format-version 'A'
+                'A',
+                // subsection length = 25
+                0x19, 0x00, 0x00, 0x00,
+                'r', 'i', 's', 'c', 'v', 0x00,
+                // Tag_File
+                0x01,
+                // file_tag_data_length = 15
+                0x0F, 0x00, 0x00, 0x00,
+                // Tag_RISCV_arch = 5
+                0x05,
+                // "rv64i2p1\0"
+                'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
+        };
+
+        String8 name = String8__literal(".riscv.attributes");
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbols_Table__create_section(symbols_table, symbol);
+
+        symbol->section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
+        symbol->section->elf.flags     = 0;
+        symbol->section->elf.alignment = 1;
+
+        U32 location = 0;
+        U8 *destination = Fragments__push(&symbol->section->fragments, location, sizeof(data));
+        memory_copy(destination, data, sizeof(data));
+}
+
 internal Symbols_Trie *
 Symbols_Table__dot(Symbols_Table *symbols_table)
 {

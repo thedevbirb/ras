@@ -452,34 +452,3 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
         return;
 }
 
-// internal void
-// Section__create_riscv_attributes(Sections_Table *sections_table)
-// {
-//         // TODO(low): hardcoded at the moment, will be configurable later.
-//         U8 data[] =
-//         {
-//                 // format-version 'A'
-//                 'A',
-//                 // subsection length = 25
-//                 0x19, 0x00, 0x00, 0x00,
-//                 'r', 'i', 's', 'c', 'v', 0x00,
-//                 // Tag_File
-//                 0x01,
-//                 // file_tag_data_length = 15
-//                 0x0F, 0x00, 0x00, 0x00,
-//                 // Tag_RISCV_arch = 5
-//                 0x05,
-//                 // "rv64i2p1\0"
-//                 'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
-//         };
-//
-//         U32 location    = 0;
-//         String8 name = String8__literal(".riscv.attributes");
-//         Section *section = Sections_Table__get_or_default(sections_table, name, location);
-//         section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
-//         section->elf.flags     = 0;
-//         section->elf.alignment = 1;
-//
-//         U8 *destination = Fragments__push(&section->fragments, location, sizeof(data));
-//         memory_copy(destination, data, sizeof(data));
-// }
