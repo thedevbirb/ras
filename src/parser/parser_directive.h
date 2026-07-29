@@ -100,7 +100,6 @@ binding_set
         Token_Cursor        *cursor,
         Diagnostics         *diagnostics,
         Symbols_Table       *symbols_table,
-        Sections_Table      *sections_table,
         ELF_Symbol_Binding   binding
 );
 
@@ -112,7 +111,6 @@ directive_set_like
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
         Set_Mode         mode
 );
 
@@ -124,7 +122,6 @@ directive_data
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
         Fixups          *fixups,
         U8               data_directive_size
 );
@@ -137,7 +134,6 @@ directive_align
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
 
         B32              power_of_two_exponent,
         U8               pattern_size
@@ -151,7 +147,6 @@ directive_fill
         Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
 
         B32              size_can_be_parsed,
         B32              pattern_can_be_parsed

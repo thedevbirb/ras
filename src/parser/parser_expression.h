@@ -16,8 +16,7 @@ expression_parse_with_flags
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Sections_Table     *sections_table,
-        Diagnostics    *diagnostics,
+        Diagnostics        *diagnostics,
         Expression_Flags    flags
 );
 
@@ -28,8 +27,7 @@ expression_parse
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Sections_Table     *sections_table,
-        Diagnostics    *diagnostics
+        Diagnostics        *diagnostics
 );
 
 internal Expression *
@@ -39,8 +37,7 @@ expression_parse_with_relocation
         Token_Cursor             *cursor,
         Expressions              *expressions,
         Symbols_Table            *symbols_table,
-        Sections_Table           *sections_table,
-        Diagnostics          *diagnostics,
+        Diagnostics              *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
         Relocation_Operator_List  relocation_match_list

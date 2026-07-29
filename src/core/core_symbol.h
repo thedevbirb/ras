@@ -6,10 +6,10 @@
 #define DOT_SYMBOL_HASH 0
 #define FAKE_LABEL_NAME (INTERNAL_SYMBOL_PREFIX "0 ")
 
+global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
+
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
-
-global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
 
 // TODO(track): review some of this variants, they're taken from GAS but not always used.
 typedef enum Symbol_Flags
@@ -61,50 +61,93 @@ typedef enum Symbol_Flags
 }
 Symbol_Flags;
 
+
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
         Symbol_Ref       *next;
-        // This is a reference to `Symbol.name`
+        // This is a reference to `Symbol_Trie.name`
         String8          *name;
         Section          *section;
         Fragment         *fragment;
         // The expression which defines its value, if appropriate.
-        // Non-null ONLY on symbol definition using `.set`-like directives.
         Expression       *expression;
         // ELF value for this symbol, which can mean an offset for labels.
         U64 value;
-        // Where the symbol has been declared.
-        U32               location_range;
         Symbol_Flags      flags;
 
         U32 location;
-        U32 string_table_offset;
         // Only 4 bits of it will be read.
         U8 type;
         // Only 4 bits of it will be read.
         U8 binding;
         U8 visibility;
-
 };
 
-global const Symbol_Ref Symbol_Ref__zero = {0};
+global Symbol_Ref Symbol_Ref__zero = {0};
 
-internal B32 Symbol_Ref__zero_is(Symbol_Ref *symbol) { B32 result = memory_match_struct(&Symbol_Ref__zero, symbol); return result; }
-
-typedef struct Symbol Symbol;
-struct Symbol
+global Symbol_Ref Symbol_Ref__undefined;
+global Section Section__undefined =
 {
-        String8     name;
-        Symbol_Ref  value;
+        .previous  = &Section__undefined,
+        .next      = &Section__undefined,
+        .symbol    = &Symbol_Ref__undefined,
+        .fragments =
+        {
+                .first = &Fragment__nil,
+                .last  = &Fragment__nil
+        }
+};
+global Symbol_Ref Symbol_Ref__undefined =
+{
+        .next     = &Symbol_Ref__undefined,
+        .name     = &section_name_undefined,
+        .section  = &Section__undefined,
+        .fragment = &Fragment__nil,
+        .type     = STT_SECTION
 };
 
-typedef struct Symbols_Trie Symbols_Trie;
-struct Symbols_Trie
+global Symbol_Ref Symbol_Ref__common;
+global Section Section__common =
 {
-        String8       name;
-        Symbol_Ref    symbol;
-        Symbols_Trie *children[4];
+        .previous  = &Section__common,
+        .next      = &Section__common,
+        .symbol    = &Symbol_Ref__common,
+        .fragments =
+        {
+                .first = &Fragment__nil,
+                .last  = &Fragment__nil
+        }
+};
+global Symbol_Ref Symbol_Ref__common =
+{
+        .next     = &Symbol_Ref__common,
+        .name     = &section_name_common,
+        .section  = &Section__common,
+        .fragment = &Fragment__nil,
+        .type     = STT_SECTION
+};
+
+global Symbol_Ref Symbol_Ref__absolute;
+global Section Section__absolute =
+{
+        .previous  = &Section__absolute,
+        .next      = &Section__absolute,
+        .symbol    = &Symbol_Ref__absolute,
+        .index     = ELF_Section_Index__Absolute,
+        .fragments =
+        {
+                .first = &Fragment__nil,
+                .last  = &Fragment__nil
+        }
+};
+global Symbol_Ref Symbol_Ref__absolute =
+{
+        .next     = &Symbol_Ref__absolute,
+        .name     = &section_name_absolute,
+        .section  = &Section__absolute,
+        .fragment = &Fragment__nil,
+        .type     = STT_SECTION
 };
 
 typedef struct Label_Numeric Label_Numeric;
@@ -113,6 +156,21 @@ struct Label_Numeric
         Label_Numeric *next;
         U32            number;
         U32            instances;
+};
+
+typedef struct Symbol_Numeric Symbol_Numeric;
+struct Symbol_Numeric
+{
+        Symbol_Ref    *symbol;
+        Label_Numeric *label;
+};
+
+typedef struct Symbols_Trie Symbols_Trie;
+struct Symbols_Trie
+{
+        String8       name;
+        Symbol_Ref    symbol;
+        Symbols_Trie *children[4];
 };
 
 typedef struct Symbols_Table Symbols_Table;
@@ -124,26 +182,72 @@ struct Symbols_Table
 
         Symbol_Ref               *first;
         Symbol_Ref               *last;
-        U32                       count;
 
         Label_Numeric            *label_numeric_first;
         Label_Numeric            *label_numeric_last;
+
+        // Sections are symbols of type `STT_SECTION`, with their additional `Section` data, so they belong here.
+
+        // The underlying doubly-linked list collection.
+        Section                  *section_first;
+        Section                  *section_last;
+
+        Section                  *section_current;
+
+        U32                       count;
+        U32                       section_count;
+
 };
+
+internal Symbols_Trie *
+symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name);
+
+internal Symbols_Trie *
+symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8 name);
+
+internal Symbols_Trie *
+symbols_trie_create(Arena *arena, Symbols_Trie **root, U64 hash, String8 name);
+
+internal String8
+label_numeric_string(Arena *arena, Label_Numeric label);
 
 internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol);
 
-internal Symbol_Ref *
-Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section);
+// Symbols Table API
 
-// Whether the symbol will need a relocation, and thus shouldn't be removed from the symbols table.
-internal B32
-Symbol_Ref__relocation_needed(Symbol_Ref *symbol);
+internal Symbol_Ref *
+Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section);
+
+internal Symbol_Ref *
+Symbols_Table__get(Symbols_Table *symbols_table, String8 name);
+
+// Get or create a default symbol given its name. If it doesn't exist, the symbol is attached to the undefined section
+// symbol, if available.
+internal Symbol_Ref *
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name);
+
+// Get or create a default numeric symbol (e.g. `1b`/`1f`). See `Symbols_Table__get_or_default`.
+internal Symbol_Numeric
+Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward);
+
+// Return the global dot symbol trie. It is recommended to always update the dot symbol before it's usage.
+// See `Symbol_Ref__update_section`.
+internal Symbols_Trie *
+Symbols_Table__dot(Symbols_Table *symbols_table);
+
+// Update `Section` and `Fragment` information of the given symbol.
+internal void
+Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section);
+
+// Create a clone of the given symbol.
+internal Symbol_Ref *
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol);
 
 // Resolution levels for `Symbol_Ref__resolve`.
 typedef enum Resolve_Level
 {
-	Resolve_Level__None             = 0,
+	Resolve_Level__None     = 0,
         // Whether the resolve other symbol definitions encountered as well.
 	Resolve_Level__Traverse = 1,
         // Whether symbols should be finalized after this resolution pass. Implies previous options.
@@ -162,8 +266,5 @@ Resolve_Level;
 // stack-allocated symbol, since the core evaluation logic is shared.
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level);
-
-internal void
-Symbols_Table__finalize(Symbols_Table *symbols_table, Diagnostics *diagnostics);
 
 #endif // CORE_SYMBOL_H

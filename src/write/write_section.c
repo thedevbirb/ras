@@ -46,10 +46,10 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
                 size = jump.unconditional_is ? 4 : 8;
                 // The jump target;
                 Symbol_Ref *symbol = fragment->relax_info.jump.expression->symbol;
-                B32 symbol_defined_is = symbol->section->index != 0;
+                B32 symbol_defined_is = symbol->section == &Section__undefined;
                 // TODO(weak)
                 B32 symbol_weak_is = 0;
-                B32 section_same_is = symbol_defined_is && symbol->section->index == section->index;
+                B32 section_same_is = symbol_defined_is && symbol->section == section;
                 B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
                 if (size_can_be_computed)
                 {
@@ -452,59 +452,34 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
         return;
 }
 
-internal void
-Section__create_riscv_attributes(Sections_Table *sections_table)
-{
-        // TODO(low): hardcoded at the moment, will be configurable later.
-        U8 data[] =
-        {
-                // format-version 'A'
-                'A',
-                // subsection length = 25
-                0x19, 0x00, 0x00, 0x00,
-                'r', 'i', 's', 'c', 'v', 0x00,
-                // Tag_File
-                0x01,
-                // file_tag_data_length = 15
-                0x0F, 0x00, 0x00, 0x00,
-                // Tag_RISCV_arch = 5
-                0x05,
-                // "rv64i2p1\0"
-                'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
-        };
-
-        U32 location    = 0;
-        String8 name = String8__literal(".riscv.attributes");
-        Section *section = Sections_Table__get_or_default(sections_table, name, location);
-        section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
-        section->elf.flags     = 0;
-        section->elf.alignment = 1;
-
-        U8 *destination = Fragments__push(&section->fragments, location, sizeof(data));
-        memory_copy(destination, data, sizeof(data));
-}
-
-// Perform the relaxation algorithm across every section and every fragment.
-internal void
-Sections_Table__relax(Sections_Table *sections_table, Arena *arena, Diagnostics *diagnostics)
-{
-        // TODO(medium): max iterations?
-        U32 relaxation_passes = 0;
-        for (;;)
-        {
-                relaxation_passes += 1;
-                B32 changed = 0;
-                for each_node_m(sections_table->first, section)
-                {
-                        B32 relax_changed_address = Section__relax(section, arena, diagnostics);
-                        changed |= relax_changed_address;
-                }
-
-                if (!changed)
-                {
-                        // Finally done!
-                        break;
-                }
-        }
-        printf("relaxation completed in %u passes\n", relaxation_passes);
-}
+// internal void
+// Section__create_riscv_attributes(Sections_Table *sections_table)
+// {
+//         // TODO(low): hardcoded at the moment, will be configurable later.
+//         U8 data[] =
+//         {
+//                 // format-version 'A'
+//                 'A',
+//                 // subsection length = 25
+//                 0x19, 0x00, 0x00, 0x00,
+//                 'r', 'i', 's', 'c', 'v', 0x00,
+//                 // Tag_File
+//                 0x01,
+//                 // file_tag_data_length = 15
+//                 0x0F, 0x00, 0x00, 0x00,
+//                 // Tag_RISCV_arch = 5
+//                 0x05,
+//                 // "rv64i2p1\0"
+//                 'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
+//         };
+//
+//         U32 location    = 0;
+//         String8 name = String8__literal(".riscv.attributes");
+//         Section *section = Sections_Table__get_or_default(sections_table, name, location);
+//         section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
+//         section->elf.flags     = 0;
+//         section->elf.alignment = 1;
+//
+//         U8 *destination = Fragments__push(&section->fragments, location, sizeof(data));
+//         memory_copy(destination, data, sizeof(data));
+// }

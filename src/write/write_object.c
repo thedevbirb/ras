@@ -1,344 +1,9 @@
-internal void
-Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding)
-{
-        U32 encoding = 0;
-        // TODO(medium): check whether `fragment_write_size` can't be inferred from the relocation type.
-        U8  size     = min_m(sizeof(encoding), fixup->fragment_write_size);
-        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
-        U32 encoding_patched = encoding | patch_to_or_into_encoding;
-        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
-
-        if (fixup->expression->evaluation == Expression_Kind__Constant)
-        {
-                fixup->flags |= Fixup_Flags__Done;
-        }
-
-        return;
-}
-
-internal void
-Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics)
-{
-        S64 target   = fixup->expression->integer_value;
-        target      += fixup->expression->symbol ? fixup->expression->symbol->value : 0;
-        S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
-
-        // Works also for U16 encoding.
-        U32 encoding = 0;
-        U8 size = min_m(fixup->fragment_write_size, sizeof(encoding));
-        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
-        U32 patch = encoding_callback(distance);
-        U32 encoding_patched = encoding |= patch;
-        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
-
-        B32 valid_immediate = valid_immediate_callback && valid_immediate_callback(distance);
-        if (!valid_immediate)
-        {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->kind       = Diagnostic_Kind__Error;
-                diagnostic->message    = String8__format(diagnostics->arena, "invalid jump offset (%lld)", distance);
-                diagnostic->location   = fixup->expression->location;
-                diagnostic->ranges[0]  = fixup->expression->location_range;
-        }
-
-        // TODO(.option): support
-        B32 relax = 1;
-        B32 internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-        if (!relax && internal_is && valid_immediate)
-        {
-                fixup->flags |= Fixup_Flags__Done;
-        }
-}
-
-internal void
-Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
-{
-        // Whether a RELAX relocation can be emitted
-        B32 relaxable = 0;
-
-        // Try to patch, will warn later if the operation wasn't possible.
-
-        // Try to simply the fixup expression in case we have just a chain of equations to undefined / common symbols.
-        // Example:
-        // ```asm
-        // .set a, global + 1
-        // .set b, a - 2
-        // addi a0, zero, %lo(b)
-        // ```
-        // The fixup expression should simplify to `global - 2`.
-        for (;;)
-        {
-                Symbol_Ref *symbol           = fixup->expression->symbol;
-                Expression *expression_inner = symbol           ? symbol->expression       : 0;
-                Symbol_Ref *symbol_inner     = expression_inner ? expression_inner->symbol : 0;
-
-                B32 undefined_or_common_inner = symbol_inner
-                        ? symbol_inner->section->index == 0 || symbol_inner->section->index == ELF_Section_Index__Common
-                        : 0;
-
-                if (undefined_or_common_inner)
-                {
-                        fixup->expression->symbol = symbol_inner;
-                        fixup->expression->integer_value += expression_inner->integer_value;
-                }
-                else
-                {
-                        break;
-                }
-        }
-
-        switch (fixup->relocation_type)
-        {
-        default: { unreachable_m(); }
-
-        case Relocation_RISC_V__High_20:       { Fixup__apply_constant(fixup, encode_immediate_u_m(fixup->expression->integer_value)); relaxable = 1; } break;
-        case Relocation_RISC_V__Low_12_I_Type: { Fixup__apply_constant(fixup, encode_immediate_i_m(fixup->expression->integer_value)); relaxable = 1; } break;
-        case Relocation_RISC_V__Low_12_S_Type: { Fixup__apply_constant(fixup, encode_immediate_s_m(fixup->expression->integer_value)); relaxable = 1; } break;
-
-        case Relocation_RISC_V__GOT_High_20:
-        {
-                // TODO(GOT, check-gas):
-                // R_RISCV_GOT_HI20 and the following R_RISCV_LO12_I are relaxable
-                // only if it is created as a result of la or lga assembler macros.
-                if (0)
-                {
-                        relaxable = 1;
-                }
-                todo_m();
-        } break;
-
-        case Relocation_RISC_V__Align:  {} break;
-
-        case Relocation_RISC_V__Add_8:  {} break;
-        case Relocation_RISC_V__Add_16: {} break;
-        case Relocation_RISC_V__Add_32: {} break;
-        case Relocation_RISC_V__Add_64: {} break;
-        case Relocation_RISC_V__Sub_8:  {} break;
-        case Relocation_RISC_V__Sub_16: {} break;
-        case Relocation_RISC_V__Sub_32: {} break;
-        case Relocation_RISC_V__Sub_64: {} break;
-
-        case Relocation_RISC_V__Relax:  {} break;
-
-        case Relocation_RISC_V__Set_Unsigned_LEB128: { todo_m(); } break;
-        case Relocation_RISC_V__Sub_Unsigned_LEB128: { todo_m(); } break;
-
-        case Relocation_RISC_V__Call:     { relaxable = 1; } break;
-        case Relocation_RISC_V__Call_PLT: { relaxable = 1; } break;
-
-        // TODO(tprel): support
-        case Relocation_RISC_V__Thread_Pointer_Relative_High_20:       { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type: { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type: { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Add:           { relaxable = 1; } break;
-
-        // TODO(TLS): support
-        case Relocation_RISC_V__TLS_GOT_High_20:                        { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Global_Dynamic_High_20:             { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32: { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64: { todo_m(); } break;
-
-        case Relocation_RISC_V__32_Bit:
-        {
-                // TODO(.eh_frame, low, check-gas): use pc-relative relocation for FDE initial location.
-                if (0) { break; }
-        } // fallthrough
-        case Fixup__8_Bit:              {} // fallthrough
-        case Fixup__16_Bit:             {} // fallthrough
-        case Relocation_RISC_V__64_Bit:
-        {
-                if (fixup->expression->evaluation == Expression_Kind__Subtract)
-                {
-                        // The idea is that: since this can only be valid if it's a subtract,
-                        // unpack it into an "add" and "sub" relocation by looking at the left and right subexpressions.
-
-                        Fixup *fixup_sub = Arena__push_struct_m(fixups->arena, Fixup);
-                              *fixup_sub = *fixup;
-
-                        fixup_sub->expression = fixup->expression->right;
-                        fixup->expression     = fixup->expression->left;
-                        DLL_insert_m(fixups->first, fixups->last, fixup, fixup_sub);
-                }
-                else if (fixup->expression->evaluation == Expression_Kind__Constant)
-                {
-                        U8 size = min_m(fixup->fragment_write_size, sizeof(fixup->expression->integer_value));
-                        memory_copy(fixup->fragment_write_area, (U8 *)&fixup->expression->integer_value, size);
-                        fixup->flags |= Fixup_Flags__Done;
-                }
-                else if (fixup->relocation_type == Fixup__8_Bit || fixup->relocation_type == Fixup__16_Bit)
-                {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("cannot represent an 8-bit or 16-bit relocation on RISC-V/ELF object file");
-                        diagnostic->location   = fixup->expression->location_range.v[0];
-                        diagnostic->ranges[0]  = fixup->expression->location_range;
-                }
-        } break;
-
-        case Relocation_RISC_V__JAL:               { Fixup__apply_jump(fixup, encode_immediate_j,  validate_immediate_j,  diagnostics); } break;
-        case Relocation_RISC_V__Branch:            { Fixup__apply_jump(fixup, encode_immediate_b,  validate_immediate_b,  diagnostics); } break;
-        case Relocation_RISC_V__Jump_Compressed:   { Fixup__apply_jump(fixup, encode_immediate_cj, validate_immediate_cj, diagnostics); } break;
-        case Relocation_RISC_V__Branch_Compressed: { Fixup__apply_jump(fixup, encode_immediate_cb, validate_immediate_cb, diagnostics); } break;
-
-        case Relocation_RISC_V__PC_Relative_High_20:
-        {
-                B32 symbol_internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section->index == fixup->section_index;
-                if (evaluatable)
-                {
-                        S64 position = fixup->expression->symbol->value;
-                        S64 offset   = fixup->expression->integer_value;
-                        S64 target   = (position + offset) - fixup->fragment->object_file_offset;
-
-                        PC_Relative_High *pc_relative_high = Arena__push_struct_m(fixups->arena, PC_Relative_High);
-                        pc_relative_high->section_index      = fixup->section_index;
-                        pc_relative_high->object_file_offset = fixup->fragment->object_file_offset;
-                        pc_relative_high->expression         = fixup->expression;
-
-                        SLL_stack_push_m(fixups->pc_relative_high, pc_relative_high);
-
-                        // NOTE: we want to encode the upper bits of the `target`, knowing that the lower bits
-                        // will be added using a _sign extended_ operation, that is, instead of adding a number in the
-                        // range `[0, RISCV_IMMEDIATE_REACH)`, we'll be adding a number in the range
-                        // `[-RISCV_IMMEDIATE_REACH/2, RISCV_IMMEDIATE_REACH/2)`. To compensate this, we will add it to
-                        // the value we're encoding:
-                        S64 target_compensated = target + (RISCV_IMMEDIATE_REACH / 2);
-                        B32 fits = S64_bits_range_in(target_compensated, 32);
-                        if (!fits)
-                        {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = String8__format(diagnostics->arena, "invalid pc-relative high offset: %lld", target);
-                                diagnostic->location   = fixup->expression->location;
-                                diagnostic->ranges[0]  = fixup->expression->location_range;
-                        }
-
-
-                        U32 encoding       = 0;
-                        U32 encoding_patch = encode_immediate_u_m((U32)target_compensated);
-                        U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
-                        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
-                        U32 encoding_patched = encoding | encoding_patch;
-                        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
-
-                        B32 relax = 1;
-                        if (!relax && fits)
-                        {
-                                fixup->flags |= Fixup_Flags__Done;
-                        }
-                }
-
-                relaxable = 1;
-        } break;
-
-        case Relocation_RISC_V__PC_Relative_Low_12_S_Type: {} // fallthrough
-        case Relocation_RISC_V__PC_Relative_Low_12_I_Type:
-        {
-                U64 object_file_offset = fixup->expression->symbol->value + fixup->expression->integer_value;
-                PC_Relative_High *entry = PC_Relative_High__find(fixups->pc_relative_high, fixup->section_index, object_file_offset);
-
-                B32 evaluatable = 0;
-                if (entry)
-                {
-                    B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
-                    evaluatable = symbol_internal_is && entry->expression->symbol->section->index == fixup->section_index;
-                }
-
-                if (evaluatable)
-                {
-                        S64 position = entry->expression->symbol->value;
-                        S64 offset   = entry->expression->integer_value;
-                        S64 target   = (position + offset) - entry->object_file_offset;
-
-                        // Finding the entry already assumes the ranges are valid and checked by the corresponding
-                        // %pcrel_hi.
-
-                        U32 encoding       = 0;
-                        U32 encoding_patch = fixup->relocation_type == Relocation_RISC_V__PC_Relative_Low_12_S_Type
-                                ? encode_immediate_s_m((U32)target)
-                                : encode_immediate_i_m((U32)target);
-                        U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
-                        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
-                        U32 encoding_patched = encoding | encoding_patch;
-                        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
-
-                        B32 relax = 1;
-                        if (!relax)
-                        {
-                                // TODO(low): we could even pop `entry`?
-                                fixup->flags |= Fixup_Flags__Done;
-                        }
-                }
-
-                relaxable = 1;
-        } break;
-        }
-
-        if (!(fixup->flags & Fixup_Flags__Done) && fixup->expression->evaluation == Expression_Kind__Subtract)
-        {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__format
-                        (
-                                diagnostics->arena,
-                                "Cannot resolve %*s - %s", String8__varg(*(fixup->expression->left->symbol->name)), String8__varg(*(fixup->expression->right->symbol->name))
-                        );
-                diagnostic->location   = fixup->expression->location;
-                diagnostic->ranges[0]  = fixup->expression->location_range;
-        }
-
-        if (relaxable && fixup->expression->symbol)
-        {
-                Fixup *fixup_relax = Arena__push_struct_m(fixups->arena, Fixup);
-                *fixup_relax = *fixup;
-
-                fixup_relax->fragment_write_size = 0;
-                fixup_relax->relocation_type = Relocation_RISC_V__Relax;
-                DLL_insert_m(fixups->first, fixups->last, fixup, fixup_relax);
-        }
-
-        if (!(fixup->flags & Fixup_Flags__Done))
-        {
-                if (fixup->expression->symbol) { fixup->expression->symbol->flags |= Symbol_Flags__Relocation; }
-        }
-
-        return;
-}
-
-internal void
-Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics)
-{
-        Fixup *fixup = fixups->first;
-
-        for (;;)
-        {
-                if (!fixup)
-                {
-                        break;
-                }
-
-                // TODO(medium) Should we filter away those fixups whose expressions are unsolvable?
-
-                Expression *expression     = fixup->expression;
-                Expression_Kind evaluation = expression->evaluation;
-
-                B32 subtractable_is = evaluation == Expression_Kind__Subtract
-                                   && expression->left->evaluation == Expression_Kind__Symbol
-                                   && expression->left->evaluation == Expression_Kind__Symbol;
-
-
-                // We should have warned earlier about them, during `Symbol_Ref__resolve`.
-                //
-                // TODO(low): maybe these checks should be moved just inside the function.
-                B32 processable_is = evaluation == Expression_Kind__Constant
-                                  || evaluation == Expression_Kind__Symbol
-                                  || subtractable_is;
-
-                if (processable_is)
-                {
-                        Fixup__apply(fixup, fixups, diagnostics);
-                }
-
-                fixup = fixup->next;
-        }
-}
+#include "core/core_fixup.h"
+#include "core/core_section.h"
+#include "core/core_symbol.h"
+#include "write_elf.h"
+#include "write_section.h"
+#include "write_object.h"
 
 internal void
 write_object_file
@@ -347,101 +12,66 @@ write_object_file
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
         Fixups          *fixups
 )
 {
-        // NOTE: GNU as creates it after finishing to size all sections, and then after creating it, it if finished and
-        // relaxed. While it may result in a couple more iterations, I think we can just do it now.
-        Section__create_riscv_attributes(sections_table);
-        Sections_Table__finish(sections_table);
-        Sections_Table__relax(sections_table, arena, diagnostics);
-
-        // Convert frag to fill
+        // Section__create_riscv_attributes(sections_table);
+        for each_node_m(symbols_table->section_first, section)
         {
-        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
+                Section__finish(section);
+        }
+
+        U32 relaxation_passes = 0;
         for (;;)
         {
-                if (!chunk)
+                relaxation_passes += 1;
+                B32 changed = 0;
+                // bug this is skipped, no dll
+                for each_node_m(symbols_table->section_first, section)
                 {
+                        B32 relax_changed_address = Section__relax(section, arena, diagnostics);
+                        changed |= relax_changed_address;
+                }
+
+                if (!changed)
+                {
+                        // Finally done!
                         break;
                 }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-                        Section  *section  = &chunk->nodes[index].section;
-                        Fragment *fragment = section->fragments.first;
-                        for (;;)
-                        {
-                                if (!fragment)
-                                {
-                                        break;
-                                }
-
-                                Fragment__convert_to_fill(fragment, section, expressions, arena, fixups);
-                                fragment = fragment->next;
-                        }
-
-                        index += 1;
-                }
-
-                chunk = chunk->next;
         }
-        }
+        printf("relaxation completed in %u passes\n", relaxation_passes);
 
-        // Size sections
+        for each_node_m(symbols_table->section_first, section)
         {
-        Sections_Trie_Chunk *chunk = sections_table->chunks->first;
-        for (;;)
+                for each_node_m(section->fragments.first, fragment)
+                {
+                        Fragment__convert_to_fill(fragment, section, expressions, arena, fixups);
+                }
+        }
+
+        for each_node_m(symbols_table->section_first, section)
         {
-                if (!chunk)
+                Fragment *fragment_last = section->fragments.last;
+
+                assert_always_m(fragment_last->relax_state == Relax_State__Fill);
+                assert_always_m(fragment_last->data_variable_size == 0);
+
+                section->elf.size = fragment_last->object_file_offset + fragment_last->data_size;
+
+                if (section->elf.entry_size && (section->elf.size % section->elf.entry_size))
                 {
-                        break;
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        diagnostic->message    = String8__format(arena, "section '%*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
+                                                                 section->symbol->name->count, section->symbol->name->data, section->elf.size, section->elf.entry_size);
+                        diagnostic->location   = section->symbol->location;
                 }
-
-                U32 index = 0;
-                for (;;)
-                {
-                        if (index >= chunk->count)
-                        {
-                                break;
-                        }
-                        Section  *section       = &chunk->nodes[index].section;
-                        Fragment *fragment_last = section->fragments.last;
-
-                        assert_always_m(fragment_last->relax_state == Relax_State__Fill);
-                        assert_always_m(fragment_last->data_variable_size == 0);
-
-                        section->elf.size = fragment_last->object_file_offset + fragment_last->data_size;
-
-                        if (section->elf.entry_size && (section->elf.size % section->elf.entry_size))
-                        {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->kind       = Diagnostic_Kind__Warning;
-                                diagnostic->message    = String8__format(arena, "section '%*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
-                                                                         section->name.count, section->name.data, section->elf.size, section->elf.entry_size);
-                                diagnostic->location   = section->location;
-                        }
-
-                        index += 1;
-                }
-
-
-                chunk = chunk->next;
-        }
         }
 
-        // TODO(low): another hint for the expressions section :), this can result in some footguns.
-        // In a similar fashion, I wonder whether the notion of finalization would make sense also for `Expression`s: if
-        // the symbols contained in an expressions are finalized, it's not possible that from now one we get different
-        // results.
-        Symbols_Table__finalize(symbols_table, diagnostics);
+        for each_node_m(symbols_table->first, symbol)
+        {
+                Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
+        }
         Expressions__finalize(expressions, diagnostics);
         Fixups__resolve(fixups, diagnostics);
 }
-

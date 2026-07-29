@@ -6,7 +6,6 @@ statement_read
         Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
         Fixups                  *fixups
 )
 {
@@ -69,13 +68,11 @@ statement_read
                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                         }
 
-                        Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
-                                       label_numeric->instances += 1;
-                        String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                        Symbol_Ref    *label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
+                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, 1);
+                                       symbol_numeric.label->instances += 1;
 
-                        assert_always_m(label->section->index == ELF_Section_Index__Undefined && "numeric label created previously");
-                        Symbol_Ref__update_section(label, sections_table->current);
+                        assert_always_m(symbol_numeric.symbol->section == &Section__undefined && "numeric label created previously");
+                        Symbol_Ref__update_section(symbol_numeric.symbol, symbols_table->section_current);
 
                         Arena__scratch_end_m(scratch);
                 } break;
@@ -96,8 +93,8 @@ statement_read
                         label_found = next.kind == Token_Kind__Colon;
                         if (label_found)
                         {
-                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, sections_table->undefined);
-                                if (symbol->section->index != ELF_Section_Index__Undefined)
+                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
+                                if (symbol->section != &Section__undefined)
                                 {
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
                                         // It also accepts defining the symbol via `.set`, and then as a label.
@@ -116,9 +113,9 @@ statement_read
                                         }
                                 }
                                 symbol->location       = cursor->current.location;
-                                symbol->fragment       = sections_table->current->fragments.last;
-                                symbol->value          = sections_table->current->fragments.last->data_size;
-                                symbol->section        = sections_table->current;
+                                symbol->fragment       = symbols_table->section_current->fragments.last;
+                                symbol->value          = symbols_table->section_current->fragments.last->data_size;
+                                symbol->section        = symbols_table->section_current;
 
                                 token_next(cursor, diagnostics);
                                 token_next(cursor, diagnostics);
@@ -154,7 +151,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 instruction_hash,
                                 &relocation,
                                 &instruction,
@@ -166,7 +162,7 @@ statement_read
                                 RISCV_instruction_pseudo_append
                                 (
                                         arena,
-                                        sections_table->current,
+                                        symbols_table->section_current,
                                         fixups,
                                         expressions,
                                         symbols_table,
@@ -179,7 +175,7 @@ statement_read
                         {
                                 RISCV_Instruction__append
                                 (
-                                        sections_table->current,
+                                        symbols_table->section_current,
                                         fixups,
                                         &instruction,
                                         expression_parsed,
@@ -194,19 +190,19 @@ statement_read
 
                 case Directive_Kind__Word_Double:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 8);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 8);
                 } break;
                 case Directive_Kind__Word:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 4);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 4);
                 } break;
                 case Directive_Kind__Word_Half:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 2);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 2);
                 } break;
                 case Directive_Kind__Byte:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, sections_table, fixups, 1);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 1);
                 } break;
                 case Directive_Kind__String: {} // fallthrough
                 case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
@@ -226,7 +222,7 @@ statement_read
                         text = String8__chop(text, 1);
                         U32 size_escaped = String8__escaped_size(text) + !!null_terminated_string;
 
-                        U8 *data = Fragments__push(&sections_table->current->fragments, cursor->current.location, size_escaped);
+                        U8 *data = Fragments__push(&symbols_table->section_current->fragments, cursor->current.location, size_escaped);
                         bytes_escaped_fill(text, data, size_escaped);
 
                         token_next(cursor, diagnostics);
@@ -236,11 +232,26 @@ statement_read
                         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
                         token_next(cursor, diagnostics);
                         String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
-                        Section *section_new = Sections_Table__get_or_default(sections_table, name, cursor->current.location);
+                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+
+                        B32 new_is = symbol->section == &Section__undefined;
+                        if (new_is)
+                        {
+                                Symbols_Table__create_section(symbols_table, symbol);
+                        }
 
                         token_next(cursor, diagnostics);
                         if (cursor->current.kind == Token_Kind__Comma)
                         {
+                                // Error if already defined.
+                                if (!new_is)
+                                {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->message    = String8__literal("cannot redefine section");
+                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                }
+
                                 // Read flags.
                                 token_next(cursor, diagnostics);
                                 if (cursor->current.kind != Token_Kind__String)
@@ -262,8 +273,7 @@ statement_read
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                 }
 
-                                // TODO(medium, check-gas): are they ORed? Or overwritten?
-                                section_new->elf.flags = flags;
+                                symbol->section->elf.flags = flags;
                                 token_next(cursor, diagnostics);
                         }
 
@@ -289,25 +299,25 @@ statement_read
                                         diagnostic->message    = String8__literal("invalid section type");
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                 }
-                                section_new->elf.type = type;
+                                // section_new->elf.type = type;
                                 token_next(cursor, diagnostics);
                         }
 
 
-                        sections_table->current = section_new;
+                        // symbols_table->section_current = section_new;
                 } break;
                 case Directive_Kind__Local:
                 {
-                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Local);
+                        binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);
                 } break;
                 // case Directive_Kind__Weak:
                 // {
-                //         binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Weak);
+                //         binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);
                 // } break;
                 case Directive_Kind__Globl: {} // fallthrough
                 case Directive_Kind__Global:
                 {
-                        binding_set(cursor, diagnostics, symbols_table, sections_table, ELF_Symbol_Binding__Global);
+                        binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global);
                 } break;
                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                 case Directive_Kind__Set: {} // fallthrough
@@ -321,7 +331,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 mode
                         );
                 } break;
@@ -334,7 +343,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 Set_Mode__Strict
                         );
                 } break;
@@ -347,7 +355,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 Set_Mode__Strict_Forward
                         );
                 } break;
@@ -363,7 +370,6 @@ statement_read
                                  diagnostics,
                                  expressions,
                                  symbols_table,
-                                 sections_table,
                                  size_can_be_parsed,
                                  pattern_can_be_parsed
                         );
@@ -380,7 +386,6 @@ statement_read
                                  diagnostics,
                                  expressions,
                                  symbols_table,
-                                 sections_table,
                                  size_can_be_parsed,
                                  pattern_can_be_parsed
                         );
@@ -397,7 +402,6 @@ statement_read
                                  diagnostics,
                                  expressions,
                                  symbols_table,
-                                 sections_table,
                                  size_can_be_parsed,
                                  pattern_can_be_parsed
                         );
@@ -413,7 +417,6 @@ statement_read
                                  diagnostics,
                                  expressions,
                                  symbols_table,
-                                 sections_table,
                                  size_can_be_parsed,
                                  pattern_can_be_parsed
                         );
@@ -431,7 +434,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -447,7 +449,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -463,7 +464,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -479,7 +479,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -495,7 +494,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -511,7 +509,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );
@@ -527,7 +524,6 @@ statement_read
                                 diagnostics,
                                 expressions,
                                 symbols_table,
-                                sections_table,
                                 power_of_two_exponent,
                                 pattern_size
                         );

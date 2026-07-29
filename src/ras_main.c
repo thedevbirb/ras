@@ -97,13 +97,14 @@ main(int argument_count, char **argument_vector)
                 .name_count = filename_in.count,
         };
 
-        Arena *arena_sections_table = Arena__allocate_m();
-        Sections_Table *sections_table = Arena__push_struct_m(arena_sections_table, Sections_Table);
-        sections_table->arena = arena_sections_table;
-        Sections_Table__add_internal(sections_table);
-        Sections_Table__add_basic(sections_table);
+        Arena         *arena_symbols_table  = Arena__allocate_m();
+        Symbols_Table *symbols_table        = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
+                       symbols_table->arena = arena;
 
-        Symbols_Table *symbols_table = Symbols_Table__new(sections_table);
+        Symbol_Ref *text_symbol = Symbols_Table__get_or_default(symbols_table, section_name_text);
+        Symbols_Table__create_section(symbols_table, text_symbol);
+        symbols_table->section_current = text_symbol->section;
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, text_symbol->section);
 
         Arena *arena_fixups = Arena__allocate_m();
         Fixups *fixups = Arena__push_struct_m(arena_fixups, Fixups);
@@ -122,7 +123,6 @@ main(int argument_count, char **argument_vector)
                 diagnostics,
                 &expressions,
                 symbols_table,
-                sections_table,
                 fixups
         );
 
@@ -156,9 +156,7 @@ main(int argument_count, char **argument_vector)
                 diagnostics,
                 &expressions,
                 symbols_table,
-                sections_table,
-                fixups,
-                file_descriptor_out
+                fixups
         );
 
         if (diagnostics->first)

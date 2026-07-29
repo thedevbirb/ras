@@ -3,8 +3,6 @@
 #include "core_symbol.h"
 #include "core_expression.h"
 
-// TODO: check whether get, get_or_default and create can be unified in a single implementation with "modes".
-
 internal Symbols_Trie *
 symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
 {
@@ -33,7 +31,6 @@ symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
         return result;
 }
 
-// NOTE: we need a reference to the root pointer so that in case it's null we can change it.
 internal Symbols_Trie *
 symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
 {
@@ -48,9 +45,11 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8
                 {
                         Symbols_Trie *trie_new = Arena__push_struct_m(arena, Symbols_Trie);
                         String8 name_duplicated = String8__duplicate(arena, name);
+
                         trie_new->name        = name_duplicated;
                         trie_new->symbol.name = &trie_new->name;
                         memory_zero_array(trie_new->children);
+
                         *trie_current = trie_new;
                         initialized = 1;
                 }
@@ -73,9 +72,9 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8
         return *trie_current;
 }
 
-// Always create a new symbol, by marking a current definition as `Redefined` if it exist, without dropping it.
-internal Symbols_Trie *
-symbols_trie_create(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
+// Adds the provided `Symbols_Trie`, by marking an definition as `Redefined` if it exist, without dropping it.
+internal void
+symbols_trie_add(Symbols_Trie **root, Symbols_Trie *trie, U64 hash)
 {
         B32 initialized = 0;
 
@@ -85,14 +84,10 @@ symbols_trie_create(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
         {
                 if (*trie_current == 0)
                 {
-                        Symbols_Trie *trie_new = Arena__push_struct_m(arena, Symbols_Trie);
-                        trie_new->name = name;
-                        memory_zero_array(trie_new->children);
-                        *trie_current = trie_new;
                         initialized = 1;
                 }
 
-                if (!initialized && String8__match_exact((*trie_current)->name, name))
+                if (!initialized && String8__match_exact((*trie_current)->name, trie->name))
                 {
                         // We've found an existing definition. Ensure we don't write it in the object file.
                         (*trie_current)->symbol.flags |= Symbol_Flags__Redefined;
@@ -108,7 +103,7 @@ symbols_trie_create(Arena *arena, Symbols_Trie **root, U64 hash, String8 name)
                 hash_shifted = hash_shifted << 2;
         }
 
-        return *trie_current;
+        return;
 }
 
 // Label numeric utilities
@@ -122,7 +117,17 @@ label_numeric_string(Arena *arena, Label_Numeric label)
 
 // Symbols Table API
 
-// Get or create a default symbol given its name.
+internal Symbol_Ref *
+Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
+{
+        U64 hash = FNV_hash_U64(name);
+        Symbols_Trie *trie              = Arena__push_struct_m(symbols_table->arena, Symbols_Trie);
+                      trie->name        = String8__duplicate(symbols_table->arena, name);
+                      trie->symbol.name = &trie->name;
+        symbols_trie_add(&symbols_table->root, trie, hash);
+        return &trie->symbol;
+}
+
 internal Symbol_Ref *
 Symbols_Table__get(Symbols_Table *symbols_table, String8 name)
 {
@@ -134,19 +139,18 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name)
         return result;
 }
 
-// Get or create a default symbol given its name, attaching it to the given section
+// Get or create a default symbol given its name, attaching it to the undefined section if it doesn't exist.
 internal Symbol_Ref *
-Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Section *section)
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
 {
-
         U64 hash = FNV_hash_U64(name);
         Symbols_Trie *node   = symbols_trie_get_or_default(symbols_table->arena, &symbols_table->root, hash, name);
         Symbol_Ref   *symbol = &node->symbol;
-        B32 zero_is = Symbol_Ref__zero_is(symbol);
-        if (zero_is)
+
+        if (!symbol->section)
         {
-                symbol->section  = section;
-                symbol->fragment = section->fragments.first;
+                symbol->section  = &Section__undefined;
+                symbol->fragment = Section__undefined.fragments.first;
                 SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
                 symbols_table->count += 1;
         }
@@ -154,12 +158,75 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Sectio
         return symbol;
 }
 
-// Return the global dot symbol trie.
+internal Symbol_Numeric
+Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward)
+{
+        Label_Numeric *current = symbols_table->label_numeric_first;
+        Label_Numeric *match   = 0;
+
+        Symbol_Numeric result = {0};
+
+        for (;;)
+        {
+                B32 break_should = match || current == 0;
+                if (break_should)
+                {
+                        break;
+                }
+                match = current->number == number ? current : 0;
+                current = current->next;
+        }
+
+
+        if (!match)
+        {
+                match         = Arena__push_struct_m(symbols_table->arena, Label_Numeric);
+                match->number = number;
+                SLL_queue_push_m(symbols_table->label_numeric_first, symbols_table->label_numeric_last, match);
+        }
+        result.label         =  match;
+        Label_Numeric target = *match;
+
+        // TODO(medium): I don't like to use a TLS scratch here, but otherwise everytime we allocate a name
+        if (forward)
+        {
+                target.instances += 1;
+        }
+
+        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+        String8 name = label_numeric_string(scratch.arena, target);
+        result.symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Arena__scratch_end_m(scratch);
+
+        return result;
+}
+
+// Create a section associated to the provided symbol.
+internal void
+Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
+{
+        Section   *section    = Arena__push_struct_m(symbols_table->arena, Section);
+        // TODO(low): configurable
+        Arena     *arena      = Arena__allocate_m();
+        Fragments  fragments  = { .arena = arena, .first = &Fragment__nil, .last = &Fragment__nil };
+
+        symbol->section = section;
+        symbol->type    = STT_SECTION;
+
+        section->symbol    = symbol;
+        section->fragments = fragments;
+        section->elf.type  = ELF_Section_Header_Type__default;
+        section->elf.flags = ELF_Section_Header_Type__Program_Data;
+
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, section);
+        symbols_table->section_count += 1;
+}
+
 internal Symbols_Trie *
 Symbols_Table__dot(Symbols_Table *symbols_table)
 {
 
-        Symbols_Trie *result = symbols_trie_get(symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_string);
+        Symbols_Trie *result = symbols_trie_get_or_default(symbols_table->arena, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_string);
         return result;
 }
 
@@ -173,28 +240,12 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
         return;
 }
 
-internal Symbols_Trie *
-Symbols_Table__create_trie(Symbols_Table *symbols_table, String8 name)
-{
-        U64 hash = FNV_hash_U64(name);
-        Symbols_Trie *result = symbols_trie_create(symbols_table->arena, &symbols_table->root, hash, name);
-        return result;
-}
-
 internal Symbol_Ref *
-Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 {
-        Symbols_Trie *node = Symbols_Table__create_trie(symbols_table, name);
-        return &node->symbol;
-}
-
-internal Symbol_Ref *
-Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, String8 name)
-{
-        Symbols_Trie *clone = Symbols_Table__create_trie(symbols_table, name);
-        clone->name   = String8__duplicate(symbols_table->arena, name);
-        clone->symbol = *symbol;
-        return &clone->symbol;
+        Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
+                   *clone = *symbol;
+        return clone;
 }
 
 internal Label_Numeric *
@@ -227,35 +278,6 @@ Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 nu
         return result;
 }
 
-// Creates a new symbols table with a dedicated arena allocator and by creating the global dot symbol.
-internal Symbols_Table *
-Symbols_Table__new(Sections_Table *sections_table)
-{
-        Arena *arena_symbols_table = Arena__allocate_m();
-        Symbols_Table *symbols_table = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
-
-        symbols_table->arena = arena_symbols_table;
-
-        // Initialization steps
-
-        // 1. Create global dot
-        Symbols_Table__get_or_default(symbols_table, dot_symbol_string, sections_table->current);
-        // 2. Place numeric labels 0..9 at beginning of chunks.
-        U8 index = 0;
-        for (;;)
-        {
-                if (index == 10)
-                {
-                        break;
-                }
-                Symbols_Table__label_numeric_get_or_default(symbols_table, index);
-                index += 1;
-        }
-
-
-        return symbols_table;
-}
-
 internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol)
 {
@@ -268,19 +290,11 @@ Symbol_Ref__internal_is(Symbol_Ref *symbol)
 }
 
 internal Symbol_Ref *
-Symbols_Table__internal_label(Symbols_Table *symbols_table, Section *section)
+Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
 {
         String8 name = String8__literal(FAKE_LABEL_NAME);
         Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
         Symbol_Ref__update_section(result, section);
-        return result;
-}
-
-internal B32
-Symbol_Ref__relocation_needed(Symbol_Ref *symbol)
-{
-        B32 result = symbol->section->index == ELF_Section_Index__Undefined
-                  || symbol->section->index == ELF_Section_Index__Common;
         return result;
 }
 
@@ -353,7 +367,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                         result = frame->symbol->value;
                         if (!(frame->symbol->flags & Symbol_Flags__Finalized))
                         {
-                                result += symbol->fragment->object_file_offset;
+                                result += frame->symbol->fragment->object_file_offset;
                         }
 
                         if (finalize)
@@ -449,11 +463,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         {
                                                 // A lot of checks are needed to understand whether an operation between
                                                 // symbols can be performed.
+                                                B32 same_fragment = left->symbol->fragment == right->symbol->fragment;
 
-                                                B32 same_fragment = (left->symbol->fragment == right->symbol->fragment)
-                                                                  && left->symbol->fragment && right->symbol->fragment;
-                                                B32 left_relocation_needed  = Symbol_Ref__relocation_needed(left->symbol);
-                                                B32 right_relocation_needed = Symbol_Ref__relocation_needed(right->symbol);
+                                                B32 left_relocation_needed  = left->symbol->section  == &Section__undefined || left->symbol->section  == &Section__common;
+                                                B32 right_relocation_needed = right->symbol->section == &Section__undefined || right->symbol->section == &Section__common;
                                                 B32 relocation_needed       = left_relocation_needed || right_relocation_needed;
                                                 // NOTE: label difference shouldn't be erased when across _code_ fragments,
                                                 // even after finalization. The linker might further shrink some
@@ -539,7 +552,6 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                 else if (node->right)
                                 {
                                         Expression *right = node->right;
-                                        assert_always_m(right->evaluation);
                                         assert_always_m(Expression_Kind__unary_is(node->kind) && "parsing internal error");
 
                                         if (right->evaluation == Expression_Kind__Constant)
@@ -632,14 +644,4 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
         Arena__scratch_end_m(scratch);
 
         return result;
-}
-
-// TODO(low): not worth a separate function.
-internal void
-Symbols_Table__finalize(Symbols_Table *symbols_table, Diagnostics *diagnostics)
-{
-        for each_node_m(symbols_table->first, symbol)
-        {
-                Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
-        }
 }

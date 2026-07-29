@@ -36,7 +36,6 @@ binding_set
         Token_Cursor            *cursor,
         Diagnostics             *diagnostics,
         Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
         ELF_Symbol_Binding       binding
 )
 {
@@ -49,8 +48,8 @@ binding_set
         }
 
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
-        if (symbol->section->index == ELF_Section_Index__Undefined)
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        if (symbol->section == &Section__undefined)
         {
                 // Still give a preliminary location for it so that we can show diagnostics.
                 symbol->location = cursor->current.location;
@@ -91,7 +90,6 @@ directive_set_like
         Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
         Set_Mode                 mode
 )
 {
@@ -107,9 +105,9 @@ directive_set_like
         }
 
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
 
-        B32 already_defined_or_equated = symbol->section != ELF_Section_Index__Undefined || symbol->expression;
+        B32 already_defined_or_equated = symbol->section != &Section__undefined || symbol->expression;
         if (already_defined_or_equated)
         {
                 B32 frozen = mode != Set_Mode__Override || !(symbol->flags & Symbol_Flags__Volatile);
@@ -130,16 +128,7 @@ directive_set_like
                         }
                 }
 
-                symbol = Symbols_Table__clone(symbols_table, symbol, name);
-        }
-
-        Section *section_maybe = Sections_Table__get(sections_table, name);
-        if (section_maybe)
-        {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("cannot create a symbol with the same name of a section");
-                diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = Token__range(cursor->current);
+                symbol = Symbols_Table__clone(symbols_table, symbol);
         }
 
         symbol->location = cursor->current.location;
@@ -173,7 +162,6 @@ directive_set_like
                 cursor,
                 expressions,
                 symbols_table,
-                sections_table,
                 diagnostics,
                 expression_flags
         );
@@ -184,7 +172,7 @@ directive_set_like
                 S64 result = expression_evaluate(expression);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
-                        symbol->section = sections_table->absolute;
+                        symbol->section = &Section__absolute;
                         symbol->value   = result;
                 }
         }
@@ -200,7 +188,6 @@ directive_data
         Diagnostics         *diagnostics,
         Expressions             *expressions,
         Symbols_Table           *symbols_table,
-        Sections_Table          *sections_table,
         Fixups                  *fixups,
         U8                       data_directive_size
 )
@@ -215,7 +202,7 @@ directive_data
         U32 expressions_count = 0;
         for (;;)
         {
-                Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                 expressions_count += 1;
                 // We explicitly convert it to an unsigned value since this is how it's treated as.
                 //
@@ -223,7 +210,7 @@ directive_data
                 S64 result = expression_evaluate(expression);
                 U64 result_unsigned = (U64)result;
 
-                U8 *data = Fragments__push(&sections_table->current->fragments, cursor->current.location, data_directive_size);
+                U8 *data = Fragments__push(&symbols_table->section_current->fragments, cursor->current.location, data_directive_size);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
                         B32 fits = bit_size == 64 ? 1 : (result_unsigned < ((U64)1 << (data_directive_size * 8)));
@@ -242,8 +229,8 @@ directive_data
                 {
                         Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
                         fixup->expression           = expression;
-                        fixup->fragment             = sections_table->current->fragments.last;
-                        fixup->fragment_write_area  = sections_table->current->fragments.last->data - data_directive_size;
+                        fixup->fragment             = symbols_table->section_current->fragments.last;
+                        fixup->fragment_write_area  = symbols_table->section_current->fragments.last->data - data_directive_size;
                         fixup->fragment_write_size  = data_directive_size;
                         fixup->relocation_type      = bit_size == 8  ? Fixup__8_Bit
                                                     : bit_size == 16 ? Fixup__16_Bit
@@ -268,7 +255,7 @@ directive_data
 
         // Validate that on code section the directive respects alignment. Catching this up early provides better
         // diagnostics than doing it later.
-        Section *section         = sections_table->current;
+        Section *section         = symbols_table->section_current;
         B32 section_code_is      = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
         U64 directive_total_size = expressions_count * data_directive_size;
         B32 padding_invalid      = (directive_total_size % section->elf.alignment) != 0;
@@ -289,7 +276,6 @@ directive_align
         Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
 
         B32              power_of_two_exponent,
         U8               pattern_size
@@ -304,7 +290,7 @@ directive_align
         Alignment alignment = {0};
 
         token_next(cursor, diagnostics);
-        Expression *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+        Expression *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
         expression_evaluate(alignment_expression);
 
         if (alignment_expression->evaluation == Expression_Kind__Constant)
@@ -348,7 +334,7 @@ directive_align
 
                 if (cursor->current.kind != Token_Kind__Comma)
                 {
-                        Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                        Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 
                         U64 pattern_evaluation = (U64)expression_evaluate(pattern_expression);
                         if (pattern_expression->evaluation != Expression_Kind__Constant)
@@ -376,7 +362,7 @@ directive_align
         {
                 // Read bytes_max
                 token_next(cursor, diagnostics);
-                Expression *write_size_max_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                Expression *write_size_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                 S64 write_size_max = expression_evaluate(write_size_max_expression);
                 if (write_size_max_expression->evaluation != Expression_Kind__Constant)
                 {
@@ -408,7 +394,7 @@ directive_align
                 alignment.write_size_max = (U32)write_size_max;
         }
 
-        Fragments__align(&sections_table->current->fragments, location_begin, alignment);
+        Fragments__align(&symbols_table->section_current->fragments, location_begin, alignment);
 }
 
 internal void
@@ -419,7 +405,6 @@ directive_fill
         Diagnostics *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
 
         B32              size_can_be_parsed,
         B32              pattern_can_be_parsed
@@ -430,7 +415,7 @@ directive_fill
         U64 location_begin = cursor->current.location;
         Fill fill = { .pattern_size = 1 };
 
-        Expression *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+        Expression *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
         expression_evaluate(repeat_expression);
         fill.repeat = repeat_expression;
 
@@ -438,7 +423,7 @@ directive_fill
         {
                 // Read size
                 token_next(cursor, diagnostics);
-                Expression *size_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                Expression *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                 S64 fill_size = expression_evaluate(size_expression);
                 B32 constant = size_expression->evaluation == Expression_Kind__Constant;
                 S64 fill_capped = max_m(fill_size, 1);
@@ -457,7 +442,7 @@ directive_fill
         {
                 // Read value
                 token_next(cursor, diagnostics);
-                Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+                Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                 U64 fill_pattern = (U64)expression_evaluate(pattern_expression);
                 if (pattern_expression->evaluation != Expression_Kind__Constant)
                 {
@@ -467,5 +452,5 @@ directive_fill
                 }
                 fill.pattern = fill_pattern;
         }
-        Fragments__fill(&sections_table->current->fragments, location_begin, fill);
+        Fragments__fill(&symbols_table->section_current->fragments, location_begin, fill);
 }

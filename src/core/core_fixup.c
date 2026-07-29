@@ -78,7 +78,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                 Symbol_Ref *symbol_inner     = expression_inner ? expression_inner->symbol : 0;
 
                 B32 undefined_or_common_inner = symbol_inner
-                        ? symbol_inner->section->index == ELF_Section_Index__Undefined || symbol_inner->section->index == ELF_Section_Index__Common
+                        ? symbol_inner->section == &Section__undefined || symbol_inner->section == &Section__common
                         : 0;
 
                 if (undefined_or_common_inner)

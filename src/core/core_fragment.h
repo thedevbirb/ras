@@ -3,7 +3,6 @@
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
-typedef struct Symbol_Ref Symbol_Ref;
 
 // The state of the relaxable code contained within a fragment.
 typedef U8 Relax_State;
@@ -97,6 +96,8 @@ struct Fragment
         // How much of the variable buffer is used.
         U8 data_variable_size;
 };
+
+global Fragment Fragment__nil = { .next = &Fragment__nil };
 
 typedef struct Fragments Fragments;
 struct Fragments

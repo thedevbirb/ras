@@ -5,7 +5,6 @@ expression_parse_with_flags
         Token_Cursor       *cursor,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Sections_Table     *sections_table,
         Diagnostics        *diagnostics,
         Expression_Flags    flags
 )
@@ -72,20 +71,15 @@ expression_parse_with_flags
                                 B32 single_letter_is = identifier_is && (peek_text.count == 1);
                                 B32 forward          = single_letter_is && peek_text.data[0] == 'f';
                                 B32 backward         = single_letter_is && peek_text.data[0] == 'b';
-                                Symbol_Ref *label    = 0;
 
-                                // These two paths can probably collapse.
                                 if (forward || backward)
                                 {
                                         // TODO(medium): what happens here in case of `Expression_Flags__Defer_Dot` or
                                         // similar?
-                                        U32            number        = U32_cast_safe(cursor->current.numerical_value);
-                                        Label_Numeric *label_numeric = Symbols_Table__label_numeric_get_or_default(symbols_table, number);
-                                                       label_numeric->instances += (U32)forward;
-                                        String8        label_name    = label_numeric_string(scratch.arena, *label_numeric);
-                                                       label         = Symbols_Table__get_or_default(symbols_table, label_name, sections_table->undefined);
+                                        U32 number = U32_cast_safe(cursor->current.numerical_value);
 
-                                        if (backward && label->section == ELF_Section_Index__Undefined)
+                                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, forward);
+                                        if (backward && symbol_numeric.symbol->section == &Section__undefined)
                                         {
                                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                 diagnostic->message    = String8__literal("backward label reference not found");
@@ -93,10 +87,10 @@ expression_parse_with_flags
                                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
                                         }
 
-                                        assert_always_m(!forward || label->section->index == ELF_Section_Index__Undefined);
+                                        assert_always_m(!forward || symbol_numeric.symbol->section == &Section__undefined);
 
                                         frame->node->kind       = Expression_Kind__Symbol;
-                                        frame->node->symbol     = label;
+                                        frame->node->symbol     = symbol_numeric.symbol;
                                         // Skip the letter
                                         token_next(cursor, diagnostics);
                                 }
@@ -123,14 +117,14 @@ expression_parse_with_flags
                                 if (dot)
                                 {
                                         Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
-                                        Symbol_Ref__update_section(&dot_trie->symbol, sections_table->current);
+                                        Symbol_Ref__update_section(&dot_trie->symbol, symbols_table->section_current);
                                         symbol = flags & Expression_Flags__Defer_Dot
                                                ? &dot_trie->symbol
-                                               : Symbols_Table__clone(symbols_table, &dot_trie->symbol, dot_trie->name);
+                                               : Symbols_Table__clone(symbols_table, &dot_trie->symbol);
                                 }
                                 else
                                 {
-                                        symbol = Symbols_Table__get_or_default(symbols_table, name, sections_table->undefined);
+                                        symbol = Symbols_Table__get_or_default(symbols_table, name);
                                 }
 
                                 symbol->flags |= Symbol_Flags__Used;
@@ -315,7 +309,6 @@ expression_parse
         Token_Cursor    *cursor,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Sections_Table  *sections_table,
         Diagnostics     *diagnostics
 )
 {
@@ -325,7 +318,6 @@ expression_parse
                 cursor,
                 expressions,
                 symbols_table,
-                sections_table,
                 diagnostics,
                 Expression_Flags__None
         );
@@ -345,7 +337,6 @@ expression_parse_with_relocation
         Token_Cursor             *cursor,
         Expressions              *expressions,
         Symbols_Table            *symbols_table,
-        Sections_Table           *sections_table,
         Diagnostics          *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
@@ -386,6 +377,6 @@ expression_parse_with_relocation
 
                 token_next(cursor, diagnostics);
         }
-        Expression *result = expression_parse(arena, cursor, expressions, symbols_table, sections_table, diagnostics);
+        Expression *result = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
         return result;
 }
