@@ -1457,3 +1457,73 @@ quickly after consumed: we can just save them in a stack. Yes, the boring linked
 arena, you can also guarantee contiguity of data. For basically every use case of this data, you'll
 put it at the top of the stack, and the next fixup you'll read it. Everything is constant time. No
 regrow problems. The simplest possible implementation!
+
+---
+
+I have forgot about `adjust_reloc_syms` while looking at the steps required in `write_object_file`.
+While there might be some details I'm missing, the core of it is trying to simplify the fixup
+expressions, and most importantly walk the chains of undefined or common symbols.
+
+---
+
+TODO: Not very clear what is a symbol's size, and the role of the `.size` directive yet. See
+`elf_frob_symbol`.
+Support for weak and common symbols is very rough. Probably to be addressed after first initial
+version.
+
+### Mon Jul 27 13:44:54 CEST 2026
+
+Linked list paired with arena allocators for contiguity are just awesome, flexible and useful. It can be the right
+data structure for many many use-cases. Unless serializability is paramount and should be first
+class, then it can be almost idea. O(1) access is obtained by replacing an index with a pointer,
+which on most `Vec` like data structure is already the size of a pointer anyway. Such pointers are
+also stable, so it's not like you're taking a pointer to a collection which gets re-allocated.
+
+It just works better for the `Sections_Table`: after the fixup resolution process is done
+(essentially at the very end, before writing to object file), we may insert new sections for
+relocations like `.rela.text` and alike. Usually, known tools place them right after the section
+they refer to. Assigning indexes early would not work then, and we can only do it after the
+`Sections_Table` is finalized. A doubly linked list is perfect for this purpose.
+
+In general, it is always so difficult to only do what you need, and not fall into the generalized
+solution trap. It's hard because it requires understanding!
+
+So I've moved the backing data structure of both the `Sections_Table` and the `Symbols_Table` to a
+DLL. I think it can be done also for `Expressions`, so that we can get rid of the Xar, and probably,
+with eager folding at parse time without overa-allocation, we can use the same `Arena` of the
+`Symbols_Table`. Because expressions make no sense without symbols table, so it might as well
+condense them to the same lifetime. It clears up also a bit the lifetime soup there is. Very
+shortly, expressions, symbols, and sections essentially must be considered altogether.
+
+---
+
+Refactor note: I should probably make more code action-oriented in the parser, meaning that the
+parser will gather the info and then there is another function which just performs the action. That
+would be more re-usable, for example I could mimic the effect of a `.section` directive (i.e.,
+create a section).
+
+### Tue Jul 28 09:05:52 CEST 2026
+
+Regarding allocators, GNU as is again mostly right: it uses the same `notes` allocator for symbols,
+expressions, section information, and fixups. I think it makes a lot of sense considering pretty
+much related to each other and it would make sense to bind them to the same lifetime. Moreover there
+isn't probably a big discountinuity penalty. However, fragments still use a dedicated allocator per
+section.
+
+---
+
+I think I'll collapse the `Sections_Table` into the `Symbols_Table`. The former just doesn't make
+sense on its own, and I'm truly realizing it while close to object file writing (I could have done
+it before, as usual :D) because I now see how sections ARE a special case of symbols, meaning that
+they can even be jump targets: `j .text + 0x40` is perfectly valid assembly code.
+The `Symbols_Table` then just needs some minor ergonomics for iterating on this special subset of
+symbols, but apart from that there is the plus of dealing with a single hash trie, a single
+allocator etc.
+
+### Wed Jul 29 19:58:36 CEST 2026
+
+The merging of the `Sections_Table` into the `Symbols_Table` has been a bit longer than expected.
+Even with example of usages, sometimes it's hard to figure out good APIs, even for internal use. If
+you abstract too much, it end up being useless, because you'll often write specialized versions
+instead. If you specialize too much, you end up with too many of them with almost a unique use. Both
+are synonyms of poor understanding.
