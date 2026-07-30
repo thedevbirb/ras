@@ -5,8 +5,7 @@ statement_read
         Token_Cursor            *cursor,
         Diagnostics         *diagnostics,
         Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Fixups                  *fixups
+        Symbols_Table           *symbols_table
 )
 {
 
@@ -161,9 +160,7 @@ statement_read
                         {
                                 RISCV_instruction_pseudo_append
                                 (
-                                        arena,
                                         symbols_table->section_current,
-                                        fixups,
                                         expressions,
                                         symbols_table,
                                         &instruction,
@@ -175,8 +172,8 @@ statement_read
                         {
                                 RISCV_Instruction__append
                                 (
+                                        symbols_table->arena,
                                         symbols_table->section_current,
-                                        fixups,
                                         &instruction,
                                         expression_parsed,
                                         relocation
@@ -190,19 +187,19 @@ statement_read
 
                 case Directive_Kind__Word_Double:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 8);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8);
                 } break;
                 case Directive_Kind__Word:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 4);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, 4);
                 } break;
                 case Directive_Kind__Word_Half:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 2);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, 2);
                 } break;
                 case Directive_Kind__Byte:
                 {
-                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, fixups, 1);
+                        directive_data(arena, cursor, diagnostics, expressions, symbols_table, 1);
                 } break;
                 case Directive_Kind__String: {} // fallthrough
                 case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
@@ -238,6 +235,7 @@ statement_read
                         if (new_is)
                         {
                                 Symbols_Table__create_section(symbols_table, symbol);
+                                DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
                         }
 
                         token_next(cursor, diagnostics);

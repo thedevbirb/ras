@@ -218,11 +218,10 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         section->elf.type  = ELF_Section_Header_Type__default;
         section->elf.flags = ELF_Section_Header_Type__Program_Data;
 
-        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, section);
         symbols_table->section_count += 1;
 }
 
-internal void
+internal Symbol_Ref *
 Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
 {
         // TODO(low): hardcoded at the moment, will be configurable later.
@@ -254,6 +253,8 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
         U32 location = 0;
         U8 *destination = Fragments__push(&symbol->section->fragments, location, sizeof(data));
         memory_copy(destination, data, sizeof(data));
+
+        return symbol;
 }
 
 internal Symbols_Trie *

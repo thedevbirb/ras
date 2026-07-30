@@ -81,8 +81,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 
         {
         U64 address = 0;
-        Fragment *current = fragments.first;
-        for (;;)
+        for each_node_z_m(fragments.first, current, &Fragment__nil)
         {
                 current->object_file_offset = address;
                 address += current->data_size;
@@ -148,13 +147,6 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         }
                 } break;
                 }
-
-                if (!current->next)
-                {
-                        break;
-                }
-
-                current = current->next;
         }
         }
 
@@ -181,8 +173,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                 stretch   = 0;
                 stretched = 0;
 
-                Fragment *current = fragments.first;
-                for (;;)
+                for each_node_z_m(fragments.first, current, &Fragment__nil)
                 {
                         if (!current)
                         {
@@ -293,9 +284,6 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 stretch += growth;
                                 stretched = 1;
                         }
-
-
-                        current = current->next;
                 }
 
 
@@ -309,8 +297,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
         B32 stretched_at_least_once = 0;
         // Update all the addresses for this iterations.
 
-        Fragment *current = fragments.first;
-        for (;;)
+        for each_node_z_m(fragments.first, current, &Fragment__nil)
         {
                 if (!current)
                 {
@@ -330,7 +317,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 // NOTE: in GNU as, this is done when sizing a segment but it could be done in a separate place since, at least in our
 // case, it's we are not changing the size of fragments.
 internal void
-Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *expressions, Arena *arena, Fixups *fixups)
+Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *expressions, Arena *arena)
 {
         U32 data_size_before          = fragment->data_size;
         U8  data_variable_size_before = fragment->data_variable_size;
@@ -407,15 +394,14 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
-                                Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+                                Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                                 fixup->expression          = relax_info->jump.expression;
                                 fixup->fragment            = fragment;
                                 // TODO(high): review this positioning.
                                 fixup->fragment_write_area = fragment->data_variable_buffer + sizeof(instruction_1);
                                 fixup->fragment_write_size = sizeof(instruction_2);
                                 fixup->relocation_type     = Relocation_RISC_V__JAL;
-                                fixup->section             = section;
-                                DLL_push_front_m(fixups->first, fixups->last, fixup);
+                                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
 
                                 memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
                                 memory_copy(fragment->data_variable_buffer + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
@@ -424,15 +410,14 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         else if (instructions_total_size == 4)
                         {
                                 U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
-                                Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+                                Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                                 fixup->fragment            = fragment;
                                 fixup->expression          = relax_info->jump.expression;
                                 // TODO(high): review this positioning.
                                 fixup->fragment_write_area = fragment->data_variable_buffer;
                                 fixup->fragment_write_size = instructions_total_size;
                                 fixup->relocation_type     = relocation_type;
-                                fixup->section             = section;
-                                DLL_push_front_m(fixups->first, fixups->last, fixup);
+                                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
                         }
                         else
                         {

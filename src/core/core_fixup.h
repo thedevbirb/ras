@@ -22,19 +22,22 @@ enum
 
 // TODO(medium): fixups are currently a bit of lifetime soup between `Fragment` and `Expression`. Since everything has
 // almost static duration, this is not a problem, however it's something to track.
+//
+// Again, it should be in the same arena of the Symbols_Table.
 typedef struct Fixup Fixup;
 struct Fixup
 {
+        // DLL needed to insert `Relocation_RISC_V__Relax` in between.
         Fixup       *next;
         Fixup       *previous;
 
         Fragment    *fragment;
+        // Section     *section;
 
         Expression  *expression;
         // Pointer to location in the fragment fixed or variable data where the patch should be written.
         U8          *fragment_write_area;
 
-        Section     *section;
         U16          relocation_type;
         // Size of the patch to be written.
         U8           fragment_write_size;
@@ -76,9 +79,8 @@ PC_Relative_High__find(PC_Relative_High *pc_relative_high, Section *section, U64
 typedef struct Fixups Fixups;
 struct Fixups
 {
-        Arena *arena;
-
         U64    count;
+        U64    unresolved;
         Fixup *first;
         Fixup *last;
 
@@ -96,10 +98,10 @@ internal void
 Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics);
 
 internal void
-Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics);
+Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnostics);
 
 internal void
-Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics);
+Fixups__resolve(Section *section, Arena *arena, Diagnostics *diagnostics);
 
 #endif // CORE_FIXUP_H
 

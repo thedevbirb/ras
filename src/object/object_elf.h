@@ -324,42 +324,39 @@ typedef U8 ELF_Symbol_Binding;
 #define STV_PROTECTED        3                /* Not preemptible, not exported */
 
 
-/* Relocation table entry without addend (in section of type ELF_Section_Header_Type__Relocations).  */
-
-typedef struct ELF32_Rel ELF32_Rel;
-struct ELF32_Rel
+typedef struct ELF32_Relocation ELF32_Relocation;
+struct ELF32_Relocation
 {
-  Address32        r_offset;                /* Address */
-  U32        r_info;                        /* Relocation type and symbol index */
+        U32 offset;
+        // Relocation type and symbol index
+        U32 info;
 };
 
-/* I have seen two different definitions of the ELF64_Rel and
-   ELF64_Rela structures, so we'll leave them out until Novell (or
-   whoever) gets their act together.  */
-/* The following, at least, is used on Sparc v9, MIPS, and Alpha.  */
-
-typedef struct
+typedef struct ELF64_Relocation ELF64_Relocation;
+struct ELF64_Relocation
 {
-  Address64        r_offset;                /* Address */
-  U64        r_info;                        /* Relocation type and symbol index */
-} ELF64_Rel;
-
-/* Relocation table entry with addend (in section of type ELF_Section_Header_Type__Relocations_Addends).  */
-
-typedef struct ELF32_Rela ELF32_Rela;
-struct ELF32_Rela
-{
-  Address32        r_offset;                /* Address */
-  U32        r_info;                        /* Relocation type and symbol index */
-  S32        r_addend;                /* Addend */
+        U64 offset;
+        // Relocation type and symbol index
+        U64 info;
 };
 
-typedef struct
+typedef struct ELF32_Relocation_Addend ELF32_Relocation_Addend;
+struct ELF32_Relocation_Addend
 {
-        U64 offset;                /* Address */
-        U64 info;                        /* Relocation type and symbol index */
-        S64 addend;                /* Addend */
-} ELF64_Relocation_Addend;
+        U32 offset;
+        // Relocation type and symbol index
+        U32 info;
+        S32 addend;
+};
+
+typedef struct ELF64_Relocation_Addend ELF64_Relocation_Addend;
+struct ELF64_Relocation_Addend
+{
+        U64 offset;
+        // Relocation type and symbol index
+        U64 info;
+        S64 addend;
+};
 
 /* RelocationsR relocation table entry */
 
@@ -374,7 +371,7 @@ typedef U64        ELF64_Relr;
 
 #define ELF64_Relocation_symbol_m(i)          ((i) >> 32)
 #define ELF64_Relocation_type_m(i)            ((i) & 0xffffffff)
-#define ELF64_Relocation_info_m(symbol,type)  ((((U64) (symbol)) << 32) + (type))
+#define ELF64_Relocation_info_m(symbol,type)  ((((U64)(symbol)) << 32) + (type))
 
 /* Program segment header.  */
 

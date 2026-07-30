@@ -5,6 +5,8 @@
 #include "write_section.h"
 #include "write_object.h"
 
+#include <unistd.h>
+
 internal void
 write_object_file
 (
@@ -12,10 +14,12 @@ write_object_file
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Fixups          *fixups
+        S32              file_descriptor_out
 )
 {
-        // Section__create_riscv_attributes(sections_table);
+        Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_riscv_attributes->section);
+
         for each_node_m(symbols_table->section_first, section)
         {
                 Section__finish(section);
@@ -43,9 +47,9 @@ write_object_file
 
         for each_node_m(symbols_table->section_first, section)
         {
-                for each_node_m(section->fragments.first, fragment)
+                for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                 {
-                        Fragment__convert_to_fill(fragment, section, expressions, arena, fixups);
+                        Fragment__convert_to_fill(fragment, section, expressions, symbols_table->arena);
                 }
         }
 
@@ -62,8 +66,8 @@ write_object_file
                 {
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->kind       = Diagnostic_Kind__Warning;
-                        diagnostic->message    = String8__format(arena, "section '%*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
-                                                                 section->symbol->name->count, section->symbol->name->data, section->elf.size, section->elf.entry_size);
+                        diagnostic->message    = String8__format(arena, "section '%.*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
+                                                                 String8__varg(*section->symbol->name), section->elf.size, section->elf.entry_size);
                         diagnostic->location   = section->symbol->location;
                 }
         }
@@ -73,5 +77,47 @@ write_object_file
                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
         }
         Expressions__finalize(expressions, diagnostics);
-        Fixups__resolve(fixups, diagnostics);
+        for each_node_m(symbols_table->section_first, section)
+        {
+                Section__resolve_fixups(section, symbols_table->arena, diagnostics);
+        }
+
+
+        // We have to create more sections now:
+        //
+        // 1. relocation sections, e.g. .rela.text after corresponding sections.
+        // 2. symtab
+        // 3. strtab
+        // 4. shstrtab
+
+        // Create the `.rela<section>` sections, and place them after the `<section>`.
+        for each_node_m(symbols_table->section_first, section)
+        {
+                if (section->fixups.unresolved > 0)
+                {
+                        Arena_Temporary scratch = Arena_Temporary__begin(arena);
+                        String8 name = String8__format(scratch.arena, ".rela%.*s", String8__varg(*section->symbol->name));
+                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+                        Arena_Temporary__end(scratch);
+
+                        Symbols_Table__create_section(symbols_table, symbol);
+                        DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
+                        symbol->section->elf.type = ELF_Section_Header_Type__Relocations;
+                }
+        }
+
+        Symbol_Ref *symbol_symtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".symtab"));
+        Symbols_Table__create_section(symbols_table, symbol_symtab);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
+        symbol_symtab->section->elf.type = ELF_Section_Header_Type__Symbols_Table;
+
+        Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
+        Symbols_Table__create_section(symbols_table, symbol_strtab);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
+        symbol_strtab->section->elf.type = ELF_Section_Header_Type__Strings_Table;
+
+        Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
+        Symbols_Table__create_section(symbols_table, symbol_shstrtab);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
+        symbol_shstrtab->section->elf.type = ELF_Section_Header_Type__Strings_Table;
 }

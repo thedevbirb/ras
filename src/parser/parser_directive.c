@@ -183,13 +183,12 @@ directive_set_like
 internal void
 directive_data
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostics         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Fixups                  *fixups,
-        U8                       data_directive_size
+        Arena          *arena,
+        Token_Cursor   *cursor,
+        Diagnostics    *diagnostics,
+        Expressions    *expressions,
+        Symbols_Table  *symbols_table,
+        U8              data_directive_size
 )
 {
         // Format: .byte|half|word|dword <expr_1> , ..., <expr_n>.
@@ -227,7 +226,7 @@ directive_data
                 }
                 else
                 {
-                        Fixup *fixup = Arena__push_struct_m(fixups->arena, Fixup);
+                        Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                         fixup->expression           = expression;
                         fixup->fragment             = symbols_table->section_current->fragments.last;
                         fixup->fragment_write_area  = symbols_table->section_current->fragments.last->data - data_directive_size;
@@ -237,7 +236,8 @@ directive_data
                                                     : bit_size == 32 ? Relocation_RISC_V__32_Bit
                                                     : Relocation_RISC_V__64_Bit;
 
-                        DLL_push_front_m(fixups->first, fixups->last, fixup);
+                        Section *section = symbols_table->section_current;
+                        DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
                 }
 
                 B32 break_should_directive =  cursor->source_index >= cursor->source->count

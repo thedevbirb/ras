@@ -4,7 +4,7 @@ Fragments__push_empty_fragment(Fragments *fragments, U32 location)
         Fragment *fragment = Arena__push_struct_m(fragments->arena, Fragment);
         fragment->location = location;
 
-        SLL_queue_push_m(fragments->first, fragments->last, fragment);
+        SLL_queue_push_z_m(&Fragment__nil, fragments->first, fragments->last, fragment);
         fragments->count += 1;
 
         return fragment;
@@ -37,7 +37,7 @@ Fragments__push(Fragments *fragments, U32 location, U32 size)
         U64  capacity_left             = fragments->arena->reserved_size - fragments->arena->offset;
         B32  arena_block_new_needed    = capacity_left < size;
         B32  fragment_seal_last_needed = arena_block_new_needed && fragments->last;
-        B32  fragment_new_needed       = arena_block_new_needed || fragments->last == 0;
+        B32  fragment_new_needed       = arena_block_new_needed || fragments->last == &Fragment__nil;
         B32  buffer_new_needed         = 0;
 
         assert_always_m(capacity_left < fragments->arena->reserved_size && "underflow");

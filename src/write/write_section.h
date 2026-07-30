@@ -19,13 +19,5 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
 internal B32
 Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics);
 
-// Create the .riscv.attributes section with hardcoded data for RV64I.
-// internal void
-// Section__create_riscv_attributes(Sections_Table *sections_table);
-
-// Finish the section by sealing its fragments with an alignment + fill final fragment pattern.
-// internal void
-// Sections_Table__finish(Sections_Table *sections_table);
-
 #endif // WRITE_SECTION_H
 

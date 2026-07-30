@@ -838,24 +838,23 @@ RISCV_instruction_size(U32 encoding);
 internal void
 RISCV_Instruction__append
 (
+        Arena             *arena,
         Section           *section,
-        Fixups            *fixups,
 
         RISCV_Instruction *instruction,
-        Expression   *expression,
+        Expression        *expression,
         U16                relocation
 );
 
 internal void
 RISCV_macro_build
 (
-
+        Arena           *arena,
         Section         *section,
-        Fixups          *fixups,
 
         String8          instruction_name,
         U32              location,
-        Expression *expression,
+        Expression      *expression,
         OP_Argument     *arguments,
         S32             *values
 );
@@ -864,8 +863,8 @@ RISCV_macro_build
 internal void
 RISCV_call_expand
 (
+        Arena           *arena,
         Section         *section,
-        Fixups          *fixups,
 
         U8               rd,
         U8               rs1,
@@ -887,15 +886,13 @@ RISCV_li_expand
 internal void
 RISCV_instruction_pseudo_append
 (
-        Arena                   *arena,
-        Section                 *section,
-        Fixups                  *fixups,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
 
-        RISCV_Instruction       *instruction,
+        RISCV_Instruction  *instruction,
         Expression         *expression,
-        U16                      relocation
+        U16                 relocation
 );
 
 #endif // RISCV_INSTRUCTION_H

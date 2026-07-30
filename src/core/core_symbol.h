@@ -223,7 +223,7 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section);
 internal void
 Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol);
 
-internal void
+internal Symbol_Ref *
 Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table);
 
 internal Symbol_Ref *

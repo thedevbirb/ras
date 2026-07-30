@@ -19,8 +19,8 @@ struct Section
         Section             *previous;
         Section             *next;
         Symbol_Ref          *symbol;
+        Fixups               fixups;
         Fragments            fragments;
-
 
         // Output fields.
 

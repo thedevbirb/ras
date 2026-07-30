@@ -122,7 +122,6 @@ directive_data
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
-        Fixups          *fixups,
         U8               data_directive_size
 );
 

@@ -106,10 +106,6 @@ main(int argument_count, char **argument_vector)
         symbols_table->section_current = text_symbol->section;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, text_symbol->section);
 
-        Arena *arena_fixups = Arena__allocate_m();
-        Fixups *fixups = Arena__push_struct_m(arena_fixups, Fixups);
-        fixups->arena = arena_fixups;
-
         Expressions expressions = {0};
         Expressions__initialize(&expressions, arena, 12);
 
@@ -122,8 +118,7 @@ main(int argument_count, char **argument_vector)
                 &cursor,
                 diagnostics,
                 &expressions,
-                symbols_table,
-                fixups
+                symbols_table
         );
 
         B32 exit_status = 0;
@@ -156,7 +151,7 @@ main(int argument_count, char **argument_vector)
                 diagnostics,
                 &expressions,
                 symbols_table,
-                fixups
+                file_descriptor_out
         );
 
         if (diagnostics->first)

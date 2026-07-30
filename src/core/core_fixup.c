@@ -56,7 +56,7 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
 }
 
 internal void
-Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
+Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnostics)
 {
         // Whether a RELAX relocation can be emitted
         B32 relaxable = 0;
@@ -157,12 +157,12 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                         // The idea is that: since this can only be valid if it's a subtract,
                         // unpack it into an "add" and "sub" relocation by looking at the left and right subexpressions.
 
-                        Fixup *fixup_sub = Arena__push_struct_m(fixups->arena, Fixup);
+                        Fixup *fixup_sub = Arena__push_struct_m(arena, Fixup);
                               *fixup_sub = *fixup;
 
                         fixup_sub->expression = fixup->expression->right;
                         fixup->expression     = fixup->expression->left;
-                        DLL_insert_m(fixups->first, fixups->last, fixup, fixup_sub);
+                        DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_sub);
                 }
                 else if (fixup->expression->evaluation == Expression_Kind__Constant)
                 {
@@ -187,19 +187,19 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
         case Relocation_RISC_V__PC_Relative_High_20:
         {
                 B32 symbol_internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section == fixup->section;
+                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section == section;
                 if (evaluatable)
                 {
                         S64 position = fixup->expression->symbol->value;
                         S64 offset   = fixup->expression->integer_value;
                         S64 target   = (position + offset) - fixup->fragment->object_file_offset;
 
-                        PC_Relative_High *pc_relative_high = Arena__push_struct_m(fixups->arena, PC_Relative_High);
-                        pc_relative_high->section            = fixup->section;
+                        PC_Relative_High *pc_relative_high = Arena__push_struct_m(arena, PC_Relative_High);
+                        pc_relative_high->section            = section;
                         pc_relative_high->object_file_offset = fixup->fragment->object_file_offset;
                         pc_relative_high->expression         = fixup->expression;
 
-                        SLL_stack_push_m(fixups->pc_relative_high, pc_relative_high);
+                        SLL_stack_push_m(section->fixups.pc_relative_high, pc_relative_high);
 
                         // NOTE: we want to encode the upper bits of the `target`, knowing that the lower bits
                         // will be added using a _sign extended_ operation, that is, instead of adding a number in the
@@ -238,13 +238,13 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
         case Relocation_RISC_V__PC_Relative_Low_12_I_Type:
         {
                 U64 object_file_offset = fixup->expression->symbol->value + fixup->expression->integer_value;
-                PC_Relative_High *entry = PC_Relative_High__find(fixups->pc_relative_high, fixup->section, object_file_offset);
+                PC_Relative_High *entry = PC_Relative_High__find(section->fixups.pc_relative_high, section, object_file_offset);
 
                 B32 evaluatable = 0;
                 if (entry)
                 {
                     B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
-                    evaluatable = symbol_internal_is && entry->expression->symbol->section == fixup->section;
+                    evaluatable = symbol_internal_is && entry->expression->symbol->section == section;
                 }
 
                 if (evaluatable)
@@ -283,7 +283,7 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
                 diagnostic->message    = String8__format
                         (
                                 diagnostics->arena,
-                                "Cannot resolve %*s - %s", String8__varg(*(fixup->expression->left->symbol->name)), String8__varg(*(fixup->expression->right->symbol->name))
+                                "Cannot resolve %.*s - %.*s", String8__varg(*(fixup->expression->left->symbol->name)), String8__varg(*(fixup->expression->right->symbol->name))
                         );
                 diagnostic->location   = fixup->expression->location;
                 diagnostic->ranges[0]  = fixup->expression->location_range;
@@ -291,34 +291,28 @@ Fixup__apply(Fixup *fixup, Fixups *fixups, Diagnostics *diagnostics)
 
         if (relaxable && fixup->expression->symbol)
         {
-                Fixup *fixup_relax = Arena__push_struct_m(fixups->arena, Fixup);
+                Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
                 *fixup_relax = *fixup;
 
                 fixup_relax->fragment_write_size = 0;
                 fixup_relax->relocation_type = Relocation_RISC_V__Relax;
-                DLL_insert_m(fixups->first, fixups->last, fixup, fixup_relax);
+                DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_relax);
         }
 
         if (!(fixup->flags & Fixup_Flags__Done))
         {
                 if (fixup->expression->symbol) { fixup->expression->symbol->flags |= Symbol_Flags__Relocation; }
+                section->fixups.unresolved += 1;
         }
 
         return;
 }
 
 internal void
-Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics)
+Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics)
 {
-        Fixup *fixup = fixups->first;
-
-        for (;;)
+        for each_node_m(section->fixups.first, fixup)
         {
-                if (!fixup)
-                {
-                        break;
-                }
-
                 // TODO(medium) Should we filter away those fixups whose expressions are unsolvable?
 
                 Expression *expression     = fixup->expression;
@@ -338,10 +332,8 @@ Fixups__resolve(Fixups *fixups, Diagnostics *diagnostics)
 
                 if (processable_is)
                 {
-                        Fixup__apply(fixup, fixups, diagnostics);
+                        Fixup__apply(fixup, section, arena, diagnostics);
                 }
-
-                fixup = fixup->next;
         }
 }
 

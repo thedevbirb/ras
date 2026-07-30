@@ -553,8 +553,8 @@ RISCV_Instruction__parse
 internal void
 RISCV_Instruction__append
 (
+        Arena             *arena,
         Section           *section,
-        Fixups            *fixups,
 
         RISCV_Instruction *instruction,
         Expression        *expression,
@@ -577,11 +577,10 @@ RISCV_Instruction__append
 
         if (fixable)
         {
-                fixup                  = Arena__push_struct_m(fixups->arena, Fixup);
+                fixup                  = Arena__push_struct_m(arena, Fixup);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
-                fixup->section         = section;
-                DLL_push_front_m(fixups->first, fixups->last, fixup);
+                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
         }
 
         if (relaxable)
@@ -625,9 +624,8 @@ RISCV_Instruction__append
 internal void
 RISCV_macro_build
 (
-
+        Arena       *arena,
         Section     *section,
-        Fixups      *fixups,
 
         String8      instruction_name,
         U32          location,
@@ -678,8 +676,8 @@ RISCV_macro_build
 
         RISCV_Instruction__append
         (
+                arena,
                 section,
-                fixups,
                 &instruction,
                 expression,
                 relocation
@@ -690,8 +688,8 @@ RISCV_macro_build
 internal void
 RISCV_call_expand
 (
+        Arena           *arena,
         Section         *section,
-        Fixups          *fixups,
 
         U8               rd,
         U8               rs1,
@@ -709,8 +707,8 @@ RISCV_call_expand
         Fragments__ensure(&section->fragments, 8);
         RISCV_macro_build
         (
+                arena,
                 section,
-                fixups,
 
                 String8__literal("auipc"),
                 location,
@@ -720,8 +718,8 @@ RISCV_call_expand
         );
         RISCV_macro_build
         (
+                arena,
                 section,
-                fixups,
 
                 String8__literal("jalr"),
                 location,
@@ -922,15 +920,13 @@ RISCV_li_expand
 internal void
 RISCV_instruction_pseudo_append
 (
-        Arena                   *arena,
-        Section                 *section,
-        Fixups                  *fixups,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
 
-        RISCV_Instruction       *instruction,
+        RISCV_Instruction  *instruction,
         Expression         *expression,
-        U16                      relocation
+        U16                relocation
 )
 {
         U8 rd  = (instruction->encoding >> OP_SH_RD)  & OP_MASK_RD;
@@ -947,8 +943,8 @@ RISCV_instruction_pseudo_append
         {
                 RISCV_call_expand
                 (
+                        symbols_table->arena,
                         section,
-                        fixups,
                         rd,
                         rs1,
                         expression,
@@ -1006,7 +1002,7 @@ RISCV_instruction_pseudo_append
                         S32 values_addi[]            = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
                         Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);
-                        Expression *expression_addi         = Expressions_push_empty(expressions, arena);
+                        Expression *expression_addi         = Expressions_push_empty(expressions, symbols_table->arena);
                                     expression_addi->symbol = internal_label;
                                     expression_addi->kind   = Expression_Kind__Symbol;
 
@@ -1014,26 +1010,26 @@ RISCV_instruction_pseudo_append
                         Fragments__ensure(&section->fragments, 8);
                         RISCV_macro_build
                         (
-                                 section,
-                                 fixups,
+                                symbols_table->arena,
+                                section,
 
-                                 String8__literal("auipc"),
-                                 instruction->location,
-                                 expression,
-                                 arguments_auipc,
-                                 values_auipc
+                                String8__literal("auipc"),
+                                instruction->location,
+                                expression,
+                                arguments_auipc,
+                                values_auipc
                         );
                         // NOTE: GNU as creates also a second expression with an fake label for addi, why?
                         RISCV_macro_build
                         (
-                                 section,
-                                 fixups,
+                                symbols_table->arena,
+                                section,
 
-                                 String8__literal("addi"),
-                                 instruction->location,
-                                 expression_addi,
-                                 arguments_addi,
-                                 values_addi
+                                String8__literal("addi"),
+                                instruction->location,
+                                expression_addi,
+                                arguments_addi,
+                                values_addi
                         );
                         // TODO(medium, check-gas): wane and new here?
                 }
