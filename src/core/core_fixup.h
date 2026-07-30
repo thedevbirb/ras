@@ -35,8 +35,10 @@ struct Fixup
         // Section     *section;
 
         Expression  *expression;
-        // Pointer to location in the fragment fixed or variable data where the patch should be written.
-        U8          *fragment_write_area;
+        // Offset in the fragment where data should be written. If bigger than `Fragment.data_size`, then it's in the
+        // variable buffer.
+        U32          offset;
+        // U8          *fragment_write_area;
 
         U16          relocation_type;
         // Size of the patch to be written.

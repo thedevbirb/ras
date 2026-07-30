@@ -29,6 +29,7 @@ typedef U16 ELF64_Version_Symbol;
 typedef struct ELF32_Header ELF32_Header;
 struct ELF32_Header
 {
+        U8  identifier[ELF_id_size];
         U16 object_file_type;
         U16 architecture;
         U32 object_file_version;
@@ -62,6 +63,53 @@ struct ELF64_Header
         U16 section_header_table_entry_count;
         U16 section_header_string_table_index;
 };
+
+#define ELF_ID_Magic__Index 0
+#define ELF_ID_Magic__0     0x7f
+#define ELF_ID_Magic__1     'E'
+#define ELF_ID_Magic__1     'E'
+#define ELF_ID_Magic__2     'L'
+#define ELF_ID_Magic__3     'F'
+
+// 32-bit or 64-bit class.
+#define ELF_ID_Class__Index  4
+#define ELF_ID_Class__None   0
+#define ELF_ID_Class__32     1
+#define ELF_ID_Class__64     2
+
+#define ELF_ID_Data__Index   5
+#define ELF_ID_Data__None    0
+#define ELF_ID_Data__2LSB    1
+#define ELF_ID_Data__2MSB    2
+
+#define ELF_ID_Version__Index   6
+#define ELF_ID_Version__Current 1
+
+#define ELF_ID_OS_ABI__Index      7
+#define ELF_ID_OS_ABI__None       0 /* Unix System V ABI */
+#define ELF_ID_OS_ABI__SYSV       1 /* Alias */
+#define ELF_ID_OS_ABI__GNU        3 /* GNU ELF extensions. */
+#define ELF_ID_OS_ABI__Linux      ELF_ID_OS_ABI__GNU
+#define ELF_ID_OS_ABI__Standalone 255 /* Embedded application */
+
+// TODO: which value?
+#define ELF_ID_ABI_Version__Index 8
+
+#define ELF_ID_Padding__Index     9
+
+/* Legal values for e_type (object file type).  */
+
+#define ELF_Type__NONE               0  /* No file type */
+#define ELF_Type__Relocatable        1  /* Relocatable file */
+#define ELF_Type__Executable         2  /* Executable file */
+#define ELF_Type__Shared             3  /* Shared object file */
+#define ELF_Type__Core               4  /* Core file */
+#define ELF_Type__LOOS          0xfe00  /* OS-specific range start */
+#define ELF_Type__HIOS          0xfeff  /* OS-specific range end */
+#define ELF_Type__LOPROC        0xff00  /* Processor-specific range start */
+#define ELF_Type__HIPROC        0xffff  /* Processor-specific range end */
+
+#define ELF_Machine__RISCV 243
 
 /* Section header.  */
 

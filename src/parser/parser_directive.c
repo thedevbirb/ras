@@ -229,7 +229,7 @@ directive_data
                         Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                         fixup->expression           = expression;
                         fixup->fragment             = symbols_table->section_current->fragments.last;
-                        fixup->fragment_write_area  = symbols_table->section_current->fragments.last->data - data_directive_size;
+                        fixup->offset               = symbols_table->section_current->fragments.last->data_size - data_directive_size;
                         fixup->fragment_write_size  = data_directive_size;
                         fixup->relocation_type      = bit_size == 8  ? Fixup__8_Bit
                                                     : bit_size == 16 ? Fixup__16_Bit

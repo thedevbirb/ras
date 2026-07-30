@@ -74,8 +74,11 @@ struct Symbol_Ref
         Expression       *expression;
         // ELF value for this symbol, which can mean an offset for labels.
         U64 value;
+        U64 size;
         Symbol_Flags      flags;
 
+        U32 index;
+        U32 string_table_offset;
         U32 location;
         // Only 4 bits of it will be read.
         U8 type;
@@ -195,7 +198,7 @@ struct Symbols_Table
         Section                  *section_current;
 
         U32                       count;
-        U32                       section_count;
+        U32                       sections_count;
 
 };
 

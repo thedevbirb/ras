@@ -1,7 +1,7 @@
 #ifndef WRITE_OBJECT_H
 #define WRITE_OBJECT_H
 
-internal void
+internal U64
 write_object_file
 (
         Arena           *arena,

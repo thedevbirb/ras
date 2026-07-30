@@ -1,12 +1,28 @@
+internal U8 *
+Fixup__write_area(Fixup *fixup)
+{
+        U8       *result   = 0;
+        Fragment *fragment = fixup->fragment;
+
+        B32 inside_data_variable_is = fixup->offset >= fragment->data_size;
+        result = inside_data_variable_is ? fragment->data_variable : fragment->data;
+
+        U32 offset_relative = inside_data_variable_is ? fixup->offset - fragment->data_size : fixup->offset;
+        result +=  offset_relative;
+
+        return result;
+}
+
 internal void
 Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding)
 {
         U32 encoding = 0;
         // TODO(medium): check whether `fragment_write_size` can't be inferred from the relocation type.
         U8  size     = min_m(sizeof(encoding), fixup->fragment_write_size);
-        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
+        U8 *write_area = Fixup__write_area(fixup);
+        memory_copy((U8 *)&encoding, write_area, size);
         U32 encoding_patched = encoding | patch_to_or_into_encoding;
-        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
+        memory_copy(write_area, (U8 *)&encoding_patched, size);
 
         if (fixup->expression->evaluation == Expression_Kind__Constant)
         {
@@ -31,10 +47,11 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
         // Works also for U16 encoding.
         U32 encoding = 0;
         U8 size = min_m(fixup->fragment_write_size, sizeof(encoding));
-        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
+        U8 *write_area = Fixup__write_area(fixup);
+        memory_copy((U8 *)&encoding, write_area, size);
         U32 patch = encoding_callback(distance);
         U32 encoding_patched = encoding |= patch;
-        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
+        memory_copy(write_area, (U8 *)&encoding_patched, size);
 
         B32 valid_immediate = valid_immediate_callback && valid_immediate_callback(distance);
         if (!valid_immediate)
@@ -167,7 +184,8 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                 else if (fixup->expression->evaluation == Expression_Kind__Constant)
                 {
                         U8 size = min_m(fixup->fragment_write_size, sizeof(fixup->expression->integer_value));
-                        memory_copy(fixup->fragment_write_area, (U8 *)&fixup->expression->integer_value, size);
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy(write_area, (U8 *)&fixup->expression->integer_value, size);
                         fixup->flags |= Fixup_Flags__Done;
                 }
                 else if (fixup->relocation_type == Fixup__8_Bit || fixup->relocation_type == Fixup__16_Bit)
@@ -220,9 +238,10 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                         U32 encoding       = 0;
                         U32 encoding_patch = encode_immediate_u_m((U32)target_compensated);
                         U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
-                        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy((U8 *)&encoding, write_area, size);
                         U32 encoding_patched = encoding | encoding_patch;
-                        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
+                        memory_copy(write_area, (U8 *)&encoding_patched, size);
 
                         B32 relax = 1;
                         if (!relax && fits)
@@ -261,9 +280,10 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                                 ? encode_immediate_s_m((U32)target)
                                 : encode_immediate_i_m((U32)target);
                         U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
-                        memory_copy((U8 *)&encoding, fixup->fragment_write_area, size);
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy((U8 *)&encoding, write_area, size);
                         U32 encoding_patched = encoding | encoding_patch;
-                        memory_copy(fixup->fragment_write_area, (U8 *)&encoding_patched, size);
+                        memory_copy(write_area, (U8 *)&encoding_patched, size);
 
                         B32 relax = 1;
                         if (!relax)

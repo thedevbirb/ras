@@ -342,10 +342,10 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         assert_always_m(boundary < section_alignment || boundary % section_alignment == 0);
                         assert_always_m(write_size % section_alignment == 0);
 
-                        U64 data_variable_buffer_size = array_count_m(fragment->data_variable_buffer);
+                        U64 data_variable_size = array_count_m(fragment->data_variable);
 
-                        U8  null_variable_bytes_pattern[array_count_m(fragment->data_variable_buffer)] = {0};
-                        B32 null_variable_bytes_set = memory_match(fragment->data_variable_buffer, &null_variable_bytes_pattern, array_count_m(fragment->data_variable_buffer));
+                        U8  null_variable_bytes_pattern[array_count_m(fragment->data_variable)] = {0};
+                        B32 null_variable_bytes_set = memory_match(fragment->data_variable, &null_variable_bytes_pattern, array_count_m(fragment->data_variable));
 
                         if (null_variable_bytes_set)
                         {
@@ -359,8 +359,8 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U8  pattern_size = compressed_needed ? 2 : 4;
 
                                 fragment->data_variable_size = pattern_size;
-                                assert_always_m(pattern_size <= data_variable_buffer_size);
-                                memory_copy(fragment->data_variable_buffer, (U8 *)&pattern, pattern_size);
+                                assert_always_m(pattern_size <= data_variable_size);
+                                memory_copy(fragment->data_variable, (U8 *)&pattern, pattern_size);
                         }
 
                 }
@@ -384,7 +384,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                 {
                         U8 instructions_total_size = relax_info->jump.instructions_total_size;
                         assert_always_m(fragment->data_variable_size == instructions_total_size);
-                        assert_always_m(array_count_m(fragment->data_variable_buffer) >= instructions_total_size);
+                        assert_always_m(array_count_m(fragment->data_variable) >= instructions_total_size);
 
                         if (instructions_total_size == 8)
                         {
@@ -397,14 +397,13 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                                 fixup->expression          = relax_info->jump.expression;
                                 fixup->fragment            = fragment;
-                                // TODO(high): review this positioning.
-                                fixup->fragment_write_area = fragment->data_variable_buffer + sizeof(instruction_1);
+                                fixup->offset              = fragment->data_size + sizeof(instruction_1);
                                 fixup->fragment_write_size = sizeof(instruction_2);
                                 fixup->relocation_type     = Relocation_RISC_V__JAL;
                                 DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
 
-                                memory_copy(fragment->data_variable_buffer,                         (U8 *)&instruction_1, sizeof(instruction_1));
-                                memory_copy(fragment->data_variable_buffer + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
+                                memory_copy(fragment->data_variable,                         (U8 *)&instruction_1, sizeof(instruction_1));
+                                memory_copy(fragment->data_variable + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
 
                         }
                         else if (instructions_total_size == 4)
@@ -413,8 +412,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                                 fixup->fragment            = fragment;
                                 fixup->expression          = relax_info->jump.expression;
-                                // TODO(high): review this positioning.
-                                fixup->fragment_write_area = fragment->data_variable_buffer;
+                                fixup->offset              = fragment->data_size;
                                 fixup->fragment_write_size = instructions_total_size;
                                 fixup->relocation_type     = relocation_type;
                                 DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);

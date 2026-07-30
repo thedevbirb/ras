@@ -99,7 +99,7 @@ Fragments__variable
         data_variable_size = min_m(data_variable_size, Fragment__data_variable_size_max);
         Fragment *sealed = fragments->last;
 
-        memory_copy(sealed->data_variable_buffer, data_variable, data_variable_size);
+        memory_copy(sealed->data_variable, data_variable, data_variable_size);
         sealed->data_variable_size  = data_variable_size;
         sealed->relax_info          = relax_info;
         sealed->relax_state         = relax_state;

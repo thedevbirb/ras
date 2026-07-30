@@ -92,7 +92,7 @@ struct Fragment
         Relax_Info       relax_info;
         Relax_State      relax_state;
 
-        U8 data_variable_buffer[Fragment__data_variable_size_max];
+        U8 data_variable[Fragment__data_variable_size_max];
         // How much of the variable buffer is used.
         U8 data_variable_size;
 };

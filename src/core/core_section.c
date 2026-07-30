@@ -56,10 +56,9 @@ Section__add_instruction_fixed
         if (fixup)
         {
                 Fragment *last = section->fragments.last;
-                U8 *fragment_write_area = last->data + (last->data_size - encoding_size);
 
                 fixup->fragment            = last;
-                fixup->fragment_write_area = fragment_write_area;
+                fixup->offset              = last->data_size - encoding_size;
                 fixup->fragment_write_size = encoding_size;
         }
 

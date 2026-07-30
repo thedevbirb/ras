@@ -1,5 +1,13 @@
 // TODO(refactor): this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
+// Memory copy and advance the cursor
+internal void
+cursor_write(U8 **cursor, U8 *source, U64 size)
+{
+        memory_copy(*cursor, source, size); *cursor += size;
+        return;
+}
+
 internal U32
 U32_little_endian_get(const void *pointer)
 {
@@ -42,6 +50,16 @@ mmap_file(S32 file_descriptor, U64 file_in_size)
 {
         U8 *result = mmap(NULL, file_in_size + 8, PROT_READ, MAP_PRIVATE, file_descriptor, 0);
         assert_always_m(result != MAP_FAILED && "failed to mmap file contents");
+        return result;
+}
+
+internal U8 *
+mmap_file_output(S32 file_descriptor, U64 size)
+{
+        // Add file size metadata
+        ftruncate(file_descriptor, size);
+        U8 *result = mmap(NULL, size, PROT_WRITE, MAP_SHARED, file_descriptor, 0);
+        assert_always_m(result != MAP_FAILED && "failed to mmap output file");
         return result;
 }
 

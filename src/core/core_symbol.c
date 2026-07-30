@@ -210,6 +210,7 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         Arena     *arena      = Arena__allocate_m();
         Fragments  fragments  = { .arena = arena, .first = &Fragment__nil, .last = &Fragment__nil };
 
+        assert_always_m(symbol->name);
         symbol->section = section;
         symbol->type    = STT_SECTION;
 
@@ -218,7 +219,7 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         section->elf.type  = ELF_Section_Header_Type__default;
         section->elf.flags = ELF_Section_Header_Type__Program_Data;
 
-        symbols_table->section_count += 1;
+        symbols_table->sections_count += 1;
 }
 
 internal Symbol_Ref *

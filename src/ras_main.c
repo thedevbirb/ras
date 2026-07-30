@@ -99,7 +99,7 @@ main(int argument_count, char **argument_vector)
 
         Arena         *arena_symbols_table  = Arena__allocate_m();
         Symbols_Table *symbols_table        = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
-                       symbols_table->arena = arena;
+                       symbols_table->arena = arena_symbols_table;
 
         Symbol_Ref *text_symbol = Symbols_Table__get_or_default(symbols_table, section_name_text);
         Symbols_Table__create_section(symbols_table, text_symbol);
@@ -145,7 +145,7 @@ main(int argument_count, char **argument_vector)
         // }
 
         // Start of an equivalent of GNU as `write_object_file`.
-        write_object_file
+        U64 size = write_object_file
         (
                 arena,
                 diagnostics,
@@ -153,6 +153,8 @@ main(int argument_count, char **argument_vector)
                 symbols_table,
                 file_descriptor_out
         );
+
+        printf("written %llu bytes of object file\n", size);
 
         if (diagnostics->first)
         {
@@ -174,6 +176,9 @@ main(int argument_count, char **argument_vector)
                         exit(1);
                 }
         }
+
+        close(file_descriptor_in);
+        close(file_descriptor_out);
 
         return exit_status;
 }
