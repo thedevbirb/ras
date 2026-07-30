@@ -102,8 +102,6 @@ write_object_file
         // Count the null-section as well.
         U64 object_file_size = sizeof(ELF64_Header) + sizeof(ELF64_Section_Header);
 
-        // TODO: I'm probably missing writting null section and symbol.
-
         // 1. Create `.rela<section>`s.
         // 2. Compute section indexes.
         // 3. Track section headers string table offset values.
@@ -111,6 +109,8 @@ write_object_file
         // 5. Increase the total `object_file_size`.
         for each_node_m(symbols_table->section_first, section)
         {
+                section->index = section->previous ? section->previous->index + 1 : 1;
+
                 if (section->fixups.unresolved > 0)
                 {
                         Arena_Temporary scratch = Arena_Temporary__begin(arena);
@@ -122,23 +122,30 @@ write_object_file
                         DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
                         symbol->section->elf.type = ELF_Section_Header_Type__Relocations;
                         symbol->section->elf.size = sizeof(ELF64_Relocation_Addend) * section->fixups.unresolved;
+                        // Fill link and info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
+                        symbol->section->elf.link = symbol_symtab->section->index;
+                        symbol->section->elf.info = section->index;
                 }
 
-                section->index                   = section->previous ? section->index + 1 : 1;
                 section->elf.string_table_offset = symbol_shstrtab->section->elf.size;
-
                 U32 c_string_size = section->symbol->name->count + 1;
                 symbol_shstrtab->section->elf.size += c_string_size;
                 object_file_size += section->elf.size;
         }
+        symbol_symtab->section->elf.link = symbol_strtab->section->index;
+        // TODO(high): we are NOT sorting globals and locals
+        // ELF mandates locals before globals/weak: https://gabi.xinuos.com/v42/elf/05-symtab.html#symbol-binding.
 
         // Count the undefined section as well.
-        U32 section_header_table_size = (1 + symbols_table->sections_count) * sizeof(ELF64_Section_Header);
+        // U32 section_header_table_size = (1 + symbols_table->sections_count) * sizeof(ELF64_Section_Header);
+        // TODO(medium): I don't like this here
+        symbols_table->sections_count += UNDEFINED_PLUS_ONE;
+        symbols_table->count          += UNDEFINED_PLUS_ONE;
 
         // 1. Track symbols string table offsets.
         // 2. Compute string table size.
         // 3. Count total symbols.
-        U32 symbols_to_keep = 0;
+        U32 symbols_to_keep = UNDEFINED_PLUS_ONE;
         for each_node_m(symbols_table->first, symbol)
         {
                 B32 skip =   symbol->flags & Symbol_Flags__Removed
@@ -173,7 +180,7 @@ write_object_file
                 .header_size                       = sizeof(ELF64_Header),
                 .program_header_table_entry_size   = 0,
                 .program_header_table_entry_count  = 0,
-                .section_header_table_entry_size   = section_header_table_size,
+                .section_header_table_entry_size   = sizeof(ELF64_Section_Header),
                 .section_header_table_entry_count  = symbols_table->sections_count,
                 .section_header_string_table_index = symbols_table->section_last->index
         };
@@ -182,7 +189,13 @@ write_object_file
         U8 *file_out = mmap_file_output(file_descriptor_out, object_file_size);
         U8 *file_out_cursor = file_out;
 
+        U8 *section_header_table_cursor = file_out + section_header_table_file_offset;
+
         cursor_write_struct_m(&file_out_cursor, &elf_header);
+
+        // Write the undefined section
+        ELF64_Section_Header section_header_undefined = {0};
+        cursor_write_struct_m(&file_out_cursor, &section_header_undefined);
 
         // Write all sections that have fragments, and their relocations. Write the section header string table.
         U32 section_header_string_table_offset = section_header_table_file_offset - symbol_shstrtab->section->elf.size;
@@ -219,7 +232,14 @@ write_object_file
 
                 U32 c_string_size = section->symbol->name->count + 1;
                 cursor_write(&section_header_string_table_cursor, section->symbol->name->data, c_string_size);
+
+                // Write the section header
+                cursor_write_struct_m(&section_header_table_cursor, &section->elf);
         }
+
+        // Write the undefined section
+        ELF64_Symbol symbol_undefined = {0};
+        cursor_write_struct_m(&file_out_cursor, &symbol_undefined);
 
         // Write symbols table and string table. First byte must be null.
         U8 *string_table_cursor = file_out_cursor + symbols_table_size;
@@ -242,8 +262,12 @@ write_object_file
                                 .size                = symbol->size
                         };
                         cursor_write_struct_m(&file_out_cursor, &elf_symbol);
-                        U32 c_string_size = symbol->name->count + 1;
-                        cursor_write(&string_table_cursor, symbol->name->data, c_string_size);
+
+                        if (symbol->type != STT_SECTION)
+                        {
+                                U32 c_string_size = symbol->name->count + 1;
+                                cursor_write(&string_table_cursor, symbol->name->data, c_string_size);
+                        }
                 }
                 assert_always_m(file_out_cursor <= string_table_cursor);
         }
