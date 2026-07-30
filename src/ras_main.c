@@ -73,7 +73,7 @@ main(int argument_count, char **argument_vector)
         int file_descriptor_in = open((char *)filename_in.data, O_RDONLY);
         assert_always_m(file_descriptor_in > 0 && "failed to find input file");
 
-        int file_descriptor_out = open((char *)filename_out.data, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int file_descriptor_out = open((char *)filename_out.data, O_RDWR | O_CREAT | O_TRUNC, 0644);
         assert_always_m(file_descriptor_out >= 0 && "failed to open output file");
 
         struct stat file_in_statistics;

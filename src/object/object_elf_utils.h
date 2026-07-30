@@ -130,10 +130,10 @@ ELF_identifier_fill(U8 identifier[ELF_id_size])
         identifier[ELF_ID_Magic__Index + 3] = ELF_ID_Magic__3;
 
         identifier[ELF_ID_Class__Index]     = ELF_ID_Class__64;
+        identifier[ELF_ID_Data__Index]      = ELF_ID_Data__2LSB;
         identifier[ELF_ID_Version__Index]   = ELF_ID_Version__Current;
 
         identifier[ELF_ID_OS_ABI__Index]    = ELF_ID_OS_ABI__Linux;
-        identifier[ELF_ID_Padding__Index]   = ELF_ID_Padding__Index;
 
         return;
 }

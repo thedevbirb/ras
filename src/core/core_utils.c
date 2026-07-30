@@ -57,8 +57,9 @@ internal U8 *
 mmap_file_output(S32 file_descriptor, U64 size)
 {
         // Add file size metadata
-        ftruncate(file_descriptor, size);
-        U8 *result = mmap(NULL, size, PROT_WRITE, MAP_SHARED, file_descriptor, 0);
+        S32 ftruncate_result = ftruncate(file_descriptor, size);
+        assert_always_m(ftruncate_result == 0);
+        U8 *result = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, file_descriptor, 0);
         assert_always_m(result != MAP_FAILED && "failed to mmap output file");
         return result;
 }
