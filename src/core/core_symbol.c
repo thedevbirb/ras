@@ -44,7 +44,7 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8
                 if (*trie_current == 0)
                 {
                         Symbols_Trie *trie_new = Arena__push_struct_m(arena, Symbols_Trie);
-                        String8 name_duplicated = String8__duplicate(arena, name);
+                        String8 name_duplicated = String8__duplicate_null_terminated(arena, name);
 
                         trie_new->name        = name_duplicated;
                         trie_new->symbol.name = &trie_new->name;
@@ -84,6 +84,7 @@ symbols_trie_add(Symbols_Trie **root, Symbols_Trie *trie, U64 hash)
         {
                 if (*trie_current == 0)
                 {
+                        *trie_current = trie;
                         initialized = 1;
                 }
 
@@ -122,7 +123,7 @@ Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
 {
         U64 hash = FNV_hash_U64(name);
         Symbols_Trie *trie              = Arena__push_struct_m(symbols_table->arena, Symbols_Trie);
-                      trie->name        = String8__duplicate(symbols_table->arena, name);
+                      trie->name        = String8__duplicate_null_terminated(symbols_table->arena, name);
                       trie->symbol.name = &trie->name;
         symbols_trie_add(&symbols_table->root, trie, hash);
         return &trie->symbol;
