@@ -96,6 +96,11 @@ Fragments__variable
         U8           data_variable_size
 )
 {
+        if (fragments->first == &Fragment__nil)
+        {
+                Fragments__push_empty_fragment(fragments, location);
+        }
+
         data_variable_size = min_m(data_variable_size, Fragment__data_variable_size_max);
         Fragment *sealed = fragments->last;
 
@@ -162,6 +167,7 @@ Fragments__align(Fragments *fragments, U32 location, Alignment alignment)
 internal void
 Fragment__wane(Fragment *fragment)
 {
+        assert_always_m(fragment != &Fragment__nil);
         assert_always_m(fragment->relax_state == Relax_State__None);
         fragment->data_variable_size = 0;
         fragment->relax_state        = Relax_State__Fill;

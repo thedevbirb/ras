@@ -10,7 +10,7 @@ enum
 {
         // An open fragment which able to ingest more bytes by calling push operations on `Fragments`.
         // When this changes, push operations MUST be forbidden to correct byte ordering.
-        Relax_State__None,
+        Relax_State__None = 0,
         // Describes a fill pattern, consisting of:
         // - A repeat expression which if, omitted, defaults to zero.
         // - A pattern used to write the fill bytes, along with its size. If the size is smaller than the pattern bytes,
