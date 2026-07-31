@@ -118,7 +118,7 @@ write_object_file
 
                         Symbols_Table__create_section(symbols_table, symbol);
                         DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
-                        symbol->section->elf.type       = ELF_Section_Header_Type__Relocations;
+                        symbol->section->elf.type       = ELF_Section_Header_Type__Relocations_Addends;
                         symbol->section->elf.size       = sizeof(ELF64_Relocation_Addend) * section->fixups.unresolved;
                         symbol->section->elf.entry_size = sizeof(ELF64_Relocation_Addend);
                         // Fill info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
@@ -135,19 +135,39 @@ write_object_file
         // 1. Track symbols string table offsets.
         // 2. Compute string table size.
         // 3. Count total symbols.
+        //
+        // Actually this could cause problems during iterations.
         U32 symbols_to_keep = 0;
         for each_symbol_m(symbols_table, symbol)
         {
                 B32 skip =   symbol->flags & Symbol_Flags__Removed
                         ||   symbol->flags & Symbol_Flags__Redefined
                         || !(symbol->flags & Symbol_Flags__Used);
+                if (skip)
+                {
+                        B32 join_again = symbol == symbols_table->local_last || symbols_table->global_first;
+                        if (symbol->binding == ELF_Symbol_Binding__Local)
+                        {
+                                DLL_remove_m(symbols_table->local_first, symbols_table->local_last, symbol);
+                        }
+                        else
+                        {
+                                DLL_remove_m(symbols_table->global_first, symbols_table->global_last, symbol);
+                        }
+                        symbols_table->count = symbols_table->count == 0 ? 0 : symbols_table->count - 1;
+                        if (join_again)
+                        {
+                                DLL_join_npz_m(0, symbols_table->local_last, symbols_table->global_first, next, previous);
+                        }
+                }
 
                 if (!skip)
                 {
                         symbols_to_keep += 1;
                         symbol->index = symbols_to_keep;
 
-                        if (symbol->type != STT_SECTION)
+                        B32 section_is = symbol->type == STT_SECTION;
+                        if (!section_is)
                         {
                                 symbol->string_table_offset = symbol_strtab->section->elf.size;
                                 U32 c_string_size = symbol->name->count + 1;
@@ -155,11 +175,18 @@ write_object_file
                         }
                 }
         }
+        symbol_symtab->section->elf.size = symbols_to_keep * sizeof(ELF64_Symbol);
+        symbol_symtab->section->elf.info = symbols_table->local_last->index + 1;
 
-        // Final size is here.
-        U32 symbols_table_size = symbols_to_keep * sizeof(ELF64_Symbol);
-        object_file_size += symbols_table_size + symbol_strtab->section->elf.size;
-        U32 section_header_table_file_offset = object_file_size - (sizeof(ELF64_Header) * symbols_table->sections_count);
+        // -------------------
+        // Final sizes
+        // ------------------
+
+        // Add symbols table and section header table
+        object_file_size += symbol_symtab->section->elf.size + symbol_strtab->section->elf.size;
+        object_file_size += sizeof(ELF64_Section_Header) * symbols_table->sections_count;
+
+        U32 section_header_table_file_offset = object_file_size - (sizeof(ELF64_Section_Header) * symbols_table->sections_count);
 
         ELF64_Header elf_header =
         {
@@ -192,8 +219,23 @@ write_object_file
         {
                 for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                 {
-                        cursor_write(&file_out_cursor, fragment->data,          fragment->data_size);
-                        cursor_write(&file_out_cursor, fragment->data_variable, fragment->data_variable_size);
+                        // Write fragment data.
+                        assert_always_m(fragment->relax_state == Relax_State__Fill);
+                        cursor_write(&file_out_cursor, fragment->data, fragment->data_size);
+
+                        // Ensure that variable data, if present (e.g. jump instructions), are written at least once.
+                        Expression *expression = fragment->relax_info.fill_expression;
+                        U32 repeat_count = expression ? expression->integer_value : 1;
+                        U32 index = 0;
+                        for (;;)
+                        {
+                                if (index >= repeat_count)
+                                {
+                                        break;
+                                }
+                                cursor_write(&file_out_cursor, fragment->data_variable, fragment->data_variable_size);
+                                index += 1;
+                        }
                 }
 
                 Section *previous = section->previous;
@@ -201,8 +243,7 @@ write_object_file
                 if (relocation_is)
                 {
                         // Fill link: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
-                        section->elf.link = symbol_symtab->section->elf.link;
-                        assert_always_m(section->fragments.first == &Fragment__nil);
+                        section->elf.link = symbol_symtab->section->index;
                         for each_node_m(previous->fixups.first, fixup)
                         {
                                 if (!(fixup->flags & Fixup_Flags__Done))
@@ -231,7 +272,7 @@ write_object_file
         }
 
         // After all sections data we have the symbols table and the strings table.
-        U8 *string_table_cursor = file_out_cursor + symbols_table_size;
+        U8 *string_table_cursor = file_out_cursor + symbol_symtab->section->elf.size;
         for each_symbol_m(symbols_table, symbol)
         {
                 // TODO(high): there is probably some mismanagement of the dot symbol.
