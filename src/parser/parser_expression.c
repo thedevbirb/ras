@@ -125,6 +125,14 @@ expression_parse_with_flags
                                 else
                                 {
                                         symbol = Symbols_Table__get_or_default(symbols_table, name);
+                                        // Undefined symbols found in expressions should be marked as globals first.
+                                        if (symbol->section == &Section__undefined)
+                                        {
+                                                // TODO(medium): this is patch
+                                                DLL_remove_m(symbols_table->local_first, symbols_table->local_last, symbol);
+                                                DLL_push_back_m(symbols_table->global_first, symbols_table->global_last, symbol);
+                                                symbol->binding = ELF_Symbol_Binding__Global;
+                                        }
                                 }
 
                                 symbol->flags |= Symbol_Flags__Used;
