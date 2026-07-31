@@ -216,6 +216,7 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         assert_always_m(symbol->name);
         symbol->section = section;
         symbol->type    = STT_SECTION;
+        symbol->flags  |= Symbol_Flags__Used;
 
         section->symbol    = symbol;
         section->fragments = fragments;
@@ -252,9 +253,6 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
         String8 name = String8__literal(".riscv.attributes");
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
         Symbols_Table__create_section(symbols_table, symbol);
-
-        symbol->section->elf.type      = ELF_Section_Header_Type__RISCV_Attributes;
-        symbol->section->elf.flags     = 0;
         symbol->section->elf.alignment = 1;
 
         U32 location = 0;
