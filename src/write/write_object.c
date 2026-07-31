@@ -141,15 +141,12 @@ write_object_file
         // 1. Track symbols string table offsets.
         // 2. Compute string table size.
         // 3. Count total symbols.
-        //
-        // Actually this could cause problems during iterations.
         U32 symbols_to_keep = 0;
         for each_symbol_m(symbols_table, symbol)
         {
                 B32 keep = Symbol_Ref__keep(symbol);
                 if (keep)
                 {
-                        symbols_to_keep += 1;
                         symbol->index = symbols_to_keep;
 
                         B32 section_is = symbol->type == STT_SECTION;
@@ -159,6 +156,8 @@ write_object_file
                                 U32 c_string_size = symbol->name->count + 1;
                                 symbol_strtab->section->elf.size += c_string_size;
                         }
+
+                        symbols_to_keep += 1;
                 }
                 else
                 {
@@ -251,12 +250,13 @@ write_object_file
                         {
                                 if (!(fixup->flags & Fixup_Flags__Done))
                                 {
-                                        U32 symbol_index = fixup->expression->symbol->index;
+                                        U32 symbol_index = fixup->expression ? fixup->expression->symbol->index : 0;
+                                        S64 addend       = fixup->expression ? fixup->expression->integer_value : 0;
                                         ELF64_Relocation_Addend relocation =
                                         {
                                                 .offset = fixup->fragment->object_file_offset + fixup->offset,
                                                 .info = ELF64_Relocation_info_m(symbol_index, fixup->relocation_type),
-                                                .addend = fixup->expression->integer_value,
+                                                .addend = addend,
                                         };
 
                                         cursor_write_struct_m(&file_out_cursor, &relocation);

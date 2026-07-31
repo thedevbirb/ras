@@ -234,7 +234,6 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                                 diagnostic->ranges[0]  = fixup->expression->location_range;
                         }
 
-
                         U32 encoding       = 0;
                         U32 encoding_patch = encode_immediate_u_m((U32)target_compensated);
                         U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
@@ -312,10 +311,9 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         if (relaxable && fixup->expression->symbol)
         {
                 Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
-                *fixup_relax = *fixup;
-
-                fixup_relax->fragment_write_size = 0;
-                fixup_relax->relocation_type = Relocation_RISC_V__Relax;
+                       fixup_relax->offset              = fixup->offset;
+                       fixup_relax->fragment            = fixup->fragment;
+                       fixup_relax->relocation_type     = Relocation_RISC_V__Relax;
                 DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_relax);
         }
 
@@ -337,7 +335,7 @@ Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics
                 // TODO(medium) Should we filter away those fixups whose expressions are unsolvable?
 
                 Expression *expression     = fixup->expression;
-                Expression_Kind evaluation = expression->evaluation;
+                Expression_Kind evaluation = expression ? expression->evaluation : Expression_Kind__None;
 
                 B32 subtractable_is = evaluation == Expression_Kind__Subtract
                                    && expression->left->evaluation == Expression_Kind__Symbol
@@ -347,7 +345,8 @@ Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics
                 // We should have warned earlier about them, during `Symbol_Ref__resolve`.
                 //
                 // TODO(low): maybe these checks should be moved just inside the function.
-                B32 processable_is = evaluation == Expression_Kind__Constant
+                B32 processable_is = fixup->relocation_type != Relocation_RISC_V__Relax
+                                  || evaluation == Expression_Kind__Constant
                                   || evaluation == Expression_Kind__Symbol
                                   || subtractable_is;
 
