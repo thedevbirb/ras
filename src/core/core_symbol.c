@@ -54,10 +54,10 @@ symbols_trie_get_or_default(Arena *arena, Symbols_Trie **root, U64 hash, String8
                         initialized = 1;
                 }
 
-                if (!initialized && String8__match_exact((*trie_current)->name, name))
-                {
-                        match = 1;
-                }
+                match = !initialized
+                         && String8__match_exact((*trie_current)->name, name)
+                         // Get the latest definition of the symbol.
+                         && !((*trie_current)->symbol.flags & Symbol_Flags__Redefined);
 
                 B32 break_should = initialized || match;
                 if (break_should)
@@ -90,7 +90,6 @@ symbols_trie_add(Symbols_Trie **root, Symbols_Trie *trie, U64 hash)
 
                 if (!initialized && String8__match_exact((*trie_current)->name, trie->name))
                 {
-                        // We've found an existing definition. Ensure we don't write it in the object file.
                         (*trie_current)->symbol.flags |= Symbol_Flags__Redefined;
                 }
 
@@ -126,7 +125,24 @@ Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
                       trie->name        = String8__duplicate_null_terminated(symbols_table->arena, name);
                       trie->symbol.name = &trie->name;
         symbols_trie_add(&symbols_table->root, trie, hash);
+        symbols_table->count += 1;
         return &trie->symbol;
+}
+
+internal Symbol_Ref *
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
+{
+        Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
+                   *clone = *symbol;
+        if (clone->binding == ELF_Symbol_Binding__Local)
+        {
+                DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, clone);
+        }
+        else
+        {
+                DLL_push_back_m(symbols_table->global_first, symbols_table->global_last, clone);
+        }
+        return clone;
 }
 
 internal Symbol_Ref *
@@ -216,7 +232,6 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         assert_always_m(symbol->name);
         symbol->section = section;
         symbol->type    = STT_SECTION;
-        symbol->flags  |= Symbol_Flags__Used;
 
         section->symbol    = symbol;
         section->fragments = fragments;
@@ -299,13 +314,18 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
         return;
 }
 
-// TODO(high): management of the symbols_table DLL
-internal Symbol_Ref *
-Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
+// Whether a symbol should be kept or not in the final symbols table
+internal B32
+Symbol_Ref__keep(Symbol_Ref *symbol_ref)
 {
-        Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
-                   *clone = *symbol;
-        return clone;
+        B32 keep = !(symbol_ref->flags & Symbol_Flags__Skip)
+                &&
+                (
+                           symbol_ref->type == STT_SECTION
+                        || symbol_ref->flags & Symbol_Flags__Relocation
+                );
+
+        return keep;
 }
 
 internal Label_Numeric *
@@ -354,6 +374,7 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
 {
         String8 name = String8__literal(FAKE_LABEL_NAME);
         Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
+        DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, result);
         Symbol_Ref__update_section(result, section);
         return result;
 }
@@ -445,7 +466,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                 frame->symbol->flags |= Symbol_Flags__Resolving;
                                 frame->state         |= Frame_State__Evaluated;
                                 // We're evaluating a symbol expression in a dedicated frame, which will NOT be marked
-                                // as `Frame_State__Evaluated` yet, for the following reason: if the
+                                // as `Frame_State__Evaluated` yet, for the following reason: if this inner
                                 // expression does NOT contain symbols to resolve, the new frame will be popped and
                                 // we're done. Otherwise, we have to create a new symbol frame. Once this latter symbol
                                 // is resolved, we can go back to this expression frame, _now mark it as evaluated_
@@ -649,11 +670,15 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
 
                                         node->evaluation = node->kind;
 
-                                        if (symbol_inner->section->index == ELF_Section_Index__Absolute)
+                                        B32 absolute_is =  symbol_inner->section == &Section__absolute
+                                                       || (symbol_inner->expression && symbol_inner->expression->evaluation == Expression_Kind__Constant);
+                                        if (absolute_is)
                                         {
+                                                symbol_inner->section = &Section__absolute;
                                                 node->evaluation    = Expression_Kind__Constant;
                                                 node->integer_value = symbol_inner->value;
 
+                                                // TODO(medium): is this correct here?
                                                 if (finalize)
                                                 {
                                                         symbol_inner->flags |= Symbol_Flags__Finalized;

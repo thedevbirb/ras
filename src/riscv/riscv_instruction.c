@@ -1002,6 +1002,7 @@ RISCV_instruction_pseudo_append
                         S32 values_addi[]            = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
                         Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);
+                                    internal_label->flags  |= Symbol_Flags__Relocation;
                         Expression *expression_addi         = Expressions_push_empty(expressions, symbols_table->arena);
                                     expression_addi->symbol = internal_label;
                                     expression_addi->kind   = Expression_Kind__Symbol;

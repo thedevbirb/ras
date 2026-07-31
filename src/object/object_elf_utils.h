@@ -182,7 +182,7 @@ global const Section_Descriptor Section_Descriptor__table[] =
 { String8__literal(".tdata"),            ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE | ELF_Section_Header_Flags__TLS },
 { String8__literal(".tdata1"),           ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE | ELF_Section_Header_Flags__TLS },
 { String8__literal(".text"),             ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__EXECINSTR                             },
-{ String8__literal(".riscv.attributes"), ELF_Section_Header_Type__RISCV_Attributes,    ELF_Section_Header_Flags__ALLOC                                                                   }
+{ String8__literal(".riscv.attributes"), ELF_Section_Header_Type__RISCV_Attributes,    0                                                                                                 }
 };
 
 typedef struct Section_Descriptor_Match Section_Descriptor_Match;

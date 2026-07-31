@@ -101,14 +101,20 @@ main(int argument_count, char **argument_vector)
         Symbols_Table *symbols_table        = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
                        symbols_table->arena = arena_symbols_table;
 
-        Symbol_Ref *text_symbol = Symbols_Table__get_or_default(symbols_table, section_name_text);
-        Symbols_Table__create_section(symbols_table, text_symbol);
+        Symbol_Ref *symbol_text = Symbols_Table__get_or_default(symbols_table, section_name_text);
+        Symbols_Table__create_section(symbols_table, symbol_text);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_text->section);
         // Byte strings.
-        text_symbol->section->elf.entry_size = 1;
+        symbol_text->section->elf.entry_size = 1;
         // Compressed is 2
-        text_symbol->section->elf.alignment  = 4;
-        symbols_table->section_current = text_symbol->section;
-        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, text_symbol->section);
+        symbol_text->section->elf.alignment  = 4;
+        symbols_table->section_current = symbol_text->section;
+        Symbol_Ref *symbol_data = Symbols_Table__get_or_default(symbols_table, section_name_data);
+        Symbols_Table__create_section(symbols_table, symbol_data);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_data->section);
+        Symbol_Ref *symbol_bss = Symbols_Table__get_or_default(symbols_table, section_name_bss);
+        Symbols_Table__create_section(symbols_table, symbol_bss);
+        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);
 
         Expressions expressions = {0};
         Expressions__initialize(&expressions, arena, 12);

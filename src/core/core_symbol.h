@@ -31,7 +31,6 @@ typedef enum Symbol_Flags
 
         // Whether the symbol value is used in a relocation. This is used to ensure that symbols used in relocations are
         // written out, even if they are local and would otherwise not be.
-        // TODO(medium): actually use this.
         Symbol_Flags__Relocation                 = 1 << 4,
 
         // Whether the symbol is used as an operand or in an expression.
@@ -44,20 +43,11 @@ typedef enum Symbol_Flags
         Symbol_Flags__Forward_Reference          = 1 << 7,
         Symbol_Flags__Forward_Reference_Resolved = 1 << 8,
 
-        // Whether the symbol has been marked to be removed by a .symver directive.
-        // TODO(refactor): I won't support the .symver directive, perhaps this can be collapsed with
-        // `Symbol_Flags__Redefined/Symbol_Flags__Skip`
-        Symbol_Flags__Removed                    = 1 << 9,
+        // The symbol is volatile and has been re-defined.
+        Symbol_Flags__Redefined                   = 1 << 9,
 
-        // Whether the volatile symbol has been actually redefined, and as such it should NOT be written in the object
-        // file, but should be kept because something depends on it.
-        //
-        // NOTE: GNU as doesn't need this flag because symbols are stored in a doubly linked list and previous version
-        // of a symbol are simply removed from it. In our case, symbols are stored in a chunk list, so we need some data
-        // to explicitly skip them.
-        //
-        // TODO(refactor): it may be that calling this flag `Symbol_Flags__Skip` is generic enough for multiple usecases.
-        Symbol_Flags__Redefined                   = 1 << 12,
+        // Explicitly mark this symbol as to be omitted from the final symbol table.
+        Symbol_Flags__Skip                   = 1 << 12,
 }
 Symbol_Flags;
 

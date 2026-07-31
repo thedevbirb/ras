@@ -323,6 +323,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         {
                 if (fixup->expression->symbol) { fixup->expression->symbol->flags |= Symbol_Flags__Relocation; }
                 section->fixups.unresolved += 1;
+                section->symbol->flags |= Symbol_Flags__Relocation;
         }
 
         return;

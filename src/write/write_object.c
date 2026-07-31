@@ -84,16 +84,19 @@ write_object_file
 
         // Add the mandatory ending sections last: `.symtab`, `.strtab`, `.shstrtab`.
         Symbol_Ref *symbol_symtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".symtab"));
+                    symbol_symtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_symtab);
         symbol_symtab->section->elf.entry_size = sizeof(ELF64_Symbol);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
 
         Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
+                    symbol_strtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_strtab);
         symbol_strtab->section->elf.entry_size       = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
 
         Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
+                    symbol_shstrtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_shstrtab);
         symbol_strtab->section->elf.entry_size       = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
@@ -111,14 +114,17 @@ write_object_file
 
                 if (section->fixups.unresolved > 0)
                 {
+                        // Create relocation section.
                         Arena_Temporary scratch = Arena_Temporary__begin(arena);
                         String8 name = String8__format(scratch.arena, ".rela%.*s", String8__varg(*section->symbol->name));
                         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
                         Arena_Temporary__end(scratch);
 
+                        symbol->flags |= Symbol_Flags__Skip;
                         Symbols_Table__create_section(symbols_table, symbol);
                         DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
                         symbol->section->elf.type       = ELF_Section_Header_Type__Relocations_Addends;
+                        symbol->section->elf.flags      = ELF_Section_Header_Flags__INFO_LINK;
                         symbol->section->elf.size       = sizeof(ELF64_Relocation_Addend) * section->fixups.unresolved;
                         symbol->section->elf.entry_size = sizeof(ELF64_Relocation_Addend);
                         // Fill info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
@@ -140,10 +146,21 @@ write_object_file
         U32 symbols_to_keep = 0;
         for each_symbol_m(symbols_table, symbol)
         {
-                B32 skip =   symbol->flags & Symbol_Flags__Removed
-                        ||   symbol->flags & Symbol_Flags__Redefined
-                        || !(symbol->flags & Symbol_Flags__Used);
-                if (skip)
+                B32 keep = Symbol_Ref__keep(symbol);
+                if (keep)
+                {
+                        symbols_to_keep += 1;
+                        symbol->index = symbols_to_keep;
+
+                        B32 section_is = symbol->type == STT_SECTION;
+                        if (!section_is)
+                        {
+                                symbol->string_table_offset = symbol_strtab->section->elf.size;
+                                U32 c_string_size = symbol->name->count + 1;
+                                symbol_strtab->section->elf.size += c_string_size;
+                        }
+                }
+                else
                 {
                         B32 join_again = symbol == symbols_table->local_last || symbols_table->global_first;
                         if (symbol->binding == ELF_Symbol_Binding__Local)
@@ -158,20 +175,6 @@ write_object_file
                         if (join_again)
                         {
                                 DLL_join_npz_m(0, symbols_table->local_last, symbols_table->global_first, next, previous);
-                        }
-                }
-
-                if (!skip)
-                {
-                        symbols_to_keep += 1;
-                        symbol->index = symbols_to_keep;
-
-                        B32 section_is = symbol->type == STT_SECTION;
-                        if (!section_is)
-                        {
-                                symbol->string_table_offset = symbol_strtab->section->elf.size;
-                                U32 c_string_size = symbol->name->count + 1;
-                                symbol_strtab->section->elf.size += c_string_size;
                         }
                 }
         }
@@ -276,11 +279,8 @@ write_object_file
         for each_symbol_m(symbols_table, symbol)
         {
                 // TODO(high): there is probably some mismanagement of the dot symbol.
-                B32 skip =   symbol->flags & Symbol_Flags__Removed
-                        ||   symbol->flags & Symbol_Flags__Redefined
-                        || !(symbol->flags & Symbol_Flags__Used);
-
-                if (!skip)
+                B32 keep = Symbol_Ref__keep(symbol);
+                if (keep)
                 {
                         ELF64_Symbol elf_symbol =
                         {
