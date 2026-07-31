@@ -69,7 +69,7 @@ write_object_file
                 }
         }
 
-        for each_node_m(symbols_table->first, symbol)
+        for each_symbol_m(symbols_table, symbol)
         {
                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
         }
@@ -79,28 +79,26 @@ write_object_file
                 Section__resolve_fixups(section, symbols_table->arena, diagnostics);
         }
 
+        // Let's avoid off-by-one errors.
+        Symbols_Table__ensure_undefined_present(symbols_table);
+
         // Add the mandatory ending sections last: `.symtab`, `.strtab`, `.shstrtab`.
         Symbol_Ref *symbol_symtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".symtab"));
         Symbols_Table__create_section(symbols_table, symbol_symtab);
-        symbol_symtab->section->elf.type = ELF_Section_Header_Type__Symbols_Table;
+        symbol_symtab->section->elf.entry_size = sizeof(ELF64_Symbol);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
 
         Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
         Symbols_Table__create_section(symbols_table, symbol_strtab);
+        symbol_strtab->section->elf.entry_size       = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
-        symbol_strtab->section->elf.type = ELF_Section_Header_Type__Strings_Table;
-        // Must contain at least the initial null byte.
-        symbol_strtab->section->elf.size = 1;
 
         Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
         Symbols_Table__create_section(symbols_table, symbol_shstrtab);
+        symbol_strtab->section->elf.entry_size       = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
-        symbol_shstrtab->section->elf.type = ELF_Section_Header_Type__Strings_Table;
-        // Must contain at least the initial null byte.
-        symbol_shstrtab->section->elf.size = 1;
 
-        // Count the null-section as well.
-        U64 object_file_size = sizeof(ELF64_Header) + sizeof(ELF64_Section_Header);
+        U64 object_file_size = sizeof(ELF64_Header);
 
         // 1. Create `.rela<section>`s.
         // 2. Compute section indexes.
@@ -109,7 +107,7 @@ write_object_file
         // 5. Increase the total `object_file_size`.
         for each_node_m(symbols_table->section_first, section)
         {
-                section->index = section->previous ? section->previous->index + 1 : 1;
+                section->index = section->previous ? section->previous->index + 1 : 0;
 
                 if (section->fixups.unresolved > 0)
                 {
@@ -120,11 +118,11 @@ write_object_file
 
                         Symbols_Table__create_section(symbols_table, symbol);
                         DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
-                        symbol->section->elf.type = ELF_Section_Header_Type__Relocations;
-                        symbol->section->elf.size = sizeof(ELF64_Relocation_Addend) * section->fixups.unresolved;
-                        // Fill link and info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
-                        symbol->section->elf.link = symbol_symtab->section->index;
-                        symbol->section->elf.info = section->index;
+                        symbol->section->elf.type       = ELF_Section_Header_Type__Relocations;
+                        symbol->section->elf.size       = sizeof(ELF64_Relocation_Addend) * section->fixups.unresolved;
+                        symbol->section->elf.entry_size = sizeof(ELF64_Relocation_Addend);
+                        // Fill info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
+                        symbol->section->elf.info       = section->index;
                 }
 
                 section->elf.string_table_offset = symbol_shstrtab->section->elf.size;
@@ -133,20 +131,12 @@ write_object_file
                 object_file_size += section->elf.size;
         }
         symbol_symtab->section->elf.link = symbol_strtab->section->index;
-        // TODO(high): we are NOT sorting globals and locals
-        // ELF mandates locals before globals/weak: https://gabi.xinuos.com/v42/elf/05-symtab.html#symbol-binding.
-
-        // Count the undefined section as well.
-        // U32 section_header_table_size = (1 + symbols_table->sections_count) * sizeof(ELF64_Section_Header);
-        // TODO(medium): I don't like this here
-        symbols_table->sections_count += UNDEFINED_PLUS_ONE;
-        symbols_table->count          += UNDEFINED_PLUS_ONE;
 
         // 1. Track symbols string table offsets.
         // 2. Compute string table size.
         // 3. Count total symbols.
-        U32 symbols_to_keep = UNDEFINED_PLUS_ONE;
-        for each_node_m(symbols_table->first, symbol)
+        U32 symbols_to_keep = 0;
+        for each_symbol_m(symbols_table, symbol)
         {
                 B32 skip =   symbol->flags & Symbol_Flags__Removed
                         ||   symbol->flags & Symbol_Flags__Redefined
@@ -154,11 +144,15 @@ write_object_file
 
                 if (!skip)
                 {
-                        symbol->string_table_offset = symbol_strtab->section->elf.size;
-                        U32 c_string_size = symbol->name->count + 1;
-                        symbol_strtab->section->elf.size += c_string_size;
                         symbols_to_keep += 1;
                         symbol->index = symbols_to_keep;
+
+                        if (symbol->type != STT_SECTION)
+                        {
+                                symbol->string_table_offset = symbol_strtab->section->elf.size;
+                                U32 c_string_size = symbol->name->count + 1;
+                                symbol_strtab->section->elf.size += c_string_size;
+                        }
                 }
         }
 
@@ -188,19 +182,12 @@ write_object_file
 
         U8 *file_out = mmap_file_output(file_descriptor_out, object_file_size);
         U8 *file_out_cursor = file_out;
-
-        U8 *section_header_table_cursor = file_out + section_header_table_file_offset;
-
         cursor_write_struct_m(&file_out_cursor, &elf_header);
 
-        // Write the undefined section
-        ELF64_Section_Header section_header_undefined = {0};
-        cursor_write_struct_m(&file_out_cursor, &section_header_undefined);
-
-        // Write all sections that have fragments, and their relocations. Write the section header string table.
+        // Write all sections along with their headers, and their relocations. Write the section header string table.
+        U8 *section_header_table_cursor = file_out + section_header_table_file_offset;
         U32 section_header_string_table_offset = section_header_table_file_offset - symbol_shstrtab->section->elf.size;
         U8 *section_header_string_table_cursor = file_out + section_header_string_table_offset;
-        section_header_string_table_cursor[0] = 0; section_header_string_table_cursor += 1;
         for each_node_m(symbols_table->section_first, section)
         {
                 for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
@@ -209,11 +196,14 @@ write_object_file
                         cursor_write(&file_out_cursor, fragment->data_variable, fragment->data_variable_size);
                 }
 
-                B32 relocation_is = section->previous && section->previous->fixups.unresolved > 0;
+                Section *previous = section->previous;
+                B32 relocation_is = previous && previous->fixups.unresolved > 0;
                 if (relocation_is)
                 {
+                        // Fill link: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
+                        section->elf.link = symbol_symtab->section->elf.link;
                         assert_always_m(section->fragments.first == &Fragment__nil);
-                        for each_node_m(section->previous->fixups.first, fixup)
+                        for each_node_m(previous->fixups.first, fixup)
                         {
                                 if (!(fixup->flags & Fixup_Flags__Done))
                                 {
@@ -230,6 +220,9 @@ write_object_file
                         }
                 }
 
+                // Offset is from the start of the file, so we must include the ELF header.
+                section->elf.offset = previous ? previous->elf.offset + previous->elf.size : sizeof(ELF64_Header);
+
                 U32 c_string_size = section->symbol->name->count + 1;
                 cursor_write(&section_header_string_table_cursor, section->symbol->name->data, c_string_size);
 
@@ -237,15 +230,11 @@ write_object_file
                 cursor_write_struct_m(&section_header_table_cursor, &section->elf);
         }
 
-        // Write the undefined section
-        ELF64_Symbol symbol_undefined = {0};
-        cursor_write_struct_m(&file_out_cursor, &symbol_undefined);
-
-        // Write symbols table and string table. First byte must be null.
+        // After all sections data we have the symbols table and the strings table.
         U8 *string_table_cursor = file_out_cursor + symbols_table_size;
-        string_table_cursor[0] = 0; string_table_cursor += 1;
-        for each_node_m(symbols_table->first, symbol)
+        for each_symbol_m(symbols_table, symbol)
         {
+                // TODO(high): there is probably some mismanagement of the dot symbol.
                 B32 skip =   symbol->flags & Symbol_Flags__Removed
                         ||   symbol->flags & Symbol_Flags__Redefined
                         || !(symbol->flags & Symbol_Flags__Used);
@@ -271,6 +260,8 @@ write_object_file
                 }
                 assert_always_m(file_out_cursor <= string_table_cursor);
         }
+
+        assert_always_m(section_header_string_table_offset == symbol_shstrtab->section->elf.offset && ".shstrab mismatch");
 
         munmap(file_out, object_file_size);
         return object_file_size;

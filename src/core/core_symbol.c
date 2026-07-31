@@ -152,7 +152,7 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
         {
                 symbol->section  = &Section__undefined;
                 symbol->fragment = Section__undefined.fragments.first;
-                SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
+                DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, symbol);
                 symbols_table->count += 1;
         }
 
@@ -203,6 +203,8 @@ Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, 
 }
 
 // Create a section associated to the provided symbol.
+//
+// Special sections have already their attributes set in, according to https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections
 internal void
 Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 {
@@ -217,8 +219,11 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 
         section->symbol    = symbol;
         section->fragments = fragments;
-        section->elf.type  = ELF_Section_Header_Type__default;
-        section->elf.flags = ELF_Section_Header_Type__Program_Data;
+
+        Section_Descriptor const *lookup = Section_Descriptor__lookup(*symbol->name);
+        section->special   = lookup != 0;
+        section->elf.type  = lookup ? lookup->type  : ELF_Section_Header_Type__default;
+        section->elf.flags = lookup ? lookup->flags : ELF_Section_Header_Flags__default;
 
         symbols_table->sections_count += 1;
 }
@@ -259,6 +264,25 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
         return symbol;
 }
 
+// Ensures the undefined symbol and sections are added.
+internal void
+Symbols_Table__ensure_undefined_present(Symbols_Table *symbols_table)
+{
+        if (symbols_table->local_first != &Symbol_Ref__undefined)
+        {
+                DLL_push_front_m(symbols_table->local_first, symbols_table->local_last, &Symbol_Ref__undefined);
+                symbols_table->count += 1;
+        }
+
+        if (symbols_table->section_first != &Section__undefined)
+        {
+                DLL_push_front_m(symbols_table->section_first, symbols_table->section_last, &Section__undefined);
+                symbols_table->sections_count += 1;
+        }
+
+        return;
+}
+
 internal Symbols_Trie *
 Symbols_Table__dot(Symbols_Table *symbols_table)
 {
@@ -277,6 +301,7 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
         return;
 }
 
+// TODO(high): management of the symbols_table DLL
 internal Symbol_Ref *
 Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 {

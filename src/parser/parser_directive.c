@@ -74,9 +74,12 @@ binding_set
                 diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
                 }
         }
-        else
+
+        symbol->binding = binding;
+        if (binding > ELF_Symbol_Binding__Local)
         {
-                symbol->binding = binding;
+                DLL_remove_m(symbols_table->local_first, symbols_table->local_last, symbol);
+                DLL_push_back_m(symbols_table->global_first, symbols_table->global_last, symbol);
         }
 
         token_next(cursor, diagnostics);

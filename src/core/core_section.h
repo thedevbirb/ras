@@ -4,7 +4,7 @@
 global String8 section_name_text      = String8__literal(".text");
 global String8 section_name_data      = String8__literal(".data");
 global String8 section_name_bss       = String8__literal(".bss");
-global String8 section_name_undefined = String8__literal("*UNDEFINED*");
+global String8 section_name_undefined = String8__literal("");
 global String8 section_name_absolute  = String8__literal("*ABSOLUTE*");
 global String8 section_name_common    = String8__literal("*COMMON*");
 
@@ -21,6 +21,9 @@ struct Section
         Symbol_Ref          *symbol;
         Fixups               fixups;
         Fragments            fragments;
+
+        // https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections
+        B32 special;
 
         // Output fields.
 

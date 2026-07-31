@@ -284,6 +284,7 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
                 else
                 {
                         byte = data[index];
+                        index += 1;
                 }
 
 

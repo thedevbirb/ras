@@ -103,6 +103,10 @@ main(int argument_count, char **argument_vector)
 
         Symbol_Ref *text_symbol = Symbols_Table__get_or_default(symbols_table, section_name_text);
         Symbols_Table__create_section(symbols_table, text_symbol);
+        // Byte strings.
+        text_symbol->section->elf.entry_size = 1;
+        // Compressed is 2
+        text_symbol->section->elf.alignment  = 4;
         symbols_table->section_current = text_symbol->section;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, text_symbol->section);
 

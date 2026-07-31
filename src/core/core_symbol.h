@@ -65,6 +65,7 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+        Symbol_Ref       *previous;
         Symbol_Ref       *next;
         // This is a reference to `Symbol_Trie.name`
         String8          *name;
@@ -92,8 +93,6 @@ global Symbol_Ref Symbol_Ref__zero = {0};
 global Symbol_Ref Symbol_Ref__undefined;
 global Section Section__undefined =
 {
-        .previous  = &Section__undefined,
-        .next      = &Section__undefined,
         .symbol    = &Symbol_Ref__undefined,
         .fragments =
         {
@@ -103,18 +102,16 @@ global Section Section__undefined =
 };
 global Symbol_Ref Symbol_Ref__undefined =
 {
-        .next     = &Symbol_Ref__undefined,
         .name     = &section_name_undefined,
         .section  = &Section__undefined,
         .fragment = &Fragment__nil,
-        .type     = STT_SECTION
+        .type     = 0,
+        .flags    = Symbol_Flags__Used
 };
 
 global Symbol_Ref Symbol_Ref__common;
 global Section Section__common =
 {
-        .previous  = &Section__common,
-        .next      = &Section__common,
         .symbol    = &Symbol_Ref__common,
         .fragments =
         {
@@ -124,8 +121,6 @@ global Section Section__common =
 };
 global Symbol_Ref Symbol_Ref__common =
 {
-        .next     = &Symbol_Ref__common,
-        .name     = &section_name_common,
         .section  = &Section__common,
         .fragment = &Fragment__nil,
         .type     = STT_SECTION
@@ -134,8 +129,6 @@ global Symbol_Ref Symbol_Ref__common =
 global Symbol_Ref Symbol_Ref__absolute;
 global Section Section__absolute =
 {
-        .previous  = &Section__absolute,
-        .next      = &Section__absolute,
         .symbol    = &Symbol_Ref__absolute,
         .index     = ELF_Section_Index__Absolute,
         .fragments =
@@ -146,7 +139,6 @@ global Section Section__absolute =
 };
 global Symbol_Ref Symbol_Ref__absolute =
 {
-        .next     = &Symbol_Ref__absolute,
         .name     = &section_name_absolute,
         .section  = &Section__absolute,
         .fragment = &Fragment__nil,
@@ -183,8 +175,16 @@ struct Symbols_Table
         Arena                    *arena;
         Symbols_Trie             *root;
 
-        Symbol_Ref               *first;
-        Symbol_Ref               *last;
+        // Symbol_Ref               *first;
+        // Symbol_Ref               *last;
+
+        // ELF mandates locals before globals/weak: https://gabi.xinuos.com/v42/elf/05-symtab.html#symbol-binding.
+        //
+        // To iterate over the entire collection, it is necessary to join `local_last` with `global_first`.
+        Symbol_Ref               *local_first;
+        Symbol_Ref               *local_last;
+        Symbol_Ref               *global_first;
+        Symbol_Ref               *global_last;
 
         Label_Numeric            *label_numeric_first;
         Label_Numeric            *label_numeric_last;
@@ -201,6 +201,9 @@ struct Symbols_Table
         U32                       sections_count;
 
 };
+
+#define each_symbol_m(st, element) \
+        (Symbol_Ref *element = (DLL_join_npz_m(0, st->local_last, st->global_first, next, previous), st->local_first); element; element = element->next)
 
 internal Symbols_Trie *
 symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name);

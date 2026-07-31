@@ -71,6 +71,9 @@ statement_read
                                        symbol_numeric.label->instances += 1;
 
                         assert_always_m(symbol_numeric.symbol->section == &Section__undefined && "numeric label created previously");
+
+                        symbol_numeric.symbol->location  = cursor->current.location;
+                        symbol_numeric.symbol->flags    |= Symbol_Flags__Used;
                         Symbol_Ref__update_section(symbol_numeric.symbol, symbols_table->section_current);
 
                         Arena__scratch_end_m(scratch);
@@ -112,9 +115,8 @@ statement_read
                                         }
                                 }
                                 symbol->location       = cursor->current.location;
-                                symbol->fragment       = symbols_table->section_current->fragments.last;
-                                symbol->value          = symbols_table->section_current->fragments.last->data_size;
-                                symbol->section        = symbols_table->section_current;
+                                symbol->flags         |= Symbol_Flags__Used;
+                                Symbol_Ref__update_section(symbol, symbols_table->section_current);
 
                                 token_next(cursor, diagnostics);
                                 token_next(cursor, diagnostics);
@@ -266,14 +268,27 @@ statement_read
                                 {
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->kind       = Diagnostic_Kind__Error;
-                                        diagnostic->location = cursor->current.location;
-                                        diagnostic->message  = String8__literal("invalid section flags, expected: " ELF_Section_Header_Flags__cstring);
-                                        diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                        diagnostic->message    = String8__literal("invalid section flags, expected: " ELF_Section_Header_Flags__cstring);
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                 }
 
-                                symbol->section->elf.flags = flags;
+                                if (symbol->section->special)
+                                {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        diagnostic->message    = String8__literal("ignoring redefinition of flags for special section");
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                }
+                                else
+                                {
+                                        symbol->section->elf.flags = flags;
+                                }
                                 token_next(cursor, diagnostics);
                         }
+
+                        // TODO(low): section groups.
 
                         if (cursor->current.kind == Token_Kind__Comma)
                         {
@@ -297,12 +312,23 @@ statement_read
                                         diagnostic->message    = String8__literal("invalid section type");
                                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                 }
-                                // section_new->elf.type = type;
+                                if (symbol->section->special)
+                                {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                                        diagnostic->message    = String8__literal("ignoring redefinition of type for special section");
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                }
+                                else
+                                {
+                                        symbol->section->elf.type = type;
+                                }
                                 token_next(cursor, diagnostics);
                         }
 
 
-                        // symbols_table->section_current = section_new;
+                        symbols_table->section_current = symbol->section;
                 } break;
                 case Directive_Kind__Local:
                 {
