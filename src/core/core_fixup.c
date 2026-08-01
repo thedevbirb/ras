@@ -90,9 +90,9 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         // The fixup expression should simplify to `global - 2`.
         for (;;)
         {
-                Symbol_Ref *symbol           = fixup->expression->symbol;
-                Expression *expression_inner = symbol           ? symbol->expression       : 0;
-                Symbol_Ref *symbol_inner     = expression_inner ? expression_inner->symbol : 0;
+                Symbol_Ref *symbol           = fixup->expression ? fixup->expression->symbol : 0;
+                Expression *expression_inner = symbol            ? symbol->expression        : 0;
+                Symbol_Ref *symbol_inner     = expression_inner  ? expression_inner->symbol  : 0;
 
                 B32 undefined_or_common_inner = symbol_inner
                         ? symbol_inner->section == &Section__undefined || symbol_inner->section == &Section__common
@@ -109,13 +109,16 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                 }
         }
 
+        Expression *expression = fixup->expression;
+        Symbol_Ref *symbol     = expression ? expression->symbol : 0;
+
         switch (fixup->relocation_type)
         {
         default: { unreachable_m(); }
 
-        case Relocation_RISC_V__High_20:       { Fixup__apply_constant(fixup, encode_immediate_u_m(fixup->expression->integer_value)); relaxable = 1; } break;
-        case Relocation_RISC_V__Low_12_I_Type: { Fixup__apply_constant(fixup, encode_immediate_i_m(fixup->expression->integer_value)); relaxable = 1; } break;
-        case Relocation_RISC_V__Low_12_S_Type: { Fixup__apply_constant(fixup, encode_immediate_s_m(fixup->expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__High_20:       { Fixup__apply_constant(fixup, encode_immediate_u_m(expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__Low_12_I_Type: { Fixup__apply_constant(fixup, encode_immediate_i_m(expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__Low_12_S_Type: { Fixup__apply_constant(fixup, encode_immediate_s_m(expression->integer_value)); relaxable = 1; } break;
 
         case Relocation_RISC_V__GOT_High_20:
         {
@@ -169,7 +172,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         case Fixup__16_Bit:             {} // fallthrough
         case Relocation_RISC_V__64_Bit:
         {
-                if (fixup->expression->evaluation == Expression_Kind__Subtract)
+                if (expression->evaluation == Expression_Kind__Subtract)
                 {
                         // The idea is that: since this can only be valid if it's a subtract,
                         // unpack it into an "add" and "sub" relocation by looking at the left and right subexpressions.
@@ -177,23 +180,23 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                         Fixup *fixup_sub = Arena__push_struct_m(arena, Fixup);
                               *fixup_sub = *fixup;
 
-                        fixup_sub->expression = fixup->expression->right;
-                        fixup->expression     = fixup->expression->left;
+                        fixup_sub->expression = expression->right;
+                        expression     = expression->left;
                         DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_sub);
                 }
-                else if (fixup->expression->evaluation == Expression_Kind__Constant)
+                else if (expression->evaluation == Expression_Kind__Constant)
                 {
-                        U8 size = min_m(fixup->fragment_write_size, sizeof(fixup->expression->integer_value));
+                        U8 size = min_m(fixup->fragment_write_size, sizeof(expression->integer_value));
                         U8 *write_area = Fixup__write_area(fixup);
-                        memory_copy(write_area, (U8 *)&fixup->expression->integer_value, size);
+                        memory_copy(write_area, (U8 *)&expression->integer_value, size);
                         fixup->flags |= Fixup_Flags__Done;
                 }
                 else if (fixup->relocation_type == Fixup__8_Bit || fixup->relocation_type == Fixup__16_Bit)
                 {
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->message    = String8__literal("cannot represent an 8-bit or 16-bit relocation on RISC-V/ELF object file");
-                        diagnostic->location   = fixup->expression->location_range.v[0];
-                        diagnostic->ranges[0]  = fixup->expression->location_range;
+                        diagnostic->location   = expression->location_range.v[0];
+                        diagnostic->ranges[0]  = expression->location_range;
                 }
         } break;
 
@@ -204,18 +207,18 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
 
         case Relocation_RISC_V__PC_Relative_High_20:
         {
-                B32 symbol_internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-                B32 evaluatable = symbol_internal_is && fixup->expression->symbol->section == section;
+                B32 symbol_internal_is = symbol && Symbol_Ref__internal_is(symbol);
+                B32 evaluatable = symbol_internal_is && symbol->section == section;
                 if (evaluatable)
                 {
-                        S64 position = fixup->expression->symbol->value;
-                        S64 offset   = fixup->expression->integer_value;
+                        S64 position = symbol->value;
+                        S64 offset   = expression->integer_value;
                         S64 target   = (position + offset) - fixup->fragment->object_file_offset;
 
                         PC_Relative_High *pc_relative_high = Arena__push_struct_m(arena, PC_Relative_High);
                         pc_relative_high->section            = section;
                         pc_relative_high->object_file_offset = fixup->fragment->object_file_offset;
-                        pc_relative_high->expression         = fixup->expression;
+                        pc_relative_high->expression         = expression;
 
                         SLL_stack_push_m(section->fixups.pc_relative_high, pc_relative_high);
 
@@ -230,8 +233,8 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                         {
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__format(diagnostics->arena, "invalid pc-relative high offset: %lld", target);
-                                diagnostic->location   = fixup->expression->location;
-                                diagnostic->ranges[0]  = fixup->expression->location_range;
+                                diagnostic->location   = expression->location;
+                                diagnostic->ranges[0]  = expression->location_range;
                         }
 
                         U32 encoding       = 0;
@@ -255,7 +258,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         case Relocation_RISC_V__PC_Relative_Low_12_S_Type: {} // fallthrough
         case Relocation_RISC_V__PC_Relative_Low_12_I_Type:
         {
-                U64 object_file_offset = fixup->expression->symbol->value + fixup->expression->integer_value;
+                U64 object_file_offset = symbol->value + expression->integer_value;
                 PC_Relative_High *entry = PC_Relative_High__find(section->fixups.pc_relative_high, section, object_file_offset);
 
                 B32 evaluatable = 0;
@@ -296,19 +299,19 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
         } break;
         }
 
-        if (!(fixup->flags & Fixup_Flags__Done) && fixup->expression->evaluation == Expression_Kind__Subtract)
+        if (!(fixup->flags & Fixup_Flags__Done) && expression && expression->evaluation == Expression_Kind__Subtract)
         {
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__format
                         (
                                 diagnostics->arena,
-                                "Cannot resolve %.*s - %.*s", String8__varg(*(fixup->expression->left->symbol->name)), String8__varg(*(fixup->expression->right->symbol->name))
+                                "Cannot resolve %.*s - %.*s", String8__varg(*(expression->left->symbol->name)), String8__varg(*(expression->right->symbol->name))
                         );
-                diagnostic->location   = fixup->expression->location;
-                diagnostic->ranges[0]  = fixup->expression->location_range;
+                diagnostic->location   = expression->location;
+                diagnostic->ranges[0]  = expression->location_range;
         }
 
-        if (relaxable && fixup->expression->symbol)
+        if (relaxable && expression && symbol)
         {
                 Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
                        fixup_relax->offset              = fixup->offset;
@@ -319,7 +322,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
 
         if (!(fixup->flags & Fixup_Flags__Done))
         {
-                if (fixup->expression->symbol) { fixup->expression->symbol->flags |= Symbol_Flags__Relocation; }
+                if (symbol) { symbol->flags |= Symbol_Flags__Relocation; }
                 section->fixups.unresolved += 1;
                 section->symbol->flags |= Symbol_Flags__Relocation;
         }
@@ -345,7 +348,7 @@ Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics
                 // We should have warned earlier about them, during `Symbol_Ref__resolve`.
                 //
                 // TODO(low): maybe these checks should be moved just inside the function.
-                B32 processable_is = fixup->relocation_type != Relocation_RISC_V__Relax
+                B32 processable_is = !expression
                                   || evaluation == Expression_Kind__Constant
                                   || evaluation == Expression_Kind__Symbol
                                   || subtractable_is;

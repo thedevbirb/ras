@@ -94,6 +94,7 @@ Expression_Kind__comparison_is(Expression_Kind kind)
 typedef struct Expression Expression;
 struct Expression
 {
+        Expression *next;
         // Location tracking. Consider `1 + 2` as an example.
 
         // Points to the location of the "root" token of the expression. For example, if the node is `+`, it would point
@@ -148,24 +149,18 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 
-// TODO(low): replace Xar with Expression chunks. See diary.md
-
-#ifndef Expressions__xar_chunks
-#define Expressions__xar_chunks 14
-#endif
-
 // Assumes first expression is a sentinel expression.
 typedef struct Expressions Expressions;
 struct Expressions
 {
-        Xar_Metadata  metadata;
-        Xar_Header    header;
-        Expression   *chunks[Expressions__xar_chunks];
+        U64         count;
+        Expression *first;
+        Expression *last;
 };
 
-// MUST be called.
+// MUST be called. TODO(low): review this
 internal void
-Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount);
+Expressions__initialize(Expressions *expressions, Arena *arena);
 
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena);

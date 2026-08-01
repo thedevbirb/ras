@@ -156,10 +156,10 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
         return result;
 }
 
+// TODO(low): review utlity of this
 internal void
-Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount)
+Expressions__initialize(Expressions *expressions, Arena *arena)
 {
-        xar_initialize_m(expressions, shift_amount);
         Expressions_push_empty(expressions, arena);
         return;
 }
@@ -167,7 +167,9 @@ Expressions__initialize(Expressions *expressions, Arena *arena, U8 shift_amount)
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena)
 {
-        Expression *node = xar_push_m(expressions, arena);
+        Expression *node = Arena__push_struct_m(arena, Expression);
+        SLL_queue_push_m(expressions->first, expressions->last, node);
+        expressions->count += 1;
 
         return node;
 }
@@ -175,7 +177,7 @@ Expressions_push_empty(Expressions *expressions, Arena *arena)
 Expression *
 Expressions__push_constant(Expressions *expressions, Arena *arena, S64 constant)
 {
-        Expression *node = xar_push_m(expressions, arena);
+        Expression *node = Expressions_push_empty(expressions, arena);
 
         node->integer_value = constant;
         node->kind          = Expression_Kind__Constant;
@@ -188,6 +190,7 @@ internal Expression *
 Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
 {
         Expression *result = Expressions_push_empty(expressions, arena);
+
         result->symbol     = symbol;
         result->kind       = Expression_Kind__Symbol;
         result->evaluation = Expression_Kind__Symbol;
@@ -210,19 +213,10 @@ internal void
 Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
 {
         // TODO(low): I don't like that the sentinel expression should be skipped. I would prefer a no-op here.
-        U64 index = 1;
-        for (;;)
+        for each_node_m(expressions->first->next, expression)
         {
-                if (index >= expressions->header.count)
-                {
-                        break;
-                }
-
-                Expression *expression = xar_get_m(expressions, index);
                 Symbol_Ref symbol_expression = { .expression = expression };
                 Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
-
-                index += 1;
         }
         return;
 }

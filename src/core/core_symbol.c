@@ -316,13 +316,14 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
 
 // Whether a symbol should be kept or not in the final symbols table
 internal B32
-Symbol_Ref__keep(Symbol_Ref *symbol_ref)
+Symbol_Ref__keep(Symbol_Ref *symbol)
 {
-        B32 keep = !(symbol_ref->flags & Symbol_Flags__Skip)
+        B32 keep = !(symbol->flags & Symbol_Flags__Skip)
                 &&
                 (
-                           symbol_ref->type == STT_SECTION
-                        || symbol_ref->flags & Symbol_Flags__Relocation
+                           symbol->type == STT_SECTION
+                        || symbol->flags & Symbol_Flags__Relocation
+                        || symbol == &Symbol_Ref__undefined
                 );
 
         return keep;

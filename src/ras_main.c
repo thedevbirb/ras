@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include <base/base_include.h>
+#include "base/base_include.h"
 
 #include <generated/instruction_hashes.h>
 
@@ -20,7 +20,7 @@
 #include "parser/parser_include.h"
 #include "write/write_include.h"
 
-#include <base/base_include.c>
+#include "base/base_include.c"
 
 #include "core/core_include.c"
 #include "lexer.c"
@@ -117,7 +117,7 @@ main(int argument_count, char **argument_vector)
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);
 
         Expressions expressions = {0};
-        Expressions__initialize(&expressions, arena, 12);
+        Expressions__initialize(&expressions, arena);
 
         Diagnostics *diagnostics = Diagnostics__new(Arena__allocate_m());
 
