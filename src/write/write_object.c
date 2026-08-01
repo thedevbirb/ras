@@ -92,13 +92,13 @@ write_object_file
         Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
                     symbol_strtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_strtab);
-        symbol_strtab->section->elf.entry_size       = 1;
+        symbol_strtab->section->elf.entry_size = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
 
         Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
                     symbol_shstrtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_shstrtab);
-        symbol_strtab->section->elf.entry_size       = 1;
+        symbol_strtab->section->elf.entry_size = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
 
         U64 object_file_size = sizeof(ELF64_Header);
@@ -214,9 +214,9 @@ write_object_file
         cursor_write_struct_m(&file_out_cursor, &elf_header);
 
         // Write all sections along with their headers, and their relocations. Write the section header string table.
-        U8 *section_header_table_cursor = file_out + section_header_table_file_offset;
-        U32 section_header_string_table_offset = section_header_table_file_offset - symbol_shstrtab->section->elf.size;
-        U8 *section_header_string_table_cursor = file_out + section_header_string_table_offset;
+        U8  *section_header_table_cursor        = file_out + section_header_table_file_offset;
+        U32  section_header_string_table_offset = section_header_table_file_offset - symbol_shstrtab->section->elf.size;
+        U8  *section_header_string_table_cursor = file_out + section_header_string_table_offset;
         for each_node_m(symbols_table->section_first, section)
         {
                 for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
