@@ -13,7 +13,7 @@ Section__finish(Section *section);
 
 // Compute the total size of the instructions needed to relax the jump.
 internal U8
-jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *section);
+Fragment__jump_instructions_total_size(Fragment *fragment, Section *section);
 
 // Perform the relaxation algorithm on the given section.
 internal B32
