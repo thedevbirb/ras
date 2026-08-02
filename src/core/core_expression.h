@@ -158,9 +158,9 @@ struct Expressions
         Expression *last;
 };
 
-// MUST be called. TODO(low): review this
-internal void
-Expressions__initialize(Expressions *expressions, Arena *arena);
+// // MUST be called. TODO(low): review this
+// internal void
+// Expressions__initialize(Expressions *expressions, Arena *arena);
 
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena);

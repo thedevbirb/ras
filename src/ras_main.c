@@ -117,7 +117,6 @@ main(int argument_count, char **argument_vector)
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);
 
         Expressions expressions = {0};
-        Expressions__initialize(&expressions, arena);
 
         Diagnostics *diagnostics = Diagnostics__new(Arena__allocate_m());
 

@@ -156,13 +156,13 @@ Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
         return result;
 }
 
-// TODO(low): review utlity of this
-internal void
-Expressions__initialize(Expressions *expressions, Arena *arena)
-{
-        Expressions_push_empty(expressions, arena);
-        return;
-}
+// // TODO(low): review utlity of this
+// internal void
+// Expressions__initialize(Expressions *expressions, Arena *arena)
+// {
+//         Expressions_push_empty(expressions, arena);
+//         return;
+// }
 
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena)
