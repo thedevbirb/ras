@@ -568,7 +568,7 @@ RISCV_Instruction__append
                 fixup                  = Arena__push_struct_m(arena, Fixup);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
-                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
+                DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
         }
 
         if (relaxable)

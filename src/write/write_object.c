@@ -4,8 +4,6 @@
 #include "write_section.h"
 #include "write_object.h"
 
-#include <unistd.h>
-
 internal U64
 write_object_file
 (
@@ -29,7 +27,6 @@ write_object_file
         {
                 relaxation_passes += 1;
                 B32 changed = 0;
-                // bug this is skipped, no dll
                 for each_node_m(symbols_table->section_first, section)
                 {
                         B32 relax_changed_address = Section__relax(section, arena, diagnostics);
@@ -208,6 +205,8 @@ write_object_file
                 .section_header_string_table_index = symbols_table->section_last->index
         };
         ELF_identifier_fill(elf_header.identifier);
+
+        // TODO(high): this should be easier to reason about. One way to help is to user String8 cursor.
 
         U8 *file_out = mmap_file_output(file_descriptor_out, object_file_size);
         U8 *file_out_cursor = file_out;

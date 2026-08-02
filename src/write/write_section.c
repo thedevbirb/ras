@@ -78,11 +78,9 @@ internal B32
 Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 {
         // First pass to compute address estimate
-        Fragments fragments = section->fragments;
-
         {
         U64 address = 0;
-        for each_node_z_m(fragments.first, fragment, &Fragment__nil)
+        for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
         {
                 fragment->object_file_offset = address;
                 address += fragment->data_size;
@@ -157,11 +155,11 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
         B32 stretched      = 0;
 
         // To avoid an infinite loop, I follow GNU as heuristic of making this step at most O^2 of the fragments.
-        iterations_max = fragments.count * fragments.count;
-        if (iterations_max < fragments.count)
+        iterations_max = section->fragments.count * section->fragments.count;
+        if (iterations_max < section->fragments.count)
         {
                 // Overflow detected
-                iterations_max = fragments.count;
+                iterations_max = section->fragments.count;
         }
 
         B32 error = 0;
@@ -172,7 +170,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                 stretch   = 0;
                 stretched = 0;
 
-                for each_node_z_m(fragments.first, fragment, &Fragment__nil)
+                for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                 {
                         if (!fragment)
                         {
@@ -293,7 +291,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
         B32 stretched_at_least_once = 0;
         // Update all the addresses for this iterations.
 
-        for each_node_z_m(fragments.first, fragment, &Fragment__nil)
+        for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
         {
                 if (!fragment)
                 {
@@ -396,7 +394,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 fixup->offset              = fragment->data_size + sizeof(instruction_1);
                                 fixup->fragment_write_size = sizeof(instruction_2);
                                 fixup->relocation_type     = Relocation_RISC_V__JAL;
-                                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
+                                DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
 
                                 memory_copy(fragment->data_variable,                         (U8 *)&instruction_1, sizeof(instruction_1));
                                 memory_copy(fragment->data_variable + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
@@ -411,7 +409,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 fixup->offset              = fragment->data_size;
                                 fixup->fragment_write_size = instructions_total_size;
                                 fixup->relocation_type     = relocation_type;
-                                DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
+                                DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
                         }
                         else
                         {

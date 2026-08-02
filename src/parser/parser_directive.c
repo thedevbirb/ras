@@ -240,7 +240,7 @@ directive_data
                                                     : Relocation_RISC_V__64_Bit;
 
                         Section *section = symbols_table->section_current;
-                        DLL_push_front_m(section->fixups.first, section->fixups.last, fixup);
+                        DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
                 }
 
                 B32 break_should_directive =  cursor->source_index >= cursor->source->count
