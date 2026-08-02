@@ -43,17 +43,17 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
         if (fragment->relax_state == Relax_State__Jump)
         {
                 // NOTE: assume jumps are in range; the linker will catch any that aren't.
+                // For branches, assume worst size and then fix it.
                 size = jump.unconditional_is ? 4 : 8;
-                // The jump target;
-                Symbol_Ref *symbol = fragment->relax_info.jump.expression->symbol;
-                B32 symbol_defined_is = symbol->section == &Section__undefined;
+                Symbol_Ref *symbol_target_jump = fragment->relax_info.jump.expression->symbol;
+                B32 symbol_defined_is = symbol_target_jump->section != &Section__undefined;
                 // TODO(weak)
                 B32 symbol_weak_is = 0;
-                B32 section_same_is = symbol_defined_is && symbol->section == section;
+                B32 section_same_is = symbol_defined_is && symbol_target_jump->section == section;
                 B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
                 if (size_can_be_computed)
                 {
-                        S64 jump_target_offset = symbol->value;
+                        S64 jump_target_offset = symbol_target_jump->value;
                         // The branch instruction is placed as the last data in the fragment
                         S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
 
@@ -62,7 +62,8 @@ jump_instructions_total_size(Relax_Info_Jump jump, Fragment *fragment, Section *
                         // Check that `distance` fits a signed `RISCV_BRANCH_REACH`, i.e.
                         // `[RISCV_BRANCH_REACH/2, RISCV_BRANCH_REACH/2)`
                         // if (compressed && range compressed blah blah)
-                        if ((S64)(distance + RISCV_BRANCH_REACH/2) < (S64)RISCV_BRANCH_REACH)
+                        B32 within_branch_range_is = (S64)(distance + RISCV_BRANCH_REACH/2) < (S64)RISCV_BRANCH_REACH;
+                        if (within_branch_range_is)
                         {
                                 size = 4;
                         }
@@ -408,7 +409,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         }
                         else if (instructions_total_size == 4)
                         {
-                                U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__PC_Relative_Low_12_I_Type;
+                                U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__Branch;
                                 Fixup *fixup = Arena__push_struct_m(arena, Fixup);
                                 fixup->fragment            = fragment;
                                 fixup->expression          = relax_info->jump.expression;

@@ -338,20 +338,8 @@ RISCV_Instruction__parse
                                 *relocation_out = Relocation_RISC_V__Branch;
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 
-                                // For branches we can't support a fixup. While GNU as silently ignores additional
-                                // symbols, here we either warn or error.
-                                expression_evaluate(expression);
-                                //
-                                // TODO(medium): actually the fixup will take the whole expression, so this is okay
-                                // if (expression->symbol_operand)
-                                // {
-                                //         // TODO(low): this diagnostic could be better, I should probably support re-lexing
-                                //         // from a specific location to get the exact token.
-                                //         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                //         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
-                                //         diagnostic->location   = expression->location_range.v[0];
-                                //         diagnostic->ranges[0]  = expression->location_range;
-                                // }
+                                // NOTE: here GNU as would just consider one operand, here we can consider the whole
+                                // expression and save it as fixup symbol information.
                         } break;
                         case OP_Argument__Offset_Store:
                         {
