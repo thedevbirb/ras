@@ -226,6 +226,19 @@ statement_read
 
                         token_next(cursor, diagnostics);
                 } break;
+                case Directive_Kind__Text:    {} // fallthrough
+                case Directive_Kind__Data:    {} // fallthrough
+                case Directive_Kind__BSS:
+                {
+                        String8 section_name = Directive_Kind__String8_table[directive_kind];
+                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name);
+                        if (symbol->section == &Section__undefined)
+                        {
+                                Symbols_Table__create_section(symbols_table, symbol);
+                        }
+
+                        symbols_table->section_current = symbol->section;
+                }
                 case Directive_Kind__Section:
                 {
                         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
@@ -326,7 +339,6 @@ statement_read
                                 }
                                 token_next(cursor, diagnostics);
                         }
-
 
                         symbols_table->section_current = symbol->section;
                 } break;
