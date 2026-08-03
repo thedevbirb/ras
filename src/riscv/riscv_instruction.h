@@ -172,7 +172,7 @@
 #define extract_immediate_u_m(x) (shift_right_mask_m(x, 12, 20) << 12 | (U64)immediate_sign_mask_m(x) << 32)
 
 // imm[11:5] rs2 rs1 funct3 imm[4:0] opcode
-#define encode_immediate_s_m(x) ((shift_right_mask_m(x,  0,   5) <<  7) | shift_right_mask_m(x, 5, 7) << 24)
+#define encode_immediate_s_m(x) ((shift_right_mask_m(x,  0,   5) <<  7) | shift_right_mask_m(x, 5, 7) << 25)
 #define extract_immdiate_s_m(x) ((shift_right_mask_m(x,  7,   5)) | shift_right_mask_m(x, 25, 7) << 5 | immediate_sign_mask_m(x) << 12)
 // imm[12|10:5] rs2 rs1 000 imm[4:1|11] <opcode>
 #define encode_immediate_b_m(x)                                                         \
@@ -342,7 +342,7 @@
         (((U32)(funct3)       &  0x07) << 12) |                                                                \
         (((U32)(rs1)          &  0x1F) << 15) |                                                                \
         (((U32)(rs2)          &  0x1F) << 20) |                                                                \
-        (((U32)(imm)          & 0xFE0) << 25)
+        (((U32)(imm)          & 0xFE0) << 20)
 
 // B-type: [31] imm[12] | [30:25] imm[10:5] | [24:20] rs2 | [19:15] rs1 | [14:12] funct3 | [11:8] imm[4:1] | [7] imm[11] | [6:0] opcode
 #define instruction_b_encode_m(rs2, rs1, imm, opcode, funct3)                                                  \
@@ -472,10 +472,9 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define INSN_4_BYTE      0x00000080
 
 // Macro identifiers
-#define M_CALL  1
-#define M_LI    2
-#define M_LA    3
-#define M_Lx    4
+#define MACRO_CALL  1
+#define MACRO_LI    2
+#define MACRO_LA    3
 
 //------------------------------------------------------------------------------
 // MATCH / MASK constants for each instruction

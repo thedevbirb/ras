@@ -12,7 +12,7 @@
 #define A_RD_RS1_SHIFT        OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount)
 #define A_RD_RS1_SHIFT5       OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount_5)
 
-#define A_RD_OFF_S_LP_RS1_RP  OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Store, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
+#define A_RS2_OFF_S_LP_RS1_RP OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_Store, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 #define A_RD_OFF_L_LP_RS1_RP  OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 #define A_OFF_LP_RS1_RP       OP_arguments_m(                                      OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
 
@@ -33,96 +33,96 @@
 global const RISCV_Opcode RISCV_Opcode__table[] =
 {
 // Base I instructions.
-{ "auipc",  HASH_auipc,  0, RV_IC_I, A_RD_IMM_U,           MATCH_AUIPC,                             MASK_AUIPC,                          match_opcode,         0                              },
-{ "lui",    HASH_lui,    0, RV_IC_I, A_RD_IMM_U,           MATCH_LUI,                               MASK_LUI,                            match_opcode,         0                              },
+{ "auipc",  HASH_auipc,  0, RV_IC_I, A_RD_IMM_U,            MATCH_AUIPC,                             MASK_AUIPC,                          match_opcode,         0                              },
+{ "lui",    HASH_lui,    0, RV_IC_I, A_RD_IMM_U,            MATCH_LUI,                               MASK_LUI,                            match_opcode,         0                              },
 
-// NOTE: important here to go from more specific to less specific.
-{ "jal",    HASH_jal,    0, RV_IC_I, A_RD_OFF,             MATCH_JAL,                               MASK_JAL,                            match_opcode,         0                              },
-{ "jal",    HASH_jal,    0, RV_IC_I, A_OFF_20,             MATCH_JAL|(X_RA << OP_SH_RD),            MASK_JAL|MASK_RD,                    match_opcode,         0                              },
+// NOTE: important here to go from more specific to less sp ecific.
+{ "jal",    HASH_jal,    0, RV_IC_I, A_RD_OFF,              MATCH_JAL,                               MASK_JAL,                            match_opcode,         0                              },
+{ "jal",    HASH_jal,    0, RV_IC_I, A_OFF_20,              MATCH_JAL|(X_RA << OP_SH_RD),            MASK_JAL|MASK_RD,                    match_opcode,         0                              },
 
-{ "jalr",   HASH_jalr,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_JALR,                              MASK_JALR,                           match_opcode,         0                              },
+{ "jalr",   HASH_jalr,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_JALR,                              MASK_JALR,                           match_opcode,         0                              },
 
-{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_RS1,             MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_RS1,             MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_RS1,             MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_RS1,             MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP, MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_RS1,             MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-// TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
+{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_RS1,              MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_RS1,              MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_RS1,              MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_RS1,              MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
+{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_RS1,              MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
+// TODO(low): add symbol version of this. GNU as treats the  version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
-{ "sw",     HASH_sw,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SW,                                MASK_SW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-{ "sh",     HASH_sh,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SH,                                MASK_SH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "sb",     HASH_sb,     0, RV_IC_I, A_RD_OFF_S_LP_RS1_RP, MATCH_SB,                                MASK_SB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ "sw",     HASH_sw,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SW,                                MASK_SW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
+{ "sh",     HASH_sh,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SH,                                MASK_SH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
+{ "sb",     HASH_sb,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SB,                                MASK_SB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
 
-{ "addi",   HASH_addi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDI,                              MASK_ADDI,                           match_opcode,         0                              },
-{ "addiw",  HASH_addiw,  0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ADDIW,                             MASK_ADDIW,                          match_opcode,         0                              },
-{ "slti",   HASH_slti,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_SLTI,                              MASK_SLTI,                           match_opcode,         0                              },
-{ "sltiu",  HASH_sltiu,  0, RV_IC_I, A_RD_RS1_IMM,         MATCH_SLTIU,                             MASK_SLTIU,                          match_opcode,         0                              },
-{ "xori",   HASH_xori,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_XORI,                              MASK_XORI,                           match_opcode,         0                              },
-{ "ori",    HASH_ori,    0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ORI,                               MASK_ORI,                            match_opcode,         0                              },
-{ "andi",   HASH_andi,   0, RV_IC_I, A_RD_RS1_IMM,         MATCH_ANDI,                              MASK_ANDI,                           match_opcode,         0                              },
+{ "addi",   HASH_addi,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ADDI,                              MASK_ADDI,                           match_opcode,         0                              },
+{ "addiw",  HASH_addiw,  0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ADDIW,                             MASK_ADDIW,                          match_opcode,         0                              },
+{ "slti",   HASH_slti,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_SLTI,                              MASK_SLTI,                           match_opcode,         0                              },
+{ "sltiu",  HASH_sltiu,  0, RV_IC_I, A_RD_RS1_IMM,          MATCH_SLTIU,                             MASK_SLTIU,                          match_opcode,         0                              },
+{ "xori",   HASH_xori,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_XORI,                              MASK_XORI,                           match_opcode,         0                              },
+{ "ori",    HASH_ori,    0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ORI,                               MASK_ORI,                            match_opcode,         0                              },
+{ "andi",   HASH_andi,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ANDI,                              MASK_ANDI,                           match_opcode,         0                              },
 
-{ "slli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
-{ "srli",   HASH_srli,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SRLI,                              MASK_SRLI,                           match_opcode,         0                              },
-{ "srai",   HASH_srai,   0, RV_IC_I, A_RD_RS1_SHIFT,       MATCH_SRAI,                              MASK_SRAI,                           match_opcode,         0                              },
-{ "slliw",  HASH_slliw,  0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SLLIW,                             MASK_SLLIW,                          match_opcode,         0                              },
-{ "srliw",  HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SRLIW,                             MASK_SRLIW,                          match_opcode,         0                              },
-{ "sraiw",  HASH_sraiw,  0, RV_IC_I, A_RD_RS1_SHIFT5,      MATCH_SRAIW,                             MASK_SRAIW,                          match_opcode,         0                              },
+{ "slli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
+{ "srli",   HASH_srli,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SRLI,                              MASK_SRLI,                           match_opcode,         0                              },
+{ "srai",   HASH_srai,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SRAI,                              MASK_SRAI,                           match_opcode,         0                              },
+{ "slliw",  HASH_slliw,  0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SLLIW,                             MASK_SLLIW,                          match_opcode,         0                              },
+{ "srliw",  HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SRLIW,                             MASK_SRLIW,                          match_opcode,         0                              },
+{ "sraiw",  HASH_sraiw,  0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SRAIW,                             MASK_SRAIW,                          match_opcode,         0                              },
 
-{ "add",    HASH_add,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_ADD,                               MASK_ADD,                            match_opcode,         0                              },
-{ "sub",    HASH_sub,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SUB,                               MASK_SUB,                            match_opcode,         0                              },
-{ "sll",    HASH_sll,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SLL,                               MASK_SLL,                            match_opcode,         0                              },
-{ "slt",    HASH_slt,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SLT,                               MASK_SLT,                            match_opcode,         0                              },
-{ "sltu",   HASH_sltu,   0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SLTU,                              MASK_SLTU,                           match_opcode,         0                              },
-{ "xor",    HASH_xor,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_XOR,                               MASK_XOR,                            match_opcode,         0                              },
-{ "srl",    HASH_srl,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SRL,                               MASK_SRL,                            match_opcode,         0                              },
-{ "sra",    HASH_sra,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_SRA,                               MASK_SRA,                            match_opcode,         0                              },
-{ "or",     HASH_or,     0, RV_IC_I, A_RD_RS1_RS2,         MATCH_OR,                                MASK_OR,                             match_opcode,         0                              },
-{ "and",    HASH_and,    0, RV_IC_I, A_RD_RS1_RS2,         MATCH_AND,                               MASK_AND,                            match_opcode,         0                              },
+{ "add",    HASH_add,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_ADD,                               MASK_ADD,                            match_opcode,         0                              },
+{ "sub",    HASH_sub,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SUB,                               MASK_SUB,                            match_opcode,         0                              },
+{ "sll",    HASH_sll,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLL,                               MASK_SLL,                            match_opcode,         0                              },
+{ "slt",    HASH_slt,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLT,                               MASK_SLT,                            match_opcode,         0                              },
+{ "sltu",   HASH_sltu,   0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLTU,                              MASK_SLTU,                           match_opcode,         0                              },
+{ "xor",    HASH_xor,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_XOR,                               MASK_XOR,                            match_opcode,         0                              },
+{ "srl",    HASH_srl,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SRL,                               MASK_SRL,                            match_opcode,         0                              },
+{ "sra",    HASH_sra,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SRA,                               MASK_SRA,                            match_opcode,         0                              },
+{ "or",     HASH_or,     0, RV_IC_I, A_RD_RS1_RS2,          MATCH_OR,                                MASK_OR,                             match_opcode,         0                              },
+{ "and",    HASH_and,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_AND,                               MASK_AND,                            match_opcode,         0                              },
 
-{ "beq",    HASH_beq,    0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BEQ,                               MASK_BEQ,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bne",    HASH_bne,    0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BNE,                               MASK_BNE,                            match_opcode,         INSN_CONDBRANCH                },
-{ "blt",    HASH_blt,    0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bge",    HASH_bge,    0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bltu",   HASH_bltu,   0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_CONDBRANCH                },
-{ "bgeu",   HASH_bgeu,   0, RV_IC_I, A_RS1_RS2_OFF,        MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_CONDBRANCH                },
+{ "beq",    HASH_beq,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BEQ,                               MASK_BEQ,                            match_opcode,         INSN_CONDBRANCH                },
+{ "bne",    HASH_bne,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BNE,                               MASK_BNE,                            match_opcode,         INSN_CONDBRANCH                },
+{ "blt",    HASH_blt,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_CONDBRANCH                },
+{ "bge",    HASH_bge,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_CONDBRANCH                },
+{ "bltu",   HASH_bltu,   0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_CONDBRANCH                },
+{ "bgeu",   HASH_bgeu,   0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_CONDBRANCH                },
 
 // Pseudo-instructions (incomplete)
-{ "j",      HASH_j,      0, RV_IC_I, A_OFF_20,             MATCH_JAL,                               MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,      MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM_I,          MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "ret",    HASH_ret,    0, RV_IC_I, A_NONE,               MATCH_JALR|(X_RA << OP_SH_RD),           MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "j",      HASH_j,      0, RV_IC_I, A_OFF_20,              MATCH_JAL,                               MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                 MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,       MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM_I,           MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ "ret",    HASH_ret,    0, RV_IC_I, A_NONE,                MATCH_JALR|(X_RA << OP_SH_RS1),           MASK_JALR|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
 
-{ "call",   HASH_call,   0, RV_IC_I, A_CALL,               (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  M_CALL,                              0,                    INSN_MACRO                     },
-{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,           MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
-{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_L,           0,                                       M_LI,                                0,                    INSN_MACRO                     },
+{ "call",   HASH_call,   0, RV_IC_I, A_CALL,                (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  MACRO_CALL,                          0,                    INSN_MACRO                     },
+{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,            MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
+{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_L,            0,                                       MACRO_LI,                            0,                    INSN_MACRO                     },
 
-{ "la",     HASH_la,     0, RV_IC_I, A_RD_ADDRESS,         0,                                       M_LA,                                match_rd_nonzero,     INSN_MACRO                     },
+{ "la",     HASH_la,     0, RV_IC_I, A_RD_ADDRESS,          0,                                       MACRO_LA,                            match_rd_nonzero,     INSN_MACRO                     },
 
-{ "nop",    HASH_nop,    0, RV_IC_I, A_NONE,               MATCH_ADDI,                              MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
-{ "mv",     HASH_mv,     0, RV_IC_I, A_RD_RS1,             MATCH_ADDI,                              MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
+{ "nop",    HASH_nop,    0, RV_IC_I, A_NONE,                MATCH_ADDI,                              MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
+{ "mv",     HASH_mv,     0, RV_IC_I, A_RD_RS1,              MATCH_ADDI,                              MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
 
-{ "beqz",   HASH_beqz,   0, RV_IC_I, A_RS1_OFF,            MATCH_BEQ,                               MASK_BEQ|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "blez",   HASH_blez,   0, RV_IC_I, A_RS2_OFF,            MATCH_BGE,                               MASK_BGE|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgez",   HASH_bgez,   0, RV_IC_I, A_RS1_OFF,            MATCH_BGE,                               MASK_BGE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "ble",    HASH_ble,    0, RV_IC_I, A_RS2_RS1_OFF,        MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bltz",   HASH_bltz,   0, RV_IC_I, A_RS1_OFF,            MATCH_BLT,                               MASK_BLT|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgtz",   HASH_bgtz,   0, RV_IC_I, A_RS2_OFF,            MATCH_BLT,                               MASK_BLT|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bleu",   HASH_bleu,   0, RV_IC_I, A_RS2_RS1_OFF,        MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgt",    HASH_bgt,    0, RV_IC_I, A_RS2_RS1_OFF,        MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgtu",   HASH_bgtu,   0, RV_IC_I, A_RS2_RS1_OFF,        MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bnez",   HASH_bnez,   0, RV_IC_I, A_RS1_OFF,            MATCH_BNE,                               MASK_BNE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "beqz",   HASH_beqz,   0, RV_IC_I, A_RS1_OFF,             MATCH_BEQ,                               MASK_BEQ|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "blez",   HASH_blez,   0, RV_IC_I, A_RS2_OFF,             MATCH_BGE,                               MASK_BGE|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bgez",   HASH_bgez,   0, RV_IC_I, A_RS1_OFF,             MATCH_BGE,                               MASK_BGE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "ble",    HASH_ble,    0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bltz",   HASH_bltz,   0, RV_IC_I, A_RS1_OFF,             MATCH_BLT,                               MASK_BLT|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bgtz",   HASH_bgtz,   0, RV_IC_I, A_RS2_OFF,             MATCH_BLT,                               MASK_BLT|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bleu",   HASH_bleu,   0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bgt",    HASH_bgt,    0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bgtu",   HASH_bgtu,   0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ "bnez",   HASH_bnez,   0, RV_IC_I, A_RS1_OFF,             MATCH_BNE,                               MASK_BNE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
 
-{ "pause",  HASH_pause,  0, RV_IC_I, A_NONE,               MATCH_PAUSE,                             MASK_PAUSE,                          match_opcode,         0                              },
-{ "ecall",  HASH_ecall,  0, RV_IC_I, A_NONE,               MATCH_ECALL,                             MASK_ECALL,                          match_opcode,         0                              },
-{ "ebreak", HASH_ebreak, 0, RV_IC_I, A_NONE,               MATCH_EBREAK,                            MASK_EBREAK,                         match_opcode,         0                              },
+{ "pause",  HASH_pause,  0, RV_IC_I, A_NONE,                MATCH_PAUSE,                             MASK_PAUSE,                          match_opcode,         0                              },
+{ "ecall",  HASH_ecall,  0, RV_IC_I, A_NONE,                MATCH_ECALL,                             MASK_ECALL,                          match_opcode,         0                              },
+{ "ebreak", HASH_ebreak, 0, RV_IC_I, A_NONE,                MATCH_EBREAK,                            MASK_EBREAK,                         match_opcode,         0                              },
 
-{ "",       0,           0, 0,       A_NONE,               0,                                       0,                                   0,                    0                              }
+{ "",       0,           0, 0,       A_NONE,                0,                                       0,                                   0,                    0                              }
 };
 
 // TODO(low): undef the helper macros defined above.
@@ -280,8 +280,9 @@ RISCV_Instruction__parse
                         case OP_Argument__Address:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-                                B32 symbol_is   = expression->kind == Expression_Kind__Symbol;
-                                B32 constant_is = expression->kind == Expression_Kind__Constant;
+                                expression_evaluate(expression);
+                                B32 symbol_is   = expression->evaluation == Expression_Kind__Symbol;
+                                B32 constant_is = expression->evaluation == Expression_Kind__Constant;
                                 if (!(symbol_is || constant_is))
                                 {
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -932,7 +933,7 @@ RISCV_instruction_pseudo_append
         switch (pseudo_type)
         {
         default: { unreachable_m(); } break;
-        case M_CALL:
+        case MACRO_CALL:
         {
                 RISCV_call_expand
                 (
@@ -945,9 +946,9 @@ RISCV_instruction_pseudo_append
                         instruction->location
                 );
         } break;
-        case M_LA:
+        case MACRO_LA:
         {
-                if (expression->kind == Expression_Kind__Constant)
+                if (expression->evaluation == Expression_Kind__Constant)
                 {
                         RISCV_li_expand
                         (
@@ -1028,7 +1029,7 @@ RISCV_instruction_pseudo_append
                         // TODO(medium, check-gas): wane and new here?
                 }
         } break;
-        case M_LI:
+        case MACRO_LI:
         {
                 RISCV_li_expand(section, expression->integer_value, rd, instruction->location);
         } break;

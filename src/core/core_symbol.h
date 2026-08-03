@@ -258,10 +258,6 @@ Resolve_Level;
 // 1. Labels don't have an expression. Their value can be read straight into `Symbol_Ref.value`.
 // 2. `Symbol_Flags__Finalized` means the simplification pass reached an end, and the value can be read from
 //    `Symbol_Ref.value`. Undefined symbols and similar should have value zero.
-//
-// NOTE that this will be called on every symbol.
-// TODO(low): replace `expression_evalute` with this, more general version, by wrapping an expression into a
-// stack-allocated symbol, since the core evaluation logic is shared.
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level);
 
