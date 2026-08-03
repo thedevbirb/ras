@@ -215,11 +215,10 @@ statement_read
                                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
                         }
 
-                        // Can be of the form `"\nhello\n", so with quotes and optional escaped characters.
-                        String8 text = Token_Cursor__text(cursor);
-                        text = String8__skip(text, 1);
-                        text = String8__chop(text, 1);
-                        U32 size_escaped = String8__escaped_size(text) + !!null_terminated_string;
+                        // Can be of the form "\nhello\n", so with quotes and optional escaped characters.
+                        String8 text     = Token_Cursor__text(cursor);
+                        String8 content  = String8__skip_chop(text);
+                        U32 size_escaped = String8__escaped_size(content) + !!null_terminated_string;
 
                         U8 *data = Fragments__push(&symbols_table->section_current->fragments, cursor->current.location, size_escaped);
                         bytes_escaped_fill(text, data, size_escaped);

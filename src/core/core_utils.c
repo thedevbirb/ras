@@ -8,31 +8,6 @@ cursor_write(U8 **cursor, U8 *source, U64 size)
         return;
 }
 
-internal U32
-U32_little_endian_get(const void *pointer)
-{
-        const U8 *bytes = (const U8 *)pointer;
-        U32 result = 0;
-
-        result |= (U32)bytes[0];
-        result |= (U32)bytes[1] << 8;
-        result |= (U32)bytes[2] << 16;
-        result |= (U32)bytes[3] << 24;
-        return result;
-}
-
-internal void
-U32_little_endian_put(void *pointer, U32 value)
-{
-        U8 *bytes = (U8 *)pointer;
-
-        bytes[0] = (value >>  0) & 0xFF;
-        bytes[1] = (value >>  8) & 0xFF;
-        bytes[2] = (value >> 16) & 0xFF;
-        bytes[3] = (value >> 24) & 0xFF;
-        return;
-}
-
 internal String8
 String8__skip_chop(String8 token_string)
 {
@@ -42,7 +17,6 @@ String8__skip_chop(String8 token_string)
         result = String8__chop(result, 1);
         return result;
 }
-
 
 // Panics on failure. Overallocates by 8 bytes to allow not checking always bounds.
 internal U8 *
@@ -146,19 +120,17 @@ commas_until_newline(U8 *data, U64 count)
 // Returns the size of the literal string, as if were a byte slice, escaping characters.
 // Assumes a string with valid escape sequences.
 //
-// Example: String8.data = [",\,n,h,e,l,l,o,\,n,"] -> 7
+// Example: String8.data = [\,n,h,e,l,l,o,\,n] -> 7
 internal U32
 String8__escaped_size(String8 string)
 {
-        assert_always_m(string.count >= 2);
         U32 size = 0;
-        U32 index = 1;
-        U32 count = string.count - 2; // No ".
+        U32 index = 0;
         U8 *data = string.data;
 
         for (;;)
         {
-                B32 break_should = index >= count;
+                B32 break_should = index >= string.count;
                 if (break_should)
                 {
                         break;
@@ -203,7 +175,7 @@ String8__escaped_size(String8 string)
                         }
                         else
                         {
-                                index += 2;
+                                index += 1;
                         }
                 }
                 else
