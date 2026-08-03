@@ -55,7 +55,6 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
-        Symbol_Ref       *previous;
         Symbol_Ref       *next;
         // This is a reference to `Symbol_Trie.name`
         String8          *name;
@@ -168,13 +167,8 @@ struct Symbols_Table
         // Symbol_Ref               *first;
         // Symbol_Ref               *last;
 
-        // ELF mandates locals before globals/weak: https://gabi.xinuos.com/v42/elf/05-symtab.html#symbol-binding.
-        //
-        // To iterate over the entire collection, it is necessary to join `local_last` with `global_first`.
-        Symbol_Ref               *local_first;
-        Symbol_Ref               *local_last;
-        Symbol_Ref               *global_first;
-        Symbol_Ref               *global_last;
+        Symbol_Ref               *first;
+        Symbol_Ref               *last;
 
         Label_Numeric            *label_numeric_first;
         Label_Numeric            *label_numeric_last;

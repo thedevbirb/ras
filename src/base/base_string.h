@@ -132,3 +132,15 @@ String8__format(Arena *arena, char *format, ...);
 #endif
 
 #endif // BASE_STRING_H
+
+//------------------------------------------------------------------------------
+// Serial
+//------------------------------------------------------------------------------
+
+// Treat `String8` as a serialization cursor
+
+// Write data into the serial buffer. Partial data will be written if it doesn't fit.
+internal void
+String8__serial_write(String8 *string, U8 *data, U64 size);
+
+#define String8__serial_write_m(string, pointer) String8__serial_write(string, (U8 *)pointer, sizeof(*pointer))

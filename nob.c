@@ -64,7 +64,7 @@ int main(int argc, char **argv)
                         "-fno-sanitize-recover=all",                     // abort on first sanitizer hit instead of continuing.
                         "-I.",
                         "-I"SRC_FOLDER,
-                        "-DRAS_DEBUG_TOKEN_DUMP",
+                        // "-DRAS_DEBUG_TOKEN_DUMP",
                         "-DU8_AS_UNSIGNED_CHAR",
                         "-o", BUILD_FOLDER"ras",
                         SRC_FOLDER"ras_main.c");

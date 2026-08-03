@@ -122,3 +122,17 @@ String8__format(Arena *arena, char *format, ...)
 	return result;
 }
 #endif
+
+//------------------------------------------------------------------------------
+// Serial
+//------------------------------------------------------------------------------
+
+internal void
+String8__serial_write(String8 *string, U8 *data, U64 size)
+{
+        U64 size_capped = min_m(string->count, size);
+        memory_copy(string->data, data, size_capped);
+        string->data  += size_capped;
+        string->count -= size_capped;
+        return;
+}

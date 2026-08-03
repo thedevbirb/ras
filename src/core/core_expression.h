@@ -104,21 +104,21 @@ struct Expression
         // `1 + 2`.
         Range1_U32 location_range;
 
-
         // Evaluation-related fields, in the relocation friendly format `<symbol> + <addend>`.
 
         // The value of a constant expression, or an offset to be applied to `Expression.symbol`.
         S64              integer_value;
         // The symbol this expression evaluates to.
         Symbol_Ref      *symbol;
-        Expression_Kind  evaluation;
 
         // Parsing-related fields. Pointers to child expression nodes.
 
         Expression      *left;
         Expression      *right;
-        Expression_Kind  kind;
 
+        // Parsing
+        Expression_Kind  kind;
+        Expression_Kind  evaluation;
 };
 
 // Binding power levels for Pratt parsing, ordered lowest to highest.

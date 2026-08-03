@@ -66,7 +66,7 @@ write_object_file
                 }
         }
 
-        for each_symbol_m(symbols_table, symbol)
+        for each_node_m(symbols_table->first, symbol)
         {
                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
         }
@@ -84,30 +84,32 @@ write_object_file
                     symbol_symtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_symtab);
         symbol_symtab->section->elf.entry_size = sizeof(ELF64_Symbol);
+        symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
 
         Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
                     symbol_strtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_strtab);
         symbol_strtab->section->elf.entry_size = 1;
+        symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
 
         Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
                     symbol_shstrtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_shstrtab);
         symbol_strtab->section->elf.entry_size = 1;
+        symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
-
-        U64 object_file_size = sizeof(ELF64_Header);
 
         // 1. Create `.rela<section>`s.
         // 2. Compute section indexes.
+        // 2. Compute section offset.
         // 3. Track section headers string table offset values.
         // 4. Compute `.shstrtab` size.
-        // 5. Increase the total `object_file_size`.
         for each_node_m(symbols_table->section_first, section)
         {
-                section->index = section->previous ? section->previous->index + 1 : 0;
+                section->index      = section->previous ? section->previous->index + 1 : 0;
+                section->elf.offset = section->previous ? section->previous->elf.offset + section->previous->elf.size : sizeof(ELF64_Header);
 
                 if (section->fixups.unresolved > 0)
                 {
@@ -131,62 +133,59 @@ write_object_file
                 section->elf.string_table_offset = symbol_shstrtab->section->elf.size;
                 U32 c_string_size = section->symbol->name->count + 1;
                 symbol_shstrtab->section->elf.size += c_string_size;
-                object_file_size += section->elf.size;
         }
         symbol_symtab->section->elf.link = symbol_strtab->section->index;
 
-        // 1. Track symbols string table offsets.
-        // 2. Compute string table size.
-        // 3. Count total symbols.
-        U32 symbols_to_keep = 0;
-        for each_symbol_m(symbols_table, symbol)
+        // 1. Compute string table size.
+        // 2. Count total symbols.
+        U32 symbols_to_keep        = 0;
+        U32 symbols_local_to_keep  = 0;
+        U32 symbols_global_to_keep = 0;
+        for each_node_m(symbols_table->first, symbol)
         {
                 B32 keep = Symbol_Ref__keep(symbol);
                 if (keep)
                 {
-                        symbol->index = symbols_to_keep;
-
                         B32 section_is = symbol->type == STT_SECTION;
                         if (!section_is)
                         {
-                                symbol->string_table_offset = symbol_strtab->section->elf.size;
                                 U32 c_string_size = symbol->name->count + 1;
                                 symbol_strtab->section->elf.size += c_string_size;
                         }
 
                         symbols_to_keep += 1;
-                }
-                else
-                {
-                        B32 join_again = symbol == symbols_table->local_last || symbols_table->global_first;
                         if (symbol->binding == ELF_Symbol_Binding__Local)
                         {
-                                DLL_remove_m(symbols_table->local_first, symbols_table->local_last, symbol);
+                                symbol->index = symbols_local_to_keep;
+                                symbols_local_to_keep += 1;
                         }
                         else
                         {
-                                DLL_remove_m(symbols_table->global_first, symbols_table->global_last, symbol);
+                                symbol->index = symbols_global_to_keep;
+                                symbols_global_to_keep += 1;
                         }
+                }
+                else
+                {
                         symbols_table->count = symbols_table->count == 0 ? 0 : symbols_table->count - 1;
-                        if (join_again)
-                        {
-                                DLL_join_npz_m(0, symbols_table->local_last, symbols_table->global_first, next, previous);
-                        }
                 }
         }
         symbol_symtab->section->elf.size = symbols_to_keep * sizeof(ELF64_Symbol);
-        symbol_symtab->section->elf.info = symbols_table->local_last->index + 1;
+        symbol_symtab->section->elf.info = symbols_local_to_keep;
+
+        // Adjust `.strtab` and `.shstrtab` offsets now that we now the last sizes.
+        symbol_strtab->section->elf.offset += symbol_symtab->section->elf.size;
+        symbol_shstrtab->section->elf.offset = symbol_strtab->section->elf.offset + symbol_strtab->section->elf.size;
 
         // -------------------
         // Final sizes
         // ------------------
 
         // Add symbols table and section header table
-        object_file_size += symbol_symtab->section->elf.size + symbol_strtab->section->elf.size;
-        object_file_size += sizeof(ELF64_Section_Header) * symbols_table->sections_count;
+        U64 sections_header_table_size = sizeof(ELF64_Section_Header) * symbols_table->sections_count;
+        U64 object_file_size = symbol_shstrtab->section->elf.offset + symbol_shstrtab->section->elf.size + sections_header_table_size;
 
-        U32 section_header_table_file_offset = object_file_size - (sizeof(ELF64_Section_Header) * symbols_table->sections_count);
-
+        U64 section_header_table_file_offset = symbol_shstrtab->section->elf.offset + symbol_shstrtab->section->elf.size;
         ELF64_Header elf_header =
         {
                 .identifier                        = {0},
@@ -208,21 +207,32 @@ write_object_file
 
         // TODO(high): this should be easier to reason about. One way to help is to user String8 cursor.
 
+        // --------------------------------------------------------------------
+        // Write to file
+        // --------------------------------------------------------------------
+
+        // Cursors
+
         U8 *file_out = mmap_file_output(file_descriptor_out, object_file_size);
-        U8 *file_out_cursor = file_out;
-        cursor_write_struct_m(&file_out_cursor, &elf_header);
+        String8 file_out_cursor                    = String8__new(file_out, object_file_size);
+        String8 section_header_table_cursor        = String8__new(file_out + section_header_table_file_offset, sections_header_table_size);
+        String8 section_header_string_table_cursor = String8__new(file_out + symbol_shstrtab->section->elf.offset, symbol_shstrtab->section->elf.size);
+        String8 string_table_cursor                = String8__new(file_out + symbol_strtab->section->elf.offset, symbol_strtab->section->elf.size);
+        String8 symbols_table_cursor               = String8__new(file_out + symbol_symtab->section->elf.offset, symbol_symtab->section->elf.size);
+
+
+        String8__serial_write_m(&file_out_cursor, &elf_header);
 
         // Write all sections along with their headers, and their relocations. Write the section header string table.
-        U8  *section_header_table_cursor        = file_out + section_header_table_file_offset;
-        U32  section_header_string_table_offset = section_header_table_file_offset - symbol_shstrtab->section->elf.size;
-        U8  *section_header_string_table_cursor = file_out + section_header_string_table_offset;
         for each_node_m(symbols_table->section_first, section)
         {
+                assert_always_m(!section->previous || section->elf.offset == section->previous->elf.offset + section->previous->elf.size);
+                String8 section_cursor = String8__new(file_out + section->elf.offset, section->elf.size);
                 for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                 {
                         // Write fragment data.
                         assert_always_m(fragment->relax_state == Relax_State__Fill);
-                        cursor_write(&file_out_cursor, fragment->data, fragment->data_size);
+                        String8__serial_write(&section_cursor, fragment->data, fragment->data_size);
 
                         // Ensure that variable data, if present (e.g. jump instructions), are written at least once.
                         Expression *expression = fragment->relax_info.fill_expression;
@@ -234,7 +244,7 @@ write_object_file
                                 {
                                         break;
                                 }
-                                cursor_write(&file_out_cursor, fragment->data_variable, fragment->data_variable_size);
+                                String8__serial_write(&section_cursor, fragment->data_variable, fragment->data_variable_size);
                                 index += 1;
                         }
                 }
@@ -249,7 +259,12 @@ write_object_file
                         {
                                 if (!(fixup->flags & Fixup_Flags__Done))
                                 {
-                                        U32 symbol_index = fixup->expression ? fixup->expression->symbol->index : 0;
+                                        U32 index_offset = 0;
+                                        if (fixup->expression && fixup->expression->symbol->binding != ELF_Symbol_Binding__Local)
+                                        {
+                                                index_offset = symbols_global_to_keep;
+                                        }
+                                        U32 symbol_index = fixup->expression ? fixup->expression->symbol->index + index_offset : 0;
                                         S64 addend       = fixup->expression ? fixup->expression->integer_value : 0;
                                         ELF64_Relocation_Addend relocation =
                                         {
@@ -258,50 +273,74 @@ write_object_file
                                                 .addend = addend,
                                         };
 
-                                        cursor_write_struct_m(&file_out_cursor, &relocation);
+                                        String8__serial_write_m(&section_cursor, &relocation);
                                 }
                         }
                 }
 
-                // Offset is from the start of the file, so we must include the ELF header.
-                section->elf.offset = previous ? previous->elf.offset + previous->elf.size : sizeof(ELF64_Header);
-
                 U32 c_string_size = section->symbol->name->count + 1;
-                cursor_write(&section_header_string_table_cursor, section->symbol->name->data, c_string_size);
+                String8__serial_write(&section_header_string_table_cursor, section->symbol->name->data, c_string_size);
 
                 // Write the section header
-                cursor_write_struct_m(&section_header_table_cursor, &section->elf);
+                String8__serial_write_m(&section_header_table_cursor, &section->elf);
         }
 
         // After all sections data we have the symbols table and the strings table.
-        U8 *string_table_cursor = file_out_cursor + symbol_symtab->section->elf.size;
-        for each_symbol_m(symbols_table, symbol)
+        U32 string_table_offset_tracker = 0;
+        for each_node_m(symbols_table->first, symbol)
         {
                 // TODO(high): there is probably some mismanagement of the dot symbol.
                 B32 keep = Symbol_Ref__keep(symbol);
-                if (keep)
+                B32 local = symbol->binding == ELF_Symbol_Binding__Local;
+                if (keep && local)
                 {
+                        B32 section_is = symbol->type == STT_SECTION;
                         ELF64_Symbol elf_symbol =
                         {
-                                .string_table_offset = symbol->string_table_offset,
+                                .string_table_offset = section_is ? 0 : string_table_offset_tracker,
                                 .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
                                 .visibility          = symbol->visibility,
                                 .section_index       = symbol->section->index,
                                 .value               = symbol->value,
                                 .size                = symbol->size
                         };
-                        cursor_write_struct_m(&file_out_cursor, &elf_symbol);
+                        String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
 
-                        if (symbol->type != STT_SECTION)
+                        if (!section_is)
                         {
                                 U32 c_string_size = symbol->name->count + 1;
-                                cursor_write(&string_table_cursor, symbol->name->data, c_string_size);
+                                String8__serial_write(&string_table_cursor, symbol->name->data, c_string_size);
+                                string_table_offset_tracker += c_string_size;
                         }
                 }
-                assert_always_m(file_out_cursor <= string_table_cursor);
         }
+        for each_node_m(symbols_table->first, symbol)
+        {
+                // TODO(high): there is probably some mismanagement of the dot symbol.
+                B32 keep = Symbol_Ref__keep(symbol);
+                B32 non_local = symbol->binding != ELF_Symbol_Binding__Local;
+                if (keep && non_local)
+                {
+                        B32 section_is = symbol->type == STT_SECTION;
+                        ELF64_Symbol elf_symbol =
+                        {
+                                .string_table_offset = section_is ? 0 : string_table_offset_tracker,
+                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
+                                .visibility          = symbol->visibility,
+                                .section_index       = symbol->section->index,
+                                .value               = symbol->value,
+                                .size                = symbol->size
+                        };
+                        String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
 
-        assert_always_m(section_header_string_table_offset == symbol_shstrtab->section->elf.offset && ".shstrab mismatch");
+                        if (!section_is)
+                        {
+                                U32 c_string_size = symbol->name->count + 1;
+                                String8__serial_write(&string_table_cursor, symbol->name->data, c_string_size);
+                                string_table_offset_tracker += c_string_size;
+                        }
+                }
+        }
 
         munmap(file_out, object_file_size);
         return object_file_size;

@@ -134,14 +134,7 @@ Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 {
         Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
                    *clone = *symbol;
-        if (clone->binding == ELF_Symbol_Binding__Local)
-        {
-                DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, clone);
-        }
-        else
-        {
-                DLL_push_back_m(symbols_table->global_first, symbols_table->global_last, clone);
-        }
+        SLL_queue_push_m(symbols_table->first, symbols_table->last, clone);
         return clone;
 }
 
@@ -168,7 +161,7 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
         {
                 symbol->section  = &Section__undefined;
                 symbol->fragment = Section__undefined.fragments.first;
-                DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, symbol);
+                SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
                 symbols_table->count += 1;
         }
 
@@ -281,9 +274,9 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
 internal void
 Symbols_Table__ensure_undefined_present(Symbols_Table *symbols_table)
 {
-        if (symbols_table->local_first != &Symbol_Ref__undefined)
+        if (symbols_table->first != &Symbol_Ref__undefined)
         {
-                DLL_push_front_m(symbols_table->local_first, symbols_table->local_last, &Symbol_Ref__undefined);
+                SLL_queue_push_front_m(symbols_table->first, symbols_table->last, &Symbol_Ref__undefined);
                 symbols_table->count += 1;
         }
 
@@ -378,7 +371,7 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
 {
         String8 name = String8__literal(FAKE_LABEL_NAME);
         Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
-        DLL_push_back_m(symbols_table->local_first, symbols_table->local_last, result);
+        SLL_queue_push_m(symbols_table->first, symbols_table->last, result);
         Symbol_Ref__update_section(result, section);
         return result;
 }
