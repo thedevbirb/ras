@@ -322,8 +322,11 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
                 &&
                 (
                            symbol->type == STT_SECTION
+                        || symbol->flags & Symbol_Flags__Used
                         || symbol->flags & Symbol_Flags__Relocation
-                        || symbol == &Symbol_Ref__undefined
+                        || symbol->section == &Section__undefined
+                        || symbol->section == &Section__absolute
+                        || symbol->section == &Section__common
                 );
 
         return keep;
