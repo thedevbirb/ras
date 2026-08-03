@@ -799,10 +799,10 @@ RISCV_li_expand
                         instructions_count += 1;
                         if (section)
                         {
-                                // Single ADDI from x0.
-                                U32 addi_encoding      = instruction_i_encode_m(register_destination, 0, immediate, OPCODE_I_TYPE, FUNCT3_ADDI);
-                                U8  addi_encoding_size = RISCV_instruction_size(addi_encoding);
-                                Section__add_instruction_fixed(section, 0, addi_encoding, addi_encoding_size, location);
+                                // Single ADDIW from x0
+                                U32 addiw_encoding      = instruction_i_encode_m(register_destination, 0, immediate, OPCODE_I_TYPE_W, FUNCT3_ADDIW);
+                                U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
+                                Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                         }
                 }
                 else if (range_32)
@@ -815,14 +815,15 @@ RISCV_li_expand
                                 // LUI, plus ADDIW if the low 12 bits are non-zero. The LUI
                                 // immediate is `immediate` with its low 12 bits cleared;
                                 // ADDIW splices them back in (sign-extended to 64 bits).
-                                S64 lui_immediate     = immediate - immediate_low_12;
+                                // instruction_u_encode_m expects the 20-bit U-field (the value already shifted right by 12).
+                                S64 lui_immediate     = (S64)((U32)(immediate - immediate_low_12) >> 12);
                                 U32 lui_encoding      = instruction_u_encode_m(register_destination, lui_immediate, OPCODE_LUI);
                                 U8  lui_encoding_size = RISCV_instruction_size(lui_encoding);
                                 Section__add_instruction_fixed(section, 0, lui_encoding, lui_encoding_size, location);
                                 if (!lui_suffices)
                                 {
                                         U32 addiw_encoding = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
-                                                OPCODE_I_TYPE, FUNCT3_ADDIW);
+                                                OPCODE_I_TYPE_W, FUNCT3_ADDIW);
                                         U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
                                         Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                                 }
@@ -1029,13 +1030,7 @@ RISCV_instruction_pseudo_append
         } break;
         case M_LI:
         {
-                RISCV_li_expand
-                (
-                        section,
-                        expression->integer_value,
-                        rd,
-                        instruction->location
-                );
+                RISCV_li_expand(section, expression->integer_value, rd, instruction->location);
         } break;
         }
 }
