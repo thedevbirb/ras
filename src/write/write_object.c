@@ -109,7 +109,11 @@ write_object_file
         for each_node_m(symbols_table->section_first, section)
         {
                 section->index      = section->previous ? section->previous->index + 1 : 0;
-                section->elf.offset = section->previous ? section->previous->elf.offset + section->previous->elf.size : sizeof(ELF64_Header);
+                section->elf.offset = section->previous
+                        ? section->previous->elf.type == ELF_Section_Header_Type__No_Data
+                                ? section->previous->elf.offset
+                                : section->previous->elf.offset + section->previous->elf.size
+                        : sizeof(ELF64_Header);
 
                 if (section->fixups.unresolved > 0)
                 {
@@ -226,26 +230,30 @@ write_object_file
         // Write all sections along with their headers, and their relocations. Write the section header string table.
         for each_node_m(symbols_table->section_first, section)
         {
-                assert_always_m(!section->previous || section->elf.offset == section->previous->elf.offset + section->previous->elf.size);
+                B32 data_has = section->elf.type != ELF_Section_Header_Type__No_Data;
                 String8 section_cursor = String8__new(file_out + section->elf.offset, section->elf.size);
-                for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
-                {
-                        // Write fragment data.
-                        assert_always_m(fragment->relax_state == Relax_State__Fill);
-                        String8__serial_write(&section_cursor, fragment->data, fragment->data_size);
 
-                        // Ensure that variable data, if present (e.g. jump instructions), are written at least once.
-                        Expression *expression = fragment->relax_info.fill_expression;
-                        U32 repeat_count = expression ? expression->integer_value : 1;
-                        U32 index = 0;
-                        for (;;)
+                if (data_has)
+                {
+                        for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                         {
-                                if (index >= repeat_count)
+                                // Write fragment data.
+                                assert_always_m(fragment->relax_state == Relax_State__Fill);
+                                String8__serial_write(&section_cursor, fragment->data, fragment->data_size);
+
+                                // Ensure that variable data, if present (e.g. jump instructions), are written at least once.
+                                Expression *expression = fragment->relax_info.fill_expression;
+                                U32 repeat_count = expression ? expression->integer_value : 1;
+                                U32 index = 0;
+                                for (;;)
                                 {
-                                        break;
+                                        if (index >= repeat_count)
+                                        {
+                                                break;
+                                        }
+                                        String8__serial_write(&section_cursor, fragment->data_variable, fragment->data_variable_size);
+                                        index += 1;
                                 }
-                                String8__serial_write(&section_cursor, fragment->data_variable, fragment->data_variable_size);
-                                index += 1;
                         }
                 }
 
@@ -262,7 +270,7 @@ write_object_file
                                         U32 index_offset = 0;
                                         if (fixup->expression && fixup->expression->symbol->binding != ELF_Symbol_Binding__Local)
                                         {
-                                                index_offset = symbols_global_to_keep;
+                                                index_offset = symbols_local_to_keep;
                                         }
                                         U32 symbol_index = fixup->expression ? fixup->expression->symbol->index + index_offset : 0;
                                         S64 addend       = fixup->expression ? fixup->expression->integer_value : 0;
