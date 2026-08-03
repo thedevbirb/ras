@@ -549,21 +549,21 @@ RISCV_Instruction__append
         U16                relocation
 )
 {
-        Fixup *fixup         = 0;
-        B32    jump_is       = relocation == Relocation_RISC_V__JAL;
+        Fixup *fixup                 = 0;
         // NOTE: although jumps are assumed to be in range, if the compressed extension is enabled
         // then this might get reduced to a compressed 2-byte instruction.
-        B32    relaxable     = relocation == Relocation_RISC_V__Branch || jump_is;
+        B32    jump_unconditional_is = relocation == Relocation_RISC_V__JAL;
+        B32    jump_is               = relocation == Relocation_RISC_V__Branch || jump_unconditional_is;
         // NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
-        // (non-relaxable) because they need a precise location to be applied. Relaxable instructions,
-        // like branches, break this invariant.
-        B32    fixable       = relocation && !relaxable;
-        U32    encoding      = instruction->encoding;
-        U8     encoding_size = RISCV_instruction_size(encoding);
-        U32    location      = instruction->location;
+        // (non-jump_is) because they need a precise location to be applied. Jump instructions,
+        // like branches, break this invariant. However, some kind of fixup AND relocation will be needed, so for those
+        // instruction we emit a tentative fixup attached to the relaxation information.
+        U32    encoding              = instruction->encoding;
+        U8     encoding_size         = RISCV_instruction_size(encoding);
+        U32    location              = instruction->location;
 
 
-        if (fixable)
+        if (relocation)
         {
                 fixup                  = Arena__push_struct_m(arena, Fixup);
                 fixup->expression      = expression;
@@ -571,20 +571,21 @@ RISCV_Instruction__append
                 DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
         }
 
-        if (relaxable)
+        if (jump_is)
         {
                 Relax_Info relax_info =
                 {
                         .jump =
                         {
                                 .expression              = expression,
+                                .fixup                   = fixup,
                                 .compressed_is           = encoding_size == 2,
-                                .unconditional_is        = jump_is,
+                                .unconditional_is        = jump_unconditional_is,
                                 .instructions_total_size = encoding_size
                         }
                 };
 
-                Fragments__variable
+                Fragment *sealed = Fragments__variable
                 (
                         &section->fragments,
                         location,
@@ -593,6 +594,9 @@ RISCV_Instruction__append
                         (U8 *)&encoding,
                         encoding_size
                 );
+
+                sealed->relax_info.jump.fixup->fragment = sealed;
+                sealed->relax_info.jump.fixup->offset   = sealed->data_size;
         }
         else
         {

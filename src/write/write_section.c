@@ -380,6 +380,9 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         assert_always_m(fragment->data_variable_size == instructions_total_size);
                         assert_always_m(array_count_m(fragment->data_variable) >= instructions_total_size);
 
+                        // TODO(low): inserting a fixup here messes up their ordering, and they're not sorted anymore.
+                        // A solution could be provided as argument the fixup of the "right position". Or attach fixup
+                        // to jump info? review the whole process starting from appending an instruction.
                         if (instructions_total_size == 8)
                         {
                                 // This MUST be a branch, because we assume jumps are of the right size.
@@ -388,13 +391,10 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
-                                Fixup *fixup = Arena__push_struct_m(arena, Fixup);
-                                fixup->expression          = relax_info->jump.expression;
-                                fixup->fragment            = fragment;
-                                fixup->offset              = fragment->data_size + sizeof(instruction_1);
-                                fixup->fragment_write_size = sizeof(instruction_2);
-                                fixup->relocation_type     = Relocation_RISC_V__JAL;
-                                DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
+                                // Adjust associated fixup information
+                                relax_info->jump.fixup->offset              = fragment->data_size + sizeof(instruction_1);
+                                relax_info->jump.fixup->fragment_write_size = sizeof(instruction_2);
+                                relax_info->jump.fixup->relocation_type     = Relocation_RISC_V__JAL;
 
                                 memory_copy(fragment->data_variable,                         (U8 *)&instruction_1, sizeof(instruction_1));
                                 memory_copy(fragment->data_variable + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
@@ -403,13 +403,10 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         else if (instructions_total_size == 4)
                         {
                                 U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__Branch;
-                                Fixup *fixup = Arena__push_struct_m(arena, Fixup);
-                                fixup->fragment            = fragment;
-                                fixup->expression          = relax_info->jump.expression;
-                                fixup->offset              = fragment->data_size;
-                                fixup->fragment_write_size = instructions_total_size;
-                                fixup->relocation_type     = relocation_type;
-                                DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
+                                // Adjust associated fixup information
+                                relax_info->jump.fixup->offset              = fragment->data_size;
+                                relax_info->jump.fixup->fragment_write_size = instructions_total_size;
+                                relax_info->jump.fixup->relocation_type     = relocation_type;
                         }
                         else
                         {

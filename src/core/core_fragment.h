@@ -3,6 +3,7 @@
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
+typedef struct Fixup Fixup;
 
 // The state of the relaxable code contained within a fragment.
 typedef U8 Relax_State;
@@ -41,6 +42,8 @@ typedef struct Relax_Info_Jump Relax_Info_Jump;
 struct Relax_Info_Jump
 {
         Expression *expression;
+        // The fixup to be be adjusted after relaxation.
+        Fixup      *fixup;
         U8          compressed_is;
         U8          unconditional_is;
         U8          instructions_total_size;
@@ -58,9 +61,9 @@ union Relax_Info
                 U32 boundary;
                 U32 write_size_max;
         } alignment;
-        U8 opaque[16];
+        U8 opaque[24];
 };
-assert_static_m(sizeof(Relax_Info) == 16, Relax_Info__sizeof_check);
+assert_static_m(sizeof(Relax_Info) == 24, Relax_Info__sizeof_check);
 
 // The fragment structure represents a portion of assembly code. The most generic way to view it is a container of some
 // known number of bytes, followed by some variable number of bytes.
@@ -138,9 +141,9 @@ Fragments__ensure(Fragments *fragments, U32 size);
 internal U8 *
 Fragments__push(Fragments *fragments, U32 location, U32 size);
 
-// Push a variable amount of bytes, capped by `Fragment__data_variable_size_max`, into the fragment variable buffer.
-// This operations seals the current fragment with the provided information, and then creates a blank one.
-internal void
+// Push a variable amount of bytes, capped by `Fragment__data_variable_size_max`, into the fragment. This operations
+// seals the current fragment with the provided information and returns it, then creates a blank one.
+internal Fragment *
 Fragments__variable
 (
         Fragments   *fragments,

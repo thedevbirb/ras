@@ -83,9 +83,7 @@ Fragments__push(Fragments *fragments, U32 location, U32 size)
         return result;
 }
 
-// Push a variable amount of bytes, capped by `Fragment__data_variable_size_max`, into the fragment.
-// This operations seals the current fragment with the provided information, and creates a blank one.
-internal void
+internal Fragment *
 Fragments__variable
 (
         Fragments   *fragments,
@@ -112,7 +110,7 @@ Fragments__variable
         // We have to create another fragment since variable data seal it.
         Fragments__push_empty_fragment(fragments, location);
 
-        return;
+        return sealed;
 }
 
 // Seal the current fragment with a fill pattern.
