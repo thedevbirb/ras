@@ -73,7 +73,7 @@ statement_read
                         assert_always_m(symbol_numeric.symbol->section == &Section__undefined && "numeric label created previously");
 
                         symbol_numeric.symbol->location  = cursor->current.location;
-                        symbol_numeric.symbol->flags    |= Symbol_Flags__Used;
+                        // symbol_numeric.symbol->flags    |= Symbol_Flags__Used;
                         Symbol_Ref__update_section(symbol_numeric.symbol, symbols_table->section_current);
 
                         Arena__scratch_end_m(scratch);
@@ -115,7 +115,7 @@ statement_read
                                         }
                                 }
                                 symbol->location       = cursor->current.location;
-                                symbol->flags         |= Symbol_Flags__Used;
+                                // symbol->flags         |= Symbol_Flags__Used;
                                 Symbol_Ref__update_section(symbol, symbols_table->section_current);
 
                                 token_next(cursor, diagnostics);

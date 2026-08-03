@@ -118,16 +118,23 @@ expression_parse_with_flags
                                 {
                                         Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
                                         Symbol_Ref__update_section(&dot_trie->symbol, symbols_table->section_current);
-                                        symbol = flags & Expression_Flags__Defer_Dot
-                                               ? &dot_trie->symbol
-                                               : Symbols_Table__clone(symbols_table, &dot_trie->symbol);
+                                        if (flags & Expression_Flags__Defer_Dot)
+                                        {
+                                                symbol = &dot_trie->symbol;
+                                        }
+                                        else
+                                        {
+                                                Symbol_Ref *clone = Symbols_Table__create_internal(symbols_table, symbols_table->section_current);
+                                                String8 *clone_name_backup = clone->name;
+                                                *clone = dot_trie->symbol;
+                                                clone->name = clone_name_backup;
+                                                symbol = clone;
+                                        }
                                 }
                                 else
                                 {
                                         symbol = Symbols_Table__get_or_default(symbols_table, name);
                                 }
-
-                                symbol->flags |= Symbol_Flags__Used;
 
                                 frame->node->kind             = Expression_Kind__Symbol;
                                 frame->node->symbol           = symbol;

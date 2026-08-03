@@ -311,15 +311,18 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
 internal B32
 Symbol_Ref__keep(Symbol_Ref *symbol)
 {
+        B32 internal_is = Symbol_Ref__internal_is(symbol);
         B32 keep = !(symbol->flags & Symbol_Flags__Skip)
                 &&
                 (
-                           symbol->type == STT_SECTION
-                        || symbol->flags & Symbol_Flags__Used
-                        || symbol->flags & Symbol_Flags__Relocation
-                        || symbol->section == &Section__undefined
-                        || symbol->section == &Section__absolute
-                        || symbol->section == &Section__common
+                        (
+                                   symbol->type == STT_SECTION
+                                || symbol->flags & Symbol_Flags__Relocation
+                                || symbol->section == &Section__undefined
+                                || symbol->section == &Section__absolute
+                                || symbol->section == &Section__common
+                        )
+                        || !internal_is
                 );
 
         return keep;
@@ -358,9 +361,7 @@ Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 nu
 internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol)
 {
-        String8 target        = String8__new((U8 *)INTERNAL_SYMBOL_PREFIX, sizeof(INTERNAL_SYMBOL_PREFIX));
-        String8 substring     = String8__substring(*symbol->name, sizeof(INTERNAL_SYMBOL_PREFIX));
-        B32 internal_name_has = String8__match_exact(target, substring);
+        B32 internal_name_has = String8__match_exact(*symbol->name, fake_label_string);
 
         B32 result = symbol->expression == 0 && internal_name_has;
         return result;

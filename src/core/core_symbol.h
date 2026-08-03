@@ -6,7 +6,8 @@
 #define DOT_SYMBOL_HASH 0
 #define FAKE_LABEL_NAME (INTERNAL_SYMBOL_PREFIX "0 ")
 
-global String8 dot_symbol_string = { .data = (U8 *)DOT_SYMBOL_NAME, .count = sizeof(DOT_SYMBOL_NAME) };
+global String8 dot_symbol_string = String8__literal(DOT_SYMBOL_NAME);
+global String8 fake_label_string = String8__literal(FAKE_LABEL_NAME);
 
 // Forward declaration for pointer use.
 typedef struct Expression Expression;
