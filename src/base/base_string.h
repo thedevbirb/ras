@@ -117,6 +117,10 @@ String8__skip(String8 string, U64 amount);
 internal String8
 String8__chop(String8 string, U64 amount);
 
+// Used for example to remove quotes
+internal String8
+String8__skip_chop(String8 token_string);
+
 internal String8
 String8__substring(String8 string, U64 count);
 
@@ -147,3 +151,20 @@ internal void
 String8__serial_write(String8 *string, U8 *data, U64 size);
 
 #define String8__serial_write_m(string, pointer) String8__serial_write(string, (U8 *)pointer, sizeof(*pointer))
+
+//------------------------------------------------------------------------------
+// Other
+//------------------------------------------------------------------------------
+
+// Returns the size of the literal string, as if were a byte slice, escaping characters.
+// Assumes a string with valid escape sequences.
+//
+// Example: String8.data = [\,n,h,e,l,l,o,\,n] -> 7
+internal U64 String8__escaped_size(String8 string);
+
+// -----------------------------------------------------------------------------
+// Basic hash functions
+// -----------------------------------------------------------------------------
+
+internal U32 FNV_hash_U32(String8 string);
+internal U64 FNV_hash_U64(String8 string);

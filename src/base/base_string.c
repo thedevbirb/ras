@@ -84,6 +84,16 @@ String8__chop(String8 string, U64 amount)
 }
 
 internal String8
+String8__skip_chop(String8 token_string)
+{
+
+        String8 result = {0};
+        result = String8__skip(token_string, 1);
+        result = String8__chop(result, 1);
+        return result;
+}
+
+internal String8
 String8__substring(String8 string, U64 count)
 {
         String8 result = { .data = string.data, .count = min_m(string.count, count) };
@@ -135,4 +145,122 @@ String8__serial_write(String8 *string, U8 *data, U64 size)
         string->data  += size_capped;
         string->count -= size_capped;
         return;
+}
+
+//------------------------------------------------------------------------------
+// Other
+//------------------------------------------------------------------------------
+
+internal U64
+String8__escaped_size(String8 string)
+{
+        U8  *data  = string.data;
+        U64  size  = 0;
+        U64  index = 0;
+
+        for (;;)
+        {
+                B32 break_should = index >= string.count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                size += 1;
+
+                if (data[index] == '\\')
+                {
+                        index += 1;
+                        if (data[index] == 'x')
+                        {
+                                // E.g. \x1a
+                                //       ^--- cursor is here
+                                // We know from lexing the first one is guaranteed to be valid
+                                index += 2;
+                                // E.g. \x1a
+                                //         ^--- cursor is here
+                                if (hex_table[data[index]] != hex_table_invalid)
+                                {
+                                        index += 1;
+                                }
+                        }
+                        else if (U8__octal_prefix(data[index]))
+                        {
+                                // E.g. \377
+                                //       ^--- cursor is here
+                                index += 1;
+                                if (U8__octal(data[index]))
+                                {
+                                        // E.g. \377
+                                        //        ^--- cursor is here
+                                        index += 1;
+                                }
+
+                                if (U8__octal(data[index]))
+                                {
+                                        // E.g. \377
+                                        //         ^--- cursor is here
+                                        index += 1;
+                                }
+                        }
+                        else
+                        {
+                                index += 1;
+                        }
+                }
+                else
+                {
+                        index += 1;
+                }
+        }
+
+        return size;
+}
+
+// Base hashing
+
+internal U32
+FNV_hash_U32(String8 string)
+{
+        U32 hash = 2166136261u;
+
+        U32 index = 0;
+        for (;;)
+        {
+                B32 break_should = index >= string.count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                hash ^= (U8)string.data[index];
+                hash *= 16777619u;
+
+                index += 1;
+        }
+
+        return hash;
+}
+
+internal U64
+FNV_hash_U64(String8 string)
+{
+        U64 hash = 2166136261ull;
+
+        U64 index = 0;
+        for (;;)
+        {
+                B32 break_should = index >= string.count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                hash ^= (U8)string.data[index];
+                hash *= 16777619ull;
+
+                index += 1;
+        }
+
+        return hash;
 }

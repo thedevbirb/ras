@@ -133,6 +133,10 @@ typedef S64      B64;
 typedef float    F32;
 typedef double   F64;
 
+
+internal B32 U8__octal_prefix(U8 byte) { B32 result = '0' <= byte && byte < '4'; return result; }
+internal B32 U8__octal(U8 byte)        { B32 result = '0' <= byte && byte < '7'; return result; }
+
 // Safe casts
 
 internal  U8  U8_cast_safe(U16 x);
@@ -144,6 +148,9 @@ internal S64 S64_from_U64_cast_safe(U64 x);
 internal U64 U64_from_S64_cast_safe(S64 x);
 
 // Bit-patterns
+
+internal B32 S64_bits_range_in(S64 signed_integer, U8 bits);
+
 internal U64 count_bits_set32(U32 val);
 internal U64 count_bits_set64(U64 val);
 
@@ -155,6 +162,9 @@ internal U64 clz64(U64 val);
 // Return the 0-index
 internal U64 msb64(U64 val);
 internal U64 msb32(U64 val);
+
+internal U8 count_trailing_zeros(U64 x);
+internal U8 count_leading_zeros(U64 x);
 
 // Pointer casts
 
