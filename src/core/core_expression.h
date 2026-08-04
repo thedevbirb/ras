@@ -12,14 +12,14 @@
 // The use of this enumeration for evaluation purposes is akin to GNU as `operatorT`.
 //
 // Similarly, in an expression like `undefined_1 - undefined_2`, since both symbols are unknown, the evaluation of the
-// `-` node is `Evaluation_Kind__Subtract`, meaning that the expression evaluates to a "subtract" expression.
+// `-` node is `Evaluation_Kind__Subtract`, meaning that the expression evaluates to itself, a "subtract" expression.
 //
 // As such, after evaluating an expression, using `expression_evaluate` or `Symbol_Ref__resolve`, the
 // `Expression.evaluation` field should NOT be zero, and in the worst unresolvable case equal to the `Expression.kind`
 // field.
 typedef enum Expression_Kind
 {
-        // The expression hasn't been evaluated
+        // The expression hasn't been parser/evaluated
         Expression_Kind__None,
 
         // Leaf nodes
@@ -149,7 +149,6 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
 internal Expression_Kind
 Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
 
-// Assumes first expression is a sentinel expression.
 typedef struct Expressions Expressions;
 struct Expressions
 {
@@ -157,10 +156,6 @@ struct Expressions
         Expression *first;
         Expression *last;
 };
-
-// // MUST be called. TODO(low): review this
-// internal void
-// Expressions__initialize(Expressions *expressions, Arena *arena);
 
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena);
