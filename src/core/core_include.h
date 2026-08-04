@@ -10,13 +10,7 @@
 #include "core_source.h"
 #include "core_diagnostic.h"
 
-// TODO(low, refactor) These all depend on each other in practice, and they need forward declaration.
-// I don't know in practice how to untagle this.
-#include "core_fragment.h"
-#include "core_fixup.h"
-#include "core_section.h"
-#include "core_expression.h"
-#include "core_symbol.h"
+#include "core_ir.h"
 
 #endif // CORE_INCLUDE_H
 

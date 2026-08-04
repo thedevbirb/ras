@@ -1,7 +1,246 @@
-// Symbol trie utilities.
+//-----------------------------------------------------------------------------
+// Expression
+//-----------------------------------------------------------------------------
 
-#include "core_symbol.h"
-#include "core_expression.h"
+internal B32
+Expression_Kind__unary_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Negate
+                  || kind == Expression_Kind__Bitwise_Not
+                  || kind == Expression_Kind__Logical_Not;
+        return result;
+}
+
+internal B32
+Expression_Kind__equality_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Equal
+                  || kind == Expression_Kind__Not_Equal;
+        return result;
+}
+
+internal B32
+Expression_Kind__comparison_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Not_Equal
+                  || kind == Expression_Kind__Less_Than
+                  || kind == Expression_Kind__Less_Equal
+                  || kind == Expression_Kind__Greater_Than
+                  || kind == Expression_Kind__Greater_Equal;
+        return result;
+}
+
+internal Expression_Kind
+Expression_Kind__from_Token_Kind_binary(Token_Kind kind)
+{
+        Expression_Kind result = Expression_Kind__None;
+
+        switch (kind)
+        {
+        case Token_Kind__Plus:            { result = Expression_Kind__Add;           } break;
+        case Token_Kind__Minus:           { result = Expression_Kind__Subtract;      } break;
+        case Token_Kind__Star:            { result = Expression_Kind__Multiply;      } break;
+        case Token_Kind__Slash:           { result = Expression_Kind__Divide;        } break;
+        case Token_Kind__Percentage:      { result = Expression_Kind__Modulo;        } break;
+        case Token_Kind__Pipe:            { result = Expression_Kind__Bitwise_Or;    } break;
+        case Token_Kind__Caret:           { result = Expression_Kind__Bitwise_Xor;   } break;
+        case Token_Kind__Ampersand:       { result = Expression_Kind__Bitwise_And;   } break;
+        case Token_Kind__Less_2:          { result = Expression_Kind__Shift_Left;    } break;
+        case Token_Kind__Greater_2:       { result = Expression_Kind__Shift_Right;   } break;
+        case Token_Kind__Equal_2:         { result = Expression_Kind__Equal;         } break;
+        case Token_Kind__Equal_Bang:      { result = Expression_Kind__Not_Equal;     } break;
+        case Token_Kind__Less:            { result = Expression_Kind__Less_Than;     } break;
+        case Token_Kind__Less_Equal:      { result = Expression_Kind__Less_Equal;    } break;
+        case Token_Kind__Greater:         { result = Expression_Kind__Greater_Than;  } break;
+        case Token_Kind__Greater_Equal:   { result = Expression_Kind__Greater_Equal; } break;
+        case Token_Kind__Ampersand_2:     { result = Expression_Kind__Logical_And;   } break;
+        case Token_Kind__Pipe_2:          { result = Expression_Kind__Logical_Or;    } break;
+        default:                          {} break;
+        }
+
+        return result;
+}
+
+internal Expression_Kind
+Expression_Kind__from_Token_Kind_unary(Token_Kind kind)
+{
+        Expression_Kind result = Expression_Kind__None;
+
+        switch (kind)
+        {
+        case Token_Kind__Minus: { result = Expression_Kind__Negate;      } break;
+        case Token_Kind__Tilde: { result = Expression_Kind__Bitwise_Not; } break;
+        case Token_Kind__Bang:  { result = Expression_Kind__Logical_Not; } break;
+        default:                {} break;
+        }
+
+        return result;
+}
+
+
+// TODO(low): maybe this should be done on U64 so we don't have UB. And division by zero is zero.
+internal S64
+operation_evaluate(Expression_Kind kind, S64 a, S64 b)
+{
+        S64 result = 0;
+
+        switch (kind)
+        {
+        case Expression_Kind__Add:           { result = a +  b; } break;
+        case Expression_Kind__Subtract:      { result = a -  b; } break;
+        case Expression_Kind__Multiply:      { result = a *  b; } break;
+        case Expression_Kind__Divide:        { result = a /  b; } break;
+        case Expression_Kind__Modulo:        { result = a %  b; } break;
+
+        case Expression_Kind__Bitwise_Or:    { result = a |  b; } break;
+        case Expression_Kind__Bitwise_Xor:   { result = a ^  b; } break;
+        case Expression_Kind__Bitwise_And:   { result = a &  b; } break;
+        case Expression_Kind__Shift_Left:    { result = a << b; } break;
+        case Expression_Kind__Shift_Right:   { result = a >> b; } break;
+
+        case Expression_Kind__Equal:         { result = a == b; } break;
+        case Expression_Kind__Not_Equal:     { result = a != b; } break;
+        case Expression_Kind__Less_Than:     { result = a <  b; } break;
+        case Expression_Kind__Less_Equal:    { result = a <= b; } break;
+        case Expression_Kind__Greater_Than:  { result = a >  b; } break;
+        case Expression_Kind__Greater_Equal: { result = a >= b; } break;
+
+        case Expression_Kind__Logical_And:   { result = a && b; } break;
+        case Expression_Kind__Logical_Or:    { result = a || b; } break;
+
+        default: { unreachable_m(); } break;
+        }
+
+        return result;
+}
+
+internal Binding_Power
+Binding_Power_from_Token_Kind(Token_Kind kind)
+{
+        Binding_Power result = Binding_Power__None;
+
+        switch (kind)
+        {
+        case Token_Kind__Pipe_2:         { result = Binding_Power__Logical_Or;     } break;
+        case Token_Kind__Ampersand_2:    { result = Binding_Power__Logical_And;    } break;
+        case Token_Kind__Pipe:           { result = Binding_Power__Bitwise_Or;     } break;
+        case Token_Kind__Caret:          { result = Binding_Power__Bitwise_Xor;    } break;
+        case Token_Kind__Ampersand:      { result = Binding_Power__Bitwise_And;    } break;
+        case Token_Kind__Equal_2:
+        case Token_Kind__Equal_Bang:     { result = Binding_Power__Equality;       } break;
+        case Token_Kind__Less:
+        case Token_Kind__Greater:
+        case Token_Kind__Less_Equal:
+        case Token_Kind__Greater_Equal:  { result = Binding_Power__Comparison;     } break;
+        case Token_Kind__Less_2:
+        case Token_Kind__Greater_2:      { result = Binding_Power__Shift;          } break;
+        case Token_Kind__Plus:
+        case Token_Kind__Minus:          { result = Binding_Power__Additive;       } break;
+        case Token_Kind__Star:
+        case Token_Kind__Slash:
+        case Token_Kind__Percentage:     { result = Binding_Power__Multiplicative; } break;
+        default:                         {} break;
+        }
+
+        return result;
+}
+
+internal S64
+unary_evaluate(Expression_Kind kind, S64 a)
+{
+        S64 result = 0;
+
+        switch (kind)
+        {
+        case Expression_Kind__Negate:        { result = -a; } break;
+        case Expression_Kind__Logical_Not:   { result = !a; } break;
+        case Expression_Kind__Bitwise_Not:   { result = ~a; } break;
+
+        default: { unreachable_m(); } break;
+        }
+
+        return result;
+}
+
+// I think this can be dropped and we can use Expression_Kind in the evaluation for that.
+typedef enum Evaluation_Frame_State
+{
+        Evaluation_Frame_State__None             = 0 << 0,
+        Evaluation_Frame_State__Right_Evaluated  = 1 << 0,
+        Evaluation_Frame_State__Left_Evaluated   = 1 << 1,
+        Evaluation_Frame_State__COUNT,
+}
+Evaluation_Frame_State;
+
+
+typedef struct Evaluation_Frame Evaluation_Frame;
+struct Evaluation_Frame
+{
+        Expression  *node;
+        Evaluation_Frame *next;
+        Evaluation_Frame_State state;
+};
+
+internal S64
+expression_evaluate(Expression *node_root)
+{
+        Symbol_Ref symbol = { .expression = node_root };
+        S64 result = Symbol_Ref__resolve(&symbol, 0, Resolve_Level__None);
+        return result;
+}
+
+Expression *
+Expressions_push_empty(Expressions *expressions, Arena *arena)
+{
+        Expression *node = Arena__push_struct_m(arena, Expression);
+        SLL_queue_push_m(expressions->first, expressions->last, node);
+        expressions->count += 1;
+
+        return node;
+}
+
+Expression *
+Expressions__push_constant(Expressions *expressions, Arena *arena, S64 constant)
+{
+        Expression *node = Expressions_push_empty(expressions, arena);
+
+        node->integer_value = constant;
+        node->kind          = Expression_Kind__Constant;
+        node->evaluation    = Expression_Kind__Constant;
+
+        return node;
+}
+
+internal Expression *
+Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
+{
+        Expression *result = Expressions_push_empty(expressions, arena);
+
+        result->symbol     = symbol;
+        result->kind       = Expression_Kind__Symbol;
+        result->evaluation = Expression_Kind__Symbol;
+        return result;
+}
+
+// Evaluate all expressions while finalizing symbols. See `Symbol_Ref__finalize`/`Symbols_Table__finalize`.
+//
+// After this is called expressions cannot be reduced further, since now symbols are frozen.
+internal void
+Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
+{
+        for each_node_m(expressions->first->next, expression)
+        {
+                Symbol_Ref symbol_expression = { .expression = expression };
+                Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
+        }
+        return;
+}
+
+//-----------------------------------------------------------------------------
+// Symbol
+//-----------------------------------------------------------------------------
+
+// Symbol trie utilities.
 
 internal Symbols_Trie *
 symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
@@ -727,4 +966,587 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
         Arena__scratch_end_m(scratch);
 
         return result;
+}
+
+//-----------------------------------------------------------------------------
+// Fragment
+//-----------------------------------------------------------------------------
+
+internal Fragment *
+Fragments__push_empty_fragment(Fragments *fragments, U32 location)
+{
+        Fragment *fragment = Arena__push_struct_m(fragments->arena, Fragment);
+        fragment->location = location;
+
+        SLL_queue_push_z_m(&Fragment__nil, fragments->first, fragments->last, fragment);
+        fragments->count += 1;
+
+        return fragment;
+}
+
+// TODO(medium): still very NOT happy with this equivalent to `frag_grow`, and it is duplicated, delicate logic of the
+// `Fragments__push`.
+internal void
+Fragments__ensure(Fragments *fragments, U32 size)
+{
+        U64  capacity_left             = fragments->arena->reserved_size - fragments->arena->offset;
+        B32  arena_block_new_needed    = capacity_left < size;
+
+        assert_always_m(capacity_left < fragments->arena->reserved_size && "underflow");
+        if (arena_block_new_needed)
+        {
+                // Fill the capacity left of the arena block, so that we're sure to have a new block later.
+                Arena *block_before = fragments->arena->current;
+                Arena__push_array_m(fragments->arena, U8, capacity_left);
+                assert_always_m(fragments->arena->current == block_before);
+        }
+        return;
+}
+
+// Push `size` bytes into the fragment, returning a pointer to zeroed data of the same size.
+internal U8 *
+Fragments__push(Fragments *fragments, U32 location, U32 size)
+{
+        U8  *result                    = 0;
+        U64  capacity_left             = fragments->arena->reserved_size - fragments->arena->offset;
+        B32  arena_block_new_needed    = capacity_left < size;
+        B32  fragment_seal_last_needed = arena_block_new_needed && fragments->last;
+        B32  fragment_new_needed       = arena_block_new_needed || fragments->last == &Fragment__nil;
+        B32  buffer_new_needed         = 0;
+
+        assert_always_m(capacity_left < fragments->arena->reserved_size && "underflow");
+        assert_always_m(fragments->last->relax_state == Relax_State__None && "cannot push to sealed fragment");
+
+        if (arena_block_new_needed)
+        {
+                // Fill the capacity left of the arena block, so that we're sure to have a new block later.
+                Arena *block_before = fragments->arena->current;
+                Arena__push_array_m(fragments->arena, U8, capacity_left);
+                assert_always_m(fragments->arena->current == block_before);
+        }
+
+        if (fragment_seal_last_needed)
+        {
+                // We have to "seal" the current fragment, and switch to another arena block.
+                // We that also the new fragment header is on the new arena.
+                Fragment__wane(fragments->last);
+        }
+
+        if (fragment_new_needed)
+        {
+                Fragments__push_empty_fragment(fragments, location);
+                buffer_new_needed = 1;
+        }
+
+        buffer_new_needed |= fragments->last->data == 0;
+        if (buffer_new_needed)
+        {
+                result = Arena__push_array_m(fragments->arena, U8, size);
+                fragments->last->data = result;
+        }
+        else
+        {
+                // `Arena__push_array_m` ensure data has a minimum of 8 byte alignment.
+                // In this case we want to keep appending into an already aligned byte array, so we need a 1-byte
+                // alignment to ensure contiguity.
+                result = Arena__push_array_aligned_m(fragments->arena, U8, size, cc_align_of(U8));
+        }
+
+        fragments->last->data_size += size;
+
+        return result;
+}
+
+internal Fragment *
+Fragments__variable
+(
+        Fragments   *fragments,
+        U32          location,
+        Relax_Info   relax_info,
+        Relax_State  relax_state,
+        U8          *data_variable,
+        U8           data_variable_size
+)
+{
+        if (fragments->first == &Fragment__nil)
+        {
+                Fragments__push_empty_fragment(fragments, location);
+        }
+
+        data_variable_size = min_m(data_variable_size, Fragment__data_variable_size_max);
+        Fragment *sealed = fragments->last;
+
+        memory_copy(sealed->data_variable, data_variable, data_variable_size);
+        sealed->data_variable_size  = data_variable_size;
+        sealed->relax_info          = relax_info;
+        sealed->relax_state         = relax_state;
+
+        // We have to create another fragment since variable data seal it.
+        Fragments__push_empty_fragment(fragments, location);
+
+        return sealed;
+}
+
+// Seal the current fragment with a fill pattern.
+internal void
+Fragments__fill(Fragments *fragments, U32 location, Fill fill)
+{
+        Relax_Info relax_info = { .fill_expression = fill.repeat };
+        U8 *pattern = (U8 *)&fill.pattern;
+        Fragments__variable
+        (
+                fragments,
+                location,
+                relax_info,
+                Relax_State__Fill,
+                pattern,
+                fill.pattern_size
+        );
+        return;
+}
+
+internal void
+Fragments__align(Fragments *fragments, U32 location, Alignment alignment)
+{
+        assert_always_m(pow_2_is_m(alignment.boundary) || !alignment.boundary);
+
+        // TODO(check-gas): GNU as does some special handling of the absolute section. Since no variable-sized data exist on the
+        // absolute section, it can be expanded to match the required alignment right away.
+
+        Relax_Info relax_info =
+        {
+                .alignment =
+                {
+                        .boundary = alignment.boundary,
+                        .write_size_max = alignment.write_size_max
+                }
+        };
+
+        U8 *pattern = (U8 *)&alignment.pattern;
+        Fragments__variable
+        (
+                fragments,
+                location,
+                relax_info,
+                Relax_State__Align,
+                pattern,
+                alignment.pattern_size
+        );
+
+        return;
+}
+
+internal void
+Fragment__wane(Fragment *fragment)
+{
+        assert_always_m(fragment != &Fragment__nil);
+        assert_always_m(fragment->relax_state == Relax_State__None);
+        fragment->data_variable_size = 0;
+        fragment->relax_state        = Relax_State__Fill;
+        fragment->relax_info         = (Relax_Info){0};
+}
+
+//-----------------------------------------------------------------------------
+// Fixup
+//-----------------------------------------------------------------------------
+
+internal U8 *
+Fixup__write_area(Fixup *fixup)
+{
+        U8       *result   = 0;
+        Fragment *fragment = fixup->fragment;
+
+        B32 inside_data_variable_is = fixup->offset >= fragment->data_size;
+        result = inside_data_variable_is ? fragment->data_variable : fragment->data;
+
+        U32 offset_relative = inside_data_variable_is ? fixup->offset - fragment->data_size : fixup->offset;
+        result +=  offset_relative;
+
+        return result;
+}
+
+internal void
+Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding)
+{
+        U32 encoding = 0;
+        // TODO(medium): check whether `fragment_write_size` can't be inferred from the relocation type.
+        U8  size     = min_m(sizeof(encoding), fixup->fragment_write_size);
+        U8 *write_area = Fixup__write_area(fixup);
+        memory_copy((U8 *)&encoding, write_area, size);
+        U32 encoding_patched = encoding | patch_to_or_into_encoding;
+        memory_copy(write_area, (U8 *)&encoding_patched, size);
+
+        if (fixup->expression->evaluation == Expression_Kind__Constant)
+        {
+                fixup->flags |= Fixup_Flags__Done;
+        }
+
+        return;
+}
+
+internal void
+Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics)
+{
+        S64 target   = fixup->expression->integer_value;
+        target      += fixup->expression->symbol ? fixup->expression->symbol->value : 0;
+        // The distance is measured from the start of the fixup's fragment
+        // data area (which is at object_file_offset).  Unlike GAS which uses
+        // (target - (frag->fr_address + frag->fr_fix)) we use data_size rather
+        // than fragment_write_area offset because our frag model is simpler:
+        // data_size is the fixed portion before variable-length fill data.
+        S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
+
+        // Works also for U16 encoding.
+        U32 encoding = 0;
+        U8 size = min_m(fixup->fragment_write_size, sizeof(encoding));
+        U8 *write_area = Fixup__write_area(fixup);
+        memory_copy((U8 *)&encoding, write_area, size);
+        U32 patch = encoding_callback(distance);
+        U32 encoding_patched = encoding |= patch;
+        memory_copy(write_area, (U8 *)&encoding_patched, size);
+
+        B32 valid_immediate = valid_immediate_callback && valid_immediate_callback(distance);
+        if (!valid_immediate)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->kind       = Diagnostic_Kind__Error;
+                diagnostic->message    = String8__format(diagnostics->arena, "invalid jump offset (%lld)", distance);
+                diagnostic->location   = fixup->expression->location;
+                diagnostic->ranges[0]  = fixup->expression->location_range;
+        }
+
+        // TODO(.option): support
+        B32 relax = 1;
+        B32 internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
+        if (!relax && internal_is && valid_immediate)
+        {
+                fixup->flags |= Fixup_Flags__Done;
+        }
+}
+
+internal void
+Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnostics)
+{
+        // Whether a RELAX relocation can be emitted
+        B32 relaxable = 0;
+
+        // Try to patch, will warn later if the operation wasn't possible.
+
+        // Try to simply the fixup expression in case we have just a chain of equations to undefined / common symbols.
+        // Example:
+        // ```asm
+        // .set a, global + 1
+        // .set b, a - 2
+        // addi a0, zero, %lo(b)
+        // ```
+        // The fixup expression should simplify to `global - 2`.
+        for (;;)
+        {
+                Symbol_Ref *symbol           = fixup->expression ? fixup->expression->symbol : 0;
+                Expression *expression_inner = symbol            ? symbol->expression        : 0;
+                Symbol_Ref *symbol_inner     = expression_inner  ? expression_inner->symbol  : 0;
+
+                B32 undefined_or_common_inner = symbol_inner
+                        ? symbol_inner->section == &Section__undefined || symbol_inner->section == &Section__common
+                        : 0;
+
+                if (undefined_or_common_inner)
+                {
+                        fixup->expression->symbol = symbol_inner;
+                        fixup->expression->integer_value += expression_inner->integer_value;
+                }
+                else
+                {
+                        break;
+                }
+        }
+
+        Expression *expression = fixup->expression;
+        Symbol_Ref *symbol     = expression ? expression->symbol : 0;
+
+        switch (fixup->relocation_type)
+        {
+        default: { unreachable_m(); }
+
+        case Relocation_RISC_V__High_20:       { Fixup__apply_constant(fixup, encode_immediate_u_m(expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__Low_12_I_Type: { Fixup__apply_constant(fixup, encode_immediate_i_m(expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__Low_12_S_Type: { Fixup__apply_constant(fixup, encode_immediate_s_m(expression->integer_value)); relaxable = 1; } break;
+
+        case Relocation_RISC_V__GOT_High_20:
+        {
+                // TODO(GOT, check-gas):
+                // R_RISCV_GOT_HI20 and the following R_RISCV_LO12_I are relaxable
+                // only if it is created as a result of la or lga assembler macros.
+                if (0)
+                {
+                        relaxable = 1;
+                }
+                todo_m();
+        } break;
+
+        case Relocation_RISC_V__Align:  {} break;
+
+        case Relocation_RISC_V__Add_8:  {} break;
+        case Relocation_RISC_V__Add_16: {} break;
+        case Relocation_RISC_V__Add_32: {} break;
+        case Relocation_RISC_V__Add_64: {} break;
+        case Relocation_RISC_V__Sub_8:  {} break;
+        case Relocation_RISC_V__Sub_16: {} break;
+        case Relocation_RISC_V__Sub_32: {} break;
+        case Relocation_RISC_V__Sub_64: {} break;
+
+        case Relocation_RISC_V__Relax:  {} break;
+
+        case Relocation_RISC_V__Set_Unsigned_LEB128: { todo_m(); } break;
+        case Relocation_RISC_V__Sub_Unsigned_LEB128: { todo_m(); } break;
+
+        case Relocation_RISC_V__Call:     { relaxable = 1; } break;
+        case Relocation_RISC_V__Call_PLT: { relaxable = 1; } break;
+
+        // TODO(tprel): support
+        case Relocation_RISC_V__Thread_Pointer_Relative_High_20:       { relaxable = 1; } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type: { relaxable = 1; } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type: { relaxable = 1; } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Add:           { relaxable = 1; } break;
+
+        // TODO(TLS): support
+        case Relocation_RISC_V__TLS_GOT_High_20:                        { todo_m(); } break;
+        case Relocation_RISC_V__TLS_Global_Dynamic_High_20:             { todo_m(); } break;
+        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32: { todo_m(); } break;
+        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64: { todo_m(); } break;
+
+        case Relocation_RISC_V__32_Bit:
+        {
+                // TODO(.eh_frame, low, check-gas): use pc-relative relocation for FDE initial location.
+                if (0) { break; }
+        } // fallthrough
+        case Fixup__8_Bit:              {} // fallthrough
+        case Fixup__16_Bit:             {} // fallthrough
+        case Relocation_RISC_V__64_Bit:
+        {
+                if (expression->evaluation == Expression_Kind__Subtract)
+                {
+                        // The idea is that: since this can only be valid if it's a subtract,
+                        // unpack it into an "add" and "sub" relocation by looking at the left and right subexpressions.
+
+                        Fixup *fixup_sub = Arena__push_struct_m(arena, Fixup);
+                              *fixup_sub = *fixup;
+
+                        fixup_sub->expression = expression->right;
+                        expression     = expression->left;
+                        DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_sub);
+                }
+                else if (expression->evaluation == Expression_Kind__Constant)
+                {
+                        U8 size = min_m(fixup->fragment_write_size, sizeof(expression->integer_value));
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy(write_area, (U8 *)&expression->integer_value, size);
+                        fixup->flags |= Fixup_Flags__Done;
+                }
+                else if (fixup->relocation_type == Fixup__8_Bit || fixup->relocation_type == Fixup__16_Bit)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->message    = String8__literal("cannot represent an 8-bit or 16-bit relocation on RISC-V/ELF object file");
+                        diagnostic->location   = expression->location_range.v[0];
+                        diagnostic->ranges[0]  = expression->location_range;
+                }
+        } break;
+
+        case Relocation_RISC_V__JAL:               { Fixup__apply_jump(fixup, encode_immediate_j,  validate_immediate_j,  diagnostics); } break;
+        case Relocation_RISC_V__Branch:            { Fixup__apply_jump(fixup, encode_immediate_b,  validate_immediate_b,  diagnostics); } break;
+        case Relocation_RISC_V__Jump_Compressed:   { Fixup__apply_jump(fixup, encode_immediate_cj, validate_immediate_cj, diagnostics); } break;
+        case Relocation_RISC_V__Branch_Compressed: { Fixup__apply_jump(fixup, encode_immediate_cb, validate_immediate_cb, diagnostics); } break;
+
+        case Relocation_RISC_V__PC_Relative_High_20:
+        {
+                B32 symbol_internal_is = symbol && Symbol_Ref__internal_is(symbol);
+                B32 evaluatable = symbol_internal_is && symbol->section == section;
+                if (evaluatable)
+                {
+                        S64 position = symbol->value;
+                        S64 offset   = expression->integer_value;
+                        S64 target   = (position + offset) - fixup->fragment->object_file_offset;
+
+                        PC_Relative_High *pc_relative_high = Arena__push_struct_m(arena, PC_Relative_High);
+                        pc_relative_high->section            = section;
+                        pc_relative_high->object_file_offset = fixup->fragment->object_file_offset;
+                        pc_relative_high->expression         = expression;
+
+                        SLL_stack_push_m(section->fixups.pc_relative_high, pc_relative_high);
+
+                        // NOTE: we want to encode the upper bits of the `target`, knowing that the lower bits
+                        // will be added using a _sign extended_ operation, that is, instead of adding a number in the
+                        // range `[0, RISCV_IMMEDIATE_REACH)`, we'll be adding a number in the range
+                        // `[-RISCV_IMMEDIATE_REACH/2, RISCV_IMMEDIATE_REACH/2)`. To compensate this, we will add it to
+                        // the value we're encoding:
+                        S64 target_compensated = target + (RISCV_IMMEDIATE_REACH / 2);
+                        B32 fits = S64_bits_range_in(target_compensated, 32);
+                        if (!fits)
+                        {
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = String8__format(diagnostics->arena, "invalid pc-relative high offset: %lld", target);
+                                diagnostic->location   = expression->location;
+                                diagnostic->ranges[0]  = expression->location_range;
+                        }
+
+                        U32 encoding       = 0;
+                        U32 encoding_patch = encode_immediate_u_m((U32)target_compensated);
+                        U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy((U8 *)&encoding, write_area, size);
+                        U32 encoding_patched = encoding | encoding_patch;
+                        memory_copy(write_area, (U8 *)&encoding_patched, size);
+
+                        B32 relax = 1;
+                        if (!relax && fits)
+                        {
+                                fixup->flags |= Fixup_Flags__Done;
+                        }
+                }
+
+                relaxable = 1;
+        } break;
+
+        case Relocation_RISC_V__PC_Relative_Low_12_S_Type: {} // fallthrough
+        case Relocation_RISC_V__PC_Relative_Low_12_I_Type:
+        {
+                U64 object_file_offset = symbol->value + expression->integer_value;
+                PC_Relative_High *entry = PC_Relative_High__find(section->fixups.pc_relative_high, section, object_file_offset);
+
+                B32 evaluatable = 0;
+                if (entry)
+                {
+                    B32 symbol_internal_is = entry->expression->symbol && Symbol_Ref__internal_is(entry->expression->symbol);
+                    evaluatable = symbol_internal_is && entry->expression->symbol->section == section;
+                }
+
+                if (evaluatable)
+                {
+                        S64 position = entry->expression->symbol->value;
+                        S64 offset   = entry->expression->integer_value;
+                        S64 target   = (position + offset) - entry->object_file_offset;
+
+                        // Finding the entry already assumes the ranges are valid and checked by the corresponding
+                        // %pcrel_hi.
+
+                        U32 encoding       = 0;
+                        U32 encoding_patch = fixup->relocation_type == Relocation_RISC_V__PC_Relative_Low_12_S_Type
+                                ? encode_immediate_s_m((U32)target)
+                                : encode_immediate_i_m((U32)target);
+                        U8  size = min_m(fixup->fragment_write_size, sizeof(encoding));
+                        U8 *write_area = Fixup__write_area(fixup);
+                        memory_copy((U8 *)&encoding, write_area, size);
+                        U32 encoding_patched = encoding | encoding_patch;
+                        memory_copy(write_area, (U8 *)&encoding_patched, size);
+
+                        B32 relax = 1;
+                        if (!relax)
+                        {
+                                // TODO(low): we could even pop `entry`?
+                                fixup->flags |= Fixup_Flags__Done;
+                        }
+                }
+
+                relaxable = 1;
+        } break;
+        }
+
+        if (!(fixup->flags & Fixup_Flags__Done) && expression && expression->evaluation == Expression_Kind__Subtract)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__format
+                        (
+                                diagnostics->arena,
+                                "Cannot resolve %.*s - %.*s", String8__varg(*(expression->left->symbol->name)), String8__varg(*(expression->right->symbol->name))
+                        );
+                diagnostic->location   = expression->location;
+                diagnostic->ranges[0]  = expression->location_range;
+        }
+
+        if (relaxable && expression && symbol)
+        {
+                Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
+                       fixup_relax->offset              = fixup->offset;
+                       fixup_relax->fragment            = fixup->fragment;
+                       fixup_relax->relocation_type     = Relocation_RISC_V__Relax;
+                DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_relax);
+        }
+
+        if (!(fixup->flags & Fixup_Flags__Done))
+        {
+                if (symbol) { symbol->flags |= Symbol_Flags__Relocation; }
+                section->fixups.unresolved += 1;
+                section->symbol->flags |= Symbol_Flags__Relocation;
+        }
+
+        return;
+}
+
+internal void
+Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics)
+{
+        for each_node_m(section->fixups.first, fixup)
+        {
+                // TODO(medium) Should we filter away those fixups whose expressions are unsolvable?
+
+                Expression *expression     = fixup->expression;
+                Expression_Kind evaluation = expression ? expression->evaluation : Expression_Kind__None;
+
+                B32 subtractable_is = evaluation == Expression_Kind__Subtract
+                                   && expression->left->evaluation == Expression_Kind__Symbol
+                                   && expression->left->evaluation == Expression_Kind__Symbol;
+
+
+                // We should have warned earlier about them, during `Symbol_Ref__resolve`.
+                //
+                // TODO(low): maybe these checks should be moved just inside the function.
+                B32 processable_is = !expression
+                                  || evaluation == Expression_Kind__Constant
+                                  || evaluation == Expression_Kind__Symbol
+                                  || subtractable_is;
+
+                if (processable_is)
+                {
+                        Fixup__apply(fixup, section, arena, diagnostics);
+                }
+        }
+}
+
+//-----------------------------------------------------------------------------
+// Section
+//-----------------------------------------------------------------------------
+
+// Add a fixed size instruction into a fragment. If there is a fixup associated to this function (fixup != 0),
+// track the information of where this instruction has been placed.
+internal void
+Section__add_instruction_fixed
+(
+        Section *section,
+        Fixup   *fixup,
+
+        U32      encoding,
+        U8       encoding_size,
+        U32      location
+)
+{
+        U8 *data = Fragments__push
+        (
+                 &section->fragments,
+                 location,
+                 encoding_size
+        );
+
+        // Track its precise location within the fragment. Important to do it _after_ we've written it
+        // since it might have landed into another fragment because of low capacity of the previous.
+        if (fixup)
+        {
+                Fragment *last = section->fragments.last;
+
+                fixup->fragment            = last;
+                fixup->offset              = last->data_size - encoding_size;
+                fixup->fragment_write_size = encoding_size;
+        }
+
+        memory_copy(data, (U8 *)&encoding, encoding_size);
+        return;
 }
