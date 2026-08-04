@@ -206,8 +206,6 @@ typedef U32 ELF_Section_Header_Type;
 // Custom added
 #define ELF_Section_Header_Type__Invalid                 0xffffffff
 
-/* Legal values for sh_flags (section flags).  */
-
 typedef U32 ELF_Section_Header_Flags;
 
 #define ELF_Section_Header_Flags__WRITE               (1 << 0)     /* Writable */
@@ -324,31 +322,45 @@ typedef struct
 
 typedef U8 ELF_Symbol_Binding;
 
-#define ELF_Symbol_Binding__Local        0                /* Local symbol */
-#define ELF_Symbol_Binding__Global        1                /* Global symbol */
-#define ELF_Symbol_Binding__Weak        2                /* Weak symbol */
-#define        ELF_Symbol_Binding__NUM                3                /* Number of defined types.  */
-#define ELF_Symbol_Binding__LOOS        10                /* Start of OS-specific */
-#define ELF_Symbol_Binding__GNU_UNIQUE        10                /* Unique symbol.  */
-#define ELF_Symbol_Binding__HIOS        12                /* End of OS-specific */
-#define ELF_Symbol_Binding__LOPROC        13                /* Start of processor-specific */
-#define ELF_Symbol_Binding__HIPROC        15                /* End of processor-specific */
+#define ELF_Symbol_Binding__Local         0    /* Local  symbol  */
+#define ELF_Symbol_Binding__Global        1    /* Global symbol  */
+#define ELF_Symbol_Binding__Weak          2    /* Weak   symbol  */
+#define ELF_Symbol_Binding__NUM           3    /* Number of defined types.  */
+#define ELF_Symbol_Binding__LOOS         10    /* Start  of      OS-specific        */
+#define ELF_Symbol_Binding__GNU_UNIQUE   10    /* Unique symbol.                    */
+#define ELF_Symbol_Binding__HIOS         12    /* End    of      OS-specific        */
+#define ELF_Symbol_Binding__LOPROC       13    /* Start  of      processor-specific */
+#define ELF_Symbol_Binding__HIPROC       15    /* End    of      processor-specific */
 
 /* Legal values for ST_TYPE subfield of type_and_binding (symbol type).  */
 
-#define STT_NOTYPE        0                /* Symbol type is unspecified */
-#define STT_OBJECT        1                /* Symbol is a data object */
-#define STT_FUNC        2                /* Symbol is a code object */
-#define STT_SECTION        3                /* Symbol associated with a section */
-#define STT_FILE        4                /* Symbol's name is file name */
-#define STT_COMMON        5                /* Symbol is a common data object */
-#define STT_TLS                6                /* Symbol is thread-local data object*/
-#define        STT_NUM                7                /* Number of defined types.  */
-#define STT_LOOS        10                /* Start of OS-specific */
-#define STT_GNU_IFUNC        10                /* Symbol is indirect code object */
-#define STT_HIOS        12                /* End of OS-specific */
-#define STT_LOPROC        13                /* Start of processor-specific */
-#define STT_HIPROC        15                /* End of processor-specific */
+#define STT_NOTYPE           0                  /* Symbol   type       is                 unspecified */
+#define STT_OBJECT           1                  /* Symbol   is         a                  data        object  */
+#define STT_FUNC             2                  /* Symbol   is         a                  code        object  */
+#define STT_SECTION          3                  /* Symbol   associated with               a           section */
+#define STT_FILE             4                  /* Symbol's name       is                 file        name    */
+#define STT_COMMON           5                  /* Symbol   is         a                  common      data    object */
+#define STT_TLS              6                  /* Symbol is thread-local data   object*/
+#define STT_NUM              7                  /* Number of defined      types.  */
+#define STT_LOOS             10                 /* Start    of         OS-specific        */
+#define STT_GNU_IFUNC        10                 /* Symbol   is         indirect           code        object  */
+#define STT_HIOS             12                 /* End      of         OS-specific        */
+#define STT_LOPROC           13                 /* Start    of         processor-specific */
+#define STT_HIPROC           15                 /* End      of         processor-specific */
+
+#define ELF_Symbol_Type__None                   0
+#define ELF_Symbol_Type__Object                 1
+#define ELF_Symbol_Type__Function               2
+#define ELF_Symbol_Type__Section                3
+#define ELF_Symbol_Type__File                   4
+#define ELF_Symbol_Type__Common                 5
+#define ELF_Symbol_Type__TLS                    6
+#define ELF_Symbol_Type__NUM                    7
+#define ELF_Symbol_Type__LOOS                  10
+#define ELF_Symbol_Type__GNU_Indirect_Function 10
+#define ELF_Symbol_Type__HIOS                  12
+#define ELF_Symbol_Type__LOPROC                13
+#define ELF_Symbol_Type__HIPROC                15
 
 
 /* Symbol table indices are found in the hash buckets and chain table

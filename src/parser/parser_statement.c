@@ -241,6 +241,42 @@ statement_read
                         token_next(cursor, diagnostics);
                         break;
                 }
+                case Directive_Kind__Type:
+                {
+                        token_next(cursor, diagnostics);
+                        String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
+                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+
+                        // There are various syntaxes: https://www.sourceware.org/binutils/docs/as.html#g_t_002etype
+                        // We support `.type <name>,@<type>`, as emitted by GCC
+
+                        token_next(cursor, diagnostics);
+                        if (cursor->current.kind == Token_Kind__Comma)
+                        {
+                                token_next(cursor, diagnostics);
+                                if (cursor->current.kind == Token_Kind__At)
+                                {
+                                        token_next(cursor, diagnostics);
+                                        String8 string_type = Token_Cursor__text(cursor);
+                                        U8 type = ELF_Symbol_Type__from_String8(string_type);
+                                        symbol->type = type;
+
+                                        token_next(cursor, diagnostics);
+                                }
+                                else
+                                {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->message    = String8__literal("`.type <name>,@<type>` syntax expected");
+                                }
+                        }
+                        else
+                        {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+                        }
+                } break;
                 case Directive_Kind__Section:
                 {
                         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`

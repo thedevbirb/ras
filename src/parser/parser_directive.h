@@ -36,6 +36,7 @@ typedef enum Directive_Kind
         Directive_Kind__Zero,
         Directive_Kind__Common,
         Directive_Kind__Option,
+        Directive_Kind__Type,
         Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -75,6 +76,7 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Zero]            = String8__literal(".zero"),
         [Directive_Kind__Common]          = String8__literal(".comm"),
         [Directive_Kind__Option]          = String8__literal(".option"),
+        [Directive_Kind__Type]            = String8__literal(".type"),
 };
 
 Directive_Kind

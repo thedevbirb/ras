@@ -555,7 +555,7 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
                 &&
                 (
                         (
-                                   symbol->type == STT_SECTION
+                                   symbol->type != ELF_Symbol_Type__None
                                 || symbol->flags & Symbol_Flags__Relocation
                                 || symbol->section == &Section__undefined
                                 || symbol->section == &Section__absolute

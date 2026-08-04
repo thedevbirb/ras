@@ -22,6 +22,8 @@
 
 #include "base/base_include.c"
 
+#include "object/object_include.c"
+
 #include "core/core_include.c"
 #include "lexer.c"
 #include "riscv/riscv_include.c"
