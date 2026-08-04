@@ -137,6 +137,7 @@ write_object_file
 
         // 1. Compute string table size.
         // 2. Count total symbols.
+        // 3. Promote undefined symbols to globals.
         U32 symbols_to_keep        = 0;
         U32 symbols_local_to_keep  = 0;
         U32 symbols_global_to_keep = 0;
@@ -162,6 +163,12 @@ write_object_file
                         {
                                 symbol->index = symbols_global_to_keep;
                                 symbols_global_to_keep += 1;
+                        }
+
+                        B32 ensure_global = symbol->index > 0 && symbol->section == &Section__undefined;
+                        if (ensure_global)
+                        {
+                                symbol->binding = ELF_Symbol_Binding__Global;
                         }
                 }
                 else
