@@ -18,7 +18,7 @@ Register_List__lookup(Register_List register_list, String8 string, B32 e_extensi
                 }
                 index += 1;
         }
-        assert_always_m(!result || index < register_list.count);
+        assert_always_m(!result || index <= register_list.count);
 
         if (e_extension_enabled && result->number >= 16)
         {
