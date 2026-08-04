@@ -174,20 +174,20 @@ internal U64 msb32(U64 val);
 
 // Basic constants
 
-global U64 U64_max = 0xffffffffffffffffull;
-global U32 U32_max = 0xffffffff;
-global U16 U16_max = 0xffff;
-global U8  U8_max  = 0xff;
+#define U64_max (U64)0xffffffffffffffffull
+#define U32_max (U32)0xffffffff
+#define U16_max (U16)0xffff
+#define U8_max  (U8)0xff
 
-global S64 S64_max = (S64)0x7fffffffffffffffll;
-global S32 S32_max = (S32)0x7fffffff;
-global S16 S16_max = (S16)0x7fff;
-global S8  S8_max  =  (S8)0x7f;
+#define S64_max (S64)0x7fffffffffffffffll
+#define S32_max (S32)0x7fffffff
+#define S16_max (S16)0x7fff
+#define S8_max   (S8)0x7f
 
-global S64 S64_min = (S64)0x8000000000000000ll;
-global S32 S32_min = (S32)0x80000000;
-global S16 S16_min = (S16)0x8000;
-global S8  S8_min  =  (S8)0x80;
+#define S64_min (S64)0x8000000000000000ll
+#define S32_min (S32)0x80000000
+#define S16_min (S16)0x8000
+#define S8_min   (S8)0x80
 
 
 //------------------------------------------------------------------------------

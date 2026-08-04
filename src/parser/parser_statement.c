@@ -237,6 +237,9 @@ statement_read
                         }
 
                         symbols_table->section_current = symbol->section;
+
+                        token_next(cursor, diagnostics);
+                        break;
                 }
                 case Directive_Kind__Section:
                 {

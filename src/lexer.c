@@ -48,10 +48,6 @@ lex_at
 {
         U8  *data  = source->data;
         U64  count = source->count;
-        for (U32 i = 0; i < 4; i++)
-        {
-                assert_always_m(data[count + i] == 0);
-        }
 
         Token token = {0};
 

@@ -677,15 +677,16 @@ typedef U32 insn_t;
 // Types and declarations
 //------------------------------------------------------------------------------
 
-typedef enum RISCV_Instruction_Class
+typedef U8 RISCV_Instruction_Class;
+enum
 {
         RISCV_Instruction_Class__None,
         RISCV_Instruction_Class__I,
 
         RISCV_Instruction_Class__COUNT,
 
-}
-RISCV_Instruction_Class;
+};
+assert_static_m(RISCV_Instruction_Class__COUNT < U8_max, RISCV_Instruction_Class__count_check);
 
 typedef U16 OP_Argument;
 enum
@@ -762,6 +763,7 @@ struct RISCV_Opcode
         // any relevant hazard information.
         U64 info;
 };
+assert_static_m(sizeof(RISCV_Opcode) <= 64, RISCV_Opcode__size_check);
 
 // Check whether the encoded instruction bits match the provided opcode.
 //

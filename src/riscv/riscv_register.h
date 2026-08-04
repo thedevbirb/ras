@@ -15,10 +15,6 @@ struct Register_List
         U64 count;
 };
 
-#define Register__invalid_number 0xFF
-
-global const Register Register__invalid = { .name = String8__literal(""), .number = Register__invalid_number };
-
 global const Register RISCV_registers[] =
 {
         {String8__literal("zero"), 0},

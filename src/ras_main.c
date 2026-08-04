@@ -67,8 +67,8 @@ main(int argument_count, char **argument_vector)
 
         String8 filename_in  = String8__from_cstring(argument_vector[0]);
         String8 filename_out = String8__from_cstring(argument_vector[1]);
-        printf("input: %s\n", filename_in.data);
-        printf("output: %s\n", filename_out.data);
+        // printf("input: %s\n", filename_in.data);
+        // printf("output: %s\n", filename_out.data);
 
         int file_descriptor_in = open((char *)filename_in.data, O_RDONLY);
         assert_always_m(file_descriptor_in > 0 && "failed to find input file");
@@ -83,9 +83,7 @@ main(int argument_count, char **argument_vector)
 
         // TODO(medium): non-trivial lifetime relationship between the source and diagnostics.
         Arena *arena = Arena__allocate_m();
-        U8 *input_data_mapped = mmap_file(file_descriptor_in, file_in_size);
-        assert_always_m(input_data_mapped != MAP_FAILED && "failed to mmap file contents");
-
+        U8 *input_data_mapped = mmap_file(file_descriptor_in, file_in_size + 4);
         String8 input = { .data = input_data_mapped, .count = file_in_size };
 
         Source source =

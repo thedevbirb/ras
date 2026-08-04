@@ -39,7 +39,8 @@ write_object_file
                         break;
                 }
         }
-        printf("relaxation completed in %u passes\n", relaxation_passes);
+        unused_m(relaxation_passes);
+        // printf("relaxation completed in %u passes\n", relaxation_passes);
 
         // Convert all fragments to fill variants, and compute section size.
         for each_node_m(symbols_table->section_first, section)

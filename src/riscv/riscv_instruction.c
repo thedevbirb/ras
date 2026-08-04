@@ -267,7 +267,7 @@ RISCV_Instruction__parse
                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                                 }
 
-                                U8 register_number = reg ? reg->number : Register__invalid_number;
+                                U8 register_number = reg ? reg->number : 0;
                                 switch (argument)
                                 {
                                        case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, register_number); } break;
@@ -318,20 +318,9 @@ RISCV_Instruction__parse
                                 *relocation_out = Relocation_RISC_V__JAL;
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
 
-                                // For branches we can't support a fixup. While GNU as silently ignores additional
-                                // symbols, here we either warn or error.
-                                //
-                                // TODO(medium): actually the fixup will take the whole expression, so this is okay
+                                // GNU as silently ignored additional symbols, but since our fixup takes a whole
+                                // expression, here even `jal label2-label1` is perfectly fine.
                                 expression_evaluate(expression);
-                                // if (expression->symbol_operand)
-                                // {
-                                //         // TODO(low): this diagnostic could be better, I should probably support re-lexing
-                                //         // from a specific location to get the exact token.
-                                //         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                //         diagnostic->message    = String8__literal("PC relative offset expression contains operand symbol which will be skipped");
-                                //         diagnostic->location   = expression->location_range.v[0];
-                                //         diagnostic->ranges[0]  = expression->location_range;
-                                // }
                         } break;
                         case OP_Argument__Offset_PC_Relative_12:
                         {
