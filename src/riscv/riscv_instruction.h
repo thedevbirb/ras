@@ -460,16 +460,19 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_RS2    0x01F00000   // bits 24:20
 #define MASK_IMM    0xFFF00000   // bits 31:20
 
-// Instruction info flags
-#define INSN_MACRO       0x80000000UL
-#define INSN_ALIAS       0x00000001
-#define INSN_BRANCH      0x00000002
-#define INSN_JSR         0x00000004
-#define INSN_CONDBRANCH  0x00000008
-#define INSN_DREF        0x00000010
-#define INSN_1_BYTE      0x00000020
-#define INSN_2_BYTE      0x00000040
-#define INSN_4_BYTE      0x00000080
+// Instruction info flags.
+//
+// These are packed into the U16 `info` field of RISCV_Opcode, so every flag must fit in
+// 16 bits (note the RISC-V GNU `riscv_opcodes.h` uses a 64-bit word for these; we do not).
+#define INSN_ALIAS       0x0001
+#define INSN_BRANCH      0x0002
+#define INSN_JSR         0x0004
+#define INSN_CONDBRANCH  0x0008
+#define INSN_DREF        0x0010
+#define INSN_1_BYTE      0x0020
+#define INSN_2_BYTE      0x0040
+#define INSN_4_BYTE      0x0080
+#define INSN_MACRO       0x8000
 
 // Macro identifiers
 #define MACRO_CALL  1
@@ -674,96 +677,201 @@ typedef U32 insn_t;
   INSERT_BITS ((INSN).insn_opcode, VALUE, (1UL<<n) - 1, s)
 
 //------------------------------------------------------------------------------
+// Encoding table types and macros
+//------------------------------------------------------------------------------
+
+// Operator Kind
+enum
+{
+        OPK__None = 0,
+
+        OPK__GPR,
+        OPK__Immediate,
+        OPK__Offset,
+        OPK__Shift,
+
+        OPK__Constant,
+        OPK__Call,
+
+        // Used to mark explicitly some relocations in macro expansions
+        OPK__Relocation,
+
+        OPK__Comma,
+        // Parenthesis Left
+        OPK__PL,
+        // Parenthesis Right
+        OPK__PR,
+
+        OPK__COUNT
+};
+assert_static_m(OPK__COUNT <= (1 << 5), OPK__size_check);
+
+// Operator fields types
+
+// Operator fields: registers
+enum
+{
+        OPF_R__D,
+        OPF_R__S_1,
+        OPF_R__S_2,
+        OPF_R__S_3,
+
+        OPF_R__D_C,
+        OPF_R__S_1_C,
+        OPF_R__S_2_C,
+        OPF_R__S_3_C,
+
+        OPF_R_COUNT
+};
+assert_static_m(OPF_R_COUNT <= (1 << 3), OPF_R_size_check);
+
+// Operator fields: immediates
+enum
+{
+        // I-type 12-bit signed
+        OPF_I__I,
+        // U-type 20-bit upper
+        OPF_I__U,
+        // Compressed I-type, 6-bit
+        OPF_I__I_C,
+        // Compressed J-type, 12-bit
+        OPF_I__J_C,
+        OPF_I_COUNT,
+};
+assert_static_m(OPF_I_COUNT <= (1 << 3), OPF_I_size_check);
+
+// Operator fields: constants / addresses
+enum
+{
+        // Macro constant (`li rd, constant`): any constant expression.
+        OPF_C__Large,
+        // Address (`la rd, symbol`): a symbol (32-bit relocation) or a 32-bit constant.
+        OPF_C__Address,
+        OPF_C_COUNT
+};
+assert_static_m(OPF_C_COUNT <= (1 << 3), OPF_C_size_check);
+
+// Operator fields: shift amounts
+enum
+{
+        // Full XLEN-wide shift amount (`slli/srli/srai`).
+        OPF_S__Shift,
+        // 32-bit shift amount (`slliw/srliw/sraiw`).
+        OPF_S__Shift_5,
+        OPF_S_COUNT
+};
+assert_static_m(OPF_S_COUNT <= (1 << 3), OPF_S_size_check);
+
+enum
+{
+        // I-type encoding (lw/flw ...)
+        OPF_O__Load,
+        // S-type encoding (sw/fsw ...)
+        OPF_O__Store,
+        // B-type encoding (beq ...)
+        OPF_O__Branch,
+        // J-type encoding (jal/j ...)
+        OPF_O__Jal,
+        // RVC CL-format (c.lw ...)
+        OPF_O__Load_C,
+        // RVC CJ-format (c.jal ...)
+        OPF_O__Jal_C,
+        OPF_O_COUNT,
+};
+assert_static_m(OPF_O_COUNT <= (1 << 3), OPF_O_size_check);
+
+// Slot / pattern macros
+
+// A slot packs a 5-bit `kind` in the low bits and a 3-bit `field` in the high bits.
+#define OP_A(kind, field)     ((U8)((U8)(kind) | ((U8)(field) << 5)))
+#define OP_KIND(a)            ((U8)((a) & 0x1f))
+#define OP_FIELD(a)           ((U8)(((a) >> 5) & 0x07))
+
+#define OP_None             OPK__None
+#define OP_GPR(field)       OP_A(OPK__GPR, field)
+#define OP_Immediate(field) OP_A(OPK__Immediate, field)
+#define OP_Offset(field)    OP_A(OPK__Offset, field)
+#define OP_Shift(field)     OP_A(OPK__Shift, field)
+#define OP_Constant(field)  OP_A(OPK__Constant, field)
+
+#define OP_Call             OPK__Call
+#define OP_Relocation       OPK__Relocation
+#define OP_Comma            OPK__Comma
+#define OP_PL               OPK__PL
+#define OP_PR               OPK__PR
+
+// Pack arguments in 8 one-byte slots.
+#define OP_1_m(a)               ((U64)(a))
+#define OP_2_m(a,b)             (OP_1_m(a)               | ((U64)(b) <<  8))
+#define OP_3_m(a,b,c)           (OP_2_m(a,b)             | ((U64)(c) << 16))
+#define OP_4_m(a,b,c,d)         (OP_3_m(a,b,c)           | ((U64)(d) << 24))
+#define OP_5_m(a,b,c,d,e)       (OP_4_m(a,b,c,d)         | ((U64)(e) << 32))
+#define OP_6_m(a,b,c,d,e,f)     (OP_5_m(a,b,c,d,e)       | ((U64)(f) << 40))
+#define OP_7_m(a,b,c,d,e,f,g)   (OP_6_m(a,b,c,d,e,f)     | ((U64)(g) << 48))
+#define OP_8_m(a,b,c,d,e,f,g,h) (OP_7_m(a,b,c,d,e,f,g)   | ((U64)(h) << 56))
+
+// Picks the 9-th argument.
+#define OP_Select_m(_1,_2,_3,_4,_5,_6,_7,_8,NAME,...) NAME
+// Dispatches on the number of provided arguments and calls the matching OP_*_m macro.
+#define OP_m(...) OP_Select_m(__VA_ARGS__, OP_8_m, OP_7_m, OP_6_m, OP_5_m, OP_4_m, OP_3_m, OP_2_m, OP_1_m, 0)(__VA_ARGS__)
+
+// Opcode class
+typedef U8 OPC;
+enum
+{
+        OPC__None = 0,
+        OPC__I,
+
+        OPC__COUNT,
+};
+assert_static_m(OPC__COUNT < U8_max, OPC__count_check);
+
+//------------------------------------------------------------------------------
 // Types and declarations
 //------------------------------------------------------------------------------
 
-typedef U8 RISCV_Instruction_Class;
-enum
-{
-        RISCV_Instruction_Class__None,
-        RISCV_Instruction_Class__I,
-
-        RISCV_Instruction_Class__COUNT,
-
-};
-assert_static_m(RISCV_Instruction_Class__COUNT < U8_max, RISCV_Instruction_Class__count_check);
-
-typedef U16 OP_Argument;
-enum
-{
-        OP_Argument__None = 0,
-        OP_Argument__Comma,
-        OP_Argument__RD,
-        OP_Argument__RS1,
-        OP_Argument__RS2,
-        OP_Argument__RS3,
-        OP_Argument__Immediate_Large,
-        OP_Argument__Immediate_I,
-        OP_Argument__Immediate_S,
-        OP_Argument__Address,
-        OP_Argument__Offset_PC_Relative_12,
-        OP_Argument__Offset_PC_Relative_20,
-        OP_Argument__Offset_Load,
-        OP_Argument__Offset_Store,
-        OP_Argument__Parenthesis_Left,
-        OP_Argument__Parenthesis_Right,
-        OP_Argument__Immediate_U,
-        OP_Argument__Shift_Amount,
-        OP_Argument__Shift_Amount_5,
-        OP_Argument__Call_Expression,
-        OP_Argument__COUNT,
-};
-
-#define OP_arguments_m(...) ((OP_Argument[]){ __VA_ARGS__, 0 })
-
 // This structure holds information for a particular instruction.
 //
-// From GNU as, adapted.
+// From GNU as, adapted. `name` and `count` are adjacent so a table row can be seeded with
+// `String8__inline_m("mnemonic")` (it expands to `<ptr>, <len>` in that order). The other
+// fields are laid out so the struct has no wasted padding (it packs into exactly 40 bytes).
 typedef struct RISCV_Opcode RISCV_Opcode;
 struct RISCV_Opcode
 {
-        // The name of the instruction.
-        const char *name;
+        // The name of the instruction, not null-terminated (`count` is its length).
+        // For table usage, use the `String8__inline_m` macro.
+        U8 *name;
 
-        // Hash of the name. NOTE: temporary, this could be dropped.
+        // Length of `name`.
+        U8  count;
+
+        // Class to which this instruction belongs. Used to decide whether or not this instruction is
+        // legal in the current -march context.
+        U8  class;
+
+        // Instruction attribute flags (INSN_*). Fits in the padding after the two U8 fields above.
+        U16 info;
+
+        // Hash of the name, used for fast table lookup.
         U32 hash;
 
-        // The requirement of xlen for the instruction, 0 if no requirement. For example, it can be 32/64 in case of
-        // 32/64-bit only instruction.
-        U32 length_requirement;
-
-        // Class to which this instruction belongs.  Used to decide whether or not this instruction is legal in the
-        // current -march context.
-        RISCV_Instruction_Class instruction_class;
-
-        // A 16-bit, null-terminated array describing the arguments for this instruction.
-        //
-        // TODO(medium): don't make this a NULL-terminated array. Add a `U8 count` field and use macros to expand.
-        // This is valid: `array_count_m((Type[]){ __VA_ARGS__ })`.
-        U16 *arguments;
-
-        // The basic opcode for the instruction.  When assembling, this opcode is modified by the arguments to produce
-        // the actual opcode that is used.  If pinfo is INSN_MACRO, then this is 0.
-        //
-        // NOTE: this field, like `mask`, are U64 in GNU as. However, no >32-bit instructions exist at the moment if I'm
-        // not mistaken, so let's just use that.
+        // The basic opcode for the instruction. When assembling, this opcode is modified by the arguments to
+        // produce the actual opcode that is used. If `info` has the INSN_MACRO flag, this is 0.
         U32 match;
 
-        // If pinfo is not INSN_MACRO, then this is a bit mask for the relevant portions of the opcode when
-        // disassembling.  If the actual opcode anded with the match field equals the opcode field, then we have found
-        // the correct instruction.  If pinfo is INSN_MACRO, then this field is the macro identifier.
-        //
-        // TODO(medium): this overloaded field in case of a macro is also quite ugly. There is the `info` field already!
+        // If `info` does not have the INSN_MACRO flag, this is a bit mask for the relevant portions of the opcode
+        // when disassembling: `(word & mask) == match` identifies the instruction. Otherwise it is the macro
+        // identifier (MACRO_*).
         U32 mask;
 
-        // A function to determine if a word corresponds to this instruction. Usually, this computes ((word & mask) == match).
-        B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
+        // A packed description of the arguments, in 8 one-byte slots (see the OPK_/OPF_ enums and the OP_m macros).
+        U64 arguments;
 
-        // For a macro, this is INSN_MACRO.  Otherwise, it is a collection of bits describing the instruction, notably
-        // any relevant hazard information.
-        U64 info;
+        // A function to determine if a word corresponds to this instruction. Usually, this computes
+        // `((word & mask) == match)`.
+        B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
 };
-assert_static_m(sizeof(RISCV_Opcode) <= 64, RISCV_Opcode__size_check);
+assert_static_m(sizeof(RISCV_Opcode) == 40, RISCV_Opcode__size_check);
 
 // Check whether the encoded instruction bits match the provided opcode.
 //
@@ -856,8 +964,9 @@ RISCV_macro_build
         String8          instruction_name,
         U32              location,
         Expression      *expression,
-        OP_Argument     *arguments,
-        S32             *values
+        U64              arguments,
+        S32             *values,
+        U8               values_count
 );
 
 // Expand a call pseudo instruction into an `auipc + jalr` pair with the provided register for `jalr`.

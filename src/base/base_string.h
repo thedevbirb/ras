@@ -7,8 +7,8 @@
 // will not take into account that extra byte.
 typedef struct String8 String8;
 struct String8 {
-	U8  *data;
 	U64  count;
+	U8  *data;
 };
 
 internal B32
@@ -101,6 +101,9 @@ internal String8 String8__from_cstring(const char *cstring);
 // -----------------------------------------------------------------------------
 // Constructors
 // -----------------------------------------------------------------------------
+
+// Useful to create strings inside packed tables
+#define String8__inline_m(s) (U8 *)s, (sizeof(s) - 1)
 
 // To be used for example with formatting etc.
 #define String8__literal(s)    (String8){ .data = (U8 *)(s), .count = sizeof((s)) - 1 }

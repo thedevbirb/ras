@@ -1,131 +1,98 @@
-#define A_NONE                OP_arguments_m(OP_Argument__None)
-
-#define A_RS1                 OP_arguments_m(OP_Argument__RS1)
-#define A_RS1_IMM_I           OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
-
-#define A_RD_IMM_L            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_Large)
-#define A_RD_IMM_I            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_I)
-#define A_RD_IMM_U            OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Immediate_U)
-#define A_RD_RS1              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1)
-#define A_RD_RS1_RS2          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2)
-#define A_RD_RS1_IMM          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Immediate_I)
-#define A_RD_RS1_SHIFT        OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount)
-#define A_RD_RS1_SHIFT5       OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Shift_Amount_5)
-
-#define A_RS2_OFF_S_LP_RS1_RP OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_Store, OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-#define A_RD_OFF_L_LP_RS1_RP  OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-#define A_OFF_LP_RS1_RP       OP_arguments_m(                                      OP_Argument__Offset_Load,  OP_Argument__Parenthesis_Left, OP_Argument__RS1, OP_Argument__Parenthesis_Right)
-
-#define A_RD_ADDRESS          OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Address)
-#define A_RD_OFF              OP_arguments_m(OP_Argument__RD,  OP_Argument__Comma, OP_Argument__Offset_PC_Relative_20)
-#define A_RS1_OFF             OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
-#define A_RS2_OFF             OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
-
-#define A_RS1_RS2_OFF         OP_arguments_m(OP_Argument__RS1, OP_Argument__Comma, OP_Argument__RS2, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
-#define A_RS2_RS1_OFF         OP_arguments_m(OP_Argument__RS2, OP_Argument__Comma, OP_Argument__RS1, OP_Argument__Comma, OP_Argument__Offset_PC_Relative_12)
-
-#define A_OFF_20              OP_arguments_m(OP_Argument__Offset_PC_Relative_20)
-#define A_CALL                OP_arguments_m(OP_Argument__Call_Expression)
-
-#define RV_IC_I RISCV_Instruction_Class__I
-
 // NOTE: the empty opcode can be distinguished by the zero hash.
 global const RISCV_Opcode RISCV_Opcode__table[] =
 {
 // Base I instructions.
-{ "auipc",  HASH_auipc,  0, RV_IC_I, A_RD_IMM_U,            MATCH_AUIPC,                             MASK_AUIPC,                          match_opcode,         0                              },
-{ "lui",    HASH_lui,    0, RV_IC_I, A_RD_IMM_U,            MATCH_LUI,                               MASK_LUI,                            match_opcode,         0                              },
+{ String8__inline_m("auipc"),  OPC__I, 0, HASH_auipc, MATCH_AUIPC, MASK_AUIPC, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__U)), match_opcode },
+{ String8__inline_m("lui"),    OPC__I, 0, HASH_lui,   MATCH_LUI,  MASK_LUI,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__U)), match_opcode },
 
-// NOTE: important here to go from more specific to less sp ecific.
-{ "jal",    HASH_jal,    0, RV_IC_I, A_RD_OFF,              MATCH_JAL,                               MASK_JAL,                            match_opcode,         0                              },
-{ "jal",    HASH_jal,    0, RV_IC_I, A_OFF_20,              MATCH_JAL|(X_RA << OP_SH_RD),            MASK_JAL|MASK_RD,                    match_opcode,         0                              },
+// NOTE: important here to go from more specific to less specific.
+{ String8__inline_m("jal"),    OPC__I, 0, HASH_jal,  MATCH_JAL,                    MASK_JAL,         OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Jal)),                                match_opcode },
+{ String8__inline_m("jal"),    OPC__I, 0, HASH_jal,  MATCH_JAL|(X_RA << OP_SH_RD), MASK_JAL|MASK_RD, OP_m(OP_Offset(OPF_O__Jal)),                                                            match_opcode },
+{ String8__inline_m("jalr"),   OPC__I, 0, HASH_jalr, MATCH_JALR,                   MASK_JALR,        OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
 
-{ "jalr",   HASH_jalr,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_JALR,                              MASK_JALR,                           match_opcode,         0                              },
+{ String8__inline_m("lb"),     OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lb,  MATCH_LB,  MASK_LB,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("lb"),     OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lb,  MATCH_LB,  MASK_LB,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("lbu"),    OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lbu, MATCH_LBU, MASK_LBU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("lbu"),    OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lbu, MATCH_LBU, MASK_LBU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("lh"),     OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lh,  MATCH_LH,  MASK_LH,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("lh"),     OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lh,  MATCH_LH,  MASK_LH,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("lhu"),    OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lhu, MATCH_LHU, MASK_LHU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("lhu"),    OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lhu, MATCH_LHU, MASK_LHU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("lw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("lw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+// TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
-{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lb",     HASH_lb,     0, RV_IC_I, A_RD_RS1,              MATCH_LB,                                MASK_LB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lbu",    HASH_lbu,    0, RV_IC_I, A_RD_RS1,              MATCH_LBU,                               MASK_LBU,                            match_opcode,         INSN_DREF|INSN_1_BYTE          },
-{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lh",     HASH_lh,     0, RV_IC_I, A_RD_RS1,              MATCH_LH,                                MASK_LH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lhu",    HASH_lhu,    0, RV_IC_I, A_RD_RS1,              MATCH_LHU,                               MASK_LHU,                            match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_OFF_L_LP_RS1_RP,  MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-{ "lw",     HASH_lw,     0, RV_IC_I, A_RD_RS1,              MATCH_LW,                                MASK_LW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-// TODO(low): add symbol version of this. GNU as treats the  version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
+{ String8__inline_m("sw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_SW, MASK_SW, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("sh"),     OPC__I, INSN_DREF|INSN_2_BYTE, HASH_sh, MATCH_SH, MASK_SH, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("sb"),     OPC__I, INSN_DREF|INSN_1_BYTE, HASH_sb, MATCH_SB, MASK_SB, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
 
-{ "sw",     HASH_sw,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SW,                                MASK_SW,                             match_opcode,         INSN_DREF|INSN_4_BYTE          },
-{ "sh",     HASH_sh,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SH,                                MASK_SH,                             match_opcode,         INSN_DREF|INSN_2_BYTE          },
-{ "sb",     HASH_sb,     0, RV_IC_I, A_RS2_OFF_S_LP_RS1_RP, MATCH_SB,                                MASK_SB,                             match_opcode,         INSN_DREF|INSN_1_BYTE          },
+{ String8__inline_m("addi"),   OPC__I, 0, HASH_addi,  MATCH_ADDI,  MASK_ADDI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("addiw"),  OPC__I, 0, HASH_addiw, MATCH_ADDIW, MASK_ADDIW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("slti"),   OPC__I, 0, HASH_slti,  MATCH_SLTI,  MASK_SLTI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("sltiu"),  OPC__I, 0, HASH_sltiu, MATCH_SLTIU, MASK_SLTIU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("xori"),   OPC__I, 0, HASH_xori,  MATCH_XORI,  MASK_XORI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("ori"),    OPC__I, 0, HASH_ori,   MATCH_ORI,   MASK_ORI,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("andi"),   OPC__I, 0, HASH_andi,  MATCH_ANDI,  MASK_ANDI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
 
-{ "addi",   HASH_addi,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ADDI,                              MASK_ADDI,                           match_opcode,         0                              },
-{ "addiw",  HASH_addiw,  0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ADDIW,                             MASK_ADDIW,                          match_opcode,         0                              },
-{ "slti",   HASH_slti,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_SLTI,                              MASK_SLTI,                           match_opcode,         0                              },
-{ "sltiu",  HASH_sltiu,  0, RV_IC_I, A_RD_RS1_IMM,          MATCH_SLTIU,                             MASK_SLTIU,                          match_opcode,         0                              },
-{ "xori",   HASH_xori,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_XORI,                              MASK_XORI,                           match_opcode,         0                              },
-{ "ori",    HASH_ori,    0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ORI,                               MASK_ORI,                            match_opcode,         0                              },
-{ "andi",   HASH_andi,   0, RV_IC_I, A_RD_RS1_IMM,          MATCH_ANDI,                              MASK_ANDI,                           match_opcode,         0                              },
+{ String8__inline_m("slli"),   OPC__I, 0, HASH_slli,  MATCH_SLLI,  MASK_SLLI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift)),   match_opcode },
+{ String8__inline_m("srli"),   OPC__I, 0, HASH_srli,  MATCH_SRLI,  MASK_SRLI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift)),   match_opcode },
+{ String8__inline_m("srai"),   OPC__I, 0, HASH_srai,  MATCH_SRAI,  MASK_SRAI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift)),   match_opcode },
+{ String8__inline_m("slliw"),  OPC__I, 0, HASH_slliw, MATCH_SLLIW, MASK_SLLIW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift_5)), match_opcode },
+{ String8__inline_m("srliw"),  OPC__I, 0, HASH_srliw, MATCH_SRLIW, MASK_SRLIW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift_5)), match_opcode },
+{ String8__inline_m("sraiw"),  OPC__I, 0, HASH_sraiw, MATCH_SRAIW, MASK_SRAIW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Shift(OPF_S__Shift_5)), match_opcode },
 
-{ "slli",   HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SLLI,                              MASK_SLLI,                           match_opcode,         0                              },
-{ "srli",   HASH_srli,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SRLI,                              MASK_SRLI,                           match_opcode,         0                              },
-{ "srai",   HASH_srai,   0, RV_IC_I, A_RD_RS1_SHIFT,        MATCH_SRAI,                              MASK_SRAI,                           match_opcode,         0                              },
-{ "slliw",  HASH_slliw,  0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SLLIW,                             MASK_SLLIW,                          match_opcode,         0                              },
-{ "srliw",  HASH_slli,   0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SRLIW,                             MASK_SRLIW,                          match_opcode,         0                              },
-{ "sraiw",  HASH_sraiw,  0, RV_IC_I, A_RD_RS1_SHIFT5,       MATCH_SRAIW,                             MASK_SRAIW,                          match_opcode,         0                              },
+{ String8__inline_m("add"),    OPC__I, 0, HASH_add,  MATCH_ADD,  MASK_ADD,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sub"),    OPC__I, 0, HASH_sub,  MATCH_SUB,  MASK_SUB,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sll"),    OPC__I, 0, HASH_sll,  MATCH_SLL,  MASK_SLL,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("slt"),    OPC__I, 0, HASH_slt,  MATCH_SLT,  MASK_SLT,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sltu"),   OPC__I, 0, HASH_sltu, MATCH_SLTU, MASK_SLTU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("xor"),    OPC__I, 0, HASH_xor,  MATCH_XOR,  MASK_XOR,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("srl"),    OPC__I, 0, HASH_srl,  MATCH_SRL,  MASK_SRL,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sra"),    OPC__I, 0, HASH_sra,  MATCH_SRA,  MASK_SRA,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("or"),     OPC__I, 0, HASH_or,   MATCH_OR,   MASK_OR,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("and"),    OPC__I, 0, HASH_and,  MATCH_AND,  MASK_AND,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 
-{ "add",    HASH_add,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_ADD,                               MASK_ADD,                            match_opcode,         0                              },
-{ "sub",    HASH_sub,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SUB,                               MASK_SUB,                            match_opcode,         0                              },
-{ "sll",    HASH_sll,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLL,                               MASK_SLL,                            match_opcode,         0                              },
-{ "slt",    HASH_slt,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLT,                               MASK_SLT,                            match_opcode,         0                              },
-{ "sltu",   HASH_sltu,   0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SLTU,                              MASK_SLTU,                           match_opcode,         0                              },
-{ "xor",    HASH_xor,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_XOR,                               MASK_XOR,                            match_opcode,         0                              },
-{ "srl",    HASH_srl,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SRL,                               MASK_SRL,                            match_opcode,         0                              },
-{ "sra",    HASH_sra,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_SRA,                               MASK_SRA,                            match_opcode,         0                              },
-{ "or",     HASH_or,     0, RV_IC_I, A_RD_RS1_RS2,          MATCH_OR,                                MASK_OR,                             match_opcode,         0                              },
-{ "and",    HASH_and,    0, RV_IC_I, A_RD_RS1_RS2,          MATCH_AND,                               MASK_AND,                            match_opcode,         0                              },
-
-{ "beq",    HASH_beq,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BEQ,                               MASK_BEQ,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bne",    HASH_bne,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BNE,                               MASK_BNE,                            match_opcode,         INSN_CONDBRANCH                },
-{ "blt",    HASH_blt,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bge",    HASH_bge,    0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_CONDBRANCH                },
-{ "bltu",   HASH_bltu,   0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_CONDBRANCH                },
-{ "bgeu",   HASH_bgeu,   0, RV_IC_I, A_RS1_RS2_OFF,         MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_CONDBRANCH                },
+{ String8__inline_m("beq"),    OPC__I, INSN_CONDBRANCH, HASH_beq,  MATCH_BEQ,  MASK_BEQ,  OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bne"),    OPC__I, INSN_CONDBRANCH, HASH_bne,  MATCH_BNE,  MASK_BNE,  OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("blt"),    OPC__I, INSN_CONDBRANCH, HASH_blt,  MATCH_BLT,  MASK_BLT,  OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bge"),    OPC__I, INSN_CONDBRANCH, HASH_bge,  MATCH_BGE,  MASK_BGE,  OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bltu"),   OPC__I, INSN_CONDBRANCH, HASH_bltu, MATCH_BLTU, MASK_BLTU, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bgeu"),   OPC__I, INSN_CONDBRANCH, HASH_bgeu, MATCH_BGEU, MASK_BGEU, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
 
 // Pseudo-instructions (incomplete)
-{ "j",      HASH_j,      0, RV_IC_I, A_OFF_20,              MATCH_JAL,                               MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1,                 MATCH_JALR,                              MASK_JALR|MASK_RD|MASK_IMM,          match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_OFF_LP_RS1_RP,       MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "jr",     HASH_jr,     0, RV_IC_I, A_RS1_IMM_I,           MATCH_JALR,                              MASK_JALR|MASK_RD,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
-{ "ret",    HASH_ret,    0, RV_IC_I, A_NONE,                MATCH_JALR|(X_RA << OP_SH_RS1),           MASK_JALR|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_JSR            },
+{ String8__inline_m("j"),      OPC__I, INSN_ALIAS|INSN_JSR, HASH_j,   MATCH_JAL,                      MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Jal)),                                    match_opcode },
+{ String8__inline_m("jr"),     OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD|MASK_IMM, OP_m(OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("jr"),     OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("jr"),     OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)),     match_opcode },
+{ String8__inline_m("ret"),    OPC__I, INSN_ALIAS|INSN_JSR, HASH_ret, MATCH_JALR|(X_RA << OP_SH_RS1), MASK_JALR|MASK_RS1,         OP_m(OP_None),                                                  match_opcode },
 
-{ "call",   HASH_call,   0, RV_IC_I, A_CALL,                (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD),  MACRO_CALL,                          0,                    INSN_MACRO                     },
-{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_I,            MATCH_ADDI,                              MASK_ADDI|MASK_RS1,                  match_opcode,         INSN_ALIAS                     },
-{ "li",     HASH_li,     0, RV_IC_I, A_RD_IMM_L,            0,                                       MACRO_LI,                            0,                    INSN_MACRO                     },
+{ String8__inline_m("call"),   OPC__I, INSN_MACRO, HASH_call, (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD), MACRO_CALL, OP_m(OP_Call), 0 },
 
-{ "la",     HASH_la,     0, RV_IC_I, A_RD_ADDRESS,          0,                                       MACRO_LA,                            match_rd_nonzero,     INSN_MACRO                     },
+{ String8__inline_m("li"),     OPC__I, INSN_ALIAS, HASH_li, MATCH_ADDI, MASK_ADDI|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__I)),      match_opcode     },
+{ String8__inline_m("li"),     OPC__I, INSN_MACRO, HASH_li, 0,          MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Large)),   0                },
+{ String8__inline_m("la"),     OPC__I, INSN_MACRO, HASH_la, 0,          MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Address)), match_rd_nonzero },
 
-{ "nop",    HASH_nop,    0, RV_IC_I, A_NONE,                MATCH_ADDI,                              MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, match_opcode,         INSN_ALIAS                     },
-{ "mv",     HASH_mv,     0, RV_IC_I, A_RD_RS1,              MATCH_ADDI,                              MASK_ADDI|MASK_IMM,                  match_opcode,         INSN_ALIAS                     },
+{ String8__inline_m("nop"),    OPC__I, INSN_ALIAS, HASH_nop, MATCH_ADDI, MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, OP_m(OP_None), match_opcode },
 
-{ "beqz",   HASH_beqz,   0, RV_IC_I, A_RS1_OFF,             MATCH_BEQ,                               MASK_BEQ|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "blez",   HASH_blez,   0, RV_IC_I, A_RS2_OFF,             MATCH_BGE,                               MASK_BGE|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgez",   HASH_bgez,   0, RV_IC_I, A_RS1_OFF,             MATCH_BGE,                               MASK_BGE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "ble",    HASH_ble,    0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BGE,                               MASK_BGE,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bltz",   HASH_bltz,   0, RV_IC_I, A_RS1_OFF,             MATCH_BLT,                               MASK_BLT|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgtz",   HASH_bgtz,   0, RV_IC_I, A_RS2_OFF,             MATCH_BLT,                               MASK_BLT|MASK_RS1,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bleu",   HASH_bleu,   0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BGEU,                              MASK_BGEU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgt",    HASH_bgt,    0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BLT,                               MASK_BLT,                            match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bgtu",   HASH_bgtu,   0, RV_IC_I, A_RS2_RS1_OFF,         MATCH_BLTU,                              MASK_BLTU,                           match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
-{ "bnez",   HASH_bnez,   0, RV_IC_I, A_RS1_OFF,             MATCH_BNE,                               MASK_BNE|MASK_RS2,                   match_opcode,         INSN_ALIAS|INSN_CONDBRANCH     },
+{ String8__inline_m("mv"),     OPC__I, INSN_ALIAS, HASH_mv, MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)), match_opcode },
 
-{ "pause",  HASH_pause,  0, RV_IC_I, A_NONE,                MATCH_PAUSE,                             MASK_PAUSE,                          match_opcode,         0                              },
-{ "ecall",  HASH_ecall,  0, RV_IC_I, A_NONE,                MATCH_ECALL,                             MASK_ECALL,                          match_opcode,         0                              },
-{ "ebreak", HASH_ebreak, 0, RV_IC_I, A_NONE,                MATCH_EBREAK,                            MASK_EBREAK,                         match_opcode,         0                              },
+{ String8__inline_m("beqz"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_beqz, MATCH_BEQ,  MASK_BEQ|MASK_RS2, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("blez"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_blez, MATCH_BGE,  MASK_BGE|MASK_RS1, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("bgez"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgez, MATCH_BGE,  MASK_BGE|MASK_RS2, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("ble"),    OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_ble,  MATCH_BGE,  MASK_BGE,          OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bltz"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bltz, MATCH_BLT,  MASK_BLT|MASK_RS2, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("bgtz"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtz, MATCH_BLT,  MASK_BLT|MASK_RS1, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("bleu"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bleu, MATCH_BGEU, MASK_BGEU,         OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bgt"),    OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgt,  MATCH_BLT,  MASK_BLT,          OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bgtu"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtu, MATCH_BLTU, MASK_BLTU,         OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bnez"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bnez, MATCH_BNE,  MASK_BNE|MASK_RS2, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
 
-{ "",       0,           0, 0,       A_NONE,                0,                                       0,                                   0,                    0                              }
+{ String8__inline_m("pause"),  OPC__I, 0, HASH_pause,  MATCH_PAUSE,  MASK_PAUSE,  OP_m(OP_None), match_opcode },
+{ String8__inline_m("ecall"),  OPC__I, 0, HASH_ecall,  MATCH_ECALL,  MASK_ECALL,  OP_m(OP_None), match_opcode },
+{ String8__inline_m("ebreak"), OPC__I, 0, HASH_ebreak, MATCH_EBREAK, MASK_EBREAK, OP_m(OP_None), match_opcode },
+
+{ String8__inline_m(""), OPC__None, 0, 0, 0, 0, 0, 0 }
 };
-
-// TODO(low): undef the helper macros defined above.
 
 // TODO(low): for now this is dumb enough and works.
 //
@@ -183,7 +150,7 @@ RISCV_Instruction__parse
 )
 {
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
-        String8 opcode_name = String8__from_cstring(opcode->name);
+        String8 opcode_name = (String8){ .data = opcode->name, .count = opcode->count };
 
         Token opcode_token = cursor->current;
         token_next(cursor, diagnostics);
@@ -196,22 +163,23 @@ RISCV_Instruction__parse
         for (;;)
         {
                 *instruction_out = RISCV_Instruction__create(opcode, opcode_token.location);
-                OP_Argument *arguments = opcode->arguments;
+                U64 arguments = opcode->arguments;
+                U32 arguments_index = 0;
                 B32 try_next = 0;
 
                 // Iterate over opcode arguments.
                 for (;;)
                 {
-                        OP_Argument argument = *arguments;
-                        if (!argument)
+                        U8 slot = (U8)(arguments >> (8 * arguments_index));
+                        if (!slot)
                         {
                                 match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
                                 break;
                         }
 
-                        switch (argument)
+                        switch (OP_KIND(slot))
                         {
-                        case OP_Argument__Comma:
+                        case OPK__Comma:
                         {
                                 // NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
                                 Token token_before_comma = cursor->previous;
@@ -226,7 +194,7 @@ RISCV_Instruction__parse
                                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
                                 }
                         } break;
-                        case OP_Argument__Parenthesis_Left:
+                        case OPK__PL:
                         {
                                 if (cursor->current.kind == Token_Kind__Parenthesis_Left)
                                 {
@@ -239,7 +207,7 @@ RISCV_Instruction__parse
                                         diagnostic->message    = String8__literal("'(' expected");
                                 }
                         } break;
-                        case OP_Argument__Parenthesis_Right:
+                        case OPK__PR:
                         {
                                 if (cursor->current.kind == Token_Kind__Parenthesis_Right)
                                 {
@@ -252,10 +220,7 @@ RISCV_Instruction__parse
                                         diagnostic->message    = String8__literal("')' expected");
                                 }
                         } break;
-                        case OP_Argument__RD:  {} // fallthrough
-                        case OP_Argument__RS3: {} // fallthrough
-                        case OP_Argument__RS2: {} // fallthrough
-                        case OP_Argument__RS1:
+                        case OPK__GPR:
                         {
                                 String8 text = Token_Cursor__text(cursor);
                                 const Register *reg = Register_List__lookup(RISCV_register_list, text, 0);
@@ -268,233 +233,265 @@ RISCV_Instruction__parse
                                 }
 
                                 U8 register_number = reg ? reg->number : 0;
-                                switch (argument)
+                                switch (OP_FIELD(slot))
                                 {
-                                       case OP_Argument__RD:  { INSERT_OPERAND(RD,  *instruction_out, register_number); } break;
-                                       case OP_Argument__RS3: { INSERT_OPERAND(RS3, *instruction_out, register_number); } break;
-                                       case OP_Argument__RS2: { INSERT_OPERAND(RS2, *instruction_out, register_number); } break;
-                                       case OP_Argument__RS1: { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
+                                       case OPF_R__D: { INSERT_OPERAND(RD,  *instruction_out, register_number); } break;
+                                       case OPF_R__S_3:    { INSERT_OPERAND(RS3, *instruction_out, register_number); } break;
+                                       case OPF_R__S_2:    { INSERT_OPERAND(RS2, *instruction_out, register_number); } break;
+                                       case OPF_R__S_1:    { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
+                                       default: { unreachable_m(); }
                                 }
                                 token_next(cursor, diagnostics);
                         } break;
-                        case OP_Argument__Address:
+                        case OPK__Constant:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-                                expression_evaluate(expression);
-                                B32 symbol_is   = expression->evaluation == Expression_Kind__Symbol;
-                                B32 constant_is = expression->evaluation == Expression_Kind__Constant;
-                                if (!(symbol_is || constant_is))
+                                switch (OP_FIELD(slot))
                                 {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("expression must be either symbol or a constant");
-                                        diagnostic->location   = expression->location_range.v[0];
-                                        diagnostic->ranges[0]  = expression->location_range;
-                                }
-
-                                if (symbol_is)
+                                case OPF_C__Address:
                                 {
-                                        *relocation_out = Relocation_RISC_V__32_Bit;
-                                }
-
-                                B32 constant_fits = sign_extended_32_bit_is_m(expression->integer_value);
-                                if (constant_is && !constant_fits)
-                                {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("offset too large for this opcode");
-                                        diagnostic->location   = expression->location_range.v[0];
-                                        diagnostic->ranges[0]  = expression->location_range;
-                                }
-                        } break;
-                        case OP_Argument__Offset_PC_Relative_20:
-                        {
-                                // NOTE: we use GNU as approach to add mark a branch relocation immediately.
-                                // This relocation is temporary, and could be changed, since it depends on the
-                                // value of the expression and the symbols required.
-                                //
-                                // At assembly time, we may not know how many instructions this will expand to. It is
-                                // deferred later when we know all instructions. It is a different situation compared to
-                                // a `li` or `call` instruction which, during instruction parsing, are already expanded
-                                // into a known number of instructions (`INSN_MACRO`)
-                                *relocation_out = Relocation_RISC_V__JAL;
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-
-                                // GNU as silently ignored additional symbols, but since our fixup takes a whole
-                                // expression, here even `jal label2-label1` is perfectly fine.
-                                expression_evaluate(expression);
-                        } break;
-                        case OP_Argument__Offset_PC_Relative_12:
-                        {
-                                // See notes for `OP_Argument__Offset_PC_Relative_20`.
-                                *relocation_out = Relocation_RISC_V__Branch;
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-
-                                // NOTE: here GNU as would just consider one operand, here we can consider the whole
-                                // expression and save it as fixup symbol information.
-                        } break;
-                        case OP_Argument__Offset_Store:
-                        {
-                                OP_Argument *next = arguments + 1;
-                                assert_always_m(next && "invalid operand list");
-
-                                if (*next == OP_Argument__Parenthesis_Left && cursor->current.kind == Token_Kind__Parenthesis_Left)
-                                {
-                                       // Omitted immediate, e.g. sw t1, (t0)
-                                       arguments += 1;
-                                }
-                                else
-                                {
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
-                                        if (!*relocation_out)
-                                        {
-                                                expression_evaluate(expression);
-                                                // TODO(RV32): normalize constant expression? See GNU as.
-                                                B32 fits = S64_bits_range_in(expression->integer_value, 12);
-                                                if (expression->evaluation == Expression_Kind__Constant && fits)
-                                                {
-                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
-                                                        // relocation. Consider doing the same.
-                                                        U32 encoding_immediate = encode_immediate_s_m(expression->integer_value);
-                                                        instruction_out->encoding |= encoding_immediate;
-                                                }
-                                                else
-                                                {
-                                                        try_next = 1;
-                                                }
-                                        }
-                                }
-                        } break;
-                        case OP_Argument__Offset_Load:
-                        {
-                                OP_Argument *next = arguments + 1;
-                                assert_always_m(next && "invalid operand list");
-
-                                if (*next == OP_Argument__Parenthesis_Left && cursor->current.kind == Token_Kind__Parenthesis_Left)
-                                {
-                                       // Omitted immediate, e.g. lw t1, (t0)
-                                       arguments += 1;
-                                }
-                                else
-                                {
-                                        // TODO(refactor): this is mostly in common with OP_Argument__Immediate_I case.
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
-                                        if (!*relocation_out)
-                                        {
-                                                expression_evaluate(expression);
-                                                // TODO(RV32): normalize constant expression? See GNU as.
-                                                B32 fits = S64_bits_range_in(expression->integer_value, 12);
-                                                if (expression->evaluation == Expression_Kind__Constant && fits)
-                                                {
-                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
-                                                        // relocation. Consider doing the same.
-                                                        U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
-                                                        instruction_out->encoding |= encoding_immediate;
-                                                }
-                                                else
-                                                {
-                                                        try_next = 1;
-                                                }
-                                        }
-                                }
-                        } break;
-                        case OP_Argument__Immediate_I:
-                        {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
-                                if (!*relocation_out)
-                                {
-                                       expression_evaluate(expression);
-                                       // TODO(RV32): normalize constant expression? See GNU as.
-                                       B32 fits = S64_bits_range_in(expression->integer_value, 12);
-                                       if (expression->evaluation == Expression_Kind__Constant && fits)
-                                       {
-                                               // TODO(medium): GNU as does this at a later step, and by default emits a
-                                               // relocation. Consider doing the same.
-                                               U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
-                                               instruction_out->encoding |= encoding_immediate;
-                                       }
-                                       else
-                                       {
-                                               try_next = 1;
-                                       }
-                                }
-                        } break;
-                        case OP_Argument__Immediate_U:
-                        {
-                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
-                                if (!*relocation_out)
-                                {
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                                         expression_evaluate(expression);
-                                        if (expression->evaluation == Expression_Kind__Constant)
+                                        B32 symbol_is   = expression->evaluation == Expression_Kind__Symbol;
+                                        B32 constant_is = expression->evaluation == Expression_Kind__Constant;
+                                        if (!(symbol_is || constant_is))
                                         {
-                                                S64 result = expression->integer_value;
-                                                B32 fits = 0 <= result && result < (S64)(1 << 20);
-                                                if (!fits)
-                                                {
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->location   = expression->location_range.v[0];
-                                                        diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
-                                                        diagnostic->ranges[0]  = expression->location_range;
-                                                }
-
-                                                // TODO(medium): GNU as does this at a later step, and by default emits a
-                                                // relocation. Consider doing the same.
-                                                U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
-                                                instruction_out->encoding |= encoding_immediate;
-                                        }
-                                        else
-                                        {
-
                                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
+                                                diagnostic->message    = String8__literal("expression must be either symbol or a constant");
                                                 diagnostic->location   = expression->location_range.v[0];
                                                 diagnostic->ranges[0]  = expression->location_range;
                                         }
-                                }
-                        } break;
-                        case OP_Argument__Immediate_Large:
-                        {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-                                expression_evaluate(expression);
-                                if (expression->evaluation != Expression_Kind__Constant)
-                                {
-                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                       diagnostic->message    = String8__literal("Constant expression expected");
-                                       diagnostic->location   = expression->location_range.v[0];
-                                       diagnostic->ranges[0]  = expression->location_range;
-                                }
-                        } break;
-                        case OP_Argument__Shift_Amount:
-                        {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-                                expression_evaluate(expression);
-                                S64 value = expression->integer_value;
-                                B32 fits = 0 <= value && value < XLEN;
-                                if (expression->evaluation != Expression_Kind__Constant || !fits)
-                                {
-                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                       diagnostic->message    = String8__literal("shift amount doesn't fit register size");
-                                       diagnostic->location   = expression->location_range.v[0];
-                                       diagnostic->ranges[0]  = expression->location_range;
-                                }
 
-	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
-                        } break;
-                        case OP_Argument__Shift_Amount_5:
-                        {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-                                expression_evaluate(expression);
-                                S64 value = expression->integer_value;
-                                B32 fits = 0 <= value && value < (1 << 5);
-                                if (expression->evaluation != Expression_Kind__Constant || !fits)
-                                {
-                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                       diagnostic->message    = String8__literal("shift amount doesn't fit register size");
-                                       diagnostic->location   = expression->location_range.v[0];
-                                       diagnostic->ranges[0]  = expression->location_range;
-                                }
+                                        if (symbol_is)
+                                        {
+                                                *relocation_out = Relocation_RISC_V__32_Bit;
+                                        }
 
-	                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+
+                                        B32 constant_fits = sign_extended_32_bit_is_m(expression->integer_value);
+                                        if (constant_is && !constant_fits)
+                                        {
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                diagnostic->message    = String8__literal("offset too large for this opcode");
+                                                diagnostic->location   = expression->location_range.v[0];
+                                                diagnostic->ranges[0]  = expression->location_range;
+                                        }
+                                } break;
+                                case OPF_C__Large:
+                                {
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression_evaluate(expression);
+                                        if (expression->evaluation != Expression_Kind__Constant)
+                                        {
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                               diagnostic->message    = String8__literal("Constant expression expected");
+                                               diagnostic->location   = expression->location_range.v[0];
+                                               diagnostic->ranges[0]  = expression->location_range;
+                                        }
+                                } break;
+                                default: { unreachable_m(); }
+                                }
                         } break;
-                        case OP_Argument__Call_Expression:
+                        case OPK__Offset:
+                        {
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_O__Jal:
+                                {
+                                        // NOTE: we use GNU as approach to add mark a branch relocation immediately.
+                                        // This relocation is temporary, and could be changed, since it depends on the
+                                        // value of the expression and the symbols required.
+                                        //
+                                        // At assembly time, we may not know how many instructions this will expand to. It is
+                                        // deferred later when we know all instructions. It is a different situation compared to
+                                        // a `li` or `call` instruction which, during instruction parsing, are already expanded
+                                        // into a known number of instructions (`INSN_MACRO`)
+                                        *relocation_out = Relocation_RISC_V__JAL;
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+
+
+                                        // GNU as silently ignored additional symbols, but since our fixup takes a whole
+                                        // expression, here even `jal label2-label1` is perfectly fine.
+                                        expression_evaluate(expression);
+                                } break;
+                                case OPF_O__Branch:
+                                {
+                                        // See notes for `OPF_O__Jal`.
+                                        *relocation_out = Relocation_RISC_V__Branch;
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+
+
+                                        // NOTE: here GNU as would just consider one operand, here we can consider the whole
+                                        // expression and save it as fixup symbol information.
+                                } break;
+                                case OPF_O__Store:
+                                {
+                                        U8 next = (U8)(arguments >> (8 * (arguments_index + 1)));
+                                        if (next == OP_PL && cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                        {
+                                               // Omitted immediate, e.g. sw t1, (t0)
+                                               arguments_index += 1;
+                                        }
+                                        else
+                                        {
+                                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                if (!*relocation_out)
+                                                {
+                                                        expression_evaluate(expression);
+                                                        // TODO(RV32): normalize constant expression? See GNU as.
+                                                        B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                                        if (expression->evaluation == Expression_Kind__Constant && fits)
+                                                        {
+                                                                // TODO(medium): GNU as does this at a later step, and by default emits a
+                                                                // relocation. Consider doing the same.
+                                                                U32 encoding_immediate = encode_immediate_s_m(expression->integer_value);
+                                                                instruction_out->encoding |= encoding_immediate;
+                                                        }
+                                                        else
+                                                        {
+                                                                try_next = 1;
+                                                        }
+                                                }
+                                        }
+                                } break;
+                                case OPF_O__Load:
+                                {
+                                        U8 next = (U8)(arguments >> (8 * (arguments_index + 1)));
+                                        if (next == OP_PL && cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                        {
+                                               // Omitted immediate, e.g. lw t1, (t0)
+                                               arguments_index += 1;
+                                        }
+                                        else
+                                        {
+                                                // TODO(refactor): this is mostly in common with the OPF_I__I case.
+                                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                if (!*relocation_out)
+                                                {
+                                                        expression_evaluate(expression);
+                                                        // TODO(RV32): normalize constant expression? See GNU as.
+                                                        B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                                        if (expression->evaluation == Expression_Kind__Constant && fits)
+                                                        {
+                                                                // TODO(medium): GNU as does this at a later step, and by default emits a
+                                                                // relocation. Consider doing the same.
+                                                                U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
+                                                                instruction_out->encoding |= encoding_immediate;
+                                                        }
+                                                        else
+                                                        {
+                                                                try_next = 1;
+                                                        }
+                                                }
+                                        }
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+                        } break;
+                        case OPK__Immediate:
+                        {
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_I__I:
+                                {
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
+                                        if (!*relocation_out)
+                                        {
+                                               expression_evaluate(expression);
+                                               // TODO(RV32): normalize constant expression? See GNU as.
+                                               B32 fits = S64_bits_range_in(expression->integer_value, 12);
+                                               if (expression->evaluation == Expression_Kind__Constant && fits)
+                                               {
+                                                       // TODO(medium): GNU as does this at a later step, and by default emits a
+                                                       // relocation. Consider doing the same.
+                                                       U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
+                                                       instruction_out->encoding |= encoding_immediate;
+                                               }
+                                               else
+                                               {
+                                                       try_next = 1;
+                                               }
+                                        }
+                                } break;
+                                case OPF_I__U:
+                                {
+                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
+                                        if (!*relocation_out)
+                                        {
+                                                expression_evaluate(expression);
+                                                if (expression->evaluation == Expression_Kind__Constant)
+                                                {
+                                                        S64 result = expression->integer_value;
+                                                        B32 fits = 0 <= result && result < (S64)(1 << 20);
+                                                        if (!fits)
+                                                        {
+                                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                                diagnostic->location   = expression->location_range.v[0];
+                                                                diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
+                                                                diagnostic->ranges[0]  = expression->location_range;
+                                                        }
+
+
+                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
+                                                        // relocation. Consider doing the same.
+                                                        U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
+                                                        instruction_out->encoding |= encoding_immediate;
+                                                }
+                                                else
+                                                {
+
+
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                        diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
+                                                        diagnostic->location   = expression->location_range.v[0];
+                                                        diagnostic->ranges[0]  = expression->location_range;
+                                                }
+                                        }
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+                        } break;
+                        case OPK__Shift:
+                        {
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_S__Shift:
+                                {
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression_evaluate(expression);
+                                        S64 value = expression->integer_value;
+                                        B32 fits = 0 <= value && value < XLEN;
+                                        if (expression->evaluation != Expression_Kind__Constant || !fits)
+                                        {
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                               diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                               diagnostic->location   = expression->location_range.v[0];
+                                               diagnostic->ranges[0]  = expression->location_range;
+                                        }
+
+
+                                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+                                } break;
+                                case OPF_S__Shift_5:
+                                {
+                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression_evaluate(expression);
+                                        S64 value = expression->integer_value;
+                                        B32 fits = 0 <= value && value < (1 << 5);
+                                        if (expression->evaluation != Expression_Kind__Constant || !fits)
+                                        {
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                               diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                               diagnostic->location   = expression->location_range.v[0];
+                                               diagnostic->ranges[0]  = expression->location_range;
+                                        }
+
+
+                                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+                        } break;
+                        case OPK__Call:
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                                 *relocation_out = Relocation_RISC_V__Call_PLT;
@@ -502,10 +499,11 @@ RISCV_Instruction__parse
                         default: { unreachable_m(); }
                         }
 
-                        arguments += 1;
+                        arguments_index += 1;
                 }
 
-                B32 same_name = String8__match_exact(opcode_name, String8__from_cstring(opcode->name));
+                String8 opcode_string = String8__new(opcode->name, opcode->count);
+                B32 same_name = String8__match_exact(opcode_name, opcode_string);
                 if (match || opcode->hash == 0 || !same_name)
                 {
                         break;
@@ -551,7 +549,6 @@ RISCV_Instruction__append
         U32    encoding              = instruction->encoding;
         U8     encoding_size         = RISCV_instruction_size(encoding);
         U32    location              = instruction->location;
-
 
         if (relocation)
         {
@@ -612,9 +609,9 @@ RISCV_macro_build
         String8      instruction_name,
         U32          location,
         Expression  *expression,
-        // TODO(medium): avoid null-terminated arrays.
-        OP_Argument *arguments,
-        S32         *values
+        U64          arguments,
+        S32         *values,
+        U8           values_count
 )
 {
         U32 instruction_hash = FNV_hash_U32(instruction_name);
@@ -624,34 +621,36 @@ RISCV_macro_build
         RISCV_Instruction instruction = RISCV_Instruction__create(opcode, location);
 
         U16 relocation = 0;
+        U32 arguments_index = 0;
 
         for (;;)
         {
-                OP_Argument argument = *arguments;
-                if (argument == 0)
+                U8 slot = (U8)(arguments >> (8 * arguments_index));
+                B32 break_should = !slot || arguments_index >= values_count;
+                if (break_should)
                 {
                         break;
                 }
 
-                S32 value = *values;
-
-                switch (argument)
+                S32 value = values[arguments_index];
+                switch (OP_KIND(slot))
                 {
                         default: { unreachable_m(); } break;
-
-                        case OP_Argument__RD:  { INSERT_OPERAND(RD,  instruction, value); } break;
-                        case OP_Argument__RS3: { INSERT_OPERAND(RS3, instruction, value); } break;
-                        case OP_Argument__RS2: { INSERT_OPERAND(RS2, instruction, value); } break;
-                        case OP_Argument__RS1: { INSERT_OPERAND(RS1, instruction, value); } break;
-
-                        // TODO(medium): I know I've done this to follow GNU as, but this is horrible. Create special
-                        // OP_Argument__Relocation and just do that.
-                        case OP_Argument__Immediate_I: {} // fallthrough
-                        case OP_Argument__Immediate_U: { relocation = value; } break;
+                        case OPK__Relocation: { relocation = (U16)value; } break;
+                        case OPK__GPR:
+                        {
+                                switch (OP_FIELD(slot))
+                                {
+                                        default: { unreachable_m(); } break;
+                                        case OPF_R__D:   { INSERT_OPERAND(RD,  instruction, value); } break;
+                                        case OPF_R__S_3: { INSERT_OPERAND(RS3, instruction, value); } break;
+                                        case OPF_R__S_2: { INSERT_OPERAND(RS2, instruction, value); } break;
+                                        case OPF_R__S_1: { INSERT_OPERAND(RS1, instruction, value); } break;
+                                }
+                        } break;
                 }
 
-                arguments += 1;
-                values    += 1;
+                arguments_index += 1;
         }
 
         assert_always_m(relocation ? expression != 0 : 1);
@@ -680,10 +679,11 @@ RISCV_call_expand
         U32              location
 )
 {
-        OP_Argument *arguments_auipc = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
-        S32 values_auipc[2]          = {rs1, relocation};
-        OP_Argument *arguments_jalr  = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1);
-        S32 values_jalr[2]           = {rd, rs1};
+        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
+        S32 values_auipc[2] = {rs1, relocation};
+        U64 arguments_jalr  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S_1));
+        S32 values_jalr[2]  = {rd, rs1};
+
 
         // Ensure both instructions land in the same fragment.
         Fragments__ensure(&section->fragments, 8);
@@ -696,18 +696,21 @@ RISCV_call_expand
                 location,
                 expression,
                 arguments_auipc,
-                values_auipc
+                values_auipc,
+                array_count_m(values_auipc)
         );
         RISCV_macro_build
         (
                 arena,
                 section,
 
+
                 String8__literal("jalr"),
                 location,
                 0,
                 arguments_jalr,
-                values_jalr
+                values_jalr,
+                array_count_m(values_jalr)
         );
         // NOTE: I trust GNU as that is better to seal the fragment now.
         Fragment__wane(section->fragments.last);
@@ -979,10 +982,10 @@ RISCV_instruction_pseudo_append
                         // This is why we have to create a local label like ".L0 " is created above the `auipc`
                         // instruction.
 
-                        OP_Argument *arguments_auipc = OP_arguments_m(OP_Argument__RD, OP_Argument__Immediate_U);
-                        S32 values_auipc[]           = {rd, Relocation_RISC_V__PC_Relative_High_20};
-                        OP_Argument *arguments_addi  = OP_arguments_m(OP_Argument__RD, OP_Argument__RS1, OP_Argument__Immediate_I);
-                        S32 values_addi[]            = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
+                        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
+                        S32 values_auipc[]  = {rd, Relocation_RISC_V__PC_Relative_High_20};
+                        U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S_1), OP_Relocation);
+                        S32 values_addi[]   = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
                         Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);
                                     internal_label->flags  |= Symbol_Flags__Relocation;
@@ -997,11 +1000,13 @@ RISCV_instruction_pseudo_append
                                 symbols_table->arena,
                                 section,
 
+
                                 String8__literal("auipc"),
                                 instruction->location,
                                 expression,
                                 arguments_auipc,
-                                values_auipc
+                                values_auipc,
+                                array_count_m(values_auipc)
                         );
                         // NOTE: GNU as creates also a second expression with an fake label for addi, why?
                         RISCV_macro_build
@@ -1009,11 +1014,13 @@ RISCV_instruction_pseudo_append
                                 symbols_table->arena,
                                 section,
 
+
                                 String8__literal("addi"),
                                 instruction->location,
                                 expression_addi,
                                 arguments_addi,
-                                values_addi
+                                values_addi,
+                                array_count_m(values_addi)
                         );
                         // TODO(medium, check-gas): wane and new here?
                 }
