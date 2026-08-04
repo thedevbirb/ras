@@ -61,33 +61,36 @@ typedef enum Expression_Kind
 }
 Expression_Kind;
 
-internal B32
-Expression_Kind__unary_is(Expression_Kind kind)
-{
-        B32 result = kind == Expression_Kind__Negate
-                  || kind == Expression_Kind__Bitwise_Not
-                  || kind == Expression_Kind__Logical_Not;
-        return result;
-}
+internal B32 Expression_Kind__unary_is(Expression_Kind kind);
+internal B32 Expression_Kind__equality_is(Expression_Kind kind);
+internal B32 Expression_Kind__comparison_is(Expression_Kind kind);
 
-internal B32
-Expression_Kind__equality_is(Expression_Kind kind)
-{
-        B32 result = kind == Expression_Kind__Equal
-                  || kind == Expression_Kind__Not_Equal;
-        return result;
-}
+internal Expression_Kind Expression_Kind__from_Token_Kind_binary(Token_Kind kind);
+internal Expression_Kind Expression_Kind__from_Token_Kind_unary(Token_Kind kind);
 
-internal B32
-Expression_Kind__comparison_is(Expression_Kind kind)
+internal S64 unary_evaluate(Expression_Kind kind, S64 a);
+internal S64 operation_evaluation(Expression_Kind kind, S64 a, S64 b);
+
+// Binding power levels for Pratt parsing, ordered lowest to highest.
+// Even numbers: gaps allow left/right binding power distinction if needed.
+typedef enum Binding_Power
 {
-        B32 result = kind == Expression_Kind__Not_Equal
-                  || kind == Expression_Kind__Less_Than
-                  || kind == Expression_Kind__Less_Equal
-                  || kind == Expression_Kind__Greater_Than
-                  || kind == Expression_Kind__Greater_Equal;
-        return result;
+        Binding_Power__None           =   0,
+        Binding_Power__Logical_Or     =   2,
+        Binding_Power__Logical_And    =   4,
+        Binding_Power__Bitwise_Or     =   6,
+        Binding_Power__Bitwise_Xor    =   8,
+        Binding_Power__Bitwise_And    =  10,
+        Binding_Power__Equality       =  12,
+        Binding_Power__Comparison     =  14,
+        Binding_Power__Shift          =  16,
+        Binding_Power__Additive       =  18,
+        Binding_Power__Multiplicative =  20,
+        Binding_Power__Unary          = 100,
 }
+Binding_Power;
+
+internal Binding_Power Binding_Power_from_Token_Kind(Token_Kind kind);
 
 // An `Expression` contains information about both a parsed expression and its evaluation, where the latter can
 // mutate as more information is providing during multiple evaluation rounds, like during the relaxation process.
@@ -121,34 +124,6 @@ struct Expression
         Expression_Kind  evaluation;
 };
 
-// Binding power levels for Pratt parsing, ordered lowest to highest.
-// Even numbers: gaps allow left/right binding power distinction if needed.
-typedef enum Binding_Power
-{
-        Binding_Power__None           =   0,
-        Binding_Power__Logical_Or     =   2,
-        Binding_Power__Logical_And    =   4,
-        Binding_Power__Bitwise_Or     =   6,
-        Binding_Power__Bitwise_Xor    =   8,
-        Binding_Power__Bitwise_And    =  10,
-        Binding_Power__Equality       =  12,
-        Binding_Power__Comparison     =  14,
-        Binding_Power__Shift          =  16,
-        Binding_Power__Additive       =  18,
-        Binding_Power__Multiplicative =  20,
-        Binding_Power__Unary          = 100,
-}
-Binding_Power;
-
-internal Binding_Power
-Binding_Power_from_Token_Kind(Token_Kind kind);
-
-internal Expression_Kind
-Expression_Kind__binary_from_Token_Kind(Token_Kind kind);
-
-internal Expression_Kind
-Expression_Kind_from_unary_Token_Kind(Token_Kind kind);
-
 typedef struct Expressions Expressions;
 struct Expressions
 {
@@ -156,6 +131,7 @@ struct Expressions
         Expression *first;
         Expression *last;
 };
+
 
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena);
@@ -167,16 +143,6 @@ Expressions__push_constant(Expressions *expressions, Arena *arena, S64 value);
 // Create an expression based on a single symbol
 internal Expression *
 Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol);
-
-// An internal, generated expression is one with no source location range
-internal B32
-Expression__internal_is(Expression *expression);
-
-internal S64
-unary_evaluate(Expression_Kind kind, S64 a);
-
-internal S64
-operation_evaluation(Expression_Kind kind, S64 a, S64 b);
 
 // Evaluate all expressions while finalizing symbols. See `Symbol_Ref__resolve`/`Symbols_Table__finalize`.
 internal void

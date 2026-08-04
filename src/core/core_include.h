@@ -12,7 +12,6 @@
 
 // TODO(low, refactor) These all depend on each other in practice, and they need forward declaration.
 // I don't know in practice how to untagle this.
-#include "core_utils.h"
 #include "core_fragment.h"
 #include "core_fixup.h"
 #include "core_section.h"

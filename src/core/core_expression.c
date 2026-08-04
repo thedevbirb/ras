@@ -1,36 +1,33 @@
-internal Binding_Power
-Binding_Power_from_Token_Kind(Token_Kind kind)
+internal B32
+Expression_Kind__unary_is(Expression_Kind kind)
 {
-        Binding_Power result = Binding_Power__None;
+        B32 result = kind == Expression_Kind__Negate
+                  || kind == Expression_Kind__Bitwise_Not
+                  || kind == Expression_Kind__Logical_Not;
+        return result;
+}
 
-        switch (kind)
-        {
-        case Token_Kind__Pipe_2:         { result = Binding_Power__Logical_Or;     } break;
-        case Token_Kind__Ampersand_2:    { result = Binding_Power__Logical_And;    } break;
-        case Token_Kind__Pipe:           { result = Binding_Power__Bitwise_Or;     } break;
-        case Token_Kind__Caret:          { result = Binding_Power__Bitwise_Xor;    } break;
-        case Token_Kind__Ampersand:      { result = Binding_Power__Bitwise_And;    } break;
-        case Token_Kind__Equal_2:
-        case Token_Kind__Equal_Bang:     { result = Binding_Power__Equality;       } break;
-        case Token_Kind__Less:
-        case Token_Kind__Greater:
-        case Token_Kind__Less_Equal:
-        case Token_Kind__Greater_Equal:  { result = Binding_Power__Comparison;     } break;
-        case Token_Kind__Less_2:
-        case Token_Kind__Greater_2:      { result = Binding_Power__Shift;          } break;
-        case Token_Kind__Plus:
-        case Token_Kind__Minus:          { result = Binding_Power__Additive;       } break;
-        case Token_Kind__Star:
-        case Token_Kind__Slash:
-        case Token_Kind__Percentage:     { result = Binding_Power__Multiplicative; } break;
-        default:                         {} break;
-        }
+internal B32
+Expression_Kind__equality_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Equal
+                  || kind == Expression_Kind__Not_Equal;
+        return result;
+}
 
+internal B32
+Expression_Kind__comparison_is(Expression_Kind kind)
+{
+        B32 result = kind == Expression_Kind__Not_Equal
+                  || kind == Expression_Kind__Less_Than
+                  || kind == Expression_Kind__Less_Equal
+                  || kind == Expression_Kind__Greater_Than
+                  || kind == Expression_Kind__Greater_Equal;
         return result;
 }
 
 internal Expression_Kind
-Expression_Kind__binary_from_Token_Kind(Token_Kind kind)
+Expression_Kind__from_Token_Kind_binary(Token_Kind kind)
 {
         Expression_Kind result = Expression_Kind__None;
 
@@ -59,6 +56,23 @@ Expression_Kind__binary_from_Token_Kind(Token_Kind kind)
 
         return result;
 }
+
+internal Expression_Kind
+Expression_Kind__from_Token_Kind_unary(Token_Kind kind)
+{
+        Expression_Kind result = Expression_Kind__None;
+
+        switch (kind)
+        {
+        case Token_Kind__Minus: { result = Expression_Kind__Negate;      } break;
+        case Token_Kind__Tilde: { result = Expression_Kind__Bitwise_Not; } break;
+        case Token_Kind__Bang:  { result = Expression_Kind__Logical_Not; } break;
+        default:                {} break;
+        }
+
+        return result;
+}
+
 
 // TODO(low): maybe this should be done on U64 so we don't have UB. And division by zero is zero.
 internal S64
@@ -91,6 +105,37 @@ operation_evaluate(Expression_Kind kind, S64 a, S64 b)
         case Expression_Kind__Logical_Or:    { result = a || b; } break;
 
         default: { unreachable_m(); } break;
+        }
+
+        return result;
+}
+
+internal Binding_Power
+Binding_Power_from_Token_Kind(Token_Kind kind)
+{
+        Binding_Power result = Binding_Power__None;
+
+        switch (kind)
+        {
+        case Token_Kind__Pipe_2:         { result = Binding_Power__Logical_Or;     } break;
+        case Token_Kind__Ampersand_2:    { result = Binding_Power__Logical_And;    } break;
+        case Token_Kind__Pipe:           { result = Binding_Power__Bitwise_Or;     } break;
+        case Token_Kind__Caret:          { result = Binding_Power__Bitwise_Xor;    } break;
+        case Token_Kind__Ampersand:      { result = Binding_Power__Bitwise_And;    } break;
+        case Token_Kind__Equal_2:
+        case Token_Kind__Equal_Bang:     { result = Binding_Power__Equality;       } break;
+        case Token_Kind__Less:
+        case Token_Kind__Greater:
+        case Token_Kind__Less_Equal:
+        case Token_Kind__Greater_Equal:  { result = Binding_Power__Comparison;     } break;
+        case Token_Kind__Less_2:
+        case Token_Kind__Greater_2:      { result = Binding_Power__Shift;          } break;
+        case Token_Kind__Plus:
+        case Token_Kind__Minus:          { result = Binding_Power__Additive;       } break;
+        case Token_Kind__Star:
+        case Token_Kind__Slash:
+        case Token_Kind__Percentage:     { result = Binding_Power__Multiplicative; } break;
+        default:                         {} break;
         }
 
         return result;
@@ -140,22 +185,6 @@ expression_evaluate(Expression *node_root)
         return result;
 }
 
-internal Expression_Kind
-Expression_Kind_from_unary_Token_Kind(Token_Kind kind)
-{
-        Expression_Kind result = Expression_Kind__None;
-
-        switch (kind)
-        {
-        case Token_Kind__Minus: { result = Expression_Kind__Negate;      } break;
-        case Token_Kind__Tilde: { result = Expression_Kind__Bitwise_Not; } break;
-        case Token_Kind__Bang:  { result = Expression_Kind__Logical_Not; } break;
-        default:                {} break;
-        }
-
-        return result;
-}
-
 Expression *
 Expressions_push_empty(Expressions *expressions, Arena *arena)
 {
@@ -189,22 +218,12 @@ Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symb
         return result;
 }
 
-internal B32
-Expression__internal_is(Expression *expression)
-{
-        B32 result = expression->location == 0
-                  && expression->location_range.v[0] == 0
-                  && expression->location_range.v[1] == 0;
-        return result;
-}
-
 // Evaluate all expressions while finalizing symbols. See `Symbol_Ref__finalize`/`Symbols_Table__finalize`.
 //
 // After this is called expressions cannot be reduced further, since now symbols are frozen.
 internal void
 Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
 {
-        // TODO(low): I don't like that the sentinel expression should be skipped. I would prefer a no-op here.
         for each_node_m(expressions->first->next, expression)
         {
                 Symbol_Ref symbol_expression = { .expression = expression };

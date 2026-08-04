@@ -150,7 +150,7 @@ expression_parse_with_flags
                         case Token_Kind__Bang:
                         {
                                 // unary_operator <expression>
-                                frame->node->kind = Expression_Kind_from_unary_Token_Kind(cursor->current.kind);
+                                frame->node->kind = Expression_Kind__from_Token_Kind_unary(cursor->current.kind);
                                 frame->null_denotation_parsed = 1;
 
                                 Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
@@ -271,7 +271,7 @@ expression_parse_with_flags
 
                         // Set central node.
                         frame->node = Expressions_push_empty(expressions, arena);
-                        frame->node->kind = Expression_Kind__binary_from_Token_Kind(cursor->current.kind);
+                        frame->node->kind = Expression_Kind__from_Token_Kind_binary(cursor->current.kind);
                         frame->node->left = left;
                         frame->node->location   = cursor->current.location;
 
