@@ -20,11 +20,15 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("lhu"),    OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lhu, MATCH_LHU, MASK_LHU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
 { String8__inline_m("lw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
 { String8__inline_m("lw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
+{ String8__inline_m("ld"),     OPC__I, INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_LD,  MASK_LD,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("ld"),     OPC__I, INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_LD,  MASK_LD,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)),                                       match_opcode },
 // TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
-{ String8__inline_m("sw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_SW, MASK_SW, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
-{ String8__inline_m("sh"),     OPC__I, INSN_DREF|INSN_2_BYTE, HASH_sh, MATCH_SH, MASK_SH, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
 { String8__inline_m("sb"),     OPC__I, INSN_DREF|INSN_1_BYTE, HASH_sb, MATCH_SB, MASK_SB, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("sh"),     OPC__I, INSN_DREF|INSN_2_BYTE, HASH_sh, MATCH_SH, MASK_SH, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("sw"),     OPC__I, INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_SW, MASK_SW, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+{ String8__inline_m("sd"),     OPC__I, INSN_DREF|INSN_8_BYTE, HASH_sd, MATCH_SD, MASK_SD, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S_1), OP_PR), match_opcode },
+// TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
 { String8__inline_m("addi"),   OPC__I, 0, HASH_addi,  MATCH_ADDI,  MASK_ADDI,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },
 { String8__inline_m("addiw"),  OPC__I, 0, HASH_addiw, MATCH_ADDIW, MASK_ADDIW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_Immediate(OPF_I__I)), match_opcode },

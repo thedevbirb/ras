@@ -470,8 +470,9 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define INSN_CONDBRANCH  0x0008
 #define INSN_DREF        0x0010
 #define INSN_1_BYTE      0x0020
-#define INSN_2_BYTE      0x0040
-#define INSN_4_BYTE      0x0080
+#define INSN_2_BYTE      0x0030
+#define INSN_4_BYTE      0x0040
+#define INSN_8_BYTE      0x0050
 #define INSN_MACRO       0x8000
 
 // Macro identifiers
