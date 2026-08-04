@@ -1527,3 +1527,56 @@ Even with example of usages, sometimes it's hard to figure out good APIs, even f
 you abstract too much, it end up being useless, because you'll often write specialized versions
 instead. If you specialize too much, you end up with too many of them with almost a unique use. Both
 are synonyms of poor understanding.
+
+### Thu Jul 30 09:46:58 CEST 2026
+
+In pratice, everything except the fragments bytes is good to allocate on a the arena used for the
+symbols table. Because symbols, expressions, sections, fixups are ALL very tied to each other.
+Fragments constitutes sub-lifetimes of those to ensure contiguity of data for fast iteration.
+
+---
+
+I have a prototype of object file writing! Of course there is still a ton to debug, but I'm very
+happy. Some notes:
+1. All my symbol names should be null terminated, and I'm not doing that yet. So I should allocate
+   as if they all were null terminated while keeping their count as if they were not.
+
+### Fri Jul 31 12:53:01 CEST 2026
+
+I really, really don't like the footguns caused by having to deal with the fragment sentinel. There
+is utility in having every symbol bounded to a valid fragment and section, but it causes a lot of
+confusion.
+
+---
+
+I don't know how to test this software. It's not a very easy task. I don't want to pollute with unit
+testing, and matching 1:1 the output of GNU as means inheriting _some_ of its quirks, and I don't
+know how useful that is. There might be need of some "golden" object files that are expected to be
+produced and known to be correct. The best strategy is probably a mix of different approaches that
+uniquely fits the purpose of an assembler. It should be stress tested a lot on invalid input also,
+or with inputs at edge case values (close to underflow/overflow or immediate max range).
+
+I'm thinking also about safety from design. Robust testing should be there, of course, but I want to
+ensure a very easy to follow codebase and logic can help with that, and minimize the amount of
+quirks. Right now some parts are clear some parts way less.
+
+For this type of software I think assertions do make sense, especially as guardlines to remember
+that some assumptions have changed.
+
+### Mon Aug  3 10:13:28 CEST 2026
+
+I realized now that local symbols in the undefined section cannot exist, it can only be global. So
+after parsing the entire source, if a local symbol is still undefined it is promoted to a global.
+The only exception is the first null symbol.
+
+### Tue Aug  4 14:01:53 CEST 2026
+
+Pareto principle is start to hit, and polishing + testing is taking quite some time. For testing
+there are some existing resources I can reuse, and moreover I think a way I could be testing this is
+with a combination of methods:
+
+- Some official resources to be added as submodules, but yet to explore, e.g. https://github.com/riscv-software-src/riscv-tests
+- Make the assembler capable enough so that it can be replaced in the compilation suite, and test
+  whether it creates a well known library/binary which passes a test suite.
+- Some limited selection of golden asm files from GNU as, plus a function which determines whether
+  two object files are sementically equivalent (which isn't super trivial though).
