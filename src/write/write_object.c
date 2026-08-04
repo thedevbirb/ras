@@ -1,9 +1,3 @@
-#include "core/core_fixup.h"
-#include "core/core_section.h"
-#include "core/core_symbol.h"
-#include "write_section.h"
-#include "write_object.h"
-
 internal U64
 write_object_file
 (

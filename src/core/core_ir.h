@@ -12,7 +12,7 @@ typedef struct Fixup          Fixup;
 typedef struct Section        Section;
 
 //-----------------------------------------------------------------------------
-// Expression
+// @Expression
 //-----------------------------------------------------------------------------
 
 // Enumeration which  can be used both for _both_ parsing information and evaluation information.
@@ -163,7 +163,7 @@ internal void
 Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics);
 
 //-----------------------------------------------------------------------------
-// Symbols
+// @Symbols
 //-----------------------------------------------------------------------------
 
 #define INTERNAL_SYMBOL_PREFIX ".L"
@@ -363,7 +363,7 @@ internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level);
 
 //-----------------------------------------------------------------------------
-// Fragment
+// @Fragment
 //-----------------------------------------------------------------------------
 
 // The state of the relaxable code contained within a fragment.
@@ -520,10 +520,18 @@ internal void
 Fragments__align(Fragments *fragments, U32 location, Alignment alignment);
 
 // Seal the current fragment by making it a fixed-size fill variant, with no tail.
-internal void Fragment__wane(Fragment *fragment);
+internal void
+Fragment__wane(Fragment *fragment);
+
+internal void
+Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *expressions, Arena *arena);
+
+// Compute the total size of the instructions needed to relax a jump fragment.
+internal U8
+Fragment__jump_instructions_total_size(Fragment *fragment, Section *section);
 
 //-----------------------------------------------------------------------------
-// Fixup
+// @Fixup
 //-----------------------------------------------------------------------------
 
 #define Fixup__8_Bit  (Relocation_RISC_V__COUNT + 0)
@@ -624,7 +632,7 @@ internal void
 Fixups__resolve(Section *section, Arena *arena, Diagnostics *diagnostics);
 
 //-----------------------------------------------------------------------------
-// Section
+// @Section
 //-----------------------------------------------------------------------------
 
 global String8 section_name_text      = String8__literal(".text");
@@ -656,19 +664,6 @@ struct Section
 };
 
 internal void
-Section__add_jump_instruction
-(
-        Section           *section,
-        U32                encoding,
-        U8                 encoding_size,
-        U32                location,
-        U8                 worst_case_size,
-        U8                 best_case_size,
-        Expression        *expression,
-        U8                 jump_instructions_size
-);
-
-internal void
 Section__add_instruction_fixed
 (
         Section *section,
@@ -679,11 +674,11 @@ Section__add_instruction_fixed
         U32      location
 );
 
-internal void
-Section__finish(Section *section);
+internal void Section__finish(Section *section);
+internal B32  Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics);
 
 //-----------------------------------------------------------------------------
-// Globals
+// @Globals
 //-----------------------------------------------------------------------------
 
 // Sentinel fragment terminating every fragment chain.

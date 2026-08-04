@@ -1,8 +1,6 @@
 #ifndef WRITE_OBJECT_H
 #define WRITE_OBJECT_H
 
-#define UNDEFINED_PLUS_ONE 1
-
 internal U64
 write_object_file
 (
