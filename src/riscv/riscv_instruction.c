@@ -47,12 +47,16 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 
 { String8__inline_m("add"),    OPC__I, 0, HASH_add,  MATCH_ADD,  MASK_ADD,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("sub"),    OPC__I, 0, HASH_sub,  MATCH_SUB,  MASK_SUB,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("addw"),   OPC__I, 0, HASH_addw, MATCH_ADDW, MASK_ADDW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("subw"),   OPC__I, 0, HASH_subw, MATCH_SUBW, MASK_SUBW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("sll"),    OPC__I, 0, HASH_sll,  MATCH_SLL,  MASK_SLL,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("slt"),    OPC__I, 0, HASH_slt,  MATCH_SLT,  MASK_SLT,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("sltu"),   OPC__I, 0, HASH_sltu, MATCH_SLTU, MASK_SLTU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sllw"),   OPC__I, 0, HASH_sllw, MATCH_SLLW, MASK_SLLW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("xor"),    OPC__I, 0, HASH_xor,  MATCH_XOR,  MASK_XOR,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("srl"),    OPC__I, 0, HASH_srl,  MATCH_SRL,  MASK_SRL,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("sra"),    OPC__I, 0, HASH_sra,  MATCH_SRA,  MASK_SRA,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("sraw"),   OPC__I, 0, HASH_sraw, MATCH_SRAW, MASK_SRAW, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("or"),     OPC__I, 0, HASH_or,   MATCH_OR,   MASK_OR,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 { String8__inline_m("and"),    OPC__I, 0, HASH_and,  MATCH_AND,  MASK_AND,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 
@@ -79,7 +83,12 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 
 { String8__inline_m("nop"),    OPC__I, INSN_ALIAS, HASH_nop, MATCH_ADDI, MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, OP_m(OP_None), match_opcode },
 
+{ String8__inline_m("not"),    OPC__I, INSN_ALIAS, HASH_not, MATCH_XORI|MASK_IMM, MASK_XORI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)), match_opcode },
+
 { String8__inline_m("mv"),     OPC__I, INSN_ALIAS, HASH_mv, MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1)), match_opcode },
+
+{ String8__inline_m("neg"),    OPC__I, INSN_ALIAS, HASH_neg,  MATCH_SUB,  MASK_SUB|MASK_RS1,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("negw"),   OPC__I, INSN_ALIAS, HASH_negw, MATCH_SUBW, MASK_SUBW|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
 
 { String8__inline_m("beqz"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_beqz, MATCH_BEQ,  MASK_BEQ|MASK_RS2, OP_m(OP_GPR(OPF_R__S_1), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
 { String8__inline_m("blez"),   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_blez, MATCH_BGE,  MASK_BGE|MASK_RS1, OP_m(OP_GPR(OPF_R__S_2), OP_Comma, OP_Offset(OPF_O__Branch)),                               match_opcode },
@@ -485,7 +494,7 @@ RISCV_Instruction__parse
         {
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location   = opcode_token.location;
-                diagnostic->message    = String8__literal("unrecognized opcode");
+                diagnostic->message    = String8__literal("unrecognized opcode format");
                 diagnostic->ranges[0]  = Token__range(opcode_token);
         }
 
