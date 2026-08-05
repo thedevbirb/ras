@@ -624,10 +624,10 @@ internal void
 Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding);
 
 internal void
-Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics);
+Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Options *options, Diagnostics *diagnostics);
 
 internal void
-Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnostics);
+Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Diagnostics *diagnostics);
 
 internal void
 Fixups__resolve(Section *section, Arena *arena, Diagnostics *diagnostics);

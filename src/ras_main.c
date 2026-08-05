@@ -123,7 +123,7 @@ main(int argument_count, char **argument_vector)
         Diagnostics *diagnostics = Diagnostics__new(Arena__allocate_m());
 
         Token_Cursor cursor = { .source = &source, .source_index = 0 };
-        RISCV_Options options = { .relax = 1 };
+        Options options = { .relax = 1 };
 
         statement_read
         (
@@ -165,6 +165,7 @@ main(int argument_count, char **argument_vector)
                 diagnostics,
                 &expressions,
                 symbols_table,
+                &options,
                 file_descriptor_out
         );
 

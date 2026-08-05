@@ -1346,7 +1346,7 @@ Fixup__apply_constant(Fixup *fixup, U32 patch_to_or_into_encoding)
 }
 
 internal void
-Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Diagnostics *diagnostics)
+Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immediate_callback)(S64), Options *options, Diagnostics *diagnostics)
 {
         S64 target   = fixup->expression->integer_value;
         target      += fixup->expression->symbol ? fixup->expression->symbol->value : 0;
@@ -1376,17 +1376,15 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
                 diagnostic->ranges[0]  = fixup->expression->location_range;
         }
 
-        // TODO(.option): support
-        B32 relax = 1;
         B32 internal_is = fixup->expression->symbol && Symbol_Ref__internal_is(fixup->expression->symbol);
-        if (!relax && internal_is && valid_immediate)
+        if (!options->relax && internal_is && valid_immediate)
         {
                 fixup->flags |= Fixup_Flags__Done;
         }
 }
 
 internal void
-Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnostics)
+Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Diagnostics *diagnostics)
 {
         // Whether a RELAX relocation can be emitted
         B32 relaxable = 0;
@@ -1513,10 +1511,10 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                 }
         } break;
 
-        case Relocation_RISC_V__JAL:               { Fixup__apply_jump(fixup, encode_immediate_j,  validate_immediate_j,  diagnostics); } break;
-        case Relocation_RISC_V__Branch:            { Fixup__apply_jump(fixup, encode_immediate_b,  validate_immediate_b,  diagnostics); } break;
-        case Relocation_RISC_V__Jump_Compressed:   { Fixup__apply_jump(fixup, encode_immediate_cj, validate_immediate_cj, diagnostics); } break;
-        case Relocation_RISC_V__Branch_Compressed: { Fixup__apply_jump(fixup, encode_immediate_cb, validate_immediate_cb, diagnostics); } break;
+        case Relocation_RISC_V__JAL:               { Fixup__apply_jump(fixup, encode_immediate_j,  validate_immediate_j,  options, diagnostics); } break;
+        case Relocation_RISC_V__Branch:            { Fixup__apply_jump(fixup, encode_immediate_b,  validate_immediate_b,  options, diagnostics); } break;
+        case Relocation_RISC_V__Jump_Compressed:   { Fixup__apply_jump(fixup, encode_immediate_cj, validate_immediate_cj, options, diagnostics); } break;
+        case Relocation_RISC_V__Branch_Compressed: { Fixup__apply_jump(fixup, encode_immediate_cb, validate_immediate_cb, options, diagnostics); } break;
 
         case Relocation_RISC_V__PC_Relative_High_20:
         {
@@ -1648,7 +1646,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
 }
 
 internal void
-Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics)
+Section__resolve_fixups(Section *section, Arena *arena, Options *options, Diagnostics *diagnostics)
 {
         for each_node_m(section->fixups.first, fixup)
         {
@@ -1672,7 +1670,7 @@ Section__resolve_fixups(Section *section, Arena *arena, Diagnostics *diagnostics
 
                 if (processable_is)
                 {
-                        Fixup__apply(fixup, section, arena, diagnostics);
+                        Fixup__apply(fixup, section, arena, options, diagnostics);
                 }
         }
 }

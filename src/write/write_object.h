@@ -8,6 +8,7 @@ write_object_file
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
+        Options         *options,
         S32              file_descriptor_out
 );
 

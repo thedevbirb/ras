@@ -97,4 +97,31 @@ Section_Descriptor__lookup(String8 name)
         return result;
 }
 
+typedef struct Options Options;
+struct Options
+{
+        B32 compressed;
+        // Limit the number of registers
+        B32 embedded;
+        B32 position_indipendent_code;
+        B32 relax;
+};
+
+internal U32
+ELF_Header_Flags__from_Options(Options *options)
+{
+        // TODO(low): make this configurable, but in practice this is a rv64i assembler for now.
+        U32 flags = EF_RISCV_FLOAT_ABI_DOUBLE;
+        if (options->compressed)
+        {
+                flags |= EF_RISCV_RVC;
+        }
+        if (options->embedded)
+        {
+                flags |= EF_RISCV_RVE;
+        }
+
+        return flags;
+}
+
 #endif // OBJECT_ELF_UTILS_H

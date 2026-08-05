@@ -156,6 +156,7 @@ RISCV_Instruction__parse
         Diagnostics        *diagnostics,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
+        Options            *options,
         U32                 instruction_hash,
 
         U16                *relocation_out,
@@ -212,7 +213,7 @@ RISCV_Instruction__parse
                         case OPK__GPR:
                         {
                                 String8 text = Token_Cursor__text(cursor);
-                                const Register *reg = Register_List__lookup(RISCV_register_list, text, 0);
+                                const Register *reg = Register_List__lookup(RISCV_register_list, text, options->embedded);
 
                                 U8 register_number = reg ? reg->number : 0;
                                 switch (OP_FIELD(slot))
@@ -508,7 +509,7 @@ RISCV_Instruction__append
 (
         Arena             *arena,
         Section           *section,
-        RISCV_Options     *options,
+        Options     *options,
 
         RISCV_Instruction *instruction,
         Expression        *expression,
@@ -587,7 +588,7 @@ RISCV_macro_build
 (
         Arena       *arena,
         Section     *section,
-        RISCV_Options *options,
+        Options *options,
 
         String8      instruction_name,
         U32          location,
@@ -656,7 +657,7 @@ RISCV_call_expand
 (
         Arena           *arena,
         Section         *section,
-        RISCV_Options   *options,
+        Options   *options,
 
         U8               rd,
         U8               rs1,
@@ -896,7 +897,7 @@ RISCV_instruction_pseudo_append
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        RISCV_Options      *options,
+        Options      *options,
 
         RISCV_Instruction  *instruction,
         Expression         *expression,

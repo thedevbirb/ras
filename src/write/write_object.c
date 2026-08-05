@@ -5,6 +5,7 @@ write_object_file
         Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
+        Options         *options,
         S32              file_descriptor_out
 )
 {
@@ -68,7 +69,7 @@ write_object_file
         Expressions__finalize(expressions, diagnostics);
         for each_node_m(symbols_table->section_first, section)
         {
-                Section__resolve_fixups(section, symbols_table->arena, diagnostics);
+                Section__resolve_fixups(section, symbols_table->arena, options, diagnostics);
         }
 
         // Let's avoid off-by-one errors.
@@ -202,7 +203,7 @@ write_object_file
                 .entry_point_virtual_address       = 0,
                 .program_header_table_file_offset  = 0,
                 .section_header_table_file_offset  = section_header_table_file_offset,
-                .processor_flags                   = EF_RISCV_FLOAT_ABI_DOUBLE, /* Needed for 64-bit */
+                .processor_flags                   = ELF_Header_Flags__from_Options(options),
                 .header_size                       = sizeof(ELF64_Header),
                 .program_header_table_entry_size   = 0,
                 .program_header_table_entry_count  = 0,
@@ -220,10 +221,10 @@ write_object_file
 
         U8 *file_out = mmap_file_output(file_descriptor_out, object_file_size);
         String8 file_out_cursor                    = String8__new(file_out, object_file_size);
-        String8 section_header_table_cursor        = String8__new(file_out + section_header_table_file_offset, sections_header_table_size);
+        String8 section_header_table_cursor        = String8__new(file_out + section_header_table_file_offset,     sections_header_table_size);
         String8 section_header_string_table_cursor = String8__new(file_out + symbol_shstrtab->section->elf.offset, symbol_shstrtab->section->elf.size);
-        String8 string_table_cursor                = String8__new(file_out + symbol_strtab->section->elf.offset, symbol_strtab->section->elf.size);
-        String8 symbols_table_cursor               = String8__new(file_out + symbol_symtab->section->elf.offset, symbol_symtab->section->elf.size);
+        String8 string_table_cursor                = String8__new(file_out + symbol_strtab->section->elf.offset,   symbol_strtab->section->elf.size);
+        String8 symbols_table_cursor               = String8__new(file_out + symbol_symtab->section->elf.offset,   symbol_symtab->section->elf.size);
 
 
         String8__serial_write_m(&file_out_cursor, &elf_header);

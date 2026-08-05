@@ -38,6 +38,7 @@ typedef enum Directive_Kind
         Directive_Kind__Option,
         Directive_Kind__Type,
         Directive_Kind__Size,
+        Directive_Kind__File,
         Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -79,6 +80,7 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Option]          = String8__literal(".option"),
         [Directive_Kind__Type]            = String8__literal(".type"),
         [Directive_Kind__Size]            = String8__literal(".size"),
+        [Directive_Kind__File]            = String8__literal(".file"),
 };
 
 Directive_Kind
@@ -154,7 +156,7 @@ directive_fill
 );
 
 internal void
-directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *options);
+directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *options);
 
 internal void
 directive_size
@@ -163,6 +165,22 @@ directive_size
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
         Expressions     *expressions,
+        Symbols_Table   *symbols_table
+);
+
+internal void
+directive_file
+(
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Symbols_Table   *symbols_table
+);
+
+internal void
+directive_type
+(
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
         Symbols_Table   *symbols_table
 );
 

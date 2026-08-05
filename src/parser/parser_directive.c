@@ -454,7 +454,7 @@ directive_fill
 
 // Reference: s_riscv_option
 internal void
-directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *options)
+directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *options)
 {
         token_next(cursor, diagnostics);
         String8 option_text = Token_Cursor__text(cursor);
@@ -517,4 +517,88 @@ directive_size
         }
 
         return;
+}
+
+internal void
+directive_file
+(
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Symbols_Table   *symbols_table
+)
+{
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind == Token_Kind__String)
+        {
+                String8 text    = Token_Cursor__text(cursor);
+                String8 content = String8__skip_chop(text);
+
+                // We create it manually and explicitly omit it from the table so it can't be searched for.
+                //
+                // TODO(medium): this is a symbol creation which is outside the API and should be monitored, since it's
+                // a delicate process and can be error prone. Ideally these cases should be taken into account in the
+                // symbols table API.
+                String8 *name = Arena__push_struct_m(symbols_table->arena, String8);
+                *name = String8__duplicate_null_terminated(symbols_table->arena, content);
+                Symbol_Ref *symbol = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+                SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
+
+                symbol->name = name;
+                // I don't know precisely why, but that's what GNU as does.
+                symbol->section  = &Section__absolute;
+                symbol->fragment = Section__absolute.fragments.first;
+                symbol->type     = ELF_Symbol_Type__File;
+
+                token_next(cursor, diagnostics);
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("expected string file");
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Token__range(cursor->current);
+        }
+}
+
+internal void
+directive_type
+(
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Symbols_Table   *symbols_table
+)
+{
+        token_next(cursor, diagnostics);
+        String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+
+        // There are various syntaxes: https://www.sourceware.org/binutils/docs/as.html#g_t_002etype
+        // We support `.type <name>,@<type>`, as emitted by GCC
+
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                token_next(cursor, diagnostics);
+                if (cursor->current.kind == Token_Kind__At)
+                {
+                        token_next(cursor, diagnostics);
+                        String8 string_type = Token_Cursor__text(cursor);
+                        U8 type = ELF_Symbol_Type__from_String8(string_type);
+                        symbol->type = type;
+
+                        token_next(cursor, diagnostics);
+                }
+                else
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->location   = cursor->current.location;
+                        diagnostic->message    = String8__literal("`.type <name>,@<type>` syntax expected");
+                }
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->location   = cursor->current.location;
+                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+        }
 }
