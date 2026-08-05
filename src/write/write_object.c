@@ -154,6 +154,13 @@ write_object_file
                         }
 
                         symbols_to_keep += 1;
+
+                        B32 ensure_global = symbol->section == &Section__undefined && symbol != &Symbol_Ref__undefined;
+                        if (ensure_global)
+                        {
+                                symbol->binding = ELF_Symbol_Binding__Global;
+                        }
+
                         if (symbol->binding == ELF_Symbol_Binding__Local)
                         {
                                 symbol->index = symbols_local_to_keep;
@@ -163,12 +170,6 @@ write_object_file
                         {
                                 symbol->index = symbols_global_to_keep;
                                 symbols_global_to_keep += 1;
-                        }
-
-                        B32 ensure_global = symbol->index > 0 && symbol->section == &Section__undefined;
-                        if (ensure_global)
-                        {
-                                symbol->binding = ELF_Symbol_Binding__Global;
                         }
                 }
                 else
@@ -201,7 +202,7 @@ write_object_file
                 .entry_point_virtual_address       = 0,
                 .program_header_table_file_offset  = 0,
                 .section_header_table_file_offset  = section_header_table_file_offset,
-                .processor_flags                   = 0,
+                .processor_flags                   = EF_RISCV_FLOAT_ABI_DOUBLE, /* Needed for 64-bit */
                 .header_size                       = sizeof(ELF64_Header),
                 .program_header_table_entry_size   = 0,
                 .program_header_table_entry_count  = 0,
@@ -210,8 +211,6 @@ write_object_file
                 .section_header_string_table_index = symbols_table->section_last->index
         };
         ELF_identifier_fill(elf_header.identifier);
-
-        // TODO(high): this should be easier to reason about. One way to help is to user String8 cursor.
 
         // --------------------------------------------------------------------
         // Write to file
