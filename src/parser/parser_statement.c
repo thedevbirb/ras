@@ -194,6 +194,10 @@ statement_read
                 {
                         directive_option(cursor, diagnostics, options);
                 } break;
+                case Directive_Kind__Size:
+                {
+                        directive_size(arena, cursor, diagnostics, expressions, symbols_table);
+                } break;
                 case Directive_Kind__Word_Double:
                 {
                         directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8);

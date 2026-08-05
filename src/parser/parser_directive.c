@@ -399,7 +399,7 @@ directive_fill
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Diagnostics *diagnostics,
+        Diagnostics     *diagnostics,
         Expressions     *expressions,
         Symbols_Table   *symbols_table,
 
@@ -452,6 +452,7 @@ directive_fill
         Fragments__fill(&symbols_table->section_current->fragments, location_begin, fill);
 }
 
+// Reference: s_riscv_option
 internal void
 directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *options)
 {
@@ -483,6 +484,37 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *
         }
 
         token_next(cursor, diagnostics);
+
+        return;
+}
+
+internal void
+directive_size
+(
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table
+)
+{
+        token_next(cursor, diagnostics);
+        String8 symbol_name = Token_Cursor__text(cursor);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, symbol_name);
+
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                token_next(cursor, diagnostics);
+                Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                symbol->size_expression = expression;
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->location   = cursor->current.location;
+                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+        }
 
         return;
 }

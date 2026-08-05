@@ -312,7 +312,7 @@ write_object_file
                                 .visibility          = symbol->visibility,
                                 .section_index       = symbol->section->index,
                                 .value               = symbol->value,
-                                .size                = symbol->size
+                                .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0
                         };
                         String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
 
@@ -339,7 +339,7 @@ write_object_file
                                 .visibility          = symbol->visibility,
                                 .section_index       = symbol->section->index,
                                 .value               = symbol->value,
-                                .size                = symbol->size
+                                .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0
                         };
                         String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
 

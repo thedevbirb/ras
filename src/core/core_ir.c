@@ -231,7 +231,8 @@ Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
         for each_node_m(expressions->first, expression)
         {
                 Symbol_Ref symbol_expression = { .expression = expression };
-                Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
+                S64 result = Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
+                expression->integer_value = result;
         }
         return;
 }
@@ -812,12 +813,12 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                         S64 left_value  = left->symbol->value  + left->integer_value;
                                                         S64 right_value = right->symbol->value + right->integer_value;
                                                         result = operation_evaluate(node->kind, left_value, right_value);
+                                                        node->integer_value  = result;
                                                 }
 
                                                 if (constant_folding_allowed)
                                                 {
                                                         node->evaluation     = Expression_Kind__Constant;
-                                                        node->integer_value  = result;
                                                         node->symbol         = 0;
                                                 }
 
@@ -825,7 +826,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 {
                                                         // TODO(medium): needs printf with section info style.
                                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("unsupported binary operator on this expression");
+                                                        diagnostic->message    = String8__literal("expression cannot be fully resolved and finalized");
                                                         diagnostic->location   = node->location;
                                                         diagnostic->ranges[0]  = node->location_range;
                                                 }
@@ -1810,16 +1811,15 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                 } break;
                 case Relax_State__Jump:
                 {
-                        // TODO(medium): not super super clear here if there is no symbol, for example `j 6`.
                         Symbol_Ref *symbol = fragment->relax_info.jump.expression->symbol;
                         if (symbol)
                         {
                                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Traverse);
-                                U8 size = Fragment__jump_instructions_total_size(fragment, section);
-                                fragment->data_variable_size = size;
-                                address += size;
-
                         }
+
+                        U8 size = Fragment__jump_instructions_total_size(fragment, section);
+                        fragment->data_variable_size = size;
+                        address += size;
                 } break;
                 }
         }
@@ -1879,7 +1879,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 
                                                 // TODO(unsure) Prevent this error from being repeated?
                                                 fragment->relax_info.fill_expression = 0;
-                                                expression                  = 0;
+                                                expression = 0;
                                                 // TODO(unsure) I think we can exit already
                                                 error = 1;
                                         }

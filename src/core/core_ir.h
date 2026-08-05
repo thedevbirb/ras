@@ -224,9 +224,11 @@ struct Symbol_Ref
         Fragment         *fragment;
         // The expression which defines its value, if appropriate.
         Expression       *expression;
+        // An expression which defines the size of the symbol.
+        Expression       *size_expression;
         // ELF value for this symbol, which can mean an offset for labels.
         U64 value;
-        U64 size;
+
         Symbol_Flags      flags;
 
         U32 index;
