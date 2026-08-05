@@ -168,7 +168,7 @@ main(int argument_count, char **argument_vector)
                 file_descriptor_out
         );
 
-        printf("written %llu bytes of object file\n", size);
+        fprintf(stderr, "written %llu bytes of object file\n", size);
 
         if (diagnostics->first)
         {
