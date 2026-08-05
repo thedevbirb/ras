@@ -363,8 +363,7 @@ statement_read
                                         diagnostic->message    = String8__literal("invalid section type syntax, expected @type");
                                 }
                                 token_next(cursor, diagnostics);
-                                String8 text    = Token_Cursor__text(cursor);
-                                String8 content = String8__skip_chop(text);
+                                String8 content = Token_Cursor__text(cursor);
                                 ELF_Section_Header_Type type = ELF_Section_Header_Type__from_String8(content);
                                 if (type == ELF_Section_Header_Type__Invalid)
                                 {
