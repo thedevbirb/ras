@@ -1278,7 +1278,7 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section)
                 // For branches, assume worst size and then fix it.
                 size = fragment->relax_info.jump.unconditional_is ? 4 : 8;
                 Symbol_Ref *symbol_target_jump = fragment->relax_info.jump.expression->symbol;
-                B32 symbol_defined_is = symbol_target_jump->section != &Section__undefined;
+                B32 symbol_defined_is = symbol_target_jump && symbol_target_jump->section != &Section__undefined;
                 // TODO(weak)
                 B32 symbol_weak_is = 0;
                 B32 section_same_is = symbol_defined_is && symbol_target_jump->section == section;

@@ -269,11 +269,12 @@ write_object_file
                                 if (!(fixup->flags & Fixup_Flags__Done))
                                 {
                                         U32 index_offset = 0;
-                                        if (fixup->expression && fixup->expression->symbol->binding != ELF_Symbol_Binding__Local)
+                                        Symbol_Ref *fixup_symbol = fixup->expression && fixup->expression->symbol ? fixup->expression->symbol : &Symbol_Ref__undefined;
+                                        if (fixup_symbol->binding != ELF_Symbol_Binding__Local)
                                         {
                                                 index_offset = symbols_local_to_keep;
                                         }
-                                        U32 symbol_index = fixup->expression ? fixup->expression->symbol->index + index_offset : 0;
+                                        U32 symbol_index = fixup_symbol->index + index_offset;
                                         S64 addend       = fixup->expression ? fixup->expression->integer_value : 0;
                                         ELF64_Relocation_Addend relocation =
                                         {
