@@ -3,7 +3,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 {
 // Base I instructions.
 { String8__inline_m("auipc"),  OPC__I, 0, HASH_auipc, MATCH_AUIPC, MASK_AUIPC, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__U)), match_opcode },
-{ String8__inline_m("lui"),    OPC__I, 0, HASH_lui,   MATCH_LUI,  MASK_LUI,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__U)), match_opcode },
+{ String8__inline_m("lui"),    OPC__I, 0, HASH_lui,   MATCH_LUI,   MASK_LUI,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__U)), match_opcode },
 
 // NOTE: important here to go from more specific to less specific.
 { String8__inline_m("jal"),    OPC__I, 0, HASH_jal,  MATCH_JAL,                    MASK_JAL,         OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Offset(OPF_O__Jal)),                                match_opcode },
@@ -175,7 +175,7 @@ RISCV_Instruction__parse
                 for (;;)
                 {
                         U8 slot = (U8)(arguments >> (8 * arguments_index));
-                        if (!slot)
+                        if (!slot || try_next)
                         {
                                 match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
                                 break;
@@ -186,55 +186,23 @@ RISCV_Instruction__parse
                         case OPK__Comma:
                         {
                                 // NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
-                                Token token_before_comma = cursor->previous;
-                                if (cursor->current.kind == Token_Kind__Comma)
-                                {
-                                        token_next(cursor, diagnostics);
-                                }
-                                else
-                                {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->location   = token_before_comma.location + token_before_comma.size;
-                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
-                                }
+                                try_next = cursor->current.kind != Token_Kind__Comma;
+                                token_next(cursor, diagnostics);
                         } break;
                         case OPK__PL:
                         {
-                                if (cursor->current.kind == Token_Kind__Parenthesis_Left)
-                                {
-                                        token_next(cursor, diagnostics);
-                                }
-                                else
-                                {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->location   = cursor->current.location;
-                                        diagnostic->message    = String8__literal("'(' expected");
-                                }
+                                try_next = cursor->current.kind != Token_Kind__Parenthesis_Left;
+                                token_next(cursor, diagnostics);
                         } break;
                         case OPK__PR:
                         {
-                                if (cursor->current.kind == Token_Kind__Parenthesis_Right)
-                                {
-                                        token_next(cursor, diagnostics);
-                                }
-                                else
-                                {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->location   = cursor->current.location;
-                                        diagnostic->message    = String8__literal("')' expected");
-                                }
+                                try_next = cursor->current.kind != Token_Kind__Parenthesis_Right;
+                                token_next(cursor, diagnostics);
                         } break;
                         case OPK__GPR:
                         {
                                 String8 text = Token_Cursor__text(cursor);
                                 const Register *reg = Register_List__lookup(RISCV_register_list, text, 0);
-                                if (!reg)
-                                {
-                                       Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                       diagnostic->location   = cursor->current.location;
-                                       diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Register_Invalid];
-                                       diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                }
 
                                 U8 register_number = reg ? reg->number : 0;
                                 switch (OP_FIELD(slot))
@@ -245,6 +213,8 @@ RISCV_Instruction__parse
                                        case OPF_R__S_1:    { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
                                        default: { unreachable_m(); }
                                 }
+
+                                try_next = !reg;
                                 token_next(cursor, diagnostics);
                         } break;
                         case OPK__Constant:
@@ -255,6 +225,7 @@ RISCV_Instruction__parse
                                 {
                                         expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                                         expression_evaluate(expression);
+
                                         B32 symbol_is   = expression->evaluation == Expression_Kind__Symbol;
                                         B32 constant_is = expression->evaluation == Expression_Kind__Constant;
                                         if (!(symbol_is || constant_is))
@@ -284,6 +255,7 @@ RISCV_Instruction__parse
                                 {
                                         expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                                         expression_evaluate(expression);
+
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {
                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -311,21 +283,12 @@ RISCV_Instruction__parse
                                         // into a known number of instructions (`INSN_MACRO`)
                                         *relocation_out = Relocation_RISC_V__JAL;
                                         expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-
-
-                                        // GNU as silently ignored additional symbols, but since our fixup takes a whole
-                                        // expression, here even `jal label2-label1` is perfectly fine.
-                                        expression_evaluate(expression);
                                 } break;
                                 case OPF_O__Branch:
                                 {
                                         // See notes for `OPF_O__Jal`.
                                         *relocation_out = Relocation_RISC_V__Branch;
                                         expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
-
-
-                                        // NOTE: here GNU as would just consider one operand, here we can consider the whole
-                                        // expression and save it as fixup symbol information.
                                 } break;
                                 case OPF_O__Store:
                                 {
@@ -535,6 +498,7 @@ RISCV_Instruction__append
 (
         Arena             *arena,
         Section           *section,
+        RISCV_Options     *options,
 
         RISCV_Instruction *instruction,
         Expression        *expression,
@@ -559,6 +523,10 @@ RISCV_Instruction__append
                 fixup                  = Arena__push_struct_m(arena, Fixup);
                 fixup->expression      = expression;
                 fixup->relocation_type = relocation;
+                if (options->relax)
+                {
+                        fixup->flags |= Fixup_Flags__Relax;
+                }
                 DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
         }
 
@@ -609,6 +577,7 @@ RISCV_macro_build
 (
         Arena       *arena,
         Section     *section,
+        RISCV_Options *options,
 
         String8      instruction_name,
         U32          location,
@@ -663,6 +632,8 @@ RISCV_macro_build
         (
                 arena,
                 section,
+                options,
+
                 &instruction,
                 expression,
                 relocation
@@ -675,6 +646,7 @@ RISCV_call_expand
 (
         Arena           *arena,
         Section         *section,
+        RISCV_Options   *options,
 
         U8               rd,
         U8               rs1,
@@ -695,6 +667,7 @@ RISCV_call_expand
         (
                 arena,
                 section,
+                options,
 
                 String8__literal("auipc"),
                 location,
@@ -707,7 +680,7 @@ RISCV_call_expand
         (
                 arena,
                 section,
-
+                options,
 
                 String8__literal("jalr"),
                 location,
@@ -913,6 +886,7 @@ RISCV_instruction_pseudo_append
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
+        RISCV_Options      *options,
 
         RISCV_Instruction  *instruction,
         Expression         *expression,
@@ -935,6 +909,7 @@ RISCV_instruction_pseudo_append
                 (
                         symbols_table->arena,
                         section,
+                        options,
                         rd,
                         rs1,
                         expression,
@@ -1003,7 +978,7 @@ RISCV_instruction_pseudo_append
                         (
                                 symbols_table->arena,
                                 section,
-
+                                options,
 
                                 String8__literal("auipc"),
                                 instruction->location,
@@ -1017,7 +992,7 @@ RISCV_instruction_pseudo_append
                         (
                                 symbols_table->arena,
                                 section,
-
+                                options,
 
                                 String8__literal("addi"),
                                 instruction->location,

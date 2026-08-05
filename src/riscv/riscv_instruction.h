@@ -2,6 +2,18 @@
 #define RISCV_INSTRUCTION_H
 
 //------------------------------------------------------------------------------
+// Options
+//------------------------------------------------------------------------------
+
+typedef struct RISCV_Options RISCV_Options;
+struct RISCV_Options
+{
+        B32 compressed;
+        B32 position_indipendent_code;
+        B32 relax;
+};
+
+//------------------------------------------------------------------------------
 // Compile-time configuration
 //------------------------------------------------------------------------------
 
@@ -950,6 +962,7 @@ RISCV_Instruction__append
 (
         Arena             *arena,
         Section           *section,
+        RISCV_Options     *options,
 
         RISCV_Instruction *instruction,
         Expression        *expression,
@@ -961,6 +974,7 @@ RISCV_macro_build
 (
         Arena           *arena,
         Section         *section,
+        RISCV_Options   *options,
 
         String8          instruction_name,
         U32              location,
@@ -976,6 +990,7 @@ RISCV_call_expand
 (
         Arena           *arena,
         Section         *section,
+        RISCV_Options   *options,
 
         U8               rd,
         U8               rs1,
@@ -1000,6 +1015,7 @@ RISCV_instruction_pseudo_append
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
+        RISCV_Options      *options,
 
         RISCV_Instruction  *instruction,
         Expression         *expression,

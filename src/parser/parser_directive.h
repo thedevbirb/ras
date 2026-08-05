@@ -151,4 +151,7 @@ directive_fill
         B32              pattern_can_be_parsed
 );
 
+internal void
+directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *options);
+
 #endif // PARSER_DIRECTIVE_H

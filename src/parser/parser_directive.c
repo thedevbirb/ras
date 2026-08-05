@@ -451,3 +451,38 @@ directive_fill
         }
         Fragments__fill(&symbols_table->section_current->fragments, location_begin, fill);
 }
+
+internal void
+directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, RISCV_Options *options)
+{
+        token_next(cursor, diagnostics);
+        String8 option_text = Token_Cursor__text(cursor);
+
+        if (String8__match_exact(option_text, String8__literal("pic")))
+        {
+                options->position_indipendent_code = 1;
+        }
+        else if (String8__match_exact(option_text, String8__literal("nopic")))
+        {
+                options->position_indipendent_code = 0;
+        }
+        else if (String8__match_exact(option_text, String8__literal("relax")))
+        {
+                options->relax = 1;
+        }
+        else if (String8__match_exact(option_text, String8__literal("norelax")))
+        {
+                options->relax = 0;
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("unknown option");
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Token__range(cursor->current);
+        }
+
+        token_next(cursor, diagnostics);
+
+        return;
+}

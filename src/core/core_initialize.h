@@ -1,6 +1,8 @@
 #ifndef CORE_INITIALIZE_H
 #define CORE_INITIALIZE_H
 
+// TODO(low): these should not exist.
+
 global U8 hex_table[256];
 global U8 hex_table_invalid = 0xFF;
 

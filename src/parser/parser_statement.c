@@ -3,9 +3,10 @@ statement_read
 (
         Arena                   *arena,
         Token_Cursor            *cursor,
-        Diagnostics         *diagnostics,
+        Diagnostics             *diagnostics,
         Expressions             *expressions,
-        Symbols_Table           *symbols_table
+        Symbols_Table           *symbols_table,
+        RISCV_Options           *options
 )
 {
 
@@ -165,6 +166,7 @@ statement_read
                                         symbols_table->section_current,
                                         expressions,
                                         symbols_table,
+                                        options,
                                         &instruction,
                                         expression_parsed,
                                         relocation
@@ -176,6 +178,7 @@ statement_read
                                 (
                                         symbols_table->arena,
                                         symbols_table->section_current,
+                                        options,
                                         &instruction,
                                         expression_parsed,
                                         relocation
@@ -187,6 +190,10 @@ statement_read
                 {
                 case Directive_Kind__None: {} break;
 
+                case Directive_Kind__Option:
+                {
+                        directive_option(cursor, diagnostics, options);
+                } break;
                 case Directive_Kind__Word_Double:
                 {
                         directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8);

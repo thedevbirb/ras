@@ -228,7 +228,7 @@ Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symb
 internal void
 Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
 {
-        for each_node_m(expressions->first->next, expression)
+        for each_node_m(expressions->first, expression)
         {
                 Symbol_Ref symbol_expression = { .expression = expression };
                 Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Finalize);
@@ -901,6 +901,8 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         // Leaf reached. Since constant are eagerly set to such evaluation at parse
                                         // time, this MUST be a symbol.
                                         assert_always_m(node->left == 0);
+                                        // TODO(medium): in case a zero expression is passed to this function, we end up
+                                        // here panicking, which is not good and outside the control of this function.
                                         assert_always_m(node->kind == Expression_Kind__Symbol);
                                         assert_always_m(node->symbol);
                                         Symbol_Ref *symbol_inner = node->symbol;
@@ -1305,7 +1307,7 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section)
 }
 
 //-----------------------------------------------------------------------------
-// Fixup
+// @Fixup
 //-----------------------------------------------------------------------------
 
 internal U8 *
@@ -1621,7 +1623,11 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Diagnostics *diagnost
                 diagnostic->ranges[0]  = expression->location_range;
         }
 
-        if (relaxable && expression && symbol)
+        B32 emit_relax_relocation = relaxable
+                                        && (fixup->flags & Fixup_Flags__Relax)
+                                        && expression
+                                        && symbol;
+        if (emit_relax_relocation)
         {
                 Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
                        fixup_relax->offset              = fixup->offset;

@@ -123,37 +123,40 @@ main(int argument_count, char **argument_vector)
         Diagnostics *diagnostics = Diagnostics__new(Arena__allocate_m());
 
         Token_Cursor cursor = { .source = &source, .source_index = 0 };
+        RISCV_Options options = { .relax = 1 };
+
         statement_read
         (
                 arena,
                 &cursor,
                 diagnostics,
                 &expressions,
-                symbols_table
+                symbols_table,
+                &options
         );
 
         B32 exit_status = 0;
 
-        // if (diagnostics.first)
-        // {
-        //         Diagnostic *current = diagnostics.first;
-        //         for (;;)
-        //         {
-        //                 exit_status |= current->kind == Diagnostic_Kind__Error;
-        //                 diagnostic_print(current, &source, arena);
-        //                 current = current->next;
-        //
-        //                 if (!current)
-        //                 {
-        //                         break;
-        //                 }
-        //         }
-        //
-        //         if (exit_status)
-        //         {
-        //                 exit(1);
-        //         }
-        // }
+        if (diagnostics->first)
+        {
+                Diagnostic *current = diagnostics->first;
+                for (;;)
+                {
+                        exit_status |= current->kind == Diagnostic_Kind__Error;
+                        diagnostic_print(current, &source, arena);
+                        current = current->next;
+
+                        if (!current)
+                        {
+                                break;
+                        }
+                }
+
+                if (exit_status)
+                {
+                        exit(1);
+                }
+        }
 
         // Start of an equivalent of GNU as `write_object_file`.
         U64 size = write_object_file

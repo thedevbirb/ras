@@ -546,13 +546,12 @@ enum
         // further shrinking could be done.
         Fixup_Flags__Done         = 1 << 0,
         Fixup_Flags__PC_Relative  = 1 << 1,
+        // Whether it is possible to emit a RELAX relocation if appropriate
+        Fixup_Flags__Relax        = 1 << 2,
 };
 
 
-// TODO(medium): fixups are currently a bit of lifetime soup between `Fragment` and `Expression`. Since everything has
-// almost static duration, this is not a problem, however it's something to track.
-//
-// Again, it should be in the same arena of the Symbols_Table.
+// A patch for some code that needs to be fixed later, if possible.
 struct Fixup
 {
         // DLL needed to insert `Relocation_RISC_V__Relax` in between.
@@ -569,7 +568,7 @@ struct Fixup
         U16          relocation_type;
         // Size of the patch to be written.
         U8           fragment_write_size;
-        U8           flags;
+        Fixup_Flags  flags;
 };
 
 // Information relative to a `Relocation_RISC_V__PC_Relative_High_20` fixup.
