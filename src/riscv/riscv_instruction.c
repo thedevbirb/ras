@@ -72,9 +72,10 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 
 { String8__inline_m("call"),   OPC__I, INSN_MACRO, HASH_call, (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD), MACRO_CALL, OP_m(OP_Call), 0 },
 
-{ String8__inline_m("li"),     OPC__I, INSN_ALIAS, HASH_li, MATCH_ADDI, MASK_ADDI|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__I)),      match_opcode     },
-{ String8__inline_m("li"),     OPC__I, INSN_MACRO, HASH_li, 0,          MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Large)),   0                },
-{ String8__inline_m("la"),     OPC__I, INSN_MACRO, HASH_la, 0,          MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Address)), match_rd_nonzero },
+{ String8__inline_m("li"),     OPC__I, INSN_ALIAS, HASH_li,  MATCH_ADDI, MASK_ADDI|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Immediate(OPF_I__I)),      match_opcode     },
+{ String8__inline_m("li"),     OPC__I, INSN_MACRO, HASH_li,  0,          MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Large)),   0                },
+{ String8__inline_m("la"),     OPC__I, INSN_MACRO, HASH_la,  0,          MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Address)), match_rd_nonzero },
+{ String8__inline_m("lla"),    OPC__I, INSN_MACRO, HASH_lla, 0,          MACRO_LLA,          OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_Constant(OPF_C__Address)), match_rd_nonzero },
 
 { String8__inline_m("nop"),    OPC__I, INSN_ALIAS, HASH_nop, MATCH_ADDI, MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, OP_m(OP_None), match_opcode },
 
@@ -917,7 +918,8 @@ RISCV_instruction_pseudo_append
                         instruction->location
                 );
         } break;
-        case MACRO_LA:
+        case MACRO_LA:  {} // fallthrough
+        case MACRO_LLA:
         {
                 if (expression->evaluation == Expression_Kind__Constant)
                 {

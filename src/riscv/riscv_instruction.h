@@ -491,6 +491,7 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MACRO_CALL  1
 #define MACRO_LI    2
 #define MACRO_LA    3
+#define MACRO_LLA   4
 
 //------------------------------------------------------------------------------
 // MATCH / MASK constants for each instruction
