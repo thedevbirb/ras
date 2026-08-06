@@ -473,6 +473,18 @@ RISCV_Instruction__parse
                         {
                                 expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
                                 *relocation_out = Relocation_RISC_V__Call_PLT;
+
+                                Token   peek      = token_peek(cursor, diagnostics);
+                                String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
+                                B32 at_plt_suffix = cursor->current.kind == Token_Kind__At
+                                                 && String8__match_exact(peek_text, String8__literal("plt"));
+                                if (at_plt_suffix)
+                                {
+                                        // Skip @
+                                        token_next(cursor, diagnostics);
+                                        // Skip PLT
+                                        token_next(cursor, diagnostics);
+                                }
                         } break;
                         default: { unreachable_m(); }
                         }
