@@ -142,6 +142,14 @@ directive_string
 );
 
 internal void
+directive_section
+(
+        Token_Cursor  *cursor,
+        Diagnostics   *diagnostics,
+        Symbols_Table *symbols_table
+);
+
+internal void
 directive_align
 (
         Arena           *arena,

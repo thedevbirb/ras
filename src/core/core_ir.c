@@ -470,9 +470,11 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         section->fragments = fragments;
 
         Section_Descriptor const *lookup = Section_Descriptor__lookup(*symbol->name);
-        section->special   = lookup != 0;
-        section->elf.type  = lookup ? lookup->type  : ELF_Section_Header_Type__default;
-        section->elf.flags = lookup ? lookup->flags : ELF_Section_Header_Flags__default;
+        section->special       = lookup != 0;
+        section->elf.type      = lookup ? lookup->type  : ELF_Section_Header_Type__default;
+        section->elf.flags     = lookup ? lookup->flags : ELF_Section_Header_Flags__default;
+
+        section->elf.alignment = 1;
 
         symbols_table->sections_count += 1;
 }

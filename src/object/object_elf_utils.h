@@ -29,8 +29,6 @@ struct Section_Descriptor
         U64     flags;
 };
 
-global const Section_Descriptor Section_Descriptor__default = { String8__literal(""), ELF_Section_Header_Type__default, ELF_Section_Header_Flags__default };
-
 // Reference: https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections
 global const Section_Descriptor Section_Descriptor__table[] =
 {
@@ -91,8 +89,6 @@ Section_Descriptor__lookup(String8 name)
                 result = String8__match_exact(current->name, name) ? current : 0;
                 index += 1;
         }
-
-        if (!result) { result = &Section_Descriptor__default; }
 
         return result;
 }

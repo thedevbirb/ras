@@ -81,5 +81,15 @@ internal Token lex_at(const Source *, U32 index_current, Diagnostics *);
 internal Token token_peek(Token_Cursor const *, Diagnostics *);
 internal void  token_next(Token_Cursor *,       Diagnostics *);
 
+// Read raw bytes from the token cursor as the next `Token_Kind__Identifier`, advancing it. The result is available at
+// `Token_Cursor.current`.
+//
+// Rationale: life is made of exceptions. Consider this precise case: `.section .note.GNU-stack`. Clearly, this section
+// name cannot be lexed entirely as `Token_Kind__Identifier`, due to the minus sign. Yet, it is emitted by compilers and
+// accepted by assemblers. The `.section` makes this exception and reads raw bytes unil one belonging to an ending set
+// is found. In other places or directives instead, the usual notion an identifier applies.
+internal void
+Token_Cursor__read_raw_identifier_until(Token_Cursor *cursor, String8 ending_bytes_set, B32 skip_whitespace);
+
 #endif // LEXER_H
 

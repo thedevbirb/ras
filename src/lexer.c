@@ -526,3 +526,68 @@ token_next
         printf("token: %10s   content: %.*s\n", token_string, (int)text.count, text.data);
 #endif
 }
+
+// TODO(medium): perhaps it makes sense to merge part of this logic inside `lex_at`?
+internal void
+Token_Cursor__read_raw_identifier_until(Token_Cursor *cursor, String8 ending_bytes_set, B32 skip_initial_whitespace)
+{
+        B32 ending_found           = 0;
+        B32 skipped_all_whitespace = 0;
+
+        for (;;)
+        {
+                B32 break_should = !skip_initial_whitespace || skipped_all_whitespace || cursor->source_index >= cursor->source->count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                U8 byte = cursor->source->data[cursor->source_index];
+                skipped_all_whitespace = byte != ' ' && byte != '\t';
+                cursor->source_index += (U32)!skipped_all_whitespace;
+        }
+
+        U32 start_index = cursor->source_index;
+        for (;;)
+        {
+                ending_found |= cursor->source_index >= cursor->source->count;
+                if (!ending_found)
+                {
+                        // Read one byte from the source and compare it with the ending set.
+                        U8 byte = cursor->source->data[cursor->source_index];
+                        U64 index = 0;
+                        for (;;)
+                        {
+                                B32 break_should = ending_found || index >= ending_bytes_set.count;
+                                if (break_should)
+                                {
+                                        break;
+                                }
+
+                                ending_found |= byte == ending_bytes_set.data[index];
+                                index += 1;
+                        }
+                }
+
+                if (ending_found)
+                {
+                        break;
+                }
+
+                cursor->source_index += 1;
+        }
+
+        assert_always_m(start_index <= cursor->source_index);
+
+        Token result_token =
+        {
+                .index    = start_index,
+                .location = cursor->source->start_offset_logical + start_index,
+                .size     = cursor->source_index - start_index,
+                .kind     = Token_Kind__Identifier
+        };
+        cursor->previous = cursor->current;
+        cursor->current  = result_token;
+
+        return;
+}
