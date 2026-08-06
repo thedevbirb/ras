@@ -3573,7 +3573,9 @@ typedef struct
 // #define R_TILEGX_GNU_VTENTRY        129        /* GNU C++ vtable member usage */
 //
 // #define R_TILEGX_NUM                130
-//
+
+typedef U32 ELF_Header_Flags;
+
 // /* RISC-V ELF Flags */
 #define EF_RISCV_RVC                0x0001
 #define EF_RISCV_FLOAT_ABI          0x0006

@@ -28,11 +28,11 @@ struct RISCV_Attribute
         U8   *value_s;
 };
 
-typedef struct RISCV_Attributes
+typedef struct RISCV_Attributes RISCV_Attributes;
 struct RISCV_Attributes
 {
         U64 count;
-        RISCV_Attributes data[RISCV_Tag__COUNT];
+        RISCV_Attribute data[RISCV_Tag__COUNT];
 };
 
 #endif // RISCV_ATTRIBUTES_H

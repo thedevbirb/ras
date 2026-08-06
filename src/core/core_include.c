@@ -1,4 +1,5 @@
 #include "core_initialize.c"
+#include "core_options.c"
 #include "core_utils.c"
 #include "core_token.c"
 #include "core_diagnostic.c"
