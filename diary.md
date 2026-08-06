@@ -1580,3 +1580,56 @@ with a combination of methods:
   whether it creates a well known library/binary which passes a test suite.
 - Some limited selection of golden asm files from GNU as, plus a function which determines whether
   two object files are sementically equivalent (which isn't super trivial though).
+
+---
+
+Perhaps one thing I could try to do is ensuring an hello world example works successfully. It
+requires a non-trivial amount of directives that I don't support yet, but let's see.
+
+### Wed Aug  5 10:07:35 CEST 2026
+
+I see that GNU as assigns flags to user-created section matching some patterns. E.g. `.text.*`
+sections inherit the `AX` flags, similar for `.data.*`, `.rodata.*`, `.bss.*`. Not super clear what
+are all the sections that inherit this. Also, from the object file I see that `.text.*` doesn't
+inherit the alignment of `.text`, but it's set to 1.
+
+---
+
+It almost says "hello world" completely in a GCC toolchain. I'm excited.
+
+### Thu Aug  6 09:08:42 CEST 2026
+
+There are some parts I want to improve in terms of ergonomics:
+
+1. Diagnostic creation: now that I have the core of the assembler done, I know what usage pattern do
+   I have, e.g. highlight the current token, or the current expression, expect a comma etc. I can
+   start creating a easier to use API and reduce a bit the lines of code. Diagnostics should still
+   be fairly straightforward to create raw.
+   Another area I wanted to improve for a while is the following: it might be that an invalid token
+   leads to possibly many bad diagnostics in the same line, which is confusing to read. One solution
+   for this could be adding simple "states" to the `Diagnostics` engine. For example, when starting
+   to read a statement it can be configured to emit _at most_ one error diagnostics until this
+   setting is removed. The API remanins the same, however when you push the second diagnostic
+   you get back a pointer to a global "garbage" diagnostics that is never saved in the linked
+   list. It is essentially a no-op, without requiring major code changes.
+2. Cursor handling and advancing. I don't like the constant `if`-`else` dance between `token_next`
+   and diagnostic emission, at least visibly. Most often the pattern is: if the current token
+   matches an expected kind, advance, otherwise emit diagnostics. While emitting diagnostics should be checked with a
+   branch statement, I think I can simplify the former by introducing some helpers like
+   `token_next_if_kind` or `token_next_if`.
+
+---
+
+It finally says "Hi":
+
+```sh
+# On a RV64 Linux machine
+
+# Strip .cfi directives and similar
+gcc -march=rv64id -mabi=lp64d -O0 -S -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident
+main.c
+ras main.s -o main.o
+gcc -march-rv64id -mabi=lp64d main.o -o main
+./main
+hello from the ras assembler!
+```
