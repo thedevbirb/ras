@@ -421,6 +421,27 @@ directive_section
 }
 
 internal void
+directive_section_current
+(
+        Token_Cursor  *cursor,
+        Diagnostics   *diagnostics,
+        Symbols_Table *symbols_table,
+        Directive_Kind directive_kind
+)
+{
+        String8 section_name = Directive_Kind__String8_table[directive_kind];
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name);
+        if (symbol->section == &Section__undefined)
+        {
+                Symbols_Table__create_section(symbols_table, symbol);
+        }
+
+        symbols_table->section_current = symbol->section;
+
+        token_next(cursor, diagnostics);
+}
+
+internal void
 directive_align
 (
         Arena           *arena,

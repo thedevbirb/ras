@@ -150,6 +150,15 @@ directive_section
 );
 
 internal void
+directive_section_current
+(
+        Token_Cursor  *cursor,
+        Diagnostics   *diagnostics,
+        Symbols_Table *symbols_table,
+        Directive_Kind directive_kind
+);
+
+internal void
 directive_align
 (
         Arena           *arena,

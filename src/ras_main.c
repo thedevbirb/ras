@@ -208,15 +208,7 @@ main(S32 argument_count, char **argument_vector)
 
         Token_Cursor cursor = { .source = &source, .source_index = 0 };
 
-        statement_read
-        (
-                arena,
-                &cursor,
-                diagnostics,
-                &expressions,
-                symbols_table,
-                &options
-        );
+        statements_read(arena, &cursor, diagnostics, &expressions, symbols_table, &options);
 
         B32 exit_status = 0;
 
@@ -232,16 +224,7 @@ main(S32 argument_count, char **argument_vector)
                 }
         }
 
-        // Start of an equivalent of GNU as `write_object_file`.
-        U64 size = write_object_file
-        (
-                arena,
-                diagnostics,
-                &expressions,
-                symbols_table,
-                &options,
-                file_descriptor_out
-        );
+        U64 size = write_object_file(arena, diagnostics, &expressions, symbols_table, &options, file_descriptor_out);
 
         fprintf(stderr, "written %llu bytes of object file\n", size);
 

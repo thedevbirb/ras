@@ -76,7 +76,6 @@ Section_Descriptor__lookup(String8 name)
 {
         U8 index = 0;
         Section_Descriptor const *result = 0;
-        Section_Descriptor const *current = 0;
         for (;;)
         {
                 B32 break_should = result || index >= array_count_m(Section_Descriptor__table);
@@ -85,7 +84,7 @@ Section_Descriptor__lookup(String8 name)
                         break;
                 }
 
-                current = &Section_Descriptor__table[index];
+                Section_Descriptor const *current = &Section_Descriptor__table[index];
                 result = String8__match_exact(current->name, name) ? current : 0;
                 index += 1;
         }

@@ -1,11 +1,11 @@
 internal void
-statement_read
+statements_read
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostics             *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
+        Arena             *arena,
+        Token_Cursor      *cursor,
+        Diagnostics       *diagnostics,
+        Expressions       *expressions,
+        Symbols_Table     *symbols_table,
         Options           *options
 )
 {
@@ -206,43 +206,23 @@ statement_read
                 case Directive_Kind__Asciz:  { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
                 case Directive_Kind__Ascii:  { directive_string(cursor, diagnostics, symbols_table->section_current, 0); } break;
 
-                case Directive_Kind__Text:    {} // fallthrough
-                case Directive_Kind__Data:    {} // fallthrough
-                case Directive_Kind__BSS:
-                {
-                        String8 section_name = Directive_Kind__String8_table[directive_kind];
-                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name);
-                        if (symbol->section == &Section__undefined)
-                        {
-                                Symbols_Table__create_section(symbols_table, symbol);
-                        }
+                case Directive_Kind__Text: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
+                case Directive_Kind__Data: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
+                case Directive_Kind__BSS:  { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
 
-                        symbols_table->section_current = symbol->section;
-
-                        token_next(cursor, diagnostics);
-                        break;
-                }
                 case Directive_Kind__Section: { directive_section(cursor, diagnostics, symbols_table); } break;
-                case Directive_Kind__Local:
-                {
-                        binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);
-                } break;
-                // case Directive_Kind__Weak:
-                // {
-                //         binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);
-                // } break;
-                case Directive_Kind__Globl: {} // fallthrough
-                case Directive_Kind__Global:
-                {
-                        binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global);
-                } break;
+
+                case Directive_Kind__Local:   { binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local); } break;
+                // case Directive_Kind__Weak: { binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak); } break;
+                case Directive_Kind__Globl:   { binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
+                case Directive_Kind__Global:  { binding_set(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
+
                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                 case Directive_Kind__Set: {} // fallthrough
                 case Directive_Kind__Equality:
                 {
                         Set_Mode mode = Set_Mode__Override;
-                        directive_set_like
-                        (
+                        directive_set_like (
                                 arena,
                                 cursor,
                                 diagnostics,
