@@ -509,8 +509,8 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RIS
         // };
         U8  tag_size = 1;
         U32 sub_sub_section_file_data_size = tag_size + (attributes->architecture.count + 1)
-                                           + (attributes->stack_alignment  ? tag_size + U32_ULEB128_encoding_size : 0)
-                                           + (attributes->unaligned_access ? tag_size + U32_ULEB128_encoding_size : 0);
+                                           + (attributes->stack_alignment  ? tag_size + ULEB128__encoded_size(attributes->stack_alignment)  : 0)
+                                           + (attributes->unaligned_access ? tag_size + ULEB128__encoded_size(attributes->unaligned_access) : 0);
 
         U32 sub_sub_section_file_size = tag_size + sizeof(U32) + sub_sub_section_file_data_size;
 
@@ -539,7 +539,17 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RIS
         // Sub-sub section contents
         U8 tag_file = 1;
         String8__serial_write_m(&data_cursor, &tag_file);
-        String8__serial_write_m(&data_cursor, &sub_sub_section_file_data_size);
+        String8__serial_write_m(&data_cursor, &sub_sub_section_file_size);
+
+        if (attributes->stack_alignment)
+        {
+                U8 tag_stack_alignment = RISCV_Tag__Stack_Alignment;
+                U8 encoding[U32_ULEB128_encoding_size_max] = {0};
+                U8 encoding_size = ULEB128__from_U32(attributes->stack_alignment, encoding);
+
+                String8__serial_write_m(&data_cursor, &tag_stack_alignment);
+                String8__serial_write(&data_cursor, encoding, encoding_size);
+        }
 
         U8 tag_architecture = RISCV_Tag__Architecture;
         String8__serial_write_m(&data_cursor, &tag_architecture);
@@ -547,23 +557,14 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RIS
         U8 null_termination = 0;
         String8__serial_write_m(&data_cursor, &null_termination);
 
-        if (attributes->stack_alignment)
-        {
-                U8 tag_stack_alignment = RISCV_Tag__Stack_Alignment;
-                U8 encoding[8] = {0};
-                ULEB128__from_U32(attributes->stack_alignment, encoding);
-
-                String8__serial_write_m(&data_cursor, &tag_stack_alignment);
-                String8__serial_write(&data_cursor, encoding, sizeof(encoding));
-        }
         if (attributes->unaligned_access)
         {
                 U8 tag_unaligned_access = RISCV_Tag__Unaligned_Access;
-                U8 encoding[8] = {0};
-                ULEB128__from_U32(attributes->unaligned_access, encoding);
+                U8 encoding[U32_ULEB128_encoding_size_max] = {0};
+                U8 encoding_size = ULEB128__from_U32(attributes->unaligned_access, encoding);
 
                 String8__serial_write_m(&data_cursor, &tag_unaligned_access);
-                String8__serial_write(&data_cursor, encoding, sizeof(encoding));
+                String8__serial_write(&data_cursor, encoding, encoding_size);
         }
         assert_always_m(data_cursor.count == 0 && "internal logic bug while filling riscv.attributes");
 

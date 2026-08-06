@@ -835,7 +835,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                         {
                                                 if (token.numerical_value == 0 || token.numerical_value == 1)
                                                 {
-                                                        options->attributes.stack_alignment = token.numerical_value;
+                                                        options->attributes.unaligned_access = token.numerical_value;
                                                 }
                                                 else
                                                 {

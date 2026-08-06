@@ -1,12 +1,46 @@
 // TODO(refactor): this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
-// Very dumb, but that's it.
-internal void
-ULEB128__from_U32(U32 source, U8 buffer[U32_ULEB128_encoding_size])
+// Number of bytes needed to encode `source` as ULEB128 ([1..5] for a U32).
+internal U8
+ULEB128__encoded_size(U32 source)
 {
-        U64 result = source;
-        memory_copy(buffer, (U8 *)&result, U32_ULEB128_encoding_size);
-        return;
+        U8 size = 1;
+        for (;;)
+        {
+                source >>= 7;
+                if (source == 0)
+                {
+                        break;
+                }
+                size += 1;
+        }
+        return size;
+}
+
+// Encode `source` as ULEB128 into `buffer`, returning the number of bytes written.
+internal U8
+ULEB128__from_U32(U32 source, U8 buffer[U32_ULEB128_encoding_size_max])
+{
+        U8 size = ULEB128__encoded_size(source);
+        U8 index = 0;
+        for (;;)
+        {
+                U8 byte = source & 0x7F;
+                source >>= 7;
+                if (source)
+                {
+                        byte |= 0x80;
+                }
+
+                buffer[index] = byte;
+                index += 1;
+
+                if (source == 0)
+                {
+                        break;
+                }
+        }
+        return size;
 }
 
 // GNU as supports these escape sequences inside string literals:

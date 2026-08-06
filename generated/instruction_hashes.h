@@ -49,6 +49,7 @@
 #define HASH_addw      0x3DD75AB9
 #define HASH_subw      0x31245546
 #define HASH_sllw      0x5D97681F
+#define HASH_sltw      0x6DD21877
 #define HASH_srlw      0x36ED0B39
 #define HASH_sraw      0x36D2C7BC
 #define HASH_ecall     0x96A39180
@@ -83,6 +84,7 @@
 #define HASH_jr        0x5F3F659D
 #define HASH_li        0x4031BD46
 #define HASH_la        0x4831C9DE
+#define HASH_lla       0x31598A0C
 #define HASH_csrrw     0xCE5C9C8C
 #define HASH_csrrs     0xCA5C9640
 #define HASH_csrrc     0xDA5CAF70
