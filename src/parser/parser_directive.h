@@ -132,6 +132,16 @@ directive_data
 );
 
 internal void
+directive_string
+(
+        Token_Cursor *cursor,
+        Diagnostics  *diagnostics,
+        Section      *section,
+
+        B32 null_terminated
+);
+
+internal void
 directive_align
 (
         Arena           *arena,

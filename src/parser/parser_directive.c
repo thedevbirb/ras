@@ -266,6 +266,36 @@ directive_data
 }
 
 internal void
+directive_string
+(
+        Token_Cursor *cursor,
+        Diagnostics  *diagnostics,
+        Section      *section,
+
+        B32 null_terminated
+)
+{
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind != Token_Kind__String)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->location = cursor->current.location;
+                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+        }
+
+        // Can be of the form "\nhello\n", so with quotes and optional escaped characters.
+        String8 text     = Token_Cursor__text(cursor);
+        String8 content  = String8__skip_chop(text);
+        U64 size         = content.count;
+        U64 size_escaped = String8__escaped_size(content) + !!null_terminated;
+
+        U8 *data = Fragments__push(&section->fragments, cursor->current.location, size_escaped);
+        bytes_escaped_fill(content, data, size);
+
+        token_next(cursor, diagnostics);
+}
+
+internal void
 directive_align
 (
         Arena           *arena,

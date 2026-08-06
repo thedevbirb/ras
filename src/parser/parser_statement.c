@@ -20,7 +20,6 @@ statement_read
         {
                 Directive_Kind directive_kind         = 0;
                 U32            instruction_hash       = 0;
-                B32            null_terminated_string = 0;
                 B32            empty_line             = 0;
                 B32            label_found            = 0;
 
@@ -203,28 +202,10 @@ statement_read
                 case Directive_Kind__Word_Half:   { directive_data(arena, cursor, diagnostics, expressions, symbols_table, 2); } break;
                 case Directive_Kind__Byte:        { directive_data(arena, cursor, diagnostics, expressions, symbols_table, 1); } break;
 
-                case Directive_Kind__String: {} // fallthrough
-                case Directive_Kind__Asciz:  { null_terminated_string = 1; } // fallthrough
-                case Directive_Kind__Ascii:
-                {
-                        token_next(cursor, diagnostics);
-                        if (cursor->current.kind != Token_Kind__String)
-                        {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->location = cursor->current.location;
-                                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
-                        }
+                case Directive_Kind__String: { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
+                case Directive_Kind__Asciz:  { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
+                case Directive_Kind__Ascii:  { directive_string(cursor, diagnostics, symbols_table->section_current, 0); } break;
 
-                        // Can be of the form "\nhello\n", so with quotes and optional escaped characters.
-                        String8 text     = Token_Cursor__text(cursor);
-                        String8 content  = String8__skip_chop(text);
-                        U32 size_escaped = String8__escaped_size(content) + !!null_terminated_string;
-
-                        U8 *data = Fragments__push(&symbols_table->section_current->fragments, cursor->current.location, size_escaped);
-                        bytes_escaped_fill(text, data, size_escaped);
-
-                        token_next(cursor, diagnostics);
-                } break;
                 case Directive_Kind__Text:    {} // fallthrough
                 case Directive_Kind__Data:    {} // fallthrough
                 case Directive_Kind__BSS:
