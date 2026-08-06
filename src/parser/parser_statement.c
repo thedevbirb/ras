@@ -190,7 +190,7 @@ statement_read
                 {
                 case Directive_Kind__None: {} break;
 
-                case Directive_Kind__Attribute: { directive_ignored(cursor, diagnostics); } break;
+                case Directive_Kind__Attribute: { directive_attribute(cursor, diagnostics, arena, options, symbols_table->section_first); } break;
 
                 case Directive_Kind__Option: { directive_option(cursor, diagnostics, options);                         } break;
                 case Directive_Kind__File:   { directive_file(cursor, diagnostics, symbols_table);                     } break;

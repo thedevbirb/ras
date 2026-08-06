@@ -318,7 +318,7 @@ internal void
 Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol);
 
 internal Symbol_Ref *
-Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table);
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes);
 
 internal Symbol_Ref *
 Symbols_Table__get(Symbols_Table *symbols_table, String8 name);

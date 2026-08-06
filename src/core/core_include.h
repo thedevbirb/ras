@@ -6,6 +6,7 @@
 // While there aren't strict dependencies on RISCV-related logic, there is some dependency on ELF contents.
 
 #include "core_initialize.h"
+#include "core_utils.h"
 #include "core_options.h"
 #include "core_token.h"
 #include "core_source.h"

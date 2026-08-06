@@ -9,7 +9,7 @@ write_object_file
         S32              file_descriptor_out
 )
 {
-        Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table);
+        Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table, &options->attributes);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_riscv_attributes->section);
 
         for each_node_m(symbols_table->section_first, section)

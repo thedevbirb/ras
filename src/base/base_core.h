@@ -141,7 +141,6 @@ internal B32 U8__ascii_lower_is(U8 character)  { B32 result = character >= 'a' &
 internal B32 U8__ascii_upper_is(U8 character)  { B32 result = character >= 'A' && character <= 'Z'; return result; }
 internal B32 U8__ascii_letter_is(U8 character) { B32 result = U8__ascii_lower_is(character) || U8__ascii_upper_is(character); return result; }
 
-
 // Safe casts
 
 internal  U8  U8_cast_safe(U16 x);

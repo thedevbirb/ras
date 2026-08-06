@@ -1,5 +1,14 @@
 // TODO(refactor): this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
+// Very dumb, but that's it.
+internal void
+ULEB128__from_U32(U32 source, U8 buffer[U32_ULEB128_encoding_size])
+{
+        U64 result = source;
+        memory_copy(buffer, (U8 *)&result, U32_ULEB128_encoding_size);
+        return;
+}
+
 // GNU as supports these escape sequences inside string literals:
 // - \\ — backslash
 // - \" — double quote

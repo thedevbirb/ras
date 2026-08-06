@@ -480,25 +480,47 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 }
 
 internal Symbol_Ref *
-Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes)
 {
-        // TODO(low): hardcoded at the moment, will be configurable later.
-        U8 data[] =
-        {
-                // format-version 'A'
-                'A',
-                // subsection length = 25
-                0x19, 0x00, 0x00, 0x00,
-                'r', 'i', 's', 'c', 'v', 0x00,
-                // Tag_File
-                0x01,
-                // file_tag_data_length = 15
-                0x0F, 0x00, 0x00, 0x00,
-                // Tag_RISCV_arch = 5
-                0x05,
-                // "rv64i2p1\0"
-                'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
-        };
+        // According to the specification, small tags can be written as just a byte:
+        // https://riscv-non-isa.github.io/riscv-elf-psabi-doc/#_attributes
+        //
+        // Previous hardcoded example, still helpful to read.
+        // U8 data[] =
+        // {
+        //         // format-version 'A'
+        //         'A',
+        //
+        //         // The mandatory "riscv" sub-section
+        //         // subsection length = 25
+        //         0x19, 0x00, 0x00, 0x00,
+        //         'r', 'i', 's', 'c', 'v', 0x00,
+        //
+        //         //  sub-sub-section contents
+        //
+        //         // Tag File, relates to the whole object file
+        //         0x01,
+        //         // file_tag_data_length = 15
+        //         0x0F, 0x00, 0x00, 0x00,
+        //         // Tag_RISCV_arch = 5
+        //         0x05,
+        //         // "rv64i2p1\0"
+        //         'r', 'v', '6', '4', 'i', '2', 'p', '1', 0x00,
+        // };
+        U8  tag_size = 1;
+        U32 sub_sub_section_file_data_size = tag_size + (attributes->architecture.count + 1)
+                                           + (attributes->stack_alignment  ? tag_size + U32_ULEB128_encoding_size : 0)
+                                           + (attributes->unaligned_access ? tag_size + U32_ULEB128_encoding_size : 0);
+
+        U32 sub_sub_section_file_size = tag_size + sizeof(U32) + sub_sub_section_file_data_size;
+
+        const char riscv_cstring[] = "riscv";
+        U32 sub_section_riscv_size = sizeof(U32)
+                                   + sizeof(riscv_cstring)
+                                   + sub_sub_section_file_size;
+
+        U8 format_version = 'A';
+        U32 total_size = sizeof(format_version) + sub_section_riscv_size;
 
         String8 name = String8__literal(".riscv.attributes");
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
@@ -506,8 +528,44 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table)
         symbol->section->elf.alignment = 1;
 
         U32 location = 0;
-        U8 *destination = Fragments__push(&symbol->section->fragments, location, sizeof(data));
-        memory_copy(destination, data, sizeof(data));
+        U8 *data = Fragments__push(&symbol->section->fragments, location, total_size);
+
+        String8 data_cursor = String8__new(data, total_size);
+
+        String8__serial_write_m(&data_cursor, &format_version);
+        String8__serial_write_m(&data_cursor, &sub_section_riscv_size);
+        String8__serial_write(&data_cursor, (U8 *)riscv_cstring, sizeof(riscv_cstring));
+
+        // Sub-sub section contents
+        U8 tag_file = 1;
+        String8__serial_write_m(&data_cursor, &tag_file);
+        String8__serial_write_m(&data_cursor, &sub_sub_section_file_data_size);
+
+        U8 tag_architecture = RISCV_Tag__Architecture;
+        String8__serial_write_m(&data_cursor, &tag_architecture);
+        String8__serial_write(&data_cursor, attributes->architecture.data, attributes->architecture.count);
+        U8 null_termination = 0;
+        String8__serial_write_m(&data_cursor, &null_termination);
+
+        if (attributes->stack_alignment)
+        {
+                U8 tag_stack_alignment = RISCV_Tag__Stack_Alignment;
+                U8 encoding[8] = {0};
+                ULEB128__from_U32(attributes->stack_alignment, encoding);
+
+                String8__serial_write_m(&data_cursor, &tag_stack_alignment);
+                String8__serial_write(&data_cursor, encoding, sizeof(encoding));
+        }
+        if (attributes->unaligned_access)
+        {
+                U8 tag_unaligned_access = RISCV_Tag__Unaligned_Access;
+                U8 encoding[8] = {0};
+                ULEB128__from_U32(attributes->unaligned_access, encoding);
+
+                String8__serial_write_m(&data_cursor, &tag_unaligned_access);
+                String8__serial_write(&data_cursor, encoding, sizeof(encoding));
+        }
+        assert_always_m(data_cursor.count == 0 && "internal logic bug while filling riscv.attributes");
 
         return symbol;
 }

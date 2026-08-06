@@ -759,6 +759,115 @@ directive_type
 }
 
 internal void
+directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, Options *options, Section *section_first)
+{
+        token_next(cursor, diagnostics);
+
+        String8 text  = Token_Cursor__text(cursor);
+        RISCV_Tag tag = RISCV_Tag__find(text);
+
+        if (tag == RISCV_Tag__None)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("unknown attribute");
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Token__range(cursor->current);
+        }
+        else
+        {
+                switch (tag)
+                {
+                default: {} break;
+                case RISCV_Tag__Architecture:
+                {
+                        B32 assembly_started = 0;
+                        Section *section = section_first;
+                        for (;;)
+                        {
+                                if (assembly_started || !section)
+                                {
+                                        break;
+                                }
+
+                                assembly_started = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR
+                                                && section->fragments.first != &Fragment__nil;
+
+                                section = section->next;
+                        }
+
+                        if (assembly_started)
+                        {
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = String8__literal("cannot set this attribute after assembly started");
+                                diagnostic->location   = cursor->current.location;
+                                diagnostic->ranges[0]  = Token__range(cursor->current);
+                        }
+
+
+                } break;
+                }
+
+                token_next(cursor, diagnostics);
+                if (cursor->current.kind == Token_Kind__Comma)
+                {
+                        token_next(cursor, diagnostics);
+                        Token_Kind token_expected = RISCV_Tag__is_ntbs(tag) ? Token_Kind__String : Token_Kind__Number;
+                        Token token = cursor->current;
+
+                        String8 value_text    = Token_Cursor__text(cursor);
+                        String8 value_content = String8__skip_chop(value_text);
+
+                        if (token.kind == token_expected)
+                        {
+                                switch (tag)
+                                {
+                                        // TODO(architecture, medium): should be validated.
+                                        case RISCV_Tag__Architecture:
+                                        {
+                                                String8 duplicate = String8__duplicate(arena, value_content);
+                                                options->attributes.architecture = duplicate;
+                                        } break;
+                                        case RISCV_Tag__Stack_Alignment:
+                                        {
+                                                options->attributes.stack_alignment = token.numerical_value;
+                                        } break;
+                                        case RISCV_Tag__Unaligned_Access:
+                                        {
+                                                if (token.numerical_value == 0 || token.numerical_value == 1)
+                                                {
+                                                        options->attributes.stack_alignment = token.numerical_value;
+                                                }
+                                                else
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                        diagnostic->message    = String8__literal("invalid value for attributes, must be either 0 or 1");
+                                                        diagnostic->location   = cursor->current.location;
+                                                        diagnostic->ranges[0]  = Token__range(cursor->current);
+                                                }
+                                        } break;
+                                }
+
+                                token_next(cursor, diagnostics);
+                        }
+                        else
+                        {
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = String8__literal("expected number or string, depending on attribute");
+                                diagnostic->location   = cursor->current.location;
+                                diagnostic->ranges[0]  = Token__range(cursor->current);
+                        }
+                }
+                else
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->message    = String8__literal("comma expected");
+                        diagnostic->location   = cursor->current.location;
+                }
+
+        }
+}
+
+internal void
 directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics)
 {
         Token_Cursor backup = *cursor;
