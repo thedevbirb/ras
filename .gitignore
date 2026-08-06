@@ -1,4 +1,5 @@
 build/
+compile_commands.json
 plan/
 
 *.pdf
@@ -14,5 +15,8 @@ core
 
 !README.md
 !diary.md
+
+tests/
+fuzz/
 
 .idea
