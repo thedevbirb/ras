@@ -1,21 +1,21 @@
 internal B32
 LE_U8_identifier_start_is(U8 character)
 {
-        B32 result = U8_ascii_letter_is(character) || character == '_' || character == '.';
+        B32 result = U8__ascii_letter_is(character) || character == '_' || character == '.';
         return result;
 }
 
 internal B32
 LE_U8_identifier_is(U8 character)
 {
-        B32 result = U8_ascii_letter_is(character) || character == '_' || character == '.' || U8_ascii_digit_is(character);
+        B32 result = U8__ascii_letter_is(character) || character == '_' || character == '.' || U8__ascii_digit_is(character);
         return result;
 }
 
 internal B32
 LE_U8_number_character_is(U8 character)
 {
-        B32 result = U8_ascii_digit_is(character);
+        B32 result = U8__ascii_digit_is(character);
         return result;
 }
 
@@ -364,7 +364,7 @@ lex_at
                                 }
                         }
                         // TODO: support float (hex float?)
-                        else if (U8_ascii_digit_is(data[index]))
+                        else if (U8__ascii_digit_is(data[index]))
                         {
                                 U8 digit = data[index];
                                 U8 next  = data[index + 1];
@@ -417,7 +417,7 @@ lex_at
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
                                 }
-                                else if (digit == '0' && U8_ascii_digit_is(next))
+                                else if (digit == '0' && U8__ascii_digit_is(next))
                                 {
                                         // Octal
                                         index += 1;

@@ -1,5 +1,46 @@
 // TODO(refactor): this is a bin of standalone utils I don't know where to put. I don't like utils files in general.
 
+// GNU as supports these escape sequences inside string literals:
+// - \\ — backslash
+// - \" — double quote
+// - \n — newline (0x0A)
+// - \t — tab (0x09)
+// - \r — carriage return (0x0D)
+// - \0 — null (0x00)
+// - \a — bell (0x07)
+// - \b — backspace (0x08)
+// - \f — form feed (0x0C)
+// - \NNN — octal value (1–3 octal digits)
+// - \xNN — hex value (1–2 hex digits)
+//
+
+internal B32
+U8_ascii_escape_sequence_start_is(U8 character)
+{
+	B32 result =
+		character == '\\' ||
+		character == '"'  ||
+		character == 'n'  ||
+		character == 't'  ||
+		character == 'r'  ||
+		character == '0'  ||
+		character == 'a'  ||
+		character == 'b'  ||
+		character == 'f'  ||
+		character == 'N'  ||
+		character == 'x';
+	return result;
+}
+
+internal B32
+U8_ascii_digit_is(U8 character)
+{
+	B32 ascii_digit_is = character >= '0' && character <= '9';
+	return ascii_digit_is;
+}
+
+
+
 // Panics on failure. Overallocates by 8 bytes to allow not checking always bounds.
 internal U8 *
 mmap_file(S32 file_descriptor, U64 file_in_size)

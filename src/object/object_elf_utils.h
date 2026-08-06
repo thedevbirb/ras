@@ -93,6 +93,8 @@ Section_Descriptor__lookup(String8 name)
         return result;
 }
 
+// TODO(medium): this shouldn't live here, probably close to main.
+// It's natural spot will probably be found with usage
 typedef struct Options Options;
 struct Options
 {
@@ -101,7 +103,29 @@ struct Options
         B32 embedded;
         B32 position_indipendent_code;
         B32 relax;
+
+        String8 input_file;
+        String8 output_file;
+
+        String8 machine_abi;
+        String8 machine_architecture;
+
+        U32 elf_header_flags;
 };
+
+internal Options
+Options__default(void)
+{
+        Options result =
+        {
+                .relax = 1,
+                .machine_abi = String8__literal("lp64d"),
+                .machine_architecture = String8__literal("rv64i"),
+                .elf_header_flags = EF_RISCV_FLOAT_ABI_DOUBLE,
+        };
+
+        return result;
+}
 
 internal U32
 ELF_Header_Flags__from_Options(Options *options)

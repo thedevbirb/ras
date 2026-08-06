@@ -203,7 +203,7 @@ write_object_file
                 .entry_point_virtual_address       = 0,
                 .program_header_table_file_offset  = 0,
                 .section_header_table_file_offset  = section_header_table_file_offset,
-                .processor_flags                   = ELF_Header_Flags__from_Options(options),
+                .processor_flags                   = options->elf_header_flags,
                 .header_size                       = sizeof(ELF64_Header),
                 .program_header_table_entry_size   = 0,
                 .program_header_table_entry_count  = 0,

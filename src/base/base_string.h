@@ -11,85 +11,22 @@ struct String8 {
 	U8  *data;
 };
 
-internal B32
-String8__match_exact(String8 a, String8 b);
-
-internal B32
-U8_ascii_lower_is(U8 character)
+typedef struct String8_Node String8_Node;
+struct String8_Node
 {
-	B32 result = character >= 'a' && character <= 'z';
-	return result;
-}
+        String8_Node *next;
+        String8       string;
+};
 
-internal B32
-U8_ascii_upper_is(U8 character)
+typedef struct String8_Node_List String8_Node_List;
+struct String8_Node_List
 {
-	B32 result = character >= 'A' && character <= 'Z';
-	return result;
-}
+        String8_Node *first;
+        String8_Node *last;
+        U64           count;
+        U64           string_count_total;
+};
 
-internal B32
-U8_ascii_letter_is(U8 character)
-{
-	B32 result = U8_ascii_lower_is(character) || U8_ascii_upper_is(character);
-	return result;
-}
-
-internal B32
-U8_ascii_printable_is(U8 character)
-{
-	// From <SPACE> to <DEL>, excluded.
-	B32 result = (character >= 0x20 && character < 0x7f) || character == '\t';
-	return result;
-}
-
-// GNU as supports these escape sequences inside string literals:
-// - \\ — backslash
-// - \" — double quote
-// - \n — newline (0x0A)
-// - \t — tab (0x09)
-// - \r — carriage return (0x0D)
-// - \0 — null (0x00)
-// - \a — bell (0x07)
-// - \b — backspace (0x08)
-// - \f — form feed (0x0C)
-// - \NNN — octal value (1–3 octal digits)
-// - \xNN — hex value (1–2 hex digits)
-//
-
-internal B32
-U8_ascii_escape_sequence_start_is(U8 character)
-{
-	B32 result =
-		character == '\\' ||
-		character == '"'  ||
-		character == 'n'  ||
-		character == 't'  ||
-		character == 'r'  ||
-		character == '0'  ||
-		character == 'a'  ||
-		character == 'b'  ||
-		character == 'f'  ||
-		character == 'N'  ||
-		character == 'x';
-	return result;
-}
-
-internal B32
-U8_ascii_digit_is(U8 character)
-{
-	B32 ascii_digit_is = character >= '0' && character <= '9';
-	return ascii_digit_is;
-}
-
-
-typedef enum String_Match_Flags
-{
-	String_Match_Flag__Case_Insensitive = (1 << 0),
-	String_Match_Flag_Right_Side_Sloppy = (1 << 1),
-	String_Match_Flag_Slash_Insensitive = (1 << 2),
-}
-String_Match_Flags;
 
 // ----------------------------------------------------------------------------
 // C-strings
@@ -108,21 +45,36 @@ internal String8 String8__from_cstring(const char *cstring);
 // To be used for example with formatting etc.
 #define String8__literal(s)    (String8){ .data = (U8 *)(s), .count = sizeof((s)) - 1 }
 
-internal String8
-String8__new(U8 *data, U64 count);
+internal String8 String8__new(U8 *data, U64 count);
 
-internal String8
-String8__skip(String8 string, U64 amount);
-
-internal String8
-String8__chop(String8 string, U64 amount);
+internal String8 String8__skip(String8 string, U64 amount);
+internal String8 String8__chop(String8 string, U64 amount);
 
 // Used for example to remove quotes
-internal String8
-String8__skip_chop(String8 token_string);
+internal String8 String8__skip_chop(String8 token_string);
+internal String8 String8__substring(String8 string, U64 count);
+internal String8 String8__prefix(String8 string, U64 count);
 
-internal String8
-String8__substring(String8 string, U64 count);
+// -----------------------------------------------------------------------------
+// String8_Node_List Constructors
+// -----------------------------------------------------------------------------
+
+internal void
+String8_Node_List__push(String8_Node_List *list, String8_Node *node);
+
+// -----------------------------------------------------------------------------
+// Matching
+// -----------------------------------------------------------------------------
+
+typedef enum String_Match_Flags
+{
+	String_Match_Flag__Case_Insensitive = (1 << 0),
+	String_Match_Flag_Right_Side_Sloppy = (1 << 1),
+	String_Match_Flag_Slash_Insensitive = (1 << 2),
+}
+String_Match_Flags;
+
+internal B32 String8__match_exact(String8 a, String8 b);
 
 // -----------------------------------------------------------------------------
 // Formatting

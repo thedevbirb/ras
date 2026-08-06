@@ -1,15 +1,3 @@
-internal B32
-String8__match_exact(String8 a, String8 b)
-{
-	B32 match = 0;
-	if (a.count == b.count)
-	{
-		match = memory_match(a.data, b.data, a.count) == 0;
-	}
-
-	return match;
-}
-
 // -------------------------------------------------------------------------
 // C-strings
 // -------------------------------------------------------------------------
@@ -99,6 +87,52 @@ String8__substring(String8 string, U64 count)
         String8 result = { .data = string.data, .count = min_m(string.count, count) };
         return result;
 }
+
+internal String8
+String8__prefix(String8 string, U64 count)
+{
+        U64 count_clamped = min_m(string.count, count);
+        String8 result = String8__new(string.data, count_clamped);
+        return result;
+}
+
+// -----------------------------------------------------------------------------
+// String8_Node_List Constructors
+// -----------------------------------------------------------------------------
+
+internal void
+String8_Node_List__push(String8_Node_List *list, String8_Node *node)
+{
+        SLL_queue_push_m(list->first, list->last, node);
+        list->count += 1;
+        list->string_count_total += node->string.count;
+        return;
+}
+
+// -----------------------------------------------------------------------------
+// Matching
+// -----------------------------------------------------------------------------
+
+internal B32
+String8__match_exact(String8 a, String8 b)
+{
+	B32 match = 0;
+	if (a.count == b.count)
+	{
+		match = memory_match(a.data, b.data, a.count) == 0;
+	}
+
+	return match;
+}
+
+internal B32
+String8__match_prefix(String8 source, String8 expected)
+{
+        String8 prefix = String8__prefix(source, expected.count);
+        B32 result = String8__match_exact(prefix, expected);
+        return result;
+}
+
 
 // ----------------------------------------------------------------------------
 // Formatting
