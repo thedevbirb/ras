@@ -602,3 +602,27 @@ directive_type
                 diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 }
+
+internal void
+directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics)
+{
+        Token_Cursor backup = *cursor;
+
+        for (;;)
+        {
+                B32 break_should = Token_Kind__end_of_statement(cursor->current.kind) || cursor->current.kind == Token_Kind__Error;
+                if (break_should)
+                {
+                        break;
+                }
+                token_next(cursor, diagnostics);
+        }
+
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->kind       = Diagnostic_Kind__Warning;
+        diagnostic->message    = String8__literal("directive unsupported, skipping");
+        diagnostic->location   = backup.current.location;
+        diagnostic->ranges[0]  = Token__range(backup.current);
+
+        return;
+}

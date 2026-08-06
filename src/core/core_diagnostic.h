@@ -63,6 +63,7 @@ struct Diagnostic_Fix
 typedef struct Diagnostic Diagnostic;
 struct Diagnostic
 {
+        Diagnostic     *previous;
         Diagnostic     *next;
         String8         message;
         // Logical location where the diagnostic has been emitted.

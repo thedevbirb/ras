@@ -191,9 +191,11 @@ statement_read
                 {
                 case Directive_Kind__None: {} break;
 
+                case Directive_Kind__Attribute: { directive_ignored(cursor, diagnostics); } break;
+
                 case Directive_Kind__Option: { directive_option(cursor, diagnostics, options);                         } break;
                 case Directive_Kind__File:   { directive_file(cursor, diagnostics, symbols_table);                     } break;
-                case Directive_Kind__Type:   { directive_file(cursor, diagnostics, symbols_table);                     } break;
+                case Directive_Kind__Type:   { directive_type(cursor, diagnostics, symbols_table);                     } break;
                 case Directive_Kind__Size:   { directive_size(arena, cursor, diagnostics, expressions, symbols_table); } break;
 
                 case Directive_Kind__Word_Double: { directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8); } break;
@@ -574,10 +576,8 @@ statement_read
                         Token_Kind kind = cursor->current.kind;
                         B32 break_should = empty_line
                                 || label_found
-                                || kind == Token_Kind__None
-                                || kind == Token_Kind__Error
-                                || kind == Token_Kind__Newline
-                                || kind == Token_Kind__Semicolon;
+                                || Token_Kind__end_of_statement(cursor->current.kind)
+                                || kind == Token_Kind__Error;
                         if (break_should)
                         {
                                 break;

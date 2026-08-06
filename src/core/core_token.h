@@ -132,6 +132,6 @@ Token__range(Token token);
 
 // NOTE: this is syntax-specific though.
 internal B32
-Token__end_of_statement(Token_Kind);
+Token_Kind__end_of_statement(Token_Kind);
 
 #endif // CORE_TOKEN_H

@@ -39,6 +39,7 @@ typedef enum Directive_Kind
         Directive_Kind__Type,
         Directive_Kind__Size,
         Directive_Kind__File,
+        Directive_Kind__Attribute,
         Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -81,6 +82,7 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Type]            = String8__literal(".type"),
         [Directive_Kind__Size]            = String8__literal(".size"),
         [Directive_Kind__File]            = String8__literal(".file"),
+        [Directive_Kind__Attribute]       = String8__literal(".attribute"),
 };
 
 Directive_Kind
@@ -183,5 +185,7 @@ directive_type
         Diagnostics     *diagnostics,
         Symbols_Table   *symbols_table
 );
+
+internal void directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics);
 
 #endif // PARSER_DIRECTIVE_H

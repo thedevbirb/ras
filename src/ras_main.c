@@ -137,20 +137,11 @@ main(int argument_count, char **argument_vector)
 
         B32 exit_status = 0;
 
-        if (diagnostics->first)
+        for each_node_m(diagnostics->first, diagnostic)
         {
-                Diagnostic *current = diagnostics->first;
-                for (;;)
-                {
-                        exit_status |= current->kind == Diagnostic_Kind__Error;
-                        diagnostic_print(current, &source, arena);
-                        current = current->next;
-
-                        if (!current)
-                        {
-                                break;
-                        }
-                }
+                exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
+                diagnostic_print(diagnostic, &source, arena);
+                DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
 
                 if (exit_status)
                 {
@@ -171,20 +162,11 @@ main(int argument_count, char **argument_vector)
 
         fprintf(stderr, "written %llu bytes of object file\n", size);
 
-        if (diagnostics->first)
+        for each_node_m(diagnostics->first, diagnostic)
         {
-                Diagnostic *current = diagnostics->first;
-                for (;;)
-                {
-                        exit_status |= current->kind == Diagnostic_Kind__Error;
-                        diagnostic_print(current, &source, arena);
-                        current = current->next;
-
-                        if (!current)
-                        {
-                                break;
-                        }
-                }
+                exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
+                diagnostic_print(diagnostic, &source, arena);
+                DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
 
                 if (exit_status)
                 {

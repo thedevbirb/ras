@@ -526,24 +526,3 @@ token_next
         printf("token: %10s   content: %.*s\n", token_string, (int)text.count, text.data);
 #endif
 }
-
-// Always advances by at least one token.
-// internal void
-// token_advance_to_new_statment
-// (
-//         Token_Cursor    *cursor,
-//         Diagnostics *diagnostics,
-//         Arena           *arena
-// )
-// {
-//         for (;;)
-//         {
-//                 token_next(cursor, diagnostics);
-//                 B32 break_should = Token_Kind__end_of_statement(cursor->previous.kind)
-//                                 || cursor->current.kind == Token_Kind__None;
-//                 if (break_should)
-//                 {
-//                         break;
-//                 }
-//         }
-// }
