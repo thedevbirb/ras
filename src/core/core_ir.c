@@ -365,7 +365,10 @@ Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
                       trie->name        = String8__duplicate_null_terminated(symbols_table->arena, name);
                       trie->symbol.name = &trie->name;
         symbols_trie_add(&symbols_table->root, trie, hash);
+
+        SLL_queue_push_m(symbols_table->first, symbols_table->last, &trie->symbol);
         symbols_table->count += 1;
+
         return &trie->symbol;
 }
 
@@ -374,7 +377,6 @@ Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 {
         Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
                    *clone = *symbol;
-        SLL_queue_push_m(symbols_table->first, symbols_table->last, clone);
         return clone;
 }
 
@@ -614,6 +616,7 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
 {
         B32 internal_is = Symbol_Ref__internal_is(symbol);
         B32 keep = !(symbol->flags & Symbol_Flags__Skip)
+                && !(symbol->flags & Symbol_Flags__Redefined)
                 &&
                 (
                         (
@@ -673,7 +676,6 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
 {
         String8 name = String8__literal(FAKE_LABEL_NAME);
         Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
-        SLL_queue_push_m(symbols_table->first, symbols_table->last, result);
         Symbol_Ref__update_section(result, section);
         return result;
 }
@@ -801,8 +803,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                 }
                                 Expression *node = frame->expression;
 
-                                if (node->evaluation == Expression_Kind__Constant)
+                                if (node->kind == Expression_Kind__Constant || node->evaluation == Expression_Kind__Constant)
                                 {
+                                        // Ensure it is set.
+                                        node->evaluation = Expression_Kind__Constant;
                                         result = node->integer_value;
                                         SLL_stack_pop_m(frame);
                                 }
@@ -960,19 +964,21 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                 }
                                 else
                                 {
-                                        // Leaf reached. Since constant are eagerly set to such evaluation at parse
-                                        // time, this MUST be a symbol.
+                                        // The logic of this function should ensure this is a leaf reached.
                                         assert_always_m(node->left == 0);
-                                        // TODO(medium): in case a zero expression is passed to this function, we end up
-                                        // here panicking, which is not good and outside the control of this function.
-                                        assert_always_m(node->kind == Expression_Kind__Symbol);
-                                        assert_always_m(node->symbol);
-                                        Symbol_Ref *symbol_inner = node->symbol;
+                                        // Previous code ensure constants are check before, so this should NOT be a
+                                        // constant. As such, it must be either a symbol, or nothing!
+                                        assert_always_m(node->kind == Expression_Kind__None || node->kind == Expression_Kind__Symbol);
 
+                                        Symbol_Ref *symbol_inner = node->symbol;
                                         node->evaluation = node->kind;
 
-                                        B32 absolute_is =  symbol_inner->section == &Section__absolute
-                                                       || (symbol_inner->expression && symbol_inner->expression->evaluation == Expression_Kind__Constant);
+                                        B32 absolute_is = symbol_inner
+                                                       &&
+                                                       (
+                                                                symbol_inner->section == &Section__absolute
+                                                            || (symbol_inner->expression && symbol_inner->expression->evaluation == Expression_Kind__Constant)
+                                                       );
                                         if (absolute_is)
                                         {
                                                 symbol_inner->section = &Section__absolute;
@@ -992,7 +998,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         {
                                                 SLL_stack_pop_m(frame);
                                         }
-                                        else if (traverse)
+                                        else if (symbol_inner && traverse)
                                         {
                                                 frame->state |= Frame_State__Symbol_Resolved;
                                                 Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
