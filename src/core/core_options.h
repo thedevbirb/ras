@@ -14,7 +14,6 @@ struct Options
         String8 output_file;
 
         String8 machine_abi;
-        String8 machine_architecture;
 
         U32 elf_header_flags;
 

@@ -5,8 +5,11 @@ Options__default(void)
         {
                 .relax = 1,
                 .machine_abi = String8__literal("lp64d"),
-                .machine_architecture = String8__literal("rv64i"),
                 .elf_header_flags = EF_RISCV_FLOAT_ABI_DOUBLE,
+                .attributes =
+                {
+                        .architecture = String8__literal("rv64i"),
+                }
         };
 
         return result;

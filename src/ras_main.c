@@ -90,7 +90,7 @@ Options__parse(S32 *argument_count, char **argument_vector)
                                 exit(1);
                         }
 
-                        result.machine_architecture = architecture;
+                        result.attributes.architecture = architecture;
                 }
                 else if (String8__match_prefix(argument, String8__literal("-mabi=")))
                 {
