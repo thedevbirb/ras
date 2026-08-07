@@ -88,7 +88,6 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
 Directive_Kind
 Directive_Kind__from_String8(String8 source);
 
-
 typedef enum Set_Mode
 {
         // Used in `.set/.equ`.
@@ -101,7 +100,7 @@ typedef enum Set_Mode
 Set_Mode;
 
 internal void
-binding_set
+directive_binding
 (
         Token_Cursor        *cursor,
         Diagnostics         *diagnostics,

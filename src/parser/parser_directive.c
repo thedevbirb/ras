@@ -31,7 +31,7 @@ Directive_Kind__from_String8(String8 source)
 // TODO(check-gas): should I just set the binding or in case of a promotion should I "delete" the other symbol and create a new
 // one? This
 internal void
-binding_set
+directive_binding
 (
         Token_Cursor            *cursor,
         Diagnostics             *diagnostics,
@@ -82,16 +82,38 @@ binding_set
 internal void
 directive_set_like
 (
-        Arena                   *arena,
-        Token_Cursor            *cursor,
-        Diagnostics         *diagnostics,
-        Expressions             *expressions,
-        Symbols_Table           *symbols_table,
-        Set_Mode                 mode
+        Arena          *arena,
+        Token_Cursor   *cursor,
+        Diagnostics    *diagnostics,
+        Expressions    *expressions,
+        Symbols_Table  *symbols_table,
+        Set_Mode        mode
 )
 {
-        // TODO(medium): check no conflicts with section names and register names. GNU as doesn't seem to error on using a
-        // register name like `sp` though, which I think can be quite confusing/error prone.
+        // Some words on `.equ` vs `.eqv`.
+        //
+        // `.equ` creates volatile, redefinable symbols. When a symbol is redefined via `.equ`, it is kept as symbols
+        // table data for references, but removed from trie lookup. Getting the same symbol name would return its latest
+        // definition.
+        //
+        // `.eqv` should be thought of as an expression blueprint. It creates an expression-defined symbol that, on
+        // every reference, is _deep-cloned_.
+        //
+        // Example assembly:
+        // ```asm
+        // .eqv OFF, B
+        // .set B, 16
+        // .set OFF_1, OFF # 16
+        // .set B, 32
+        // .set OFF_2, OFF # 32
+        // # OFF equals 16 at the end.
+        // ```
+        //
+        // The first `B` assignments modifies the original `OFF` expression. The first usage of `OFF` performs a
+        // reference deep-clone while making symbols table lookups, meaning that it will contain a reference to the
+        // current definition of `B`.
+        // The second `B` assignment, due to `.equ` semantics, creates a new symbol. The second usage of `OFF`
+        // performs again a reference deep-clone, with the latest definition of `B` which equals 32.
 
         token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__Identifier)
@@ -101,13 +123,18 @@ directive_set_like
                 diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
         }
 
+        // What if you set the name of a section or a register? Well, for a section, you can't since a section is a
+        // symbol. For registers, it is indeed possible and could be error prone, but in practice the assembler is
+        // always able to discriminate between a register and a symbol named in the same way due to its position in the
+        // instruction.
         String8 name = Token_Cursor__text(cursor);
         Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
 
         B32 already_defined_or_equated = symbol->section != &Section__undefined || symbol->expression;
         if (already_defined_or_equated)
         {
-                B32 frozen = mode != Set_Mode__Override || !(symbol->flags & Symbol_Flags__Volatile);
+                B32 frozen = mode != Set_Mode__Override
+                          || !(symbol->flags & Symbol_Flags__Volatile);
                 if (frozen)
                 {
                         {
@@ -124,8 +151,10 @@ directive_set_like
                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
                         }
                 }
-
-                symbol = Symbols_Table__clone(symbols_table, symbol);
+                else
+                {
+                        symbol = Symbols_Table__create(symbols_table, name);
+                }
         }
 
         symbol->location = cursor->current.location;
@@ -149,8 +178,8 @@ directive_set_like
         else
         {
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location = cursor->current.location;
-                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
+                diagnostic->location   = cursor->current.location;
+                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 
         Expression *expression = expression_parse_with_flags
