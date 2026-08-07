@@ -163,7 +163,8 @@ directive_set_like
         }
         else if (mode == Set_Mode__Strict_Forward)
         {
-                // Maybe this should be set AFTER parsing
+                // TODO(medium): to investigate a bit what should be the behaviour in case the expression contains the
+                // dot symbol. See `./examples/eqv.s` with a first expression containing a dot, GNU as behaves weirdly.
                 symbol->flags    |= Symbol_Flags__Forward_Reference;
                 expression_flags |= Expression_Flags__Defer_Dot;
         }
@@ -180,6 +181,7 @@ directive_set_like
                 diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 
+        symbol->flags |= Symbol_Flags__Resolving;
         Expression *expression = expression_parse_with_flags
         (
                 arena,
@@ -189,6 +191,7 @@ directive_set_like
                 expression_flags
         );
         symbol->expression = expression;
+        symbol->flags &= ~Symbol_Flags__Resolving;
 
         if (mode != Set_Mode__Strict_Forward)
         {

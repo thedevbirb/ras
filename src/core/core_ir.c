@@ -972,6 +972,8 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         if (absolute_is)
                                         {
                                                 symbol_inner->section = &Section__absolute;
+                                                symbol_inner->value   = symbol_inner->expression->integer_value;
+
                                                 node->evaluation    = Expression_Kind__Constant;
                                                 node->integer_value = symbol_inner->value;
 
@@ -1016,6 +1018,11 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                         {
                                 frame->symbol->value = frame->symbol->expression->integer_value;
                                 frame->symbol->flags |= Symbol_Flags__Finalized;
+                        }
+
+                        if (frame->symbol->expression->evaluation == Expression_Kind__Constant)
+                        {
+                                frame->symbol->section = &Section__absolute;
                         }
 
                         result = frame->symbol->expression->integer_value;

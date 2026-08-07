@@ -327,7 +327,11 @@ write_object_file
         }
         for each_node_m(symbols_table->first, symbol)
         {
-                // TODO(high): there is probably some mismanagement of the dot symbol.
+                // TODO(medium): is there some mismanagement of the dot symbol?
+
+                // NOTE: redefined symbols are not kept. However, GNU as preserves their original appearence order, while showing their latest value.
+                // As such, our representation of the symbols table, while correct, is a bit off.
+
                 B32 keep = Symbol_Ref__keep(symbol);
                 B32 non_local = symbol->binding != ELF_Symbol_Binding__Local;
                 if (keep && non_local)
