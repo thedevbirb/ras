@@ -1633,3 +1633,92 @@ gcc -march-rv64id -mabi=lp64d main.o -o main
 ./main
 hello from the ras assembler!
 ```
+
+---
+
+I'm rebrushing the whole .eqv .equ differences because of some todos left and yeah, it has some bugs
+because I still haven't understand some details regarding deferred executions. To my defense, the
+documentation of GNU as isn't always _that_ intuitive especially if you start to poke around with
+some edge cases, so I still need to inspect the source code and poke with more examples until I find
+a sort of definition of behaviour which makes sense _to me_.
+
+Consider this example:
+
+```asm
+.eqv OFF, B # B not defined yet
+.set B, 16
+.word OFF # 16
+.set B, 32
+.word OFF # 32
+.set B, 64
+.word OFF # 64
+```
+
+Here, `OFF` is marked as forward reference. This means that every time it appears in a subsequent
+expression, the `OFF` symbol is cloned. However, `OFF` still contains a reference to `B`, which is
+modified.
+
+So the main difference between `.eqv` and `.set` is that the former is a non-replacing clone (because
+it's frozen), while the other adds a new symbol _with a replaced expression definion_. That's why,
+in the former case, when encountered a deep, recursive copy is made. But again there might be
+another small detail which is: the copy is performed only when not inside a non-deferred expression.
+TODO
+
+Let's examine the steps:
+
+1. Create OFF, containing B, mark OFF as forward reference
+2. Set B, which was undefined, as an absolute symbol of value 16.
+3. Parse an expression containing OFF: OFF is deeply cloned, including B (which is get_or_default), which as now value 16.
+4. Set B. Replace the latest version of B with this one, and so on
+
+In practice, an `.eqv` symbol is an expression blueprint: everytime it is used, a full deep clone is
+performed based on the latest value of the consulted symbols.
+
+### Fri Aug  7 10:12:51 CEST 2026
+
+There is never a generalized solution for error handling, to each problem its own. For this
+codebase, I really like the `Diagnostics` error tracker. Errors are tracked and monitored, but don't
+influence much the codeflow. It's up to the caller (in this case, the wrapper binary), to decide
+when to read them and abort, usually before doing a critical operation (in this case, writing the
+object file). The code keeps going, performing incorrect results (according to original inputs), but
+it's fine. And it should NOT panic and it should do no-ops naturally, without an explosion of
+codepaths or `Result`-like types. The code gets vastly simpler.
+
+I like assertions as a way to only inspect internal logic bugs of a function, that are not due to
+the initial shape of function arguments i.e. contracts. Contract assertions inherently impose a
+certain way of doing error handling which is against what a `Diagnostics` engine does: let it error
+but track them.
+
+### Sat Aug  8 00:16:15 CEST 2026
+
+I've spent an entire work day to understand how really `.eqv` works. I think it's very non-trivial
+and the high-level overview of the manual is too little, and you may be caught by surprises unless
+a) you completely read and understand the source code of GNU as or b) you have a collection of edge cases at
+hand to refresh periodically.
+
+Notable example:
+
+```asm
+# .eqv recomputes its value at every USE, so it picks up the current value
+# of the symbols it references. .set/.equiv compute it at definition.
+.eqv F, A + 1 # F equals 2
+.set A, 1
+.set F_1, F # F_1 equals 2
+.set A, 2
+.set F_2, F # F_2 equals 3
+
+# G should equal 10, because it uses the original definition of F
+.eqv G, F + 8
+# Now G is used inside a non-forward expression, so it's fully expanded
+# It should equal ((2 + 1) + 8) + 128 = 139
+.set G_1, G + 128 # 16
+```
+
+This reads fairly easily. However, for me it wasn't trivial that `G` would use the original
+definition of `F` and not take snapshot of its expression, although that applies everywhere else. So
+forward references definition don't behave like that, although `F` is used in an expression. The
+code of GNU as made it clear, though.
+
+Last, mapping these ideas to actual operation on the symbols table requires some good thinking, and
+it is specific to my codebase.
+
