@@ -84,7 +84,9 @@ RISCV_Instruction__parse
                                 {
                                 case OPF_C__Address:
                                 {
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         expression_evaluate(expression);
 
                                         B32 symbol_is   = expression->evaluation == Expression_Kind__Symbol;
@@ -114,7 +116,9 @@ RISCV_Instruction__parse
                                 } break;
                                 case OPF_C__Large:
                                 {
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         expression_evaluate(expression);
 
                                         if (expression->evaluation != Expression_Kind__Constant)
@@ -143,13 +147,17 @@ RISCV_Instruction__parse
                                         // a `li` or `call` instruction which, during instruction parsing, are already expanded
                                         // into a known number of instructions (`INSN_MACRO`)
                                         *relocation_out = Relocation_RISC_V__JAL;
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                 } break;
                                 case OPF_O__Branch:
                                 {
                                         // See notes for `OPF_O__Jal`.
                                         *relocation_out = Relocation_RISC_V__Branch;
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                 } break;
                                 case OPF_O__Store:
                                 {
@@ -161,7 +169,9 @@ RISCV_Instruction__parse
                                         }
                                         else
                                         {
-                                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                                 if (!*relocation_out)
                                                 {
                                                         expression_evaluate(expression);
@@ -192,7 +202,9 @@ RISCV_Instruction__parse
                                         else
                                         {
                                                 // TODO(refactor): this is mostly in common with the OPF_I__I case.
-                                                expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                                 if (!*relocation_out)
                                                 {
                                                         expression_evaluate(expression);
@@ -221,7 +233,9 @@ RISCV_Instruction__parse
                                 {
                                 case OPF_I__I:
                                 {
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
+                                        expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         if (!*relocation_out)
                                         {
                                                expression_evaluate(expression);
@@ -242,7 +256,9 @@ RISCV_Instruction__parse
                                 } break;
                                 case OPF_I__U:
                                 {
-                                        expression = expression_parse_with_relocation(arena, cursor, expressions, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
+                                        expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         if (!*relocation_out)
                                         {
                                                 expression_evaluate(expression);
@@ -284,7 +300,9 @@ RISCV_Instruction__parse
                                 {
                                 case OPF_S__Shift:
                                 {
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         expression_evaluate(expression);
                                         S64 value = expression->integer_value;
                                         B32 fits = 0 <= value && value < XLEN;
@@ -301,7 +319,9 @@ RISCV_Instruction__parse
                                 } break;
                                 case OPF_S__Shift_5:
                                 {
-                                        expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                         expression_evaluate(expression);
                                         S64 value = expression->integer_value;
                                         B32 fits = 0 <= value && value < (1 << 5);
@@ -321,7 +341,9 @@ RISCV_Instruction__parse
                         } break;
                         case OPK__Call:
                         {
-                                expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                                 *relocation_out = Relocation_RISC_V__Call_PLT;
 
                                 Token   peek      = token_peek(cursor, diagnostics);
@@ -759,7 +781,7 @@ RISCV_instruction_pseudo_append
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
-        Options      *options,
+        Options            *options,
 
         RISCV_Instruction  *instruction,
         Expression         *expression,
@@ -842,9 +864,10 @@ RISCV_instruction_pseudo_append
 
                         Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);
                                     internal_label->flags  |= Symbol_Flags__Relocation;
-                        Expression *expression_addi         = Expressions_push_empty(expressions, symbols_table->arena);
+                        Expression *expression_addi         = Arena__push_struct_m(symbols_table->arena, Expression);
                                     expression_addi->symbol = internal_label;
                                     expression_addi->kind   = Expression_Kind__Symbol;
+                        SLL_queue_push_m(expressions->first, expressions->last, expression);
 
                         // Ensure the instructions are in the same fragment
                         Fragments__ensure(&section->fragments, 8);

@@ -114,7 +114,6 @@ directive_set_like
         Arena           *arena,
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
-        Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Set_Mode         mode
 );

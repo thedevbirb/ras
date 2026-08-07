@@ -14,7 +14,6 @@ expression_parse_with_flags
 (
         Arena              *arena,
         Token_Cursor       *cursor,
-        Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Diagnostics        *diagnostics,
         Expression_Flags    flags
@@ -25,7 +24,6 @@ expression_parse
 (
         Arena              *arena,
         Token_Cursor       *cursor,
-        Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Diagnostics        *diagnostics
 );
@@ -35,7 +33,6 @@ expression_parse_with_relocation
 (
         Arena                    *arena,
         Token_Cursor             *cursor,
-        Expressions              *expressions,
         Symbols_Table            *symbols_table,
         Diagnostics              *diagnostics,
         // Machine-dependent

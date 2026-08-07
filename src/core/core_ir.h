@@ -147,16 +147,16 @@ struct Expressions
 };
 
 
-Expression *
-Expressions_push_empty(Expressions *expressions, Arena *arena);
+// Expression *
+// Expressions__push_empty(Expressions *expressions, Arena *arena);
 
 // Create a constant expression.
 internal Expression *
-Expressions__push_constant(Expressions *expressions, Arena *arena, S64 value);
+Expression__push_constant(Arena *arena, S64 value);
 
 // Create an expression based on a single symbol
 internal Expression *
-Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol);
+Expression__push_symbol(Arena *arena, Symbol_Ref *symbol);
 
 // Evaluate all expressions while finalizing symbols. See `Symbol_Ref__resolve`/`Symbols_Table__finalize`.
 internal void

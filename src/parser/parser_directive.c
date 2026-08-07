@@ -85,7 +85,6 @@ directive_set_like
         Arena          *arena,
         Token_Cursor   *cursor,
         Diagnostics    *diagnostics,
-        Expressions    *expressions,
         Symbols_Table  *symbols_table,
         Set_Mode        mode
 )
@@ -151,10 +150,8 @@ directive_set_like
                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
                         }
                 }
-                else
-                {
-                        symbol = Symbols_Table__create(symbols_table, name);
-                }
+
+                symbol = Symbols_Table__create(symbols_table, name);
         }
 
         symbol->location = cursor->current.location;
@@ -166,6 +163,7 @@ directive_set_like
         }
         else if (mode == Set_Mode__Strict_Forward)
         {
+                // Maybe this should be set AFTER parsing
                 symbol->flags    |= Symbol_Flags__Forward_Reference;
                 expression_flags |= Expression_Flags__Defer_Dot;
         }
@@ -186,7 +184,6 @@ directive_set_like
         (
                 arena,
                 cursor,
-                expressions,
                 symbols_table,
                 diagnostics,
                 expression_flags
@@ -227,7 +224,8 @@ directive_data
         U32 expressions_count = 0;
         for (;;)
         {
-                Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                Expression *expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, expression);
                 expressions_count += 1;
                 // We explicitly convert it to an unsigned value since this is how it's treated as.
                 //
@@ -492,7 +490,9 @@ directive_align
         Alignment alignment = {0};
 
         token_next(cursor, diagnostics);
-        Expression *alignment_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+        Expression *alignment_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+        SLL_queue_push_m(expressions->first, expressions->last, alignment_expression);
+
         expression_evaluate(alignment_expression);
 
         if (alignment_expression->evaluation == Expression_Kind__Constant)
@@ -536,7 +536,8 @@ directive_align
 
                 if (cursor->current.kind != Token_Kind__Comma)
                 {
-                        Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                        Expression *pattern_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                        SLL_queue_push_m(expressions->first, expressions->last, pattern_expression);
 
                         U64 pattern_evaluation = (U64)expression_evaluate(pattern_expression);
                         if (pattern_expression->evaluation != Expression_Kind__Constant)
@@ -564,7 +565,9 @@ directive_align
         {
                 // Read bytes_max
                 token_next(cursor, diagnostics);
-                Expression *write_size_max_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                Expression *write_size_max_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, write_size_max_expression);
+
                 S64 write_size_max = expression_evaluate(write_size_max_expression);
                 if (write_size_max_expression->evaluation != Expression_Kind__Constant)
                 {
@@ -617,7 +620,9 @@ directive_fill
         U64 location_begin = cursor->current.location;
         Fill fill = { .pattern_size = 1 };
 
-        Expression *repeat_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+        Expression *repeat_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+        SLL_queue_push_m(expressions->first, expressions->last, repeat_expression);
+
         expression_evaluate(repeat_expression);
         fill.repeat = repeat_expression;
 
@@ -625,7 +630,9 @@ directive_fill
         {
                 // Read size
                 token_next(cursor, diagnostics);
-                Expression *size_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                Expression *size_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, size_expression);
+
                 S64 fill_size = expression_evaluate(size_expression);
                 B32 constant = size_expression->evaluation == Expression_Kind__Constant;
                 S64 fill_capped = max_m(fill_size, 1);
@@ -644,7 +651,9 @@ directive_fill
         {
                 // Read value
                 token_next(cursor, diagnostics);
-                Expression *pattern_expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                Expression *pattern_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, pattern_expression);
+
                 U64 fill_pattern = (U64)expression_evaluate(pattern_expression);
                 if (pattern_expression->evaluation != Expression_Kind__Constant)
                 {
@@ -711,7 +720,9 @@ directive_size
         if (cursor->current.kind == Token_Kind__Comma)
         {
                 token_next(cursor, diagnostics);
-                Expression *expression = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+                Expression *expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, expression);
+
                 symbol->size_expression = expression;
         }
         else

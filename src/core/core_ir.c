@@ -190,31 +190,21 @@ expression_evaluate(Expression *node_root)
 }
 
 Expression *
-Expressions_push_empty(Expressions *expressions, Arena *arena)
+Expression__push_constant(Arena *arena, S64 constant)
 {
-        Expression *node = Arena__push_struct_m(arena, Expression);
-        SLL_queue_push_m(expressions->first, expressions->last, node);
-        expressions->count += 1;
+        Expression *result = Arena__push_struct_m(arena, Expression);
 
-        return node;
-}
+        result->integer_value = constant;
+        result->kind          = Expression_Kind__Constant;
+        result->evaluation    = Expression_Kind__Constant;
 
-Expression *
-Expressions__push_constant(Expressions *expressions, Arena *arena, S64 constant)
-{
-        Expression *node = Expressions_push_empty(expressions, arena);
-
-        node->integer_value = constant;
-        node->kind          = Expression_Kind__Constant;
-        node->evaluation    = Expression_Kind__Constant;
-
-        return node;
+        return result;
 }
 
 internal Expression *
-Expression__push_symbol(Expressions *expressions, Arena *arena, Symbol_Ref *symbol)
+Expression__push_symbol(Arena *arena, Symbol_Ref *symbol)
 {
-        Expression *result = Expressions_push_empty(expressions, arena);
+        Expression *result = Arena__push_struct_m(arena, Expression);
 
         result->symbol     = symbol;
         result->kind       = Expression_Kind__Symbol;
@@ -1271,7 +1261,8 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
 
                 U32 repeat_count = write_size / (fragment->data_variable_size || 1);
                 // TODO(low): not ideal to create expressions right now though
-                Expression *fill_expression = Expressions__push_constant(expressions, arena, repeat_count);
+                Expression *fill_expression = Expression__push_constant(arena, repeat_count);
+                SLL_queue_push_m(expressions->first, expressions->last, fill_expression);
                 fragment->relax_info  = (Relax_Info){ .fill_expression = fill_expression };
                 fragment->relax_state = Relax_State__Fill;
         } break;
@@ -1323,7 +1314,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                                 unreachable_m();
                         }
 
-                        Expression *repeat_expression = Expressions__push_constant(expressions, arena, 1);
+                        Expression *repeat_expression = Expression__push_constant(arena, 1);
                         fragment->relax_info  = (Relax_Info){ .fill_expression = repeat_expression };
                         fragment->relax_state = Relax_State__Fill;
                 }

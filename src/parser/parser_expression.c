@@ -1,9 +1,161 @@
+// internal Symbol_Ref *
+// expression_clone_forward_reference
+// (
+//         Arena              *arena,
+//         Symbols_Table      *symbols_table,
+//         Symbol_Ref         *target
+// )
+// {
+//         typedef struct Frame_State Frame_State;
+//         struct Frame_State
+//         {
+//                 Frame_State *next;
+//                 Expression  *target;
+//                 Expression  *clone;
+//                 B32 cloned_right;
+//                 B32 cloned_left;
+//                 B32 is_right_of_parent;
+//                 B32 is_left_of_parent;
+//                 B32 forward_reference_parsed;
+//         };
+//
+//         Symbol_Ref *symbol_clone = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+//         *symbol_clone = *target;
+//
+//         target->flags |= Symbol_Flags__Resolving;
+//
+//         // Perform deep-copy
+//         Expression *expression_clone_root = Arena__push_struct_m(arena, Expression);
+//
+//         Arena_Temporary scratch = Arena_Temporary__begin(arena);
+//
+//         Frame_State *frame_state = Arena__push_struct_m(scratch.arena, Frame_State);
+//         frame_state->target        = target->expression;
+//         frame_state->clone         = expression_clone_root;
+//
+//         for (;;)
+//         {
+//                 if (!frame_state)
+//                 {
+//                         break;
+//                 }
+//                 else if (frame_state->target->kind == Expression_Kind__Constant || frame_state->target->evaluation == Expression_Kind__Constant)
+//                 {
+//                         frame_state->clone->kind          = Expression_Kind__Constant;
+//                         frame_state->clone->evaluation    = Expression_Kind__Constant;
+//                         frame_state->clone->integer_value = frame_state->clone->integer_value;
+//                         SLL_stack_pop_m(frame_state);
+//                 }
+//                 else if (frame_state->target->right && !frame_state->cloned_right)
+//                 {
+//                         Expression *clone = Arena__push_struct_m(arena, Expression);
+//
+//                         frame_state->cloned_right = 1;
+//                         Frame_State *inner = Arena__push_struct_m(scratch.arena, Frame_State);
+//
+//                         inner->clone              = clone;
+//                         inner->target             = frame_state->target->right;
+//                         inner->is_right_of_parent = 1;
+//
+//                         SLL_stack_push_m(frame_state, inner);
+//                 }
+//                 else if (frame_state->target->left && !frame_state->cloned_left)
+//                 {
+//                         Expression *clone = Arena__push_struct_m(arena, Expression);
+//
+//                         frame_state->cloned_left = 1;
+//                         Frame_State *inner = Arena__push_struct_m(scratch.arena, Frame_State);
+//
+//                         inner->clone              = clone;
+//                         inner->target             = frame_state->target->left;
+//                         inner->is_left_of_parent = 1;
+//
+//                         SLL_stack_push_m(frame_state, inner);
+//                 }
+//                 else if (frame_state->target->right)
+//                 {
+//                         SLL_stack_pop_m(frame_state);
+//                 }
+//                 else if (frame_state->target->left)
+//                 {
+//                         SLL_stack_pop_m(frame_state);
+//                 }
+//                 else
+//                 {
+//                         // We've reached a leaf. It should be either a symbol, or nothing
+//                         assert_always_m(frame_state->target->kind == Expression_Kind__Symbol || frame_state->target->kind == Expression_Kind__None);
+//                         assert_always_m(frame_state->next == 0 || frame_state->is_right_of_parent || frame_state->is_left_of_parent);
+//
+//                         frame_state->clone->kind = frame_state->target->kind;
+//
+//                         if (frame_state->target->symbol)
+//                         {
+//                                 String8    *name              = frame_state->target->symbol->name;
+//                                 Symbol_Ref *latest_definition = Symbols_Table__get_or_default(symbols_table, *name);
+//
+//                                 frame_state->clone->symbol = latest_definition;
+//
+//                                 B32 expression_contains_non_looping_forward_reference =
+//                                                          latest_definition->flags & Symbol_Flags__Forward_Reference
+//                                                     && !(latest_definition->flags & Symbol_Flags__Resolving);
+//                                 if (expression_contains_non_looping_forward_reference)
+//                                 {
+//                                         // We have to repeat the whole process.
+//                                         latest_definition->flags |= Symbol_Flags__Resolving;
+//
+//                                         Symbol_Ref *symbol_clone_inner = Arena__push_struct_m(arena, Symbol_Ref);
+//                                         *symbol_clone_inner = *frame_state->clone->symbol;
+//
+//                                         frame_state->clone->symbol = symbol_clone_inner;
+//                                         frame_state->forward_reference_parsed = 1;
+//
+//                                         Expression *clone = Arena__push_struct_m(arena, Expression);
+//
+//                                         Frame_State *inner = Arena__push_struct_m(scratch.arena, Frame_State);
+//                                                      inner->target = frame_state->target->symbol->expression;
+//                                                      inner->clone  = clone;
+//
+//                                         SLL_stack_push_m(frame_state, inner);
+//                                 }
+//                                 else
+//                                 {
+//                                         latest_definition->flags &= ~Symbol_Flags__Resolving;
+//                                         if (!frame_state->forward_reference_parsed)
+//                                         {
+//                                                 frame_state->clone->symbol = latest_definition;
+//                                         }
+//
+//                                         Expression **parent_position = frame_state->is_right_of_parent
+//                                                 ? &frame_state->next->clone->right
+//                                                 : frame_state->is_left_of_parent
+//                                                 ? &frame_state->next->clone->left
+//                                                 : 0;
+//                                         if (parent_position)
+//                                         {
+//                                                 *parent_position = frame_state->clone;
+//                                         }
+//
+//                                         SLL_stack_pop_m(frame_state);
+//                                 }
+//                         }
+//                         else
+//                         {
+//                                 // We've nothing here
+//                                 SLL_stack_pop_m(frame_state);
+//                         }
+//                 }
+//         }
+//
+//         target->flags &= ~Symbol_Flags__Resolving;
+//         Arena_Temporary__end(scratch);
+//         return symbol_clone;
+// }
+
 internal Expression *
 expression_parse_with_flags
 (
         Arena              *arena,
         Token_Cursor       *cursor,
-        Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Diagnostics        *diagnostics,
         Expression_Flags    flags
@@ -37,7 +189,7 @@ expression_parse_with_flags
         Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
         Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
-        frame->node  = Expressions_push_empty(expressions, arena);
+        frame->node  = Arena__push_struct_m(arena, Expression);
 
         frame->node->location = cursor->current.location;
         frame->location_begin = cursor->current.location;
@@ -113,6 +265,9 @@ expression_parse_with_flags
                                 String8 name = Token_Cursor__text(cursor);
                                 B32 dot = name.count == 1 && name.data[0] == '.';
 
+                                // Check if the symbol is the special dot. If so, and we're parsing a forward reference
+                                // (`.eqv`, via `Expression_Flags__Defer_Dot`), we won't be cloning it. Otherwise, we
+                                // must take a snapshot of it.
                                 Symbol_Ref *symbol = 0;
                                 if (dot)
                                 {
@@ -136,6 +291,15 @@ expression_parse_with_flags
                                         symbol = Symbols_Table__get_or_default(symbols_table, name);
                                 }
 
+                                // // Now, we have to check whether the symbol found is a forward reference.
+                                // // If that is the case, we cannot keep it as is, but we need to perform a clone of it
+                                // // with by consuling the symbols.
+                                // if (symbol->flags & Symbol_Flags__Forward_Reference)
+                                // {
+                                //         Symbol_Ref *clone = expression_clone_forward_reference(arena, symbols_table, symbol);
+                                //         symbol = clone;
+                                // }
+                                //
                                 frame->node->kind             = Expression_Kind__Symbol;
                                 frame->node->symbol           = symbol;
                                 frame->node->location         = cursor->current.location;
@@ -154,7 +318,8 @@ expression_parse_with_flags
                                 frame->null_denotation_parsed = 1;
 
                                 Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
-                                frame_new->node = Expressions_push_empty(expressions, arena);
+
+                                frame_new->node = Arena__push_struct_m(arena, Expression);
                                 frame_new->node->location = cursor->current.location;
                                 frame_new->binding_power_minimum = Binding_Power__Unary;
                                 frame_new->is_right_side_of_next = 1;
@@ -183,7 +348,7 @@ expression_parse_with_flags
                         {
                                 // Don't pollute codepaths to exit: mark an empty node, which is safe, and mark the error with
                                 // its diagnostic.
-                                frame->node = Expressions_push_empty(expressions, arena);
+                                frame->node = Arena__push_struct_m(arena, Expression);
                                 frame->null_denotation_parsed = 1;
                                 frame->node->location = cursor->current.location;
 
@@ -270,7 +435,7 @@ expression_parse_with_flags
                         Expression *left = frame->node;
 
                         // Set central node.
-                        frame->node = Expressions_push_empty(expressions, arena);
+                        frame->node = Arena__push_struct_m(arena, Expression);
                         frame->node->kind = Expression_Kind__from_Token_Kind_binary(cursor->current.kind);
                         frame->node->left = left;
                         frame->node->location   = cursor->current.location;
@@ -279,7 +444,8 @@ expression_parse_with_flags
 
                         // Prepare new frame
                         Frame *frame_new = Arena__push_struct_m(scratch.arena, Frame);
-                        frame_new->node = Expressions_push_empty(expressions, arena);
+
+                        frame_new->node = Arena__push_struct_m(arena, Expression);
                         frame_new->node->location = cursor->current.location;
                         frame_new->binding_power_minimum = next_power;
                         frame_new->is_right_side_of_next = 1;
@@ -314,7 +480,6 @@ expression_parse
 (
         Arena           *arena,
         Token_Cursor    *cursor,
-        Expressions     *expressions,
         Symbols_Table   *symbols_table,
         Diagnostics     *diagnostics
 )
@@ -323,7 +488,6 @@ expression_parse
         (
                 arena,
                 cursor,
-                expressions,
                 symbols_table,
                 diagnostics,
                 Expression_Flags__None
@@ -342,7 +506,6 @@ expression_parse_with_relocation
 (
         Arena                    *arena,
         Token_Cursor             *cursor,
-        Expressions              *expressions,
         Symbols_Table            *symbols_table,
         Diagnostics          *diagnostics,
         // Machine-dependent
@@ -384,6 +547,6 @@ expression_parse_with_relocation
 
                 token_next(cursor, diagnostics);
         }
-        Expression *result = expression_parse(arena, cursor, expressions, symbols_table, diagnostics);
+        Expression *result = expression_parse(arena, cursor, symbols_table, diagnostics);
         return result;
 }

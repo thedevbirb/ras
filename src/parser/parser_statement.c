@@ -218,43 +218,10 @@ statements_read
                 case Directive_Kind__Global:  { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
 
                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
-                case Directive_Kind__Set: {} // fallthrough
-                case Directive_Kind__Equality:
-                {
-                        Set_Mode mode = Set_Mode__Override;
-                        directive_set_like (
-                                arena,
-                                cursor,
-                                diagnostics,
-                                expressions,
-                                symbols_table,
-                                mode
-                        );
-                } break;
-                case Directive_Kind__Equiv:
-                {
-                        directive_set_like
-                        (
-                                arena,
-                                cursor,
-                                diagnostics,
-                                expressions,
-                                symbols_table,
-                                Set_Mode__Strict
-                        );
-                } break;
-                case Directive_Kind__Eqv:
-                {
-                        directive_set_like
-                        (
-                                arena,
-                                cursor,
-                                diagnostics,
-                                expressions,
-                                symbols_table,
-                                Set_Mode__Strict_Forward
-                        );
-                } break;
+                case Directive_Kind__Set:      { directive_set_like(arena, cursor, diagnostics, symbols_table, Set_Mode__Override);        } break;
+                case Directive_Kind__Equality: { directive_set_like(arena, cursor, diagnostics, symbols_table, Set_Mode__Override);        } break;
+                case Directive_Kind__Equiv:    { directive_set_like(arena, cursor, diagnostics, symbols_table, Set_Mode__Strict);          } break;
+                case Directive_Kind__Eqv:      { directive_set_like(arena, cursor, diagnostics, symbols_table, Set_Mode__Strict_Forward);  } break;
                 case Directive_Kind__Zero:
                 {
                         // Equavalent to .fill repeat, 1, 0
