@@ -135,8 +135,8 @@ typedef double   F64;
 
 
 internal B32 U8__octal_prefix(U8 byte)         { B32 result = '0' <= byte && byte < '4'; return result; }
-internal B32 U8__octal(U8 byte)                { B32 result = '0' <= byte && byte < '7'; return result; }
-internal B32 U8__ascii_digit_is(U8 byte)       { B32 result = '0' <= byte && byte < '9'; return result; }
+internal B32 U8__octal(U8 byte)                { B32 result = '0' <= byte && byte <= '7'; return result; }
+internal B32 U8__ascii_digit_is(U8 byte)       { B32 result = '0' <= byte && byte <= '9'; return result; }
 internal B32 U8__ascii_lower_is(U8 character)  { B32 result = character >= 'a' && character <= 'z'; return result; }
 internal B32 U8__ascii_upper_is(U8 character)  { B32 result = character >= 'A' && character <= 'Z'; return result; }
 internal B32 U8__ascii_letter_is(U8 character) { B32 result = U8__ascii_lower_is(character) || U8__ascii_upper_is(character); return result; }

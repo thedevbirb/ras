@@ -316,11 +316,10 @@ directive_string
         // Can be of the form "\nhello\n", so with quotes and optional escaped characters.
         String8 text     = Token_Cursor__text(cursor);
         String8 content  = String8__skip_chop(text);
-        U64 size         = content.count;
         U64 size_escaped = String8__escaped_size(content) + !!null_terminated;
 
         U8 *data = Fragments__push(&section->fragments, cursor->current.location, size_escaped);
-        bytes_escaped_fill(content, data, size);
+        bytes_escaped_fill(content, data, size_escaped);
 
         token_next(cursor, diagnostics);
 }

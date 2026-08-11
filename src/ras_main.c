@@ -149,8 +149,6 @@ Options__parse(S32 *argument_count, char **argument_vector)
 S32
 main(S32 argument_count, char **argument_vector)
 {
-        Initialize();
-
         Thread_Context *thread_context = Thread_Context_alloc();
         Thread_Context_select(thread_context);
 

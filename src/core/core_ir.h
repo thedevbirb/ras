@@ -147,9 +147,6 @@ struct Expressions
 };
 
 
-// Expression *
-// Expressions__push_empty(Expressions *expressions, Arena *arena);
-
 // Create a constant expression.
 internal Expression *
 Expression__push_constant(Arena *arena, S64 value);
@@ -270,9 +267,6 @@ struct Symbols_Table
         // A dedicated arena for every data, including symbols names, that are saved here.
         Arena                    *arena;
         Symbols_Trie             *root;
-
-        // Symbol_Ref               *first;
-        // Symbol_Ref               *last;
 
         Symbol_Ref               *first;
         Symbol_Ref               *last;

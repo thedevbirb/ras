@@ -99,118 +99,18 @@ typedef enum Set_Mode
 }
 Set_Mode;
 
-internal void
-directive_binding
-(
-        Token_Cursor        *cursor,
-        Diagnostics         *diagnostics,
-        Symbols_Table       *symbols_table,
-        ELF_Symbol_Binding   binding
-);
-
-internal void
-directive_set_like
-(
-        Arena           *arena,
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Symbols_Table   *symbols_table,
-        Set_Mode         mode
-);
-
-internal void
-directive_data
-(
-        Arena           *arena,
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Expressions     *expressions,
-        Symbols_Table   *symbols_table,
-        U8               data_directive_size
-);
-
-internal void
-directive_string
-(
-        Token_Cursor *cursor,
-        Diagnostics  *diagnostics,
-        Section      *section,
-
-        B32 null_terminated
-);
-
-internal void
-directive_section
-(
-        Token_Cursor  *cursor,
-        Diagnostics   *diagnostics,
-        Symbols_Table *symbols_table
-);
-
-internal void
-directive_section_current
-(
-        Token_Cursor  *cursor,
-        Diagnostics   *diagnostics,
-        Symbols_Table *symbols_table,
-        Directive_Kind directive_kind
-);
-
-internal void
-directive_align
-(
-        Arena           *arena,
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Expressions     *expressions,
-        Symbols_Table   *symbols_table,
-
-        B32              power_of_two_exponent,
-        U8               pattern_size
-);
-
-internal void
-directive_fill
-(
-        Arena           *arena,
-        Token_Cursor    *cursor,
-        Diagnostics *diagnostics,
-        Expressions     *expressions,
-        Symbols_Table   *symbols_table,
-
-        B32              size_can_be_parsed,
-        B32              pattern_can_be_parsed
-);
-
-internal void
-directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *options);
-
-internal void
-directive_size
-(
-        Arena           *arena,
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Expressions     *expressions,
-        Symbols_Table   *symbols_table
-);
-
-internal void
-directive_file
-(
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Symbols_Table   *symbols_table
-);
-
-internal void
-directive_type
-(
-        Token_Cursor    *cursor,
-        Diagnostics     *diagnostics,
-        Symbols_Table   *symbols_table
-);
-
-internal void directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics);
+internal void directive_binding(Token_Cursor *, Diagnostics *, Symbols_Table *, ELF_Symbol_Binding);
+internal void directive_set_like(Arena *, Token_Cursor *, Diagnostics *, Symbols_Table *, Set_Mode);
+internal void directive_data(Arena *arena, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, U8 data_directive_size);
+internal void directive_string(Token_Cursor *, Diagnostics  *, Section *, B32 null_terminated);
+internal void directive_section(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_section_current(Token_Cursor *, Diagnostics *, Symbols_Table *, Directive_Kind);
+internal void directive_align(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 power_of_two_exponent, U8 pattern_size);
+internal void directive_fill(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 size_can_be_parsed, B32 pattern_can_be_parsed);
+internal void directive_option(Token_Cursor *, Diagnostics *, Options *);
+internal void directive_size(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *);
+internal void directive_file(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_type(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_ignored(Token_Cursor *, Diagnostics *);
 
 #endif // PARSER_DIRECTIVE_H

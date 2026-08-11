@@ -21,6 +21,34 @@ global const U8 escape_valid_table[256] =
         ['x']  = 1,  // hex begin
 };
 
+#define hex_table_invalid      0xFF
+#define escape_value_invalid   0xFF
+
+global const U8 hex_table[256] =
+{
+        [0 ... 255] = 0xFF,
+        ['0'] = 0x0, ['1'] = 0x1, ['2'] = 0x2, ['3'] = 0x3, ['4'] = 0x4,
+        ['5'] = 0x5, ['6'] = 0x6, ['7'] = 0x7, ['8'] = 0x8, ['9'] = 0x9,
+        ['a'] = 0xA, ['b'] = 0xB, ['c'] = 0xC, ['d'] = 0xD, ['e'] = 0xE, ['f'] = 0xF,
+        ['A'] = 0xA, ['B'] = 0xB, ['C'] = 0xC, ['D'] = 0xD, ['E'] = 0xE, ['F'] = 0xF,
+};
+
+global const U8 escape_table[256] =
+{
+        [0 ... 255] = 0xFF,
+        ['a'] = 0x07, ['b'] = 0x08, ['t'] = 0x09, ['n'] = 0x0A, ['v'] = 0x0B,
+        ['f'] = 0x0C, ['r'] = 0x0D, ['e'] = 0x1B, ['\\'] = 0x5C, ['\''] = 0x27,
+        ['"'] = 0x22, ['0'] = 0x00,
+};
+
+global const U8 numeric_suffix_table[256] =
+{
+        ['('] = 1, [')'] = 1, [';'] = 1, ['#'] = 1, ['+'] = 1, ['-'] = 1,
+        ['*'] = 1, ['/'] = 1, ['^'] = 1, ['<'] = 1, ['>'] = 1, ['='] = 1,
+        ['!'] = 1, ['|'] = 1, ['&'] = 1, ['%'] = 1, ['\n'] = 1, ['\r'] = 1,
+        [' '] = 1, ['\t'] = 1, [','] = 1,
+};
+
 typedef enum Lexing_Error_Kind
 {
         Lexer_Error_Kind__None,

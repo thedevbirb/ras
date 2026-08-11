@@ -606,7 +606,6 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
 {
         B32 internal_is = Symbol_Ref__internal_is(symbol);
         B32 keep = !(symbol->flags & Symbol_Flags__Skip)
-                && !(symbol->flags & Symbol_Flags__Redefined)
                 &&
                 (
                         (
