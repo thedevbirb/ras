@@ -164,11 +164,9 @@ Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics);
 //-----------------------------------------------------------------------------
 
 #define INTERNAL_SYMBOL_PREFIX ".L"
-#define DOT_SYMBOL_NAME (INTERNAL_SYMBOL_PREFIX "\x01")
-#define DOT_SYMBOL_HASH 0
 #define FAKE_LABEL_NAME (INTERNAL_SYMBOL_PREFIX "0 ")
 
-global String8 dot_symbol_string = String8__literal(DOT_SYMBOL_NAME);
+global String8 dot_symbol_string = String8__literal(".");
 global String8 fake_label_string = String8__literal(FAKE_LABEL_NAME);
 
 // TODO(track): review some of this variants, they're taken from GAS but not always used.
@@ -325,11 +323,6 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name);
 // Get or create a default numeric symbol (e.g. `1b`/`1f`). See `Symbols_Table__get_or_default`.
 internal Symbol_Numeric
 Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward);
-
-// Return the global dot symbol trie. It is recommended to always update the dot symbol before it's usage.
-// See `Symbol_Ref__update_section`.
-internal Symbols_Trie *
-Symbols_Table__dot(Symbols_Table *symbols_table);
 
 // Update `Section` and `Fragment` information of the given symbol.
 internal void

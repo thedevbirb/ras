@@ -183,13 +183,15 @@ main(S32 argument_count, char **argument_vector)
         Symbols_Table *symbols_table        = Arena__push_struct_m(arena_symbols_table, Symbols_Table);
                        symbols_table->arena = arena_symbols_table;
 
+        // Create the dot symbol first for faster lookup in the trie
+        Symbol_Ref *symbol_dot = Symbols_Table__get_or_default(symbols_table, dot_symbol_string);
+
         Symbol_Ref *symbol_text = Symbols_Table__get_or_default(symbols_table, section_name_text);
         Symbols_Table__create_section(symbols_table, symbol_text);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_text->section);
         // Byte strings.
         symbol_text->section->elf.entry_size = 1;
-        // Compressed is 2
-        symbol_text->section->elf.alignment  = 4;
+        symbol_text->section->elf.alignment = options.compressed ? 2 : 4;
         symbols_table->section_current = symbol_text->section;
         Symbol_Ref *symbol_data = Symbols_Table__get_or_default(symbols_table, section_name_data);
         Symbols_Table__create_section(symbols_table, symbol_data);
@@ -199,6 +201,8 @@ main(S32 argument_count, char **argument_vector)
         Symbols_Table__create_section(symbols_table, symbol_bss);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);
         symbol_bss->section->elf.alignment = 8;
+
+        Symbol_Ref__update_section(symbol_dot, symbol_text->section);
 
         Expressions expressions = {0};
 

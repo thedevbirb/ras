@@ -582,14 +582,6 @@ Symbols_Table__ensure_undefined_present(Symbols_Table *symbols_table)
         return;
 }
 
-internal Symbols_Trie *
-Symbols_Table__dot(Symbols_Table *symbols_table)
-{
-
-        Symbols_Trie *result = symbols_trie_get_or_default(symbols_table->arena, &symbols_table->root, DOT_SYMBOL_HASH, dot_symbol_string);
-        return result;
-}
-
 internal void
 Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
 {
@@ -663,8 +655,9 @@ internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol)
 {
         B32 internal_name_has = String8__match_exact(*symbol->name, fake_label_string);
+        B32 dot_is            = symbol->name->count == 1 && symbol->name->data[0] == '.';
 
-        B32 result = symbol->expression == 0 && internal_name_has;
+        B32 result = symbol->expression == 0 && (internal_name_has || dot_is);
         return result;
 }
 
