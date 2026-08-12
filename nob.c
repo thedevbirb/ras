@@ -102,6 +102,7 @@ main(int argc, char **argv)
                 // "-w",
                 "-Wall", "-Wextra", "-Wpedantic",
                 "-Wno-override-init",
+                "-Wno-gnu-designator",
                 "-Wno-unused-function",
                 "-Werror=shadow",
                 "-Werror=incompatible-pointer-types",
