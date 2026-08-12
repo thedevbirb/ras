@@ -1,9 +1,7 @@
 #ifndef WRITE_INSTRUCTION_H
 #define WRITE_INSTRUCTION_H
 
-// Information about an instruction, including its format, operands
-// and fixups.
-// TODO(refactor): this struct is probably overloaded with unnedded stuff.
+// Information about an instruction, including its format and operands.
 typedef struct RISCV_Instruction RISCV_Instruction;
 struct RISCV_Instruction
 {
@@ -12,19 +10,10 @@ struct RISCV_Instruction
   // The long encoded instruction bits ([0] is non-zero on a long opcode).  */
   // char insn_long_opcode[RISCV_MAX_INSN_LEN];
 
-  // The frag that contains the instruction
-  Fragment *fragment;
-
-  // The relocations associated with the instruction, if any.
-  Fixup *fixup;
-
   // Where the instruction is located in the source.
   U32 location;
 
   U32 encoding;
-  // The offset into fragment of the first instruction byte.
-  U32 offset;
-
 };
 
 typedef struct Instruction_Parsed Instruction_Parsed;
@@ -107,15 +96,15 @@ RISCV_macro_build
 internal void
 RISCV_call_expand
 (
-        Arena           *arena,
-        Section         *section,
+        Arena     *arena,
+        Section   *section,
         Options   *options,
 
-        U8               rd,
-        U8               rs1,
+        U8          rd,
+        U8          rs1,
         Expression *expression,
-        U16              relocation,
-        U32              location
+        U16         relocation,
+        U32         location
 );
 
 internal U8
@@ -127,7 +116,6 @@ RISCV_li_expand
         U8  register_destination,
         U32 location
 );
-
 
 #endif // WRITE_INSTRUCTION_H
 
