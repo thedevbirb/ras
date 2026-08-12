@@ -217,49 +217,16 @@ statements_read
                         {
                                 U32 instruction_hash = FNV_hash_U32(identifier);
 
-                                // Try as instruction.
-                                U16               relocation  =  0;
-                                RISCV_Instruction instruction = {0};
+                                Instruction_Parsed instruction =
+                                        RISCV_Instruction__parse(arena, cursor, diagnostics, expressions, symbols_table, options, instruction_hash);
 
-                                Expression *expression_parsed = 0;
-                                RISCV_Instruction__parse
-                                (
-                                        arena,
-                                        cursor,
-                                        diagnostics,
-                                        expressions,
-                                        symbols_table,
-                                        options,
-                                        instruction_hash,
-                                        &relocation,
-                                        &instruction,
-                                        &expression_parsed
-                                );
-
-                                if (instruction.opcode->info & INSN_MACRO)
+                                if (instruction.data.opcode->info & INSN_MACRO)
                                 {
-                                        RISCV_instruction_pseudo_append
-                                        (
-                                                symbols_table->section_current,
-                                                expressions,
-                                                symbols_table,
-                                                options,
-                                                &instruction,
-                                                expression_parsed,
-                                                relocation
-                                        );
+                                        RISCV_instruction_pseudo_append(symbols_table->section_current, expressions, symbols_table, options, &instruction);
                                 }
                                 else
                                 {
-                                        RISCV_Instruction__append
-                                        (
-                                                symbols_table->arena,
-                                                symbols_table->section_current,
-                                                options,
-                                                &instruction,
-                                                expression_parsed,
-                                                relocation
-                                        );
+                                        RISCV_Instruction__append( symbols_table->arena, symbols_table->section_current, options, &instruction);
                                 }
                         }
                 } break;

@@ -28,12 +28,17 @@ expression_parse
         Diagnostics        *diagnostics
 );
 
-internal Expression *
-expression_parse_with_relocation
+// NOTE: both LLVM and GNU as have a precise way of handle relocation operators. They must appear at the beginning of
+// the expression, and everything else is absorbed by it. Examples:
+//
+// - `addi x1, x0, %lo(foo) + 1` is equivalent to `addi x1, x0, %lo(foo + 1)`.
+// - `addi x1, x0, 1 + %lo(foo)` is invalid.
+//
+// If a certain instruction supports a relocation prefix, this should be called before parsing its expression.
+internal void
+try_parse_relocation_prefix
 (
-        Arena                    *arena,
         Token_Cursor             *cursor,
-        Symbols_Table            *symbols_table,
         Diagnostics              *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,

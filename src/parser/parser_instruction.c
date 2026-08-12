@@ -1,4 +1,4 @@
-internal void
+internal Instruction_Parsed
 RISCV_Instruction__parse
 (
         Arena              *arena,
@@ -7,13 +7,11 @@ RISCV_Instruction__parse
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Options            *options,
-        U32                 instruction_hash,
-
-        U16                *relocation_out,
-        RISCV_Instruction  *instruction_out,
-        Expression        **expression_out
+        U32                 instruction_hash
 )
 {
+        Instruction_Parsed parsed = {0};
+
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
         String8 opcode_name = (String8){ .data = opcode->name, .count = opcode->count };
 
@@ -27,7 +25,7 @@ RISCV_Instruction__parse
         // Iterate over opcode entries with the same name.
         for (;;)
         {
-                *instruction_out = RISCV_Instruction__create(opcode, opcode_token.location);
+                parsed.data = RISCV_Instruction__create(opcode, opcode_token.location);
                 U64 arguments = opcode->arguments;
                 U32 arguments_index = 0;
                 B32 try_next = 0;
@@ -38,7 +36,7 @@ RISCV_Instruction__parse
                         U8 slot = (U8)(arguments >> (8 * arguments_index));
                         if (!slot || try_next)
                         {
-                                match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, instruction_out->encoding));
+                                match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, parsed.data.encoding));
                                 break;
                         }
 
@@ -68,10 +66,10 @@ RISCV_Instruction__parse
                                 U8 register_number = reg ? reg->number : 0;
                                 switch (OP_FIELD(slot))
                                 {
-                                       case OPF_R__D: { INSERT_OPERAND(RD,  *instruction_out, register_number); } break;
-                                       case OPF_R__S_3:    { INSERT_OPERAND(RS3, *instruction_out, register_number); } break;
-                                       case OPF_R__S_2:    { INSERT_OPERAND(RS2, *instruction_out, register_number); } break;
-                                       case OPF_R__S_1:    { INSERT_OPERAND(RS1, *instruction_out, register_number); } break;
+                                       case OPF_R__D:   { INSERT_OPERAND(RD,  parsed.data, register_number); } break;
+                                       case OPF_R__S_3: { INSERT_OPERAND(RS3, parsed.data, register_number); } break;
+                                       case OPF_R__S_2: { INSERT_OPERAND(RS2, parsed.data, register_number); } break;
+                                       case OPF_R__S_1: { INSERT_OPERAND(RS1, parsed.data, register_number); } break;
                                        default: { unreachable_m(); }
                                 }
 
@@ -101,7 +99,7 @@ RISCV_Instruction__parse
 
                                         if (symbol_is)
                                         {
-                                                *relocation_out = Relocation_RISC_V__32_Bit;
+                                                parsed.relocation = Relocation_RISC_V__32_Bit;
                                         }
 
 
@@ -146,7 +144,7 @@ RISCV_Instruction__parse
                                         // deferred later when we know all instructions. It is a different situation compared to
                                         // a `li` or `call` instruction which, during instruction parsing, are already expanded
                                         // into a known number of instructions (`INSN_MACRO`)
-                                        *relocation_out = Relocation_RISC_V__JAL;
+                                        parsed.relocation = Relocation_RISC_V__JAL;
                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
@@ -154,7 +152,7 @@ RISCV_Instruction__parse
                                 case OPF_O__Branch:
                                 {
                                         // See notes for `OPF_O__Jal`.
-                                        *relocation_out = Relocation_RISC_V__Branch;
+                                        parsed.relocation = Relocation_RISC_V__Branch;
                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
@@ -169,10 +167,11 @@ RISCV_Instruction__parse
                                         }
                                         else
                                         {
-                                                expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__stype);
+                                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                                 SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                                if (!*relocation_out)
+                                                if (!parsed.relocation)
                                                 {
                                                         expression_evaluate(expression);
                                                         // TODO(RV32): normalize constant expression? See GNU as.
@@ -182,7 +181,7 @@ RISCV_Instruction__parse
                                                                 // TODO(medium): GNU as does this at a later step, and by default emits a
                                                                 // relocation. Consider doing the same.
                                                                 U32 encoding_immediate = encode_immediate_s_m(expression->integer_value);
-                                                                instruction_out->encoding |= encoding_immediate;
+                                                                parsed.data.encoding |= encoding_immediate;
                                                         }
                                                         else
                                                         {
@@ -202,10 +201,11 @@ RISCV_Instruction__parse
                                         else
                                         {
                                                 // TODO(refactor): this is mostly in common with the OPF_I__I case.
-                                                expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__stype);
+                                                try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__stype);
+                                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                                 SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                                if (!*relocation_out)
+                                                if (!parsed.relocation)
                                                 {
                                                         expression_evaluate(expression);
                                                         // TODO(RV32): normalize constant expression? See GNU as.
@@ -215,7 +215,7 @@ RISCV_Instruction__parse
                                                                 // TODO(medium): GNU as does this at a later step, and by default emits a
                                                                 // relocation. Consider doing the same.
                                                                 U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
-                                                                instruction_out->encoding |= encoding_immediate;
+                                                                parsed.data.encoding |= encoding_immediate;
                                                         }
                                                         else
                                                         {
@@ -233,10 +233,11 @@ RISCV_Instruction__parse
                                 {
                                 case OPF_I__I:
                                 {
-                                        expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__itype);
+                                        try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__itype);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                        if (!*relocation_out)
+                                        if (!parsed.relocation)
                                         {
                                                expression_evaluate(expression);
                                                // TODO(RV32): normalize constant expression? See GNU as.
@@ -246,7 +247,7 @@ RISCV_Instruction__parse
                                                        // TODO(medium): GNU as does this at a later step, and by default emits a
                                                        // relocation. Consider doing the same.
                                                        U32 encoding_immediate = encode_immediate_i_m(expression->integer_value);
-                                                       instruction_out->encoding |= encoding_immediate;
+                                                       parsed.data.encoding |= encoding_immediate;
                                                }
                                                else
                                                {
@@ -256,10 +257,12 @@ RISCV_Instruction__parse
                                 } break;
                                 case OPF_I__U:
                                 {
-                                        expression = expression_parse_with_relocation(arena, cursor, symbols_table, diagnostics, relocation_out, Relocation_Operator_List__utype);
+
+                                        try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__utype);
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                        if (!*relocation_out)
+                                        if (!parsed.relocation)
                                         {
                                                 expression_evaluate(expression);
                                                 if (expression->evaluation == Expression_Kind__Constant)
@@ -278,7 +281,7 @@ RISCV_Instruction__parse
                                                         // TODO(medium): GNU as does this at a later step, and by default emits a
                                                         // relocation. Consider doing the same.
                                                         U32 encoding_immediate = encode_immediate_u_m(expression->integer_value);
-                                                        instruction_out->encoding |= encoding_immediate;
+                                                        parsed.data.encoding |= encoding_immediate;
                                                 }
                                                 else
                                                 {
@@ -315,7 +318,7 @@ RISCV_Instruction__parse
                                         }
 
 
-                                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+                                        INSERT_OPERAND(SHAMT, parsed.data, value);
                                 } break;
                                 case OPF_S__Shift_5:
                                 {
@@ -334,7 +337,7 @@ RISCV_Instruction__parse
                                         }
 
 
-                                        INSERT_OPERAND (SHAMT, *instruction_out, value);
+                                        INSERT_OPERAND(SHAMT, parsed.data, value);
                                 } break;
                                 default: { unreachable_m(); }
                                 }
@@ -344,7 +347,7 @@ RISCV_Instruction__parse
                                 expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                 SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                *relocation_out = Relocation_RISC_V__Call_PLT;
+                                parsed.relocation = Relocation_RISC_V__Call_PLT;
 
                                 Token   peek      = token_peek(cursor, diagnostics);
                                 String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
@@ -383,41 +386,39 @@ RISCV_Instruction__parse
                 diagnostic->ranges[0]  = Token__range(opcode_token);
         }
 
-        *expression_out = expression;
+        parsed.expression = expression;
 
-        return;
+        return parsed;
 }
 
 internal void
 RISCV_Instruction__append
 (
-        Arena             *arena,
-        Section           *section,
+        Arena       *arena,
+        Section     *section,
         Options     *options,
 
-        RISCV_Instruction *instruction,
-        Expression        *expression,
-        U16                relocation
+        Instruction_Parsed *instruction
 )
 {
         Fixup *fixup                 = 0;
         // NOTE: although jumps are assumed to be in range, if the compressed extension is enabled
         // then this might get reduced to a compressed 2-byte instruction.
-        B32    jump_unconditional_is = relocation == Relocation_RISC_V__JAL;
-        B32    jump_is               = relocation == Relocation_RISC_V__Branch || jump_unconditional_is;
+        B32    jump_unconditional_is = instruction->relocation == Relocation_RISC_V__JAL;
+        B32    jump_is               = instruction->relocation == Relocation_RISC_V__Branch || jump_unconditional_is;
         // NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
         // (non-jump_is) because they need a precise location to be applied. Jump instructions,
         // like branches, break this invariant. However, some kind of fixup AND relocation will be needed, so for those
         // instruction we emit a tentative fixup attached to the relaxation information.
-        U32    encoding              = instruction->encoding;
+        U32    encoding              = instruction->data.encoding;
         U8     encoding_size         = RISCV_instruction_size(encoding);
-        U32    location              = instruction->location;
+        U32    location              = instruction->data.location;
 
-        if (relocation)
+        if (instruction->relocation)
         {
                 fixup                  = Arena__push_struct_m(arena, Fixup);
-                fixup->expression      = expression;
-                fixup->relocation_type = relocation;
+                fixup->expression      = instruction->expression;
+                fixup->relocation_type = instruction->relocation;
                 if (options->relax)
                 {
                         fixup->flags |= Fixup_Flags__Relax;
@@ -431,7 +432,7 @@ RISCV_Instruction__append
                 {
                         .jump =
                         {
-                                .expression              = expression,
+                                .expression              = instruction->expression,
                                 .fixup                   = fixup,
                                 .compressed_is           = encoding_size == 2,
                                 .unconditional_is        = jump_unconditional_is,
@@ -460,7 +461,7 @@ RISCV_Instruction__append
                         fixup,
                         encoding,
                         encoding_size,
-                        instruction->location
+                        instruction->data.location
                 );
         }
 
@@ -470,37 +471,31 @@ RISCV_Instruction__append
 internal void
 RISCV_macro_build
 (
-        Arena       *arena,
-        Section     *section,
-        Options *options,
-
-        String8      instruction_name,
-        U32          location,
-        Expression  *expression,
-        U64          arguments,
-        S32         *values,
-        U8           values_count
+        Arena      *arena,
+        Section    *section,
+        Options    *options,
+        Macro_Info *macro
 )
 {
-        U32 instruction_hash = FNV_hash_U32(instruction_name);
+        U32 instruction_hash = FNV_hash_U32(macro->instruction_name);
         const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
         assert_always_m(opcode && opcode->hash);
 
-        RISCV_Instruction instruction = RISCV_Instruction__create(opcode, location);
+        RISCV_Instruction instruction = RISCV_Instruction__create(opcode, macro->location);
 
         U16 relocation = 0;
         U32 arguments_index = 0;
 
         for (;;)
         {
-                U8 slot = (U8)(arguments >> (8 * arguments_index));
-                B32 break_should = !slot || arguments_index >= values_count;
+                U8 slot = (U8)(macro->arguments >> (8 * arguments_index));
+                B32 break_should = !slot || arguments_index >= macro->values_count;
                 if (break_should)
                 {
                         break;
                 }
 
-                S32 value = values[arguments_index];
+                S32 value = macro->values[arguments_index];
                 switch (OP_KIND(slot))
                 {
                         default: { unreachable_m(); } break;
@@ -521,33 +516,26 @@ RISCV_macro_build
                 arguments_index += 1;
         }
 
-        assert_always_m(relocation ? expression != 0 : 1);
+        assert_always_m(relocation ? macro->expression != 0 : 1);
 
-        RISCV_Instruction__append
-        (
-                arena,
-                section,
-                options,
-
-                &instruction,
-                expression,
-                relocation
-        );
+        Instruction_Parsed parsed = { .expression = macro->expression, .data = instruction, .relocation = relocation };
+        RISCV_Instruction__append(arena, section, options, &parsed);
+        return;
 }
 
 // Expand a call pseudo instruction into an `auipc + jalr` pair with the provided register for `jalr`.
 internal void
 RISCV_call_expand
 (
-        Arena           *arena,
-        Section         *section,
+        Arena     *arena,
+        Section   *section,
         Options   *options,
 
-        U8               rd,
-        U8               rs1,
+        U8          rd,
+        U8          rs1,
         Expression *expression,
-        U16              relocation,
-        U32              location
+        U16         relocation,
+        U32         location
 )
 {
         U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
@@ -555,6 +543,25 @@ RISCV_call_expand
         U64 arguments_jalr  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S_1));
         S32 values_jalr[2]  = {rd, rs1};
 
+        Macro_Info macro_auipc =
+        {
+                .instruction_name = String8__literal("auipc"),
+                .location         = location,
+                .expression       = expression,
+                .arguments        = arguments_auipc,
+                .values           = values_auipc,
+                .values_count     = array_count_m(values_auipc)
+        };
+
+        Macro_Info macro_jalr =
+        {
+                .instruction_name = String8__literal("jalr"),
+                .location         = location,
+                .expression       = expression,
+                .arguments        = arguments_jalr,
+                .values           = values_jalr,
+                .values_count     = array_count_m(values_jalr)
+        };
 
         // Ensure both instructions land in the same fragment.
         Fragments__ensure(&section->fragments, 8);
@@ -563,26 +570,14 @@ RISCV_call_expand
                 arena,
                 section,
                 options,
-
-                String8__literal("auipc"),
-                location,
-                expression,
-                arguments_auipc,
-                values_auipc,
-                array_count_m(values_auipc)
+                &macro_auipc
         );
         RISCV_macro_build
         (
                 arena,
                 section,
                 options,
-
-                String8__literal("jalr"),
-                location,
-                0,
-                arguments_jalr,
-                values_jalr,
-                array_count_m(values_jalr)
+                &macro_jalr
         );
         // NOTE: I trust GNU as that is better to seal the fragment now.
         Fragment__wane(section->fragments.last);
@@ -783,17 +778,15 @@ RISCV_instruction_pseudo_append
         Symbols_Table      *symbols_table,
         Options            *options,
 
-        RISCV_Instruction  *instruction,
-        Expression         *expression,
-        U16                relocation
+        Instruction_Parsed *instruction
 )
 {
-        U8 rd  = (instruction->encoding >> OP_SH_RD)  & OP_MASK_RD;
-        U8 rs1 = (instruction->encoding >> OP_SH_RS1) & OP_MASK_RS1;
-        U8 rs2 = (instruction->encoding >> OP_SH_RS2) & OP_MASK_RS2;
+        U8 rd  = (instruction->data.encoding >> OP_SH_RD)  & OP_MASK_RD;
+        U8 rs1 = (instruction->data.encoding >> OP_SH_RS1) & OP_MASK_RS1;
+        U8 rs2 = (instruction->data.encoding >> OP_SH_RS2) & OP_MASK_RS2;
         unused_m(rs2);
 
-        U32 pseudo_type = instruction->opcode->mask;
+        U32 pseudo_type = instruction->data.opcode->mask;
 
         switch (pseudo_type)
         {
@@ -807,22 +800,22 @@ RISCV_instruction_pseudo_append
                         options,
                         rd,
                         rs1,
-                        expression,
-                        relocation,
-                        instruction->location
+                        instruction->expression,
+                        instruction->relocation,
+                        instruction->data.location
                 );
         } break;
         case MACRO_LA:  {} // fallthrough
         case MACRO_LLA:
         {
-                if (expression->evaluation == Expression_Kind__Constant)
+                if (instruction->expression->evaluation == Expression_Kind__Constant)
                 {
                         RISCV_li_expand
                         (
                                 section,
-                                expression->integer_value,
+                                instruction->expression->integer_value,
                                 rd,
-                                instruction->location
+                                instruction->data.location
                         );
                 }
                 else
@@ -867,7 +860,27 @@ RISCV_instruction_pseudo_append
                         Expression *expression_addi         = Arena__push_struct_m(symbols_table->arena, Expression);
                                     expression_addi->symbol = internal_label;
                                     expression_addi->kind   = Expression_Kind__Symbol;
-                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                        SLL_queue_push_m(expressions->first, expressions->last, instruction->expression);
+
+                        Macro_Info macro_auipc =
+                        {
+                                .instruction_name = String8__literal("auipc"),
+                                .location         = instruction->data.location,
+                                .expression       = instruction->expression,
+                                .arguments        = arguments_auipc,
+                                .values           = values_auipc,
+                                .values_count     = array_count_m(values_auipc)
+                        };
+
+                        Macro_Info macro_addi =
+                        {
+                                .instruction_name = String8__literal("addi"),
+                                .location         = instruction->data.location,
+                                .expression       = instruction->expression,
+                                .arguments        = arguments_addi,
+                                .values           = values_addi,
+                                .values_count     = array_count_m(values_addi)
+                        };
 
                         // Ensure the instructions are in the same fragment
                         Fragments__ensure(&section->fragments, 8);
@@ -876,13 +889,7 @@ RISCV_instruction_pseudo_append
                                 symbols_table->arena,
                                 section,
                                 options,
-
-                                String8__literal("auipc"),
-                                instruction->location,
-                                expression,
-                                arguments_auipc,
-                                values_auipc,
-                                array_count_m(values_auipc)
+                                &macro_auipc
                         );
                         // NOTE: GNU as creates also a second expression with an fake label for addi, why?
                         RISCV_macro_build
@@ -890,20 +897,14 @@ RISCV_instruction_pseudo_append
                                 symbols_table->arena,
                                 section,
                                 options,
-
-                                String8__literal("addi"),
-                                instruction->location,
-                                expression_addi,
-                                arguments_addi,
-                                values_addi,
-                                array_count_m(values_addi)
+                                &macro_addi
                         );
                         // TODO(medium, check-gas): wane and new here?
                 }
         } break;
         case MACRO_LI:
         {
-                RISCV_li_expand(section, expression->integer_value, rd, instruction->location);
+                RISCV_li_expand(section, instruction->expression->integer_value, rd, instruction->data.location);
         } break;
         }
 }

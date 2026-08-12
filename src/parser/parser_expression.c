@@ -255,27 +255,26 @@ expression_parse_with_flags
 
                         case Token_Kind__Identifier:
                         {
-                                // TODO(medium): should every identifier, including the dot, be cloned?
                                 String8 name = Token_Cursor__text(cursor);
-                                B32 dot = name.count == 1 && name.data[0] == '.';
+                                B32 dot_is = name.count == 1 && name.data[0] == '.';
 
-                                // Check if the symbol is the special dot. If so, and we're parsing a forward reference
+                                // Check if the symbol is the special dot_is. If so, and we're parsing a forward reference
                                 // (`.eqv`, via `Expression_Flags__Defer_Dot`), we won't be cloning it. Otherwise, we
                                 // must take a snapshot of it.
                                 Symbol_Ref *symbol = 0;
-                                if (dot)
+                                if (dot_is)
                                 {
-                                        Symbols_Trie *dot_trie = Symbols_Table__dot(symbols_table);
-                                        Symbol_Ref__update_section(&dot_trie->symbol, symbols_table->section_current);
+                                        Symbol_Ref *dot = Symbols_Table__get_or_default(symbols_table, dot_symbol_string);
+                                        Symbol_Ref__update_section(dot, symbols_table->section_current);
                                         if (flags & Expression_Flags__Defer_Dot)
                                         {
-                                                symbol = &dot_trie->symbol;
+                                                symbol = dot;
                                         }
                                         else
                                         {
                                                 Symbol_Ref *clone = Symbols_Table__create_internal(symbols_table, symbols_table->section_current);
                                                 String8 *clone_name_backup = clone->name;
-                                                *clone = dot_trie->symbol;
+                                                *clone = *dot;
                                                 clone->name = clone_name_backup;
                                                 symbol = clone;
                                         }
@@ -500,19 +499,11 @@ expression_parse
         return result;
 }
 
-
-// NOTE: both LLVM and GNU as have a precise way of handle relocation operators. They must appear at the beginning of
-// the expression, and everything else is absorbed by it. Examples:
-//
-// - `addi x1, x0, %lo(foo) + 1` is equivalent to `addi x1, x0, %lo(foo + 1)`.
-// - `addi x1, x0, 1 + %lo(foo)` is invalid.
-internal Expression *
-expression_parse_with_relocation
+internal void
+try_parse_relocation_prefix
 (
-        Arena                    *arena,
         Token_Cursor             *cursor,
-        Symbols_Table            *symbols_table,
-        Diagnostics          *diagnostics,
+        Diagnostics              *diagnostics,
         // Machine-dependent
         U16                      *relocation_out,
         Relocation_Operator_List  relocation_match_list
@@ -521,7 +512,6 @@ expression_parse_with_relocation
 
         if (cursor->current.kind == Token_Kind__Percentage)
         {
-                assert_always_m(relocation_out && "relocation_out should be set");
                 *relocation_out = 0;
 
                 // Parse relocation
@@ -552,6 +542,6 @@ expression_parse_with_relocation
 
                 token_next(cursor, diagnostics);
         }
-        Expression *result = expression_parse(arena, cursor, symbols_table, diagnostics);
-        return result;
+
+        return;
 }

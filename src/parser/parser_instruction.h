@@ -27,6 +27,15 @@ struct RISCV_Instruction
 
 };
 
+typedef struct Instruction_Parsed Instruction_Parsed;
+struct Instruction_Parsed
+{
+        Expression        *expression;
+        RISCV_Instruction  data;
+        U16                relocation;
+};
+
+
 internal RISCV_Instruction
 RISCV_Instruction__create(const RISCV_Opcode *opcode, U32 location)
 {
@@ -39,7 +48,7 @@ RISCV_Instruction__create(const RISCV_Opcode *opcode, U32 location)
         return result;
 }
 
-internal void
+internal Instruction_Parsed
 RISCV_Instruction__parse
 (
         Arena              *arena,
@@ -48,11 +57,7 @@ RISCV_Instruction__parse
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
         Options            *options,
-        U32                 instruction_hash,
-
-        U16                *relocation_out,
-        RISCV_Instruction  *instruction_out,
-        Expression        **expression_out
+        U32                 instruction_hash
 );
 
 internal U8
@@ -61,28 +66,41 @@ RISCV_instruction_size(U32 encoding);
 internal void
 RISCV_Instruction__append
 (
-        Arena             *arena,
-        Section           *section,
-        Options     *options,
-
-        RISCV_Instruction *instruction,
-        Expression        *expression,
-        U16                relocation
+        Arena              *arena,
+        Section            *section,
+        Options            *options,
+        Instruction_Parsed *instruction
 );
+
+internal void
+RISCV_instruction_pseudo_append
+(
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Options            *options,
+
+        Instruction_Parsed *instruction
+);
+
+typedef struct Macro_Info Macro_Info;
+struct Macro_Info
+{
+        String8          instruction_name;
+        U32              location;
+        Expression      *expression;
+        U64              arguments;
+        S32             *values;
+        U8               values_count;
+};
 
 internal void
 RISCV_macro_build
 (
-        Arena           *arena,
-        Section         *section,
-        Options   *options,
-
-        String8          instruction_name,
-        U32              location,
-        Expression      *expression,
-        U64              arguments,
-        S32             *values,
-        U8               values_count
+        Arena      *arena,
+        Section    *section,
+        Options    *options,
+        Macro_Info *macro
 );
 
 // Expand a call pseudo instruction into an `auipc + jalr` pair with the provided register for `jalr`.
@@ -108,19 +126,6 @@ RISCV_li_expand
         S64 immediate,
         U8  register_destination,
         U32 location
-);
-
-internal void
-RISCV_instruction_pseudo_append
-(
-        Section            *section,
-        Expressions        *expressions,
-        Symbols_Table      *symbols_table,
-        Options      *options,
-
-        RISCV_Instruction  *instruction,
-        Expression         *expression,
-        U16                 relocation
 );
 
 
