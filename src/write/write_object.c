@@ -69,7 +69,10 @@ write_object_file
         Expressions__finalize(expressions, diagnostics);
         for each_node_m(symbols_table->section_first, section)
         {
-                Section__resolve_fixups(section, symbols_table->arena, options, diagnostics);
+                for each_node_m(section->fixups.first, fixup)
+                {
+                        Fixup__apply(fixup, section, arena, options, diagnostics);
+                }
         }
 
         // Let's avoid off-by-one errors.

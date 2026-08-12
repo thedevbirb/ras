@@ -604,19 +604,27 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section)
 internal B32
 Symbol_Ref__keep(Symbol_Ref *symbol)
 {
-        B32 internal_is = Symbol_Ref__internal_is(symbol);
-        B32 keep = !(symbol->flags & Symbol_Flags__Skip)
-                &&
-                (
-                        (
-                                   symbol->type != ELF_Symbol_Type__None
-                                || symbol->flags & Symbol_Flags__Relocation
-                                || symbol->section == &Section__undefined
-                                || symbol->section == &Section__absolute
-                                || symbol->section == &Section__common
-                        )
-                        || !internal_is
-                );
+        B32 prerequisites = !(symbol->flags & Symbol_Flags__Skip)
+                         && symbol->name != &dot_symbol_string;
+
+        B32 section_or_other_is = symbol->type != ELF_Symbol_Type__None;
+        B32 relocation_usage_has = symbol->flags & Symbol_Flags__Relocation;
+        B32 non_redefined_constant_is = symbol->section == &Section__absolute && !(symbol->flags & Symbol_Flags__Redefined);
+        B32 global_non_alias_is = (symbol->section == &Section__undefined || symbol->section == &Section__common)
+                && !symbol->expression;
+        B32 label_non_internal_is = !symbol->expression
+                && symbol->section != &Section__undefined
+                && symbol->section != &Section__absolute
+                && symbol->section != &Section__common
+                && !Symbol_Ref__internal_is(symbol);
+
+        B32 condition = section_or_other_is
+                     || relocation_usage_has
+                     || non_redefined_constant_is
+                     || global_non_alias_is
+                     || label_non_internal_is;
+
+        B32 keep = prerequisites && condition;
 
         return keep;
 }
@@ -1687,9 +1695,9 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         }
 
         B32 emit_relax_relocation = relaxable
-                                        && (fixup->flags & Fixup_Flags__Relax)
-                                        && expression
-                                        && symbol;
+                                 && (fixup->flags & Fixup_Flags__Relax)
+                                 && expression
+                                 && symbol;
         if (emit_relax_relocation)
         {
                 Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
@@ -1707,36 +1715,6 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         }
 
         return;
-}
-
-internal void
-Section__resolve_fixups(Section *section, Arena *arena, Options *options, Diagnostics *diagnostics)
-{
-        for each_node_m(section->fixups.first, fixup)
-        {
-                // TODO(medium) Should we filter away those fixups whose expressions are unsolvable?
-
-                Expression *expression     = fixup->expression;
-                Expression_Kind evaluation = expression ? expression->evaluation : Expression_Kind__None;
-
-                B32 subtractable_is = evaluation == Expression_Kind__Subtract
-                                   && expression->left->evaluation == Expression_Kind__Symbol
-                                   && expression->left->evaluation == Expression_Kind__Symbol;
-
-
-                // We should have warned earlier about them, during `Symbol_Ref__resolve`.
-                //
-                // TODO(low): maybe these checks should be moved just inside the function.
-                B32 processable_is = !expression
-                                  || evaluation == Expression_Kind__Constant
-                                  || evaluation == Expression_Kind__Symbol
-                                  || subtractable_is;
-
-                if (processable_is)
-                {
-                        Fixup__apply(fixup, section, arena, options, diagnostics);
-                }
-        }
 }
 
 //-----------------------------------------------------------------------------
