@@ -164,6 +164,7 @@ RISCV_Instruction__parse
                                         {
                                                // Omitted immediate, e.g. sw t1, (t0)
                                                arguments_index += 1;
+                                               token_next(cursor, diagnostics);
                                         }
                                         else
                                         {
@@ -197,6 +198,7 @@ RISCV_Instruction__parse
                                         {
                                                // Omitted immediate, e.g. lw t1, (t0)
                                                arguments_index += 1;
+                                               token_next(cursor, diagnostics);
                                         }
                                         else
                                         {
@@ -876,7 +878,7 @@ RISCV_instruction_pseudo_append
                         {
                                 .instruction_name = String8__literal("addi"),
                                 .location         = instruction->data.location,
-                                .expression       = instruction->expression,
+                                .expression       = expression_addi,
                                 .arguments        = arguments_addi,
                                 .values           = values_addi,
                                 .values_count     = array_count_m(values_addi)
