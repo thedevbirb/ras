@@ -62,9 +62,38 @@ statements_read
                         // Instructions, directives and label start with an identifier. We have to discriminate further.
                         String8 identifier = Token_Cursor__text(cursor);
                         Token next = token_peek(cursor, diagnostics);
-
+                        label_found = next.kind == Token_Kind__Colon;
                         B32 dot_start = identifier.data[0] == '.';
-                        if (dot_start)
+
+                        if (label_found)
+                        {
+                                // Label found
+                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
+                                if (symbol->section != &Section__undefined)
+                                {
+                                        // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
+                                        // It also accepts defining the symbol via `.set`, and then as a label.
+                                        {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->location   = cursor->current.location;
+                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
+                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                        }
+                                        {
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        diagnostic->kind       = Diagnostic_Kind__Note;
+                                        diagnostic->location   = symbol->location;
+                                        diagnostic->message    = Diagnostic__previous_declaration_String8;
+                                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + identifier.count }};
+                                        }
+                                }
+                                symbol->location       = cursor->current.location;
+                                Symbol_Ref__update_section(symbol, symbols_table->section_current);
+
+                                token_next(cursor, diagnostics);
+                                token_next(cursor, diagnostics);
+                        }
+                        else if (dot_start)
                         {
                                 Directive_Kind directive_kind = Directive_Kind__from_String8(identifier);
 
@@ -184,34 +213,6 @@ statements_read
                                 default: {} break;
                                 }
 
-                        }
-                        else if (next.kind == Token_Kind__Colon)
-                        {
-                                // Label found
-                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
-                                if (symbol->section != &Section__undefined)
-                                {
-                                        // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
-                                        // It also accepts defining the symbol via `.set`, and then as a label.
-                                        {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->location   = cursor->current.location;
-                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
-                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                                        }
-                                        {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->kind       = Diagnostic_Kind__Note;
-                                        diagnostic->location   = symbol->location;
-                                        diagnostic->message    = Diagnostic__previous_declaration_String8;
-                                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + identifier.count }};
-                                        }
-                                }
-                                symbol->location       = cursor->current.location;
-                                Symbol_Ref__update_section(symbol, symbols_table->section_current);
-
-                                token_next(cursor, diagnostics);
-                                token_next(cursor, diagnostics);
                         }
                         else
                         {
