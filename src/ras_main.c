@@ -155,10 +155,18 @@ main(S32 argument_count, char **argument_vector)
         Options options = Options__parse(&argument_count, argument_vector);
 
         S32 file_descriptor_in = open((char *)options.input_file.data, O_RDONLY);
-        assert_always_m(file_descriptor_in > 0 && "failed to find input file");
+        if (file_descriptor_in <= 0)
+        {
+                fprintf(stderr, "failed to find input file");
+                exit(1);
+        }
 
         S32 file_descriptor_out = open((char *)options.output_file.data, O_RDWR | O_CREAT | O_TRUNC, 0644);
-        assert_always_m(file_descriptor_out >= 0 && "failed to open output file");
+        if (file_descriptor_out <= 0)
+        {
+                fprintf(stderr, "failed to open output file");
+                exit(1);
+        }
 
         struct stat file_in_statistics;
         assert_always_m(fstat(file_descriptor_in, &file_in_statistics) == 0 && "failed to call fstat on input file");
