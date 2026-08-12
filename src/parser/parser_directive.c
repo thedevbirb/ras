@@ -163,8 +163,6 @@ directive_set_like
         }
         else if (mode == Set_Mode__Strict_Forward)
         {
-                // TODO(medium): to investigate a bit what should be the behaviour in case the expression contains the
-                // dot symbol. See `./examples/eqv.s` with a first expression containing a dot, GNU as behaves weirdly.
                 symbol->flags    |= Symbol_Flags__Forward_Reference;
                 expression_flags |= Expression_Flags__Defer_Dot;
         }
@@ -319,7 +317,7 @@ directive_string
         U64 size_escaped = String8__escaped_size(content) + !!null_terminated;
 
         U8 *data = Fragments__push(&section->fragments, cursor->current.location, size_escaped);
-        bytes_escaped_fill(content, data, size_escaped);
+        bytes_escaped_fill(content, data, size_escaped - !!null_terminated);
 
         token_next(cursor, diagnostics);
 }
