@@ -489,7 +489,7 @@ lex_at
                 }
         }
 
-        assert_always_m(token.size > 0 || token.kind == Token_Kind__None && "zero-sized token");
+        assert_always_m((token.size > 0 || token.kind == Token_Kind__None) && "zero-sized token");
 
         return token;
 }

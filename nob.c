@@ -10,6 +10,14 @@
 // the implementations go.
 #define NOB_IMPLEMENTATION
 
+#if defined(__clang__)
+#  define NOB_CC_CLANG 1
+#elif defined(__GNUC__) || defined(__GNUG__)
+#  define NOB_CC_GCC 1
+#else
+#  error "unsupported compiler"
+#endif
+
 // Always keep a copy of nob.h in your repo. One of my main pet peeves with build systems like CMake
 // and Autotools is that the codebases that use them naturally rot. That is if you do not actively update
 // your build scripts, they may not work with the latest version of the build tools. Here we basically
@@ -74,6 +82,19 @@ parse_options(int argc, char **argv)
         return options;
 }
 
+// Select the compiler. Honor the CC env var so the same build script works with
+// clang and gcc alike: `CC=gnucc ./nob`.
+static const char *
+get_cc(void)
+{
+        const char *result = getenv("CC");
+        if (result == NULL || result[0] == '\0')
+        {
+                result = "cc";
+        }
+        return result;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -97,12 +118,10 @@ main(int argc, char **argv)
         Nob_Cmd cmd = {0};
 
         // Flags that are shared between all build configurations.
-        nob_cmd_append(&cmd, "cc",
+        nob_cmd_append(&cmd, get_cc(),
                 "-std=c11",
-                // "-w",
-                "-Wall", "-Wextra", "-Wpedantic",
+                "-Wall", "-Wextra",
                 "-Wno-override-init",
-                "-Wno-gnu-designator",
                 "-Wno-unused-function",
                 "-Werror=shadow",
                 "-Werror=incompatible-pointer-types",
@@ -114,6 +133,10 @@ main(int argc, char **argv)
                 // "-DRAS_DEBUG_TOKEN_DUMP",
                 "-DU8_AS_UNSIGNED_CHAR");
 
+#ifdef NOB_CC_CLANG
+        nob_cmd_append(&cmd, "-Wno-gnu-designator");
+#endif
+
         // Flags that are specific to the selected configuration.
         if (options.release)
         {
@@ -123,10 +146,13 @@ main(int argc, char **argv)
         else
         {
                 // Debug build (default): debug info, no optimization, all the sanitizers.
-                nob_cmd_append(&cmd, "-g", "-O0",
+                nob_cmd_append(&cmd, "-g", "-O0");
+                nob_cmd_append(&cmd,
                         "-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
                         "-fsanitize-address-use-after-scope",            // ASan: poison stack vars after their scope ends.
+#ifdef NOB_CC_CLANG
                         "-fsanitize-address-use-after-return=always",    // ASan: detect use-after-return (stack use after the call).
+#endif
                         "-fno-omit-frame-pointer",                       // keep frame pointers for usable stack traces.
                         "-fno-sanitize-recover=all");                    // abort on first sanitizer hit instead of continuing.
         }

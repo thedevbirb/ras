@@ -628,7 +628,7 @@ global String8 section_name_data      = String8__literal(".data");
 global String8 section_name_bss       = String8__literal(".bss");
 global String8 section_name_undefined = String8__literal("");
 global String8 section_name_absolute  = String8__literal("*ABSOLUTE*");
-global String8 section_name_common    = String8__literal("*COMMON*");
+// global String8 section_name_common    = String8__literal("*COMMON*");
 
 // A data structure modelling an object file section, in memory.
 typedef struct Section Section;
@@ -671,8 +671,6 @@ internal B32  Section__relax(Section *section, Arena *arena, Diagnostics *diagno
 
 // Sentinel fragment terminating every fragment chain.
 global Fragment Fragment__nil = { .next = &Fragment__nil };
-
-global Symbol_Ref Symbol_Ref__zero = {0};
 
 global Symbol_Ref Symbol_Ref__undefined;
 global Section Section__undefined =

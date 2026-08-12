@@ -1,6 +1,8 @@
 #ifndef BASE_CONTEXT_CRACKING_H
 #define BASE_CONTEXT_CRACKING_H
 
+// It is highly recommended that this file remains completely standalone.
+
 //------------------------------------------------------------------------------
 // Clang/OS/architecture cracking
 //------------------------------------------------------------------------------
@@ -87,8 +89,10 @@
 
 # if defined(__gnu_linux__) || defined(__linux__)
 #  define OS_LINUX 1
+# elif defined(__APPLE__) && defined(__MACH__)
+#  define OS_MAC 1
 # else
-#  error This compiler/OS combo is not supported.
+#  error "this compiler/os combo is not supported"
 # endif
 
 # if defined(__amd64__) || defined(__amd64) || defined(__x86_64__) || defined(__x86_64)
@@ -107,8 +111,9 @@
 # error Compiler not supported.
 #endif
 
-////////////////////////////////
-//~ rjf: Arch Cracking
+//------------------------------------------------------------------------------
+// Architecture cracking
+//------------------------------------------------------------------------------
 
 #if defined(ARCH_X64)
 # define ARCH_64BIT 1
@@ -119,7 +124,7 @@
 #if defined(ARCH_ARM32) || defined(ARCH_ARM64) || defined(ARCH_X64) || defined(ARCH_X86)
 # define ARCH_LITTLE_ENDIAN 1
 #else
-# error Endianness of this architecture not understood by context cracker.
+# error "endianness of this architecture not understood by context cracker"
 #endif
 
 //------------------------------------------------------------------------------

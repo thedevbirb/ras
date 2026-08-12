@@ -680,7 +680,7 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level)
 {
-        assert_always_m(level < Resolve_Level__Finalize || diagnostics && "finalization requires diagnostics");
+        assert_always_m((level < Resolve_Level__Finalize || diagnostics) && "finalization requires diagnostics");
         Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
 
         typedef enum Frame_State

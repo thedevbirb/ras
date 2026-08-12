@@ -62,6 +62,7 @@ typedef enum Token_Kind
 }
 Token_Kind;
 
+#ifdef RAS_TOKEN_DUMP
 global const char *Token_Kind_strings[Token_Kind__COUNT] =
 {
         [Token_Kind__None]              = "",
@@ -115,6 +116,7 @@ global const char *Token_Kind_strings[Token_Kind__COUNT] =
         [Token_Kind__Identifier]        = "identifier",
         [Token_Kind__Number]            = "number",
 };
+#endif
 
 typedef struct Token Token;
 struct Token

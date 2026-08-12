@@ -120,4 +120,3 @@ internal void
 Token_Cursor__read_raw_identifier_until(Token_Cursor *cursor, String8 ending_bytes_set, B32 skip_whitespace);
 
 #endif // LEXER_H
-

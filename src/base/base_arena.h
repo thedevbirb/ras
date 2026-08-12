@@ -111,7 +111,7 @@ Arena_Temporary__end(Arena_Temporary tmp);
 		__VA_ARGS__ \
 	})
 
-#if defined(COMPILER_CLANG)
+#if COMPILER_CLANG
 #define Arena__allocate_m(...) \
 	_Pragma("clang diagnostic push") \
 	_Pragma("clang diagnostic ignored \"-Winitializer-overrides\"") \
