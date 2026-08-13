@@ -610,12 +610,14 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
                 && symbol->section != &Section__absolute
                 && symbol->section != &Section__common
                 && !Symbol_Ref__internal_is(symbol);
+        B32 undefined_symbol_is = symbol == &Symbol_Ref__undefined;
 
         B32 condition = section_or_other_is
                      || relocation_usage_has
                      || non_redefined_constant_is
                      || global_non_alias_is
-                     || label_non_internal_is;
+                     || label_non_internal_is
+                     || undefined_symbol_is;
 
         B32 keep = prerequisites && condition;
 
