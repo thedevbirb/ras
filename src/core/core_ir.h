@@ -212,6 +212,10 @@ Symbol_Flags;
 typedef struct Symbol_Ref Symbol_Ref;
 struct Symbol_Ref
 {
+        // ELF value for this symbol, whose semantics depends on context and symbol type.
+        U64 value;
+        U64 size;
+
         Symbol_Ref       *next;
         // This is a reference to `Symbol_Trie.name`
         String8          *name;
@@ -221,8 +225,6 @@ struct Symbol_Ref
         Expression       *expression;
         // An expression which defines the size of the symbol.
         Expression       *size_expression;
-        // ELF value for this symbol, which can mean an offset for labels.
-        U64 value;
 
         Symbol_Flags      flags;
 
