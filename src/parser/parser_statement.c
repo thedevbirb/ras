@@ -129,14 +129,13 @@ statements_read
 
                                 case Directive_Kind__Section: { directive_section(cursor, diagnostics, symbols_table); } break;
 
-                                case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local); } break;
-                                // case Directive_Kind__Weak: { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak); } break;
+                                case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);  } break;
+                                case Directive_Kind__Weak:    { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);   } break;
                                 case Directive_Kind__Globl:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
                                 case Directive_Kind__Global:  { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
 
                                 case Directive_Kind__Comm:    { directive_common(cursor, diagnostics, arena, symbols_table); } break;
                                 case Directive_Kind__Common:  { directive_common(cursor, diagnostics, arena, symbols_table); } break;
-
 
                                 // TODO(low): support for `<identifier> = <expr>` could be added by jumping here.
                                 case Directive_Kind__Set:      { directive_set_like(arena, cursor, diagnostics, symbols_table, Set_Mode__Override);        } break;

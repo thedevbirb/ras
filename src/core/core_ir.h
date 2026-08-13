@@ -301,6 +301,10 @@ label_numeric_string(Arena *arena, Label_Numeric label);
 internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol);
 
+// Whether a symbol should be kept or not in the final symbols table
+internal B32
+Symbol_Ref__keep(Symbol_Ref *symbol);
+
 // Symbols Table API
 
 internal Symbol_Ref *

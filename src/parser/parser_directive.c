@@ -57,9 +57,6 @@ Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String
 
 // Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
 // created if missing.
-//
-// TODO(check-gas): should I just set the binding or in case of a promotion should I "delete" the other symbol and create a new
-// one? This
 internal void
 directive_binding
 (
@@ -86,13 +83,17 @@ directive_binding
         }
 
         U8 binding_old = symbol->binding;
-        B32 demoted = binding < binding_old;
+        B32 demoted = binding < binding_old && symbol->binding != ELF_Symbol_Binding__Weak;
         if (demoted)
         {
                 Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
         }
 
-        symbol->binding = binding;
+        if (symbol->binding != ELF_Symbol_Binding__Weak)
+        {
+                symbol->binding = binding;
+        }
+
         token_next(cursor, diagnostics);
 }
 
@@ -950,7 +951,8 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
 
         B32 replace_needed = (symbol->section != &Section__undefined || symbol->expression)
                         && symbol->section != &Section__common;
-        B32 clonable = symbol->flags & Symbol_Flags__Volatile;
+        B32 clonable = symbol->flags & Symbol_Flags__Volatile
+                    && symbol->binding != ELF_Symbol_Binding__Weak;
 
         if (replace_needed)
         {

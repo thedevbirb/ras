@@ -603,6 +603,7 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
         B32 relocation_usage_has = symbol->flags & Symbol_Flags__Relocation;
         B32 non_redefined_constant_is = symbol->section == &Section__absolute && !(symbol->flags & Symbol_Flags__Redefined);
         B32 global_non_alias_is = (symbol->section == &Section__undefined || symbol->section == &Section__common)
+                && symbol->binding == ELF_Symbol_Binding__Global
                 && !symbol->expression;
         B32 label_non_internal_is = !symbol->expression
                 && symbol->section != &Section__undefined

@@ -141,12 +141,20 @@ write_object_file
 
         // 1. Compute string table size.
         // 2. Count total symbols.
-        // 3. Promote undefined symbols to globals.
+        // 3. Promote local undefined symbols to globals.
         U32 symbols_to_keep        = 0;
         U32 symbols_local_to_keep  = 0;
         U32 symbols_global_to_keep = 0;
         for each_node_m(symbols_table->first, symbol)
         {
+                // Promote local undefined symbols to globals, which should be kept.
+                B32 promote = symbol->binding == ELF_Symbol_Binding__Local && symbol->section == &Section__undefined &&
+                        symbol->name != &section_name_undefined;
+                if (promote)
+                {
+                        symbol->binding = ELF_Symbol_Binding__Global;
+                }
+
                 B32 keep = Symbol_Ref__keep(symbol);
                 if (keep)
                 {
@@ -158,12 +166,6 @@ write_object_file
                         }
 
                         symbols_to_keep += 1;
-
-                        B32 ensure_global = symbol->section == &Section__undefined && symbol != &Symbol_Ref__undefined;
-                        if (ensure_global)
-                        {
-                                symbol->binding = ELF_Symbol_Binding__Global;
-                        }
 
                         if (symbol->binding == ELF_Symbol_Binding__Local)
                         {
