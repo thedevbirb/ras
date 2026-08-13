@@ -25,6 +25,36 @@ Directive_Kind__from_String8(String8 source)
         return result;
 }
 
+internal void
+Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor)
+{
+        {
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->message    = String8__literal("symbol cannot be redefined");
+        diagnostic->location   = cursor->current.location;
+        diagnostic->ranges[0]  = Token__range(cursor->current);
+        }
+        {
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->kind       = Diagnostic_Kind__Note;
+        diagnostic->message    = Diagnostic__previous_declaration_String8;
+        diagnostic->location   = symbol->location;
+        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+        }
+
+        return;
+}
+
+internal Diagnostic *
+Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message)
+{
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->message    = message;
+        diagnostic->location   = expression->location;
+        diagnostic->ranges[0]  = expression->location_range;
+        return diagnostic;
+}
+
 // Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
 // created if missing.
 //
@@ -59,20 +89,7 @@ directive_binding
         B32 demoted = binding < binding_old;
         if (demoted)
         {
-                {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->kind       = Diagnostic_Kind__Warning;
-                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Symbol_Demoted];
-                diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
-                }
-                {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->kind       = Diagnostic_Kind__Note;
-                diagnostic->message    = Diagnostic__previous_declaration_String8;
-                diagnostic->location   = symbol->location;
-                diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
-                }
+                Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
         }
 
         symbol->binding = binding;
@@ -136,19 +153,7 @@ directive_set_like
                           || !(symbol->flags & Symbol_Flags__Volatile);
                 if (frozen)
                 {
-                        {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("symbol cannot be redefined");
-                        diagnostic->location   = cursor->current.location;
-                        diagnostic->ranges[0]  = Token__range(cursor->current);
-                        }
-                        {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Note;
-                        diagnostic->message    = Diagnostic__previous_declaration_String8;
-                        diagnostic->location   = symbol->location;
-                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + name.count }};
-                        }
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
                 }
 
                 symbol = Symbols_Table__create(symbols_table, name);
@@ -925,6 +930,101 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                         diagnostic->location   = cursor->current.location;
                 }
 
+        }
+}
+
+internal void
+directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, Symbols_Table *symbols_table)
+{
+        // Syntax: .comm symbol, size, [,align]
+        token_next(cursor, diagnostics);
+        String8 name = Token_Cursor__text(cursor);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+
+        B32 replace_needed = (symbol->section != &Section__undefined || symbol->expression)
+                        && symbol->section != &Section__common;
+        B32 clonable = symbol->flags & Symbol_Flags__Volatile;
+        if (replace_needed)
+        {
+                if (clonable)
+                {
+                        Symbol_Ref *clone = Symbols_Table__clone(symbols_table, symbol);
+                                    clone->flags &= ~Symbol_Flags__Volatile;
+                                    clone->expression = 0;
+                        Symbol_Ref__update_section(clone, &Section__undefined);
+                }
+                else
+                {
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
+                }
+        }
+
+        symbol->type = ELF_Symbol_Type__Object;
+
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind == Token_Kind__Comma)
+        {
+                // TODO(32-bit): check that size is in 32-bit range
+                Expression *size_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                expression_evaluate(size_expression);
+                S64 size = size_expression->integer_value;
+
+                if (clonable)
+                {
+                        symbol->size = size;
+                }
+
+                if (size_expression->evaluation != Expression_Kind__Constant)
+                {
+                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have constant evaluation"));
+                }
+                else if (size <= 0)
+                {
+                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have positive evaluation"));
+                }
+                else if ((U64)size != symbol->size)
+                {
+                        Diagnostic *diagnostic = Diagnostics__expression(diagnostics, size_expression, String8__literal("size already set, not changing it"));
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                }
+
+                if (cursor->current.kind == Token_Kind__Comma)
+                {
+                        // Read alignment
+                        Expression *alignment_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                        expression_evaluate(alignment_expression);
+                        U64 alignment = (U64)alignment_expression->integer_value;
+
+                        if (alignment_expression->evaluation != Expression_Kind__Constant)
+                        {
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment expression expected to have constant evaluation"));
+                        }
+                        else if ((S64)alignment <= 0)
+                        {
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment expression expected to have positive evaluation"));
+                        }
+                        else if (!pow_2_is_m(alignment))
+                        {
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment is not a power of two"));
+                        }
+                        else
+                        {
+                                symbol->value = alignment;
+                        }
+                }
+
+                B32 should_be_placed_in_bss = symbol->binding == ELF_Symbol_Binding__Local
+                                          && symbol->section == &Section__undefined;
+                if (should_be_placed_in_bss)
+                {
+
+                }
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("comma expected");
+                diagnostic->location   = cursor->current.location;
         }
 }
 
