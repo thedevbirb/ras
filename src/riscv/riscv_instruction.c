@@ -1,3 +1,26 @@
+
+// FENCE: predecessor/successor sets.
+global const String8 RISCV_predecessor_successor_table[] =
+{
+         {0},
+         String8__literal("w"),
+         String8__literal("r"),
+         String8__literal("rw"),
+         String8__literal("o"),
+         String8__literal("ow"),
+         String8__literal("or"),
+         String8__literal("orw"),
+
+         String8__literal("i"),
+         String8__literal("iw"),
+         String8__literal("ir"),
+         String8__literal("irw"),
+         String8__literal("io"),
+         String8__literal("iow"),
+         String8__literal("ior"),
+         String8__literal("iorw"),
+};
+
 // NOTE: the empty opcode can be distinguished by the zero hash.
 global const RISCV_Opcode RISCV_Opcode__table[] =
 {
@@ -104,6 +127,11 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("pause"),  OPC__I, 0, HASH_pause,  MATCH_PAUSE,  MASK_PAUSE,  OP_m(OP_None), match_opcode },
 { String8__inline_m("ecall"),  OPC__I, 0, HASH_ecall,  MATCH_ECALL,  MASK_ECALL,  OP_m(OP_None), match_opcode },
 { String8__inline_m("ebreak"), OPC__I, 0, HASH_ebreak, MATCH_EBREAK, MASK_EBREAK, OP_m(OP_None), match_opcode },
+
+// First most specific, then generic.
+{ String8__inline_m("fence"),     OPC__I, 0,          HASH_fence,     MATCH_FENCE,                     MASK_FENCE|MASK_RD|MASK_RS1|(MASK_IMM & ~MASK_PRED & ~MASK_SUCC), OP_m(OP_Predecessor, OP_Comma, OP_Successor), match_opcode },
+{ String8__inline_m("fence"),     OPC__I, INSN_ALIAS, HASH_fence,     MATCH_FENCE|MASK_PRED|MASK_SUCC, MASK_FENCE|MASK_RD|MASK_RS1|MASK_IMM,                             OP_m(OP_None),                                match_opcode },
+{ String8__inline_m("fence.tso"), OPC__I, 0,          HASH_fence_tso, MATCH_FENCE_TSO,                 MASK_FENCE_TSO|MASK_RD|MASK_RS1,                                  OP_m(OP_None),                                match_opcode },
 
 { String8__inline_m(""), OPC__None, 0, 0, 0, 0, 0, 0 }
 };

@@ -460,6 +460,9 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_RS2    0x01F00000   // bits 24:20
 #define MASK_IMM    0xFFF00000   // bits 31:20
 
+#define MASK_PRED (OP_MASK_PRED << OP_SH_PRED)
+#define MASK_SUCC (OP_MASK_SUCC << OP_SH_SUCC)
+
 // Instruction info flags.
 //
 // These are packed into the U16 `info` field of RISCV_Opcode, so every flag must fit in
@@ -683,7 +686,7 @@ typedef U32 insn_t;
 //------------------------------------------------------------------------------
 
 // Operator Kind
-enum
+typedef enum OPK
 {
         OPK__None = 0,
 
@@ -693,19 +696,16 @@ enum
         OPK__Shift,
 
         OPK__Constant,
-        OPK__Call,
 
         // Used to mark explicitly some relocations in macro expansions
         OPK__Relocation,
 
-        OPK__Comma,
-        // Parenthesis Left
-        OPK__PL,
-        // Parenthesis Right
-        OPK__PR,
+        OPK__Unique,
+        OPK__Syntax,
 
         OPK__COUNT
-};
+}
+OPK;
 assert_static_m(OPK__COUNT <= (1 << 5), OPK__size_check);
 
 // Operator fields types
@@ -780,7 +780,27 @@ enum
         OPF_O__Jal_C,
         OPF_O_COUNT,
 };
+
 assert_static_m(OPF_O_COUNT <= (1 << 3), OPF_O_size_check);
+
+enum
+{
+        OPF_SX__Comma,
+        OPF_SX__PL,
+        OPF_SX__PR,
+        OPF_SX__COUNT
+};
+assert_static_m(OPF_SX__COUNT <= (1 << 3), OPF_SX_size_check);
+
+enum
+{
+        OPF_U__Call,
+        OPF_U__Relocation,
+        OPF_U__Predecessor,
+        OPF_U__Successor,
+        OPF_U__COUNT
+};
+assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
 
 // Slot / pattern macros
 
@@ -796,11 +816,13 @@ assert_static_m(OPF_O_COUNT <= (1 << 3), OPF_O_size_check);
 #define OP_Shift(field)     OP_A(OPK__Shift, field)
 #define OP_Constant(field)  OP_A(OPK__Constant, field)
 
-#define OP_Call             OPK__Call
 #define OP_Relocation       OPK__Relocation
-#define OP_Comma            OPK__Comma
-#define OP_PL               OPK__PL
-#define OP_PR               OPK__PR
+#define OP_Call             OP_A(OPK__Unique, OPF_U__Call)
+#define OP_Predecessor      OP_A(OPK__Unique, OPF_U__Predecessor)
+#define OP_Successor        OP_A(OPK__Unique, OPF_U__Successor)
+#define OP_Comma            OP_A(OPK__Syntax, OPF_SX__Comma)
+#define OP_PL               OP_A(OPK__Syntax, OPF_SX__PL)
+#define OP_PR               OP_A(OPK__Syntax, OPF_SX__PR)
 
 // Pack arguments in 8 one-byte slots.
 #define OP_1_m(a)               ((U64)(a))

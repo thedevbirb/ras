@@ -42,21 +42,27 @@ RISCV_Instruction__parse
 
                         switch (OP_KIND(slot))
                         {
-                        case OPK__Comma:
+                        case OPK__Syntax:
                         {
-                                // NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
-                                try_next = cursor->current.kind != Token_Kind__Comma;
-                                token_next(cursor, diagnostics);
-                        } break;
-                        case OPK__PL:
-                        {
-                                try_next = cursor->current.kind != Token_Kind__Parenthesis_Left;
-                                token_next(cursor, diagnostics);
-                        } break;
-                        case OPK__PR:
-                        {
-                                try_next = cursor->current.kind != Token_Kind__Parenthesis_Right;
-                                token_next(cursor, diagnostics);
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_SX__Comma:
+                                {
+                                        // NOTE: This whole thing could extracted into a `expect_comma_and_advance`.
+                                        try_next = cursor->current.kind != Token_Kind__Comma;
+                                        token_next(cursor, diagnostics);
+                                } break;
+                                case OPF_SX__PL:
+                                {
+                                        try_next = cursor->current.kind != Token_Kind__Parenthesis_Left;
+                                        token_next(cursor, diagnostics);
+                                } break;
+                                case OPF_SX__PR:
+                                {
+                                        try_next = cursor->current.kind != Token_Kind__Parenthesis_Right;
+                                        token_next(cursor, diagnostics);
+                                } break;
+                                }
                         } break;
                         case OPK__GPR:
                         {
@@ -344,23 +350,61 @@ RISCV_Instruction__parse
                                 default: { unreachable_m(); }
                                 }
                         } break;
-                        case OPK__Call:
+                        case OPK__Unique:
                         {
-                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
-                                SLL_queue_push_m(expressions->first, expressions->last, expression);
-
-                                parsed.relocation = Relocation_RISC_V__Call_PLT;
-
-                                Token   peek      = token_peek(cursor, diagnostics);
-                                String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
-                                B32 at_plt_suffix = cursor->current.kind == Token_Kind__At
-                                                 && String8__match_exact(peek_text, String8__literal("plt"));
-                                if (at_plt_suffix)
+                                switch (OP_FIELD(slot))
                                 {
-                                        // Skip @
+                                case OPF_U__Call:
+                                {
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
+                                        parsed.relocation = Relocation_RISC_V__Call_PLT;
+
+                                        Token   peek      = token_peek(cursor, diagnostics);
+                                        String8 peek_text = Source__text_at(cursor->source, peek.location, peek.size);
+                                        B32 at_plt_suffix = cursor->current.kind == Token_Kind__At
+                                                         && String8__match_exact(peek_text, String8__literal("plt"));
+                                        if (at_plt_suffix)
+                                        {
+                                                // Skip @
+                                                token_next(cursor, diagnostics);
+                                                // Skip PLT
+                                                token_next(cursor, diagnostics);
+                                        }
+                                } break;
+                                case OPF_U__Predecessor: {} // fallthrough
+                                case OPF_U__Successor:
+                                {
+                                        String8 text    = Token_Cursor__text(cursor);
+
+                                        U8 index    = 0;
+                                        U8 ps_entry = 0;
+                                        for (;;)
+                                        {
+                                                B32 break_should = ps_entry || index >= array_count_m(RISCV_predecessor_successor_table);
+                                                if (break_should)
+                                                {
+                                                        break;
+                                                }
+
+                                                String8 entry = RISCV_predecessor_successor_table[index];
+                                                ps_entry = String8__match_exact(text, entry) ? index : 0;
+                                                index += 1;
+                                        }
+                                        try_next |= !ps_entry;
+
+                                        if (OP_FIELD(slot) == OPF_U__Predecessor)
+                                        {
+                                                INSERT_OPERAND(PRED, parsed.data, ps_entry);
+                                        }
+                                        else
+                                        {
+                                                INSERT_OPERAND(SUCC, parsed.data, ps_entry);
+                                        }
+
                                         token_next(cursor, diagnostics);
-                                        // Skip PLT
-                                        token_next(cursor, diagnostics);
+                                } break;
                                 }
                         } break;
                         default: { unreachable_m(); }
