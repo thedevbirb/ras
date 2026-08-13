@@ -88,6 +88,14 @@
 #define FUNCT3_SRA                     0x05
 #define FUNCT3_OR                      0x06
 #define FUNCT3_AND                     0x07
+#define FUNCT3_MUL                     0x00
+#define FUNCT3_MULH                    0x01
+#define FUNCT3_MULHSU                  0x02
+#define FUNCT3_MULHU                   0x03
+#define FUNCT3_DIV                     0x04
+#define FUNCT3_DIVU                    0x05
+#define FUNCT3_REM                     0x06
+#define FUNCT3_REMU                    0x07
 #define FUNCT3_ECALL                   0x73
 #define FUNCT3_EBREAK                  0x73
 #define FUNCT3_FENCE                   0x0F
@@ -125,6 +133,8 @@
 #define FUNCT7_SRA                     0x20
 #define FUNCT7_OR                      0x00
 #define FUNCT7_AND                     0x00
+// M extension
+#define FUNCT7_M                       0x01
 // 64-bit
 #define FUNCT7_ADDW                    0x00
 #define FUNCT7_SUBW                    0x20
@@ -845,6 +855,8 @@ enum
 {
         OPC__None = 0,
         OPC__I,
+        OPC__M,
+        OPC__ZMMUL,
 
         OPC__COUNT,
 };

@@ -133,10 +133,26 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("fence"),     OPC__I, INSN_ALIAS, HASH_fence,     MATCH_FENCE|MASK_PRED|MASK_SUCC, MASK_FENCE|MASK_RD|MASK_RS1|MASK_IMM,                             OP_m(OP_None),                                match_opcode },
 { String8__inline_m("fence.tso"), OPC__I, 0,          HASH_fence_tso, MATCH_FENCE_TSO,                 MASK_FENCE_TSO|MASK_RD|MASK_RS1,                                  OP_m(OP_None),                                match_opcode },
 
+// M/ZMMUL extension instructions.
+{ String8__inline_m("mul"),    OPC__ZMMUL, 0, HASH_mul,    MATCH_MUL,    MASK_MUL,    OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("mulh"),   OPC__ZMMUL, 0, HASH_mulh,   MATCH_MULH,   MASK_MULH,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("mulhsu"), OPC__ZMMUL, 0, HASH_mulhsu, MATCH_MULHSU, MASK_MULHSU, OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("mulhu"),  OPC__ZMMUL, 0, HASH_mulhu,  MATCH_MULHU,  MASK_MULHU,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("div"),    OPC__M,     0, HASH_div,    MATCH_DIV,    MASK_DIV,    OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("divu"),   OPC__M,     0, HASH_divu,   MATCH_DIVU,   MASK_DIVU,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("rem"),    OPC__M,     0, HASH_rem,    MATCH_REM,    MASK_REM,    OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("remu"),   OPC__M,     0, HASH_remu,   MATCH_REMU,   MASK_REMU,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("mulw"),   OPC__ZMMUL, 0, HASH_mulw,   MATCH_MULW,   MASK_MULW,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("divw"),   OPC__M,     0, HASH_divw,   MATCH_DIVW,   MASK_DIVW,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("divuw"),  OPC__M,     0, HASH_divuw,  MATCH_DIVUW,  MASK_DIVUW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("remw"),   OPC__M,     0, HASH_remw,   MATCH_REMW,   MASK_REMW,   OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+{ String8__inline_m("remuw"),  OPC__M,     0, HASH_remuw,  MATCH_REMUW,  MASK_REMUW,  OP_m(OP_GPR(OPF_R__D), OP_Comma, OP_GPR(OPF_R__S_1), OP_Comma, OP_GPR(OPF_R__S_2)), match_opcode },
+
 { String8__inline_m(""), OPC__None, 0, 0, 0, 0, 0, 0 }
 };
 
-// TODO(low): for now this is dumb enough and works.
+// TODO(low): for now this is dumb enough and works. However, it would be nicer to create a fixed-size hashmap at
+// compile-time.
 //
 // Returns empty opcode if not found.
 internal const RISCV_Opcode *

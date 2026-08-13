@@ -82,11 +82,11 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 if (String8__match_prefix(argument, march_option_prefix))
                 {
                         String8 architecture = String8__skip(argument, march_option_prefix.count);
-                        B32 match = String8__match_exact(architecture, String8__literal("rv64i"));
+                        B32 match = String8__match_exact(architecture, String8__literal("rv64im"));
                         // TODO(low): bigger support
                         if (!match)
                         {
-                                fprintf(stderr, "invalid architecture, expected 'rv64i', found: %*s\n", String8__varg(architecture));
+                                fprintf(stderr, "invalid architecture, expected 'rv64im', found: %*s\n", String8__varg(architecture));
                                 exit(1);
                         }
 
