@@ -1722,3 +1722,27 @@ code of GNU as made it clear, though.
 Last, mapping these ideas to actual operation on the symbols table requires some good thinking, and
 it is specific to my codebase.
 
+### Wed Aug 12 15:07:39 CEST 2026
+
+I'm at a point where I don't know what to work next. Maybe I'll start writing the blog and a small
+readme file. For sure there are bugs in this code, and this assembler is missing a lot, but I also
+feel that taking some other direction would result in a non-trivial time investment.
+Writing the blog post will also take some amount of time.
+
+### Thu Aug 13 14:57:29 CEST 2026
+
+I have decided to a bit more features and extensions, and consolidate some core ones. Otherwise it's
+not even playable with. Keep working.
+
+---
+
+I think a missing specification of assembly behaviour hurts it quite a bit. Directives and such
+should be completely specified. When this is missing, you can't rely too much on reasoning about the
+logic of the code itself, and correctness is more like a set of tests seem to be intuitively
+correct. This could be one of the reasons why compilers, even if they do very advanced
+transformation of the source, try mostly to emit straightforward and non-ambiguous assembly.
+
+There are a lot of some spots where behaviour is somewhat unknown and you have to run the code with
+some gnarly example and just see what happens. Want to write `.lcomm` with an already global symbol?
+Sure thing! But it won't end up as local, and no error happens. Do you want to reliably know whether
+a symbol will end up in the symbols table? Good luck!
