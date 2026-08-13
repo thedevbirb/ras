@@ -38,7 +38,10 @@ typedef struct Options Options;
 struct Options
 {
         int release;
+        // Name of a different compiler to use, by default `cc`.
+        const char *compiler;
 };
+static const char *cc_default = "cc";
 
 static void
 print_usage(const char *program)
@@ -47,8 +50,9 @@ print_usage(const char *program)
                         "Usage: %s [options]\n"
                         "\n"
                         "Options:\n"
+                        "    --cc <cc>            Use another C compiler to build the program, by default `cc`\n"
                         "    --debug              Build the debug configuration (default): -g -O0 + sanitizers.\n"
-                        "    --release            Build the release configuration: -O2"
+                        "    --release            Build the release configuration: -O2\n"
                         "    -h, --help           Print this help message.\n",
                         program);
 }
@@ -56,7 +60,7 @@ print_usage(const char *program)
 static Options
 parse_options(int argc, char **argv)
 {
-        Options options = {0};
+        Options options = { .compiler = cc_default };
         for (int i = 1; i < argc; ++i)
         {
                 if (strcmp(argv[i], "--release") == 0)
@@ -66,6 +70,21 @@ parse_options(int argc, char **argv)
                 else if (strcmp(argv[i], "--debug") == 0)
                 {
                         options.release = false;
+                }
+                else if (strcmp(argv[i], "--cc") == 0)
+                {
+                        options.compiler = false;
+                        if (i + 1 == argc)
+                        {
+                                fprintf(stderr, "missing argument for option %s\n", argv[i]);
+                                print_usage(argv[0]);
+                                exit(1);
+                        }
+                        else
+                        {
+                                i += 1;
+                                options.compiler = argv[i];
+                        }
                 }
                 else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0)
                 {
@@ -80,19 +99,6 @@ parse_options(int argc, char **argv)
                 }
         }
         return options;
-}
-
-// Select the compiler. Honor the CC env var so the same build script works with
-// clang and gcc alike: `CC=gnucc ./nob`.
-static const char *
-get_cc(void)
-{
-        const char *result = getenv("CC");
-        if (result == NULL || result[0] == '\0')
-        {
-                result = "cc";
-        }
-        return result;
 }
 
 int
@@ -118,7 +124,7 @@ main(int argc, char **argv)
         Nob_Cmd cmd = {0};
 
         // Flags that are shared between all build configurations.
-        nob_cmd_append(&cmd, get_cc(),
+        nob_cmd_append(&cmd, options.compiler,
                 "-std=c11",
                 "-Wall", "-Wextra",
                 "-Wno-override-init",
