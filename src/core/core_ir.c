@@ -736,6 +736,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                 else if (frame->symbol && !frame->symbol->expression)
                 {
                         // A symbol without an expression can be either a label definition, or some undefined symbol.
+                        // In any case, its value depends on its position on the fragment.
                         result = frame->symbol->value;
                         if (!(frame->symbol->flags & Symbol_Flags__Finalized))
                         {
@@ -1910,10 +1911,9 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                                 diagnostic->location   = expression->location;
                                                 diagnostic->ranges[0]  = expression->location_range;
 
-                                                // TODO(unsure) Prevent this error from being repeated?
+                                                // Prevent this error from being repeated?
                                                 fragment->relax_info.fill_expression = 0;
                                                 expression = 0;
-                                                // TODO(unsure) I think we can exit already
                                                 error = 1;
                                         }
                                 }
@@ -2016,3 +2016,25 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 
         return stretched_at_least_once;
 }
+
+// internal void
+// Section__bss_allocate(Section *section, Arena *arena, Symbol_Ref *symbol, U32 alignment_boundary)
+// {
+//         assert_always_m(pow_2_is_m(alignment_boundary));
+//         assert_always_m(section->elf.type & ELF_Section_Header_Type__No_Data);
+//
+//         Expression *expression = Expression__push_symbol(arena, symbol);
+//         Alignment alignment = { .boundary = alignment_boundary, .write_size_max = 0, .pattern_size = 1 };
+//         Fill fill = { .repeat = expression, .pattern = 0, .pattern_size = 1 };
+//
+//         if (section->elf.alignment < alignment_boundary)
+//         {
+//                 section->elf.alignment = alignment_boundary;
+//         }
+//
+//         U32 location = 0;
+//         Fragments__align(&section->fragments, location, alignment);
+//         Symbol_Ref__update_section(symbol, section);
+//         Fragments__fill(&section->fragments, location, fill);
+//         return;
+// }

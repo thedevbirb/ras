@@ -939,11 +939,19 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
         // Syntax: .comm symbol, size, [,align]
         token_next(cursor, diagnostics);
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get(symbols_table, name);
+        B32 should_be_placed_in_bss = symbol
+                                   && symbol->binding == ELF_Symbol_Binding__Local
+                                   && symbol->section == &Section__undefined;
+        if (!symbol)
+        {
+                symbol = Symbols_Table__get_or_default(symbols_table, name);
+        }
 
         B32 replace_needed = (symbol->section != &Section__undefined || symbol->expression)
                         && symbol->section != &Section__common;
         B32 clonable = symbol->flags & Symbol_Flags__Volatile;
+
         if (replace_needed)
         {
                 if (clonable)
@@ -952,6 +960,11 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                                     clone->flags &= ~Symbol_Flags__Volatile;
                                     clone->expression = 0;
                         Symbol_Ref__update_section(clone, &Section__undefined);
+                        should_be_placed_in_bss |= symbol->binding == ELF_Symbol_Binding__Local;
+
+                        // TODO(low): perhaps a code smell that it should be handled better.
+                        symbol->flags |= Symbol_Flags__Skip;
+                        symbol = clone;
                 }
                 else
                 {
@@ -964,14 +977,15 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
         token_next(cursor, diagnostics);
         if (cursor->current.kind == Token_Kind__Comma)
         {
+                token_next(cursor, diagnostics);
                 // TODO(32-bit): check that size is in 32-bit range
                 Expression *size_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                 expression_evaluate(size_expression);
                 S64 size = size_expression->integer_value;
 
-                if (clonable)
+                if (!symbol->size_expression)
                 {
-                        symbol->size = size;
+                        symbol->size_expression = Expression__push_constant(arena, size);
                 }
 
                 if (size_expression->evaluation != Expression_Kind__Constant)
@@ -982,42 +996,79 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                 {
                         Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have positive evaluation"));
                 }
-                else if ((U64)size != symbol->size)
+                else if (symbol->size_expression && symbol->size_expression->integer_value != size)
                 {
+                        // Fix one size per object file, the linker will pick the largest among them.
                         Diagnostic *diagnostic = Diagnostics__expression(diagnostics, size_expression, String8__literal("size already set, not changing it"));
                         diagnostic->kind       = Diagnostic_Kind__Warning;
                 }
 
+                U64 alignment_boundary = 1;
+                for (;;)
+                {
+                        B32 break_should = alignment_boundary >= (U64)size || alignment_boundary >= (1 << 4);
+                        if (break_should)
+                        {
+                                break;
+                        }
+                        alignment_boundary <<= 1;
+                }
                 if (cursor->current.kind == Token_Kind__Comma)
                 {
-                        // Read alignment
+                        token_next(cursor, diagnostics);
+                        // Read alignment_boundary
                         Expression *alignment_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                         expression_evaluate(alignment_expression);
-                        U64 alignment = (U64)alignment_expression->integer_value;
+                        alignment_boundary = (U64)alignment_expression->integer_value;
 
                         if (alignment_expression->evaluation != Expression_Kind__Constant)
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment expression expected to have constant evaluation"));
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary expression expected to have constant evaluation"));
                         }
-                        else if ((S64)alignment <= 0)
+                        else if ((S64)alignment_boundary <= 0)
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment expression expected to have positive evaluation"));
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary expression expected to have positive evaluation"));
                         }
-                        else if (!pow_2_is_m(alignment))
+                        else if (!pow_2_is_m(alignment_boundary))
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment is not a power of two"));
+                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary is not a power of two"));
                         }
                         else
                         {
-                                symbol->value = alignment;
+                                symbol->value = alignment_boundary;
                         }
                 }
 
-                B32 should_be_placed_in_bss = symbol->binding == ELF_Symbol_Binding__Local
-                                          && symbol->section == &Section__undefined;
                 if (should_be_placed_in_bss)
                 {
+                        Symbol_Ref *symbol_bss = Symbols_Table__get(symbols_table, section_name_bss);
+                        Section    *section    = symbol_bss->section;
 
+                        // For a .bss symbol the value field is irrelevant, we use it to mark its size.
+                        // symbol->value = size;
+
+                        Alignment alignment = { .boundary = alignment_boundary, .write_size_max = 0, .pattern_size = 1 };
+                        Fill fill = { .repeat = size_expression, .pattern = 0, .pattern_size = 1 };
+
+                        if (section->elf.alignment < alignment_boundary)
+                        {
+                                section->elf.alignment = alignment_boundary;
+                        }
+
+                        U32 location = 0;
+                        Fragments__align(&section->fragments, location, alignment);
+                        Symbol_Ref__update_section(symbol, section);
+                        Fragments__fill(&section->fragments, location, fill);
+                }
+                else
+                {
+                        symbol->section = &Section__common;
+                        symbol->value   = alignment_boundary;
+                        symbol->binding = ELF_Symbol_Binding__Global;
+                        if (!symbol->size_expression)
+                        {
+                                symbol->size_expression = Expression__push_constant(arena, size);
+                        }
                 }
         }
         else

@@ -197,14 +197,15 @@ main(S32 argument_count, char **argument_vector)
         Symbol_Ref *symbol_text = Symbols_Table__get_or_default(symbols_table, section_name_text);
         Symbols_Table__create_section(symbols_table, symbol_text);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_text->section);
-        // Byte strings.
         symbol_text->section->elf.entry_size = 1;
         symbol_text->section->elf.alignment = options.compressed ? 2 : 4;
         symbols_table->section_current = symbol_text->section;
+
         Symbol_Ref *symbol_data = Symbols_Table__get_or_default(symbols_table, section_name_data);
         Symbols_Table__create_section(symbols_table, symbol_data);
         symbol_data->section->elf.alignment = 8;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_data->section);
+
         Symbol_Ref *symbol_bss = Symbols_Table__get_or_default(symbols_table, section_name_bss);
         Symbols_Table__create_section(symbols_table, symbol_bss);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);

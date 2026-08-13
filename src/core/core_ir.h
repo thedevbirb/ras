@@ -214,7 +214,6 @@ struct Symbol_Ref
 {
         // ELF value for this symbol, whose semantics depends on context and symbol type.
         U64 value;
-        U64 size;
 
         Symbol_Ref       *next;
         // This is a reference to `Symbol_Trie.name`
@@ -326,7 +325,8 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name);
 internal Symbol_Numeric
 Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward);
 
-// Update `Section` and `Fragment` information of the given symbol.
+// Update `Section` and `Fragment` information of the given symbol, and sets the ELF value of a symbol to current offset
+// within the `Fragment`.
 internal void
 Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section);
 
@@ -667,6 +667,10 @@ Section__add_instruction_fixed
 internal void Section__finish(Section *section);
 internal B32  Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics);
 
+// Allocate a constant-sized symbol on the .bss or a no data section. It's necessary that the symbol carries
+// its size in the `Symbol_Ref.value`.
+internal void Section__bss_allocate(Section *section, Arena *arena, Symbol_Ref *symbol, U32 alignment_boundary);
+
 //-----------------------------------------------------------------------------
 // @Globals
 //-----------------------------------------------------------------------------
@@ -697,6 +701,7 @@ global Symbol_Ref Symbol_Ref__common;
 global Section Section__common =
 {
         .symbol    = &Symbol_Ref__common,
+        .index     = ELF_Section_Index__Common,
         .fragments =
         {
                 .first = &Fragment__nil,
