@@ -7,13 +7,13 @@ Options__default(void)
                 .abi_xlen         = XLEN_64,
                 .relax            = 1,
                 .machine_abi      = String8__literal("lp64d"),
-                .elf_header_flags = EF_RISCV_FLOAT_ABI_DOUBLE,
 
                 .attributes =
                 {
                         .architecture = String8__literal("rv64i"),
                 }
         };
+        result.elf_header_flags = ELF_Header_Flags__from_Options(&result);
 
         return result;
 }
@@ -21,8 +21,15 @@ Options__default(void)
 internal U32
 ELF_Header_Flags__from_Options(Options *options)
 {
-        // TODO(low): make this configurable, but in practice this is a rv64i assembler for now.
-        U32 flags = EF_RISCV_FLOAT_ABI_DOUBLE;
+        U32 flags = 0;
+        if (String8__match_suffix(options->machine_abi, String8__literal("f")))
+        {
+                flags |= EF_RISCV_FLOAT_ABI_SINGLE;
+        }
+        else if (String8__match_suffix(options->machine_abi, String8__literal("d")))
+        {
+                flags |= EF_RISCV_FLOAT_ABI_DOUBLE;
+        }
         if (options->compressed)
         {
                 flags |= EF_RISCV_RVC;

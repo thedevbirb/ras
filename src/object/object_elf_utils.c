@@ -149,14 +149,14 @@ ELF_Symbol_Type__from_String8(String8 string)
 }
 
 internal void
-ELF_identifier_fill(U8 identifier[ELF_id_size])
+ELF_identifier_fill(U8 identifier[ELF_id_size], U8 class)
 {
         identifier[ELF_ID_Magic__Index]     = ELF_ID_Magic__0;
         identifier[ELF_ID_Magic__Index + 1] = ELF_ID_Magic__1;
         identifier[ELF_ID_Magic__Index + 2] = ELF_ID_Magic__2;
         identifier[ELF_ID_Magic__Index + 3] = ELF_ID_Magic__3;
 
-        identifier[ELF_ID_Class__Index]     = ELF_ID_Class__64;
+        identifier[ELF_ID_Class__Index]     = class;
         identifier[ELF_ID_Data__Index]      = ELF_ID_Data__2LSB;
         identifier[ELF_ID_Version__Index]   = ELF_ID_Version__Current;
 

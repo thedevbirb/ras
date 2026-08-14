@@ -128,6 +128,7 @@ RISCV_Instruction__parse
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
                                         expression_evaluate(expression);
+                                        expression->integer_value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
 
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {

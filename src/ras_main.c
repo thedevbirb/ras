@@ -63,6 +63,7 @@ internal Options
 Options__parse(S32 *argument_count, char **argument_vector)
 {
         Options result = Options__default();
+        B32 abi_explicit = 0;
 
         arguments_shift(argument_count, &argument_vector);
         if (*argument_count < 2)
@@ -82,28 +83,43 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 if (String8__match_prefix(argument, march_option_prefix))
                 {
                         String8 architecture = String8__skip(argument, march_option_prefix.count);
-                        B32 match = String8__match_exact(architecture, String8__literal("rv64im"));
-                        // TODO(low): bigger support
+                        B32 match = String8__match_exact(architecture, String8__literal("rv32im")) ||
+                                    String8__match_exact(architecture, String8__literal("rv64im"));
+                        // TODO(low): bigger support, not super clean
                         if (!match)
                         {
-                                fprintf(stderr, "invalid architecture, expected 'rv64im', found: %*s\n", String8__varg(architecture));
+                                fprintf(stderr, "invalid architecture, expected 'rv32im' or 'rv64im', found: %*s\n", String8__varg(architecture));
                                 exit(1);
                         }
 
                         result.attributes.architecture = architecture;
+                        result.xlen = architecture.data[2] == '3' ? XLEN_32 : XLEN_64;
+                        if (!abi_explicit)
+                        {
+                                // Default ABI follows the ISA width: ilp32 for rv32, lp64 for rv64.
+                                result.machine_abi = result.xlen == XLEN_32 ? String8__literal("ilp32") : String8__literal("lp64");
+                                result.abi_xlen = result.xlen;
+                        }
                 }
-                else if (String8__match_prefix(argument, String8__literal("-mabi=")))
+                else if (String8__match_prefix(argument, mabi_option_prefix))
                 {
                         String8 abi = String8__skip(argument, mabi_option_prefix.count);
-                        B32 match = String8__match_exact(abi, String8__literal("lp64d"));
-                        // TODO(low): bigger support
+                        B32 match = String8__match_exact(abi, String8__literal("ilp32"))
+                                 || String8__match_exact(abi, String8__literal("ilp32f"))
+                                 || String8__match_exact(abi, String8__literal("ilp32d"))
+                                 || String8__match_exact(abi, String8__literal("lp64"))
+                                 || String8__match_exact(abi, String8__literal("lp64f"))
+                                 || String8__match_exact(abi, String8__literal("lp64d"));
+                        // TODO(low): not very clean
                         if (!match)
                         {
-                                fprintf(stderr, "invalid abi, expected 'lp64d', found: %*s\n", String8__varg(abi));
+                                fprintf(stderr, "invalid abi, expected 'ilp32', 'ilp32f', 'ilp32d', 'lp64', 'lp64f' or 'lp64d', found: %*s\n", String8__varg(abi));
                                 exit(1);
                         }
 
                         result.machine_abi = abi;
+                        result.abi_xlen = abi.data[3] == '3' ? XLEN_32 : XLEN_64;
+                        abi_explicit = 1;
                 }
                 else if (String8__match_exact(argument, String8__literal("-o")))
                 {
@@ -142,6 +158,21 @@ Options__parse(S32 *argument_count, char **argument_vector)
 
                 arguments_shift(argument_count, &argument_vector);
         }
+
+        if (result.abi_xlen != result.xlen)
+        {
+                fprintf(stderr, "can't have %d-bit ABI on %d-bit ISA\n", result.abi_xlen, result.xlen);
+                exit(1);
+        }
+
+        // TODO(low): make embedded configurable
+        if (result.embedded && result.xlen == XLEN_64)
+        {
+                fprintf(stderr, "can't have E extension on 64-bit ISA\n");
+                exit(1);
+        }
+
+        result.elf_header_flags = ELF_Header_Flags__from_Options(&result);
 
         return result;
 }

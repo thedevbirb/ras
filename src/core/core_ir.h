@@ -654,6 +654,7 @@ struct Section
         // This can be reliably set only close to object file writing, unless the section is either  absolute, or
         // common. As such, use this for section comparison only against those. Otherwise, compare section pointers.
         U32                  index;
+        // Will get converted to a 32-bit version if necessary
         ELF64_Section_Header elf;
 };
 

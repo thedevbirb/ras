@@ -418,20 +418,15 @@ struct ELF64_Relocation_Addend
         S64 addend;
 };
 
-/* RelocationsR relocation table entry */
+// How to extract and insert information held in the r_info field.
 
-typedef U32        ELF32_Relr;
-typedef U64        ELF64_Relr;
+#define ELF32_Relocation_symbol_m(value)          ((val) >> 8)
+#define ELF32_Relocation_type_m(value)            ((val) & 0xff)
+#define ELF32_Relocation_info_m(symbol, type)     (((symbol) << 8) + ((type) & 0xff))
 
-/* How to extract and insert information held in the r_info field.  */
-
-#define ELF32_R_SYM(val)                ((val) >> 8)
-#define ELF32_R_TYPE(val)                ((val) & 0xff)
-#define ELF32_R_INFO(sym, type)                (((sym) << 8) + ((type) & 0xff))
-
-#define ELF64_Relocation_symbol_m(i)          ((i) >> 32)
-#define ELF64_Relocation_type_m(i)            ((i) & 0xffffffff)
-#define ELF64_Relocation_info_m(symbol,type)  ((((U64)(symbol)) << 32) + (type))
+#define ELF64_Relocation_symbol_m(value)          ((value) >> 32)
+#define ELF64_Relocation_type_m(value)            ((value) & 0xffffffff)
+#define ELF64_Relocation_info_m(symbol,type)      ((((U64)(symbol)) << 32) + (type))
 
 // /* RISC-V relocations.  */
 

@@ -16,7 +16,7 @@ internal ELF_Section_Header_Type
 ELF_Section_Header_Type__from_String8(String8 string);
 
 internal void
-ELF_identifier_fill(U8 identifier[ELF_id_size]);
+ELF_identifier_fill(U8 identifier[ELF_id_size], U8 class);
 
 internal U8
 ELF_Symbol_Type__from_String8(String8 string);
