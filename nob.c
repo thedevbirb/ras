@@ -32,12 +32,15 @@
 // Some folder paths that we use throughout the build process.
 #define BUILD_FOLDER               "build/"
 #define SRC_FOLDER                 "src/"
+#define CODEGEN_FOLDER             "codegen/"
+#define GENERATED_FOLDER           "generated/"
 #define INCLUDE_FOLDER             "thirdparty/"
 
 typedef struct Options Options;
 struct Options
 {
         int release;
+        int codegen;
         // Name of a different compiler to use, by default `cc`.
         const char *compiler;
 };
@@ -50,10 +53,11 @@ print_usage(const char *program)
                         "Usage: %s [options]\n"
                         "\n"
                         "Options:\n"
-                        "    --cc <cc>            Use another C compiler to build the program, by default `cc`\n"
-                        "    --debug              Build the debug configuration (default): -g -O0 + sanitizers.\n"
-                        "    --release            Build the release configuration: -O2\n"
-                        "    -h, --help           Print this help message.\n",
+                        "    --codegen     Regenerate "GENERATED_FOLDER"instruction_hashes.h from "CODEGEN_FOLDER"instruction_hashes.c.\n"
+                        "    --cc <cc>     Use another C compiler to build the program, by default `cc`\n"
+                        "    --debug       Build the debug configuration (default): -g -O0 + sanitizers.\n"
+                        "    --release     Build the release configuration: -O2\n"
+                        "    -h, --help    Print this help message.\n",
                         program);
 }
 
@@ -63,7 +67,11 @@ parse_options(int argc, char **argv)
         Options options = { .compiler = cc_default };
         for (int i = 1; i < argc; ++i)
         {
-                if (strcmp(argv[i], "--release") == 0)
+                if (strcmp(argv[i], "--codegen") == 0)
+                {
+                        options.codegen = true;
+                }
+                else if (strcmp(argv[i], "--release") == 0)
                 {
                         options.release = true;
                 }
@@ -118,6 +126,28 @@ main(int argc, char **argv)
         // convention is usually that the function logged what happened to itself. Just do
         // `if (!nob_function()) return;`
         if (!nob_mkdir_if_not_exists(BUILD_FOLDER)) return 1;
+
+        if (options.codegen)
+        {
+                Nob_Cmd cmd = {0};
+
+                nob_cmd_append(&cmd, options.compiler,
+                        "-std=c11",
+                        "-Wall", "-Wextra",
+                        "-o", BUILD_FOLDER"instruction_hashes",
+                        CODEGEN_FOLDER"instruction_hashes.c");
+
+                if (!nob_cmd_run(&cmd)) return 1;
+
+                // The codegen writes the generated hashes to stdout; capture them into
+                // GENERATED_FOLDER"instruction_hashes.h".
+                Nob_Cmd run = {0};
+                nob_cmd_append(&run, BUILD_FOLDER"instruction_hashes");
+                // This `.stdout_path` option is very very cool.
+                if (!nob_cmd_run(&run, .stdout_path = GENERATED_FOLDER"instruction_hashes.h")) return 1;
+
+                return 0;
+        }
 
         // The working horse of nob is the Nob_Cmd structure. It's a Dynamic Array of strings which represent
         // command line that you want to execute.
