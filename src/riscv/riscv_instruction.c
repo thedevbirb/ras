@@ -197,6 +197,24 @@ RISCV_instruction_size(U32 encoding)
         return size;
 }
 
+// Normalize a constant for the current XLEN. On RV32, values with bit 31 set and all higher bits
+// clear must be sign-extended from 32 bits.
+// This lets e.g. `addi x1, x0, 0xfffff800` (which normalizes to -2048) pass the 12-bit range
+// check. On RV64 the normalization is a no-op.
+internal S64
+RISCV_normalize_constant_expression(S64 value, U8 xlen)
+{
+        S64 result = value;
+        B32 extend = xlen == 32 && zero_extended_32_bit_is_m(value);
+        if (extend)
+        {
+                // From left to right: truncate, interpret as signed, optionally sign-extend.
+                result = (S64)(S32)(U32)(value);
+        }
+
+        return result;
+}
+
 static B32
 match_opcode (const RISCV_Opcode *opcode, U32 instruction)
 {

@@ -21,8 +21,7 @@ RISCV_Instruction__parse
 
         Expression *expression = 0;
 
-        B32 match         = 0;
-        B32 xlen_mismatch = 0;
+        B32 match = 0;
 
         // Iterate over opcode entries with the same name.
         for (;;)
@@ -30,10 +29,10 @@ RISCV_Instruction__parse
                 parsed.data = RISCV_Instruction__create(opcode, opcode_token.location);
                 U64 arguments = opcode->arguments;
                 U32 arguments_index = 0;
-                B32 try_next = 0;
-
                 // TODO(medium): check also for class mismatch
-                xlen_mismatch = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
+                B32 xlen_mismatch = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
+                B32 try_next = xlen_mismatch;
+
 
                 // Iterate over opcode arguments.
                 for (;;)
@@ -186,7 +185,10 @@ RISCV_Instruction__parse
                                                 if (!parsed.relocation)
                                                 {
                                                         expression_evaluate(expression);
-                                                        // TODO(RV32): normalize constant expression? See GNU as.
+                                                        if (expression->evaluation == Expression_Kind__Constant)
+                                                        {
+                                                                expression->integer_value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                                        }
                                                         B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                         if (expression->evaluation == Expression_Kind__Constant && fits)
                                                         {
@@ -221,7 +223,10 @@ RISCV_Instruction__parse
                                                 if (!parsed.relocation)
                                                 {
                                                         expression_evaluate(expression);
-                                                        // TODO(RV32): normalize constant expression? See GNU as.
+                                                        if (expression->evaluation == Expression_Kind__Constant)
+                                                        {
+                                                                expression->integer_value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                                        }
                                                         B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                         if (expression->evaluation == Expression_Kind__Constant && fits)
                                                         {
@@ -253,7 +258,10 @@ RISCV_Instruction__parse
                                         if (!parsed.relocation)
                                         {
                                                expression_evaluate(expression);
-                                               // TODO(RV32): normalize constant expression? See GNU as.
+                                               if (expression->evaluation == Expression_Kind__Constant)
+                                               {
+                                                       expression->integer_value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                               }
                                                B32 fits = S64_bits_range_in(expression->integer_value, 12);
                                                if (expression->evaluation == Expression_Kind__Constant && fits)
                                                {
@@ -420,7 +428,7 @@ RISCV_Instruction__parse
 
                 String8 opcode_string = String8__new(opcode->name, opcode->count);
                 B32 same_name = String8__match_exact(opcode_name, opcode_string);
-                if (match || opcode->hash == 0 || !same_name || xlen_mismatch)
+                if (match || opcode->hash == 0 || !same_name)
                 {
                         break;
                 }
@@ -429,14 +437,7 @@ RISCV_Instruction__parse
                 opcode += 1;
         }
 
-        if (xlen_mismatch)
-        {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location   = opcode_token.location;
-                diagnostic->message    = String8__literal("instruction doesn't match xlen requirement");
-                diagnostic->ranges[0]  = Token__range(opcode_token);
-        }
-        else if (!match)
+        if (!match)
         {
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location   = opcode_token.location;

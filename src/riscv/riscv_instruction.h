@@ -921,4 +921,8 @@ internal B32 match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction);
 
 internal const RISCV_Opcode * RISCV_Opcode__table_find(U32 instruction_hash);
 
+// Normalize a constant for the current XLEN: on RV32, sign-extend values with bit 31 set and all
+// higher bits clear (see the implementation for details). No-op on RV64.
+internal S64 RISCV_normalize_constant_expression(S64 value, U8 xlen);
+
 #endif // RISCV_INSTRUCTION_H

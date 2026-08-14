@@ -935,7 +935,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
 }
 
 internal void
-directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, Symbols_Table *symbols_table)
+directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, Symbols_Table *symbols_table, U8 xlen)
 {
         // Syntax: .comm symbol, size, [,align]
         token_next(cursor, diagnostics);
@@ -997,6 +997,10 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                 else if (size <= 0)
                 {
                         Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have positive evaluation"));
+                }
+                else if (xlen == XLEN_32 && (U64)size > U32_max)
+                {
+                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression exceeds 32 bits"));
                 }
                 else if (symbol->size_expression && symbol->size_expression->integer_value != size)
                 {
