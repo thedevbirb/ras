@@ -227,6 +227,16 @@ Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
         return;
 }
 
+internal Diagnostic *
+Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message)
+{
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->message    = message;
+        diagnostic->location   = expression->location;
+        diagnostic->ranges[0]  = expression->location_range;
+        return diagnostic;
+}
+
 //-----------------------------------------------------------------------------
 // @Symbol
 //-----------------------------------------------------------------------------
@@ -1039,6 +1049,26 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
         return result;
 }
 
+internal void
+Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor)
+{
+        {
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->message    = String8__literal("symbol cannot be redefined");
+        diagnostic->location   = cursor->current.location;
+        diagnostic->ranges[0]  = Token__range(cursor->current);
+        }
+        {
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        diagnostic->kind       = Diagnostic_Kind__Note;
+        diagnostic->message    = Diagnostic__previous_declaration_String8;
+        diagnostic->location   = symbol->location;
+        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+        }
+
+        return;
+}
+
 //-----------------------------------------------------------------------------
 // @Fragment
 //-----------------------------------------------------------------------------
@@ -1570,7 +1600,8 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
                               *fixup_sub = *fixup;
 
                         fixup_sub->expression = expression->right;
-                        expression     = expression->left;
+                        fixup->expression     = expression->left;
+                        expression            = fixup->expression;
                         DLL_insert_m(section->fixups.first, section->fixups.last, fixup, fixup_sub);
                 }
                 else if (expression->evaluation == Expression_Kind__Constant)
@@ -1707,6 +1738,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         if (emit_relax_relocation)
         {
                 Fixup *fixup_relax = Arena__push_struct_m(arena, Fixup);
+                       fixup_relax->expression          = expression;
                        fixup_relax->offset              = fixup->offset;
                        fixup_relax->fragment            = fixup->fragment;
                        fixup_relax->relocation_type     = Relocation_RISC_V__Relax;
@@ -1718,6 +1750,12 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
                 if (symbol) { symbol->flags |= Symbol_Flags__Relocation; }
                 section->fixups.unresolved += 1;
                 section->symbol->flags |= Symbol_Flags__Relocation;
+        }
+
+        B32 addend_doesnt_fit = options->xlen == XLEN_32 && expression && expression->integer_value > (S64)U32_max;
+        if (addend_doesnt_fit)
+        {
+                Diagnostics__expression(diagnostics, expression, String8__literal("relocation addend doesn't fit in 32 bits"));
         }
 
         return;

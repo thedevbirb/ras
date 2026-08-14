@@ -25,36 +25,6 @@ Directive_Kind__from_String8(String8 source)
         return result;
 }
 
-internal void
-Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor)
-{
-        {
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->message    = String8__literal("symbol cannot be redefined");
-        diagnostic->location   = cursor->current.location;
-        diagnostic->ranges[0]  = Token__range(cursor->current);
-        }
-        {
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->kind       = Diagnostic_Kind__Note;
-        diagnostic->message    = Diagnostic__previous_declaration_String8;
-        diagnostic->location   = symbol->location;
-        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
-        }
-
-        return;
-}
-
-internal Diagnostic *
-Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message)
-{
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->message    = message;
-        diagnostic->location   = expression->location;
-        diagnostic->ranges[0]  = expression->location_range;
-        return diagnostic;
-}
-
 // Handles .local, .weak, .global directive. Those simply try to set the binding of a symbol, and nothing else. It is
 // created if missing.
 internal void
