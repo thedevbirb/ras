@@ -320,7 +320,7 @@ write_object_file
                                         {
                                                 index_offset = symbols_local_to_keep;
                                         }
-                                        U32 symbol_index = fixup_symbol->index + index_offset;
+                                        U32 symbol_index = fixup->relocation_type == Relocation_RISC_V__Relax ? 0 : fixup_symbol->index + index_offset;
                                         S64 addend       = fixup->expression ? fixup->expression->integer_value : 0;
                                         if (elf32_is)
                                         {
