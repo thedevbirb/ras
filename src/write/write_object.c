@@ -312,58 +312,39 @@ write_object_file
 
         // After all sections data we have the symbols table and the strings table.
         U32 string_table_offset_tracker = 0;
-        for each_node_m(symbols_table->first, symbol)
+        U8 local_non_local[2] = {1, 0};
+        for each_array_index(local_non_local, index)
         {
-                B32 keep = Symbol_Ref__keep(symbol);
-                B32 local = symbol->binding == ELF_Symbol_Binding__Local;
-                if (keep && local)
+                for each_node_m(symbols_table->first, symbol)
                 {
-                        B32 section_is = symbol->type == STT_SECTION;
-                        ELF64_Symbol elf_symbol =
+                        U8 local_keep       = local_non_local[index];
+                        B32 keep            = Symbol_Ref__keep(symbol);
+                        B32 binding_correct = symbol->binding == ELF_Symbol_Binding__Local;
+                        if (!local_keep)
                         {
-                                .string_table_offset = section_is ? 0 : string_table_offset_tracker,
-                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
-                                .visibility          = symbol->visibility,
-                                .section_index       = symbol->section->index,
-                                .value               = symbol->value,
-                                .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0
-                        };
-                        String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
-
-                        if (!section_is)
-                        {
-                                U32 c_string_size = symbol->name->count + 1;
-                                String8__serial_write(&string_table_cursor, symbol->name->data, c_string_size);
-                                string_table_offset_tracker += c_string_size;
+                                binding_correct = symbol->binding != ELF_Symbol_Binding__Local;
                         }
-                }
-        }
-        for each_node_m(symbols_table->first, symbol)
-        {
-                // NOTE: redefined symbols are not kept. However, GNU as preserves their original appearence order, while showing their latest value.
-                // As such, our representation of the symbols table, while correct, is a bit off.
 
-                B32 keep = Symbol_Ref__keep(symbol);
-                B32 non_local = symbol->binding != ELF_Symbol_Binding__Local;
-                if (keep && non_local)
-                {
-                        B32 section_is = symbol->type == STT_SECTION;
-                        ELF64_Symbol elf_symbol =
+                        if (keep && binding_correct)
                         {
-                                .string_table_offset = section_is ? 0 : string_table_offset_tracker,
-                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
-                                .visibility          = symbol->visibility,
-                                .section_index       = symbol->section->index,
-                                .value               = symbol->value,
-                                .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0
-                        };
-                        String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
+                                B32 section_is = symbol->type == STT_SECTION;
+                                ELF64_Symbol elf_symbol =
+                                {
+                                        .string_table_offset = section_is ? 0 : string_table_offset_tracker,
+                                        .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
+                                        .visibility          = symbol->visibility,
+                                        .section_index       = symbol->section->index,
+                                        .value               = symbol->value,
+                                        .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0
+                                };
+                                String8__serial_write_m(&symbols_table_cursor, &elf_symbol);
 
-                        if (!section_is)
-                        {
-                                U32 c_string_size = symbol->name->count + 1;
-                                String8__serial_write(&string_table_cursor, symbol->name->data, c_string_size);
-                                string_table_offset_tracker += c_string_size;
+                                if (!section_is)
+                                {
+                                        U32 c_string_size = symbol->name->count + 1;
+                                        String8__serial_write(&string_table_cursor, symbol->name->data, c_string_size);
+                                        string_table_offset_tracker += c_string_size;
+                                }
                         }
                 }
         }
