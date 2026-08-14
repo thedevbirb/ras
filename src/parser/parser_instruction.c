@@ -40,9 +40,17 @@ RISCV_Instruction__parse
                         U8 slot = (U8)(arguments >> (8 * arguments_index));
                         if (!slot || try_next || xlen_mismatch)
                         {
-                                match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, parsed.data.encoding));
+                                // If we haven't consumed all the arguments, something went wrong.
+                                match = !slot
+                                     && !try_next
+                                     && opcode->hash
+                                     && (!opcode->match_function || opcode->match_function(opcode, parsed.data.encoding));
                                 break;
                         }
+
+                        // Snapshot the slot index for proper comma checking at the bottom: some branches, like
+                        // load/store offsets, may advance `arguments_index` internally.
+                        U32 current_slot_index = arguments_index;
 
                         switch (OP_KIND(slot))
                         {
@@ -77,9 +85,33 @@ RISCV_Instruction__parse
                                 switch (OP_FIELD(slot))
                                 {
                                        case OPF_R__D:   { INSERT_OPERAND(RD,  parsed.data, register_number); } break;
-                                       case OPF_R__S_3: { INSERT_OPERAND(RS3, parsed.data, register_number); } break;
-                                       case OPF_R__S_2: { INSERT_OPERAND(RS2, parsed.data, register_number); } break;
-                                       case OPF_R__S_1: { INSERT_OPERAND(RS1, parsed.data, register_number); } break;
+                                       case OPF_R__S3:  { INSERT_OPERAND(RS3, parsed.data, register_number); } break;
+                                       case OPF_R__S2:  { INSERT_OPERAND(RS2, parsed.data, register_number); } break;
+                                       case OPF_R__S1:  { INSERT_OPERAND(RS1, parsed.data, register_number); } break;
+                                       default: { unreachable_m(); }
+                                }
+
+                                try_next = !reg;
+                                token_next(cursor, diagnostics);
+                        } break;
+                        case OPK__FPR:
+                        {
+                                // NOTE: the embedded (RVE) register restriction applies to the GPR
+                                // file only; the FPR file is always 32 registers wide.
+                                String8 text = Token_Cursor__text(cursor);
+                                const Register *reg = Register_List__lookup(RISCV_fp_register_list, text, 0);
+
+                                U8 register_number = reg ? reg->number : 0;
+                                switch (OP_FIELD(slot))
+                                {
+                                       case OPF_FPR__D:    { INSERT_OPERAND(RD,  parsed.data, register_number); } break;
+                                       case OPF_FPR__S3:   { INSERT_OPERAND(RS3, parsed.data, register_number); } break;
+                                       case OPF_FPR__S2:   { INSERT_OPERAND(RS2, parsed.data, register_number); } break;
+                                       case OPF_FPR__S1:   { INSERT_OPERAND(RS1, parsed.data, register_number); } break;
+
+                                        // Copy the same register into the two positions.
+                                       case OPF_FPR__S12:  { INSERT_OPERAND(RS1, parsed.data, register_number);
+                                                             INSERT_OPERAND(RS2, parsed.data, register_number); } break;
                                        default: { unreachable_m(); }
                                 }
 
@@ -419,9 +451,58 @@ RISCV_Instruction__parse
 
                                         token_next(cursor, diagnostics);
                                 } break;
+                                case OPF_U__Rounding_Mode:
+                                {
+                                        // The preceding comma is consumed by the implicit comma logic.
+                                        String8 text = Token_Cursor__text(cursor);
+
+                                        U8 index  = 0;
+                                        U8 rm     = 0;
+                                        B32 found = 0;
+                                        for (;;)
+                                        {
+                                                B32 break_should = found || index >= array_count_m(RISCV_rounding_mode_table);
+                                                if (break_should)
+                                                {
+                                                        break;
+                                                }
+
+                                                String8 entry = RISCV_rounding_mode_table[index];
+                                                B32 matched   = String8__match_exact(text, entry);
+
+                                                found = matched ? 1 : 0;
+                                                rm    = matched ? index : 0;
+
+                                                index += 1;
+                                        }
+                                        try_next |= !found;
+
+                                        INSERT_OPERAND(RM, parsed.data, rm);
+                                        token_next(cursor, diagnostics);
+                                } break;
                                 }
                         } break;
                         default: { unreachable_m(); }
+                        }
+
+                        // Check implicit comma: two consecutive argument slots MUST be separated by a comma.
+                        // Syntax slots (parenthesis, commas itself) escape hatch break the chain, so no comma is
+                        // expected around those.
+                        //
+                        // This is done to keep the encoding small, where relying on an invariant that holds on 99% of
+                        // instructions.
+                        U8  next_slot           = (U8)(arguments >> (8 * (current_slot_index + 1)));
+                        B32 current_is_argument = OP_KIND(slot)      != OPK__Syntax;
+                        B32 next_is_argument    = next_slot != 0 && OP_KIND(next_slot) != OPK__Syntax;
+                        if (current_is_argument && next_is_argument)
+                        {
+                                // Branches should move the cursor individually, so we already expect to be on the comma
+                                if (cursor->current.kind != Token_Kind__Comma)
+                                {
+                                        try_next = 1;
+                                        break;
+                                }
+                                token_next(cursor, diagnostics);
                         }
 
                         arguments_index += 1;
@@ -566,9 +647,9 @@ RISCV_macro_build
                                 {
                                         default: { unreachable_m(); } break;
                                         case OPF_R__D:   { INSERT_OPERAND(RD,  instruction, value); } break;
-                                        case OPF_R__S_3: { INSERT_OPERAND(RS3, instruction, value); } break;
-                                        case OPF_R__S_2: { INSERT_OPERAND(RS2, instruction, value); } break;
-                                        case OPF_R__S_1: { INSERT_OPERAND(RS1, instruction, value); } break;
+                                        case OPF_R__S3: { INSERT_OPERAND(RS3, instruction, value); } break;
+                                        case OPF_R__S2: { INSERT_OPERAND(RS2, instruction, value); } break;
+                                        case OPF_R__S1: { INSERT_OPERAND(RS1, instruction, value); } break;
                                 }
                         } break;
                 }
@@ -600,7 +681,7 @@ RISCV_call_expand
 {
         U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
         S32 values_auipc[2] = {rs1, relocation};
-        U64 arguments_jalr  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S_1));
+        U64 arguments_jalr  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1));
         S32 values_jalr[2]  = {rd, rs1};
 
         Macro_Info macro_auipc =
@@ -920,7 +1001,7 @@ RISCV_instruction_pseudo_append
 
                         U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
                         S32 values_auipc[]  = {rd, Relocation_RISC_V__PC_Relative_High_20};
-                        U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S_1), OP_Relocation);
+                        U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Relocation);
                         S32 values_addi[]   = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
                         Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);

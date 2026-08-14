@@ -75,6 +75,27 @@ const char *Instruction_Kind_strings[] =
 
         "lr.d","sc.d","amoswap.d","amoadd.d","amoxor.d","amoand.d","amoor.d",
         "amomin.d","amomax.d","amominu.d","amomaxu.d",
+
+        // F
+        "flw","fsw",
+        "fmv.x.w","fmv.w.x","fmv.x.s","fmv.s.x","fmv.s","fneg.s","fabs.s",
+        "fsgnj.s","fsgnjn.s","fsgnjx.s",
+        "fadd.s","fsub.s","fmul.s","fdiv.s","fsqrt.s","fmin.s","fmax.s",
+        "fmadd.s","fnmadd.s","fmsub.s","fnmsub.s",
+        "fcvt.w.s","fcvt.wu.s","fcvt.l.s","fcvt.lu.s",
+        "fcvt.s.w","fcvt.s.wu","fcvt.s.l","fcvt.s.lu",
+        "fclass.s","feq.s","flt.s","fle.s","fgt.s","fge.s",
+
+        // D
+        "fld","fsd",
+        "fmv.x.d","fmv.d.x","fmv.d","fneg.d","fabs.d",
+        "fsgnj.d","fsgnjn.d","fsgnjx.d",
+        "fadd.d","fsub.d","fmul.d","fdiv.d","fsqrt.d","fmin.d","fmax.d",
+        "fmadd.d","fnmadd.d","fmsub.d","fnmsub.d",
+        "fcvt.w.d","fcvt.wu.d","fcvt.l.d","fcvt.lu.d",
+        "fcvt.d.w","fcvt.d.wu","fcvt.d.l","fcvt.d.lu",
+        "fcvt.d.s","fcvt.s.d",
+        "fclass.d","feq.d","flt.d","fle.d","fgt.d","fge.d",
 };
 
 ////////////////////////////////

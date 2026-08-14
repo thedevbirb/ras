@@ -41,6 +41,7 @@
 #define OPCODE_FENCE                   0x0F
 #define OPCODE_ECALL                   0x73
 #define OPCODE_EBREAK                  0x73
+#define OPCODE_FP                      0x53
 
 //------------------------------------------------------------------------------
 // Funct3 constants
@@ -464,6 +465,7 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_RS1    0x000F8000   // bits 19:15
 #define MASK_RS2    0x01F00000   // bits 24:20
 #define MASK_IMM    0xFFF00000   // bits 31:20
+#define MASK_RM     (OP_MASK_RM << OP_SH_RM)
 
 #define MASK_PRED (OP_MASK_PRED << OP_SH_PRED)
 #define MASK_SUCC (OP_MASK_SUCC << OP_SH_SUCC)
@@ -668,6 +670,142 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MATCH_REMUW 0x200703b
 #define MASK_REMUW  0xfe00707f
 
+// F extension (single-precision floating-point).
+#define MATCH_FLW       0x2007
+#define MASK_FLW        0x707f
+#define MATCH_FSW       0x2027
+#define MASK_FSW        0x707f
+#define MATCH_FADD_S    0x53
+#define MASK_FADD_S     0xfe00007f
+#define MATCH_FSUB_S    0x8000053
+#define MASK_FSUB_S     0xfe00007f
+#define MATCH_FMUL_S    0x10000053
+#define MASK_FMUL_S     0xfe00007f
+#define MATCH_FDIV_S    0x18000053
+#define MASK_FDIV_S     0xfe00007f
+#define MATCH_FSGNJ_S   0x20000053
+#define MASK_FSGNJ_S    0xfe00707f
+#define MATCH_FSGNJN_S  0x20001053
+#define MASK_FSGNJN_S   0xfe00707f
+#define MATCH_FSGNJX_S  0x20002053
+#define MASK_FSGNJX_S   0xfe00707f
+#define MATCH_FMIN_S    0x28000053
+#define MASK_FMIN_S     0xfe00707f
+#define MATCH_FMAX_S    0x28001053
+#define MASK_FMAX_S     0xfe00707f
+#define MATCH_FSQRT_S   0x58000053
+#define MASK_FSQRT_S    0xfff0007f
+#define MATCH_FLE_S     0xa0000053
+#define MASK_FLE_S      0xfe00707f
+#define MATCH_FLT_S     0xa0001053
+#define MASK_FLT_S      0xfe00707f
+#define MATCH_FEQ_S     0xa0002053
+#define MASK_FEQ_S      0xfe00707f
+#define MATCH_FCVT_W_S  0xc0000053
+#define MASK_FCVT_W_S   0xfff0007f
+#define MATCH_FCVT_WU_S 0xc0100053
+#define MASK_FCVT_WU_S  0xfff0007f
+#define MATCH_FCVT_L_S  0xc0200053
+#define MASK_FCVT_L_S   0xfff0007f
+#define MATCH_FCVT_LU_S 0xc0300053
+#define MASK_FCVT_LU_S  0xfff0007f
+#define MATCH_FMV_X_S   0xe0000053
+#define MASK_FMV_X_S    0xfff0707f
+#define MATCH_FCLASS_S  0xe0001053
+#define MASK_FCLASS_S   0xfff0707f
+#define MATCH_FCVT_S_W  0xd0000053
+#define MASK_FCVT_S_W   0xfff0007f
+#define MATCH_FCVT_S_WU 0xd0100053
+#define MASK_FCVT_S_WU  0xfff0007f
+#define MATCH_FCVT_S_L  0xd0200053
+#define MASK_FCVT_S_L   0xfff0007f
+#define MATCH_FCVT_S_LU 0xd0300053
+#define MASK_FCVT_S_LU  0xfff0007f
+#define MATCH_FMV_S_X   0xf0000053
+#define MASK_FMV_S_X    0xfff0707f
+#define MATCH_FMADD_S   0x43
+#define MASK_FMADD_S    0x600007f
+#define MATCH_FMSUB_S   0x47
+#define MASK_FMSUB_S    0x600007f
+#define MATCH_FNMSUB_S  0x4b
+#define MASK_FNMSUB_S   0x600007f
+#define MATCH_FNMADD_S  0x4f
+#define MASK_FNMADD_S   0x600007f
+
+// D extension (double-precision floating-point).
+#define MATCH_FLD       0x3007
+#define MASK_FLD        0x707f
+#define MATCH_FSD       0x3027
+#define MASK_FSD        0x707f
+#define MATCH_FADD_D    0x2000053
+#define MASK_FADD_D     0xfe00007f
+#define MATCH_FSUB_D    0xa000053
+#define MASK_FSUB_D     0xfe00007f
+#define MATCH_FMUL_D    0x12000053
+#define MASK_FMUL_D     0xfe00007f
+#define MATCH_FDIV_D    0x1a000053
+#define MASK_FDIV_D     0xfe00007f
+#define MATCH_FSGNJ_D   0x22000053
+#define MASK_FSGNJ_D    0xfe00707f
+#define MATCH_FSGNJN_D  0x22001053
+#define MASK_FSGNJN_D   0xfe00707f
+#define MATCH_FSGNJX_D  0x22002053
+#define MASK_FSGNJX_D   0xfe00707f
+#define MATCH_FMIN_D    0x2a000053
+#define MASK_FMIN_D     0xfe00707f
+#define MATCH_FMAX_D    0x2a001053
+#define MASK_FMAX_D     0xfe00707f
+#define MATCH_FSQRT_D   0x5a000053
+#define MASK_FSQRT_D    0xfff0007f
+#define MATCH_FLE_D     0xa2000053
+#define MASK_FLE_D      0xfe00707f
+#define MATCH_FLT_D     0xa2001053
+#define MASK_FLT_D      0xfe00707f
+#define MATCH_FEQ_D     0xa2002053
+#define MASK_FEQ_D      0xfe00707f
+#define MATCH_FCVT_W_D  0xc2000053
+#define MASK_FCVT_W_D   0xfff0007f
+#define MATCH_FCVT_WU_D 0xc2100053
+#define MASK_FCVT_WU_D  0xfff0007f
+#define MATCH_FCVT_L_D  0xc2200053
+#define MASK_FCVT_L_D   0xfff0007f
+#define MATCH_FCVT_LU_D 0xc2300053
+#define MASK_FCVT_LU_D  0xfff0007f
+#define MATCH_FMV_X_D   0xe2000053
+#define MASK_FMV_X_D    0xfff0707f
+#define MATCH_FCLASS_D  0xe2001053
+#define MASK_FCLASS_D   0xfff0707f
+#define MATCH_FCVT_S_D  0x40100053
+#define MASK_FCVT_S_D   0xfff0007f
+#define MATCH_FCVT_D_S  0x42000053
+#define MASK_FCVT_D_S   0xfff0007f
+#define MATCH_FCVT_D_W  0xd2000053
+#define MASK_FCVT_D_W   0xfff0007f
+#define MATCH_FCVT_D_WU 0xd2100053
+#define MASK_FCVT_D_WU  0xfff0007f
+#define MATCH_FCVT_D_L  0xd2200053
+#define MASK_FCVT_D_L   0xfff0007f
+#define MATCH_FCVT_D_LU 0xd2300053
+#define MASK_FCVT_D_LU  0xfff0007f
+#define MATCH_FMV_D_X   0xf2000053
+#define MASK_FMV_D_X    0xfff0707f
+#define MATCH_FMADD_D   0x2000043
+#define MASK_FMADD_D    0x600007f
+#define MATCH_FMSUB_D   0x2000047
+#define MASK_FMSUB_D    0x600007f
+#define MATCH_FNMSUB_D  0x200004b
+#define MASK_FNMSUB_D   0x600007f
+#define MATCH_FNMADD_D  0x200004f
+#define MASK_FNMADD_D   0x600007f
+
+// Rounding modes (bits 14:12).
+#define ROUNDING_MODE__RNE 0x00
+#define ROUNDING_MODE__RTZ 0x01
+#define ROUNDING_MODE__RDN 0x02
+#define ROUNDING_MODE__RUP 0x03
+#define ROUNDING_MODE__RMM 0x04
+#define ROUNDING_MODE__DYN 0x07
+
 //------------------------------------------------------------------------------
 // Bit-field insertion helpers
 //------------------------------------------------------------------------------
@@ -696,6 +834,7 @@ typedef enum OPK
         OPK__None = 0,
 
         OPK__GPR,
+        OPK__FPR,
         OPK__Immediate,
         OPK__Offset,
         OPK__Shift,
@@ -719,18 +858,33 @@ assert_static_m(OPK__COUNT <= (1 << 5), OPK__size_check);
 enum
 {
         OPF_R__D,
-        OPF_R__S_1,
-        OPF_R__S_2,
-        OPF_R__S_3,
+        OPF_R__S1,
+        OPF_R__S2,
+        OPF_R__S3,
 
         OPF_R__D_C,
-        OPF_R__S_1_C,
-        OPF_R__S_2_C,
-        OPF_R__S_3_C,
+        OPF_R__S1_C,
+        OPF_R__S2_C,
+        OPF_R__S3_C,
 
         OPF_R_COUNT
 };
 assert_static_m(OPF_R_COUNT <= (1 << 3), OPF_R_size_check);
+
+// Operator fields: floating-point registers.
+// A separate namespace from OPF_R (the field bits are scoped by the OPK__FPR kind).
+enum
+{
+        OPF_FPR__D,
+        OPF_FPR__S1,
+        OPF_FPR__S2,
+        OPF_FPR__S3,
+        // The same register goes into both RS1 and RS2 (`fmv.s rd, rs`).
+        OPF_FPR__S12,
+
+        OPF_FPR_COUNT
+};
+assert_static_m(OPF_FPR_COUNT <= (1 << 3), OPF_FPR_size_check);
 
 // Operator fields: immediates
 enum
@@ -803,6 +957,7 @@ enum
         OPF_U__Relocation,
         OPF_U__Predecessor,
         OPF_U__Successor,
+        OPF_U__Rounding_Mode,
         OPF_U__COUNT
 };
 assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
@@ -816,6 +971,7 @@ assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
 
 #define OP_None             OPK__None
 #define OP_GPR(field)       OP_A(OPK__GPR, field)
+#define OP_FPR(field)       OP_A(OPK__FPR, field)
 #define OP_Immediate(field) OP_A(OPK__Immediate, field)
 #define OP_Offset(field)    OP_A(OPK__Offset, field)
 #define OP_Shift(field)     OP_A(OPK__Shift, field)
@@ -825,6 +981,7 @@ assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
 #define OP_Call             OP_A(OPK__Unique, OPF_U__Call)
 #define OP_Predecessor      OP_A(OPK__Unique, OPF_U__Predecessor)
 #define OP_Successor        OP_A(OPK__Unique, OPF_U__Successor)
+#define OP_Rounding_Mode    OP_A(OPK__Unique, OPF_U__Rounding_Mode)
 #define OP_Comma            OP_A(OPK__Syntax, OPF_SX__Comma)
 #define OP_PL               OP_A(OPK__Syntax, OPF_SX__PL)
 #define OP_PR               OP_A(OPK__Syntax, OPF_SX__PR)
@@ -852,6 +1009,8 @@ enum
         OPC__I,
         OPC__M,
         OPC__ZMMUL,
+        OPC__F,
+        OPC__D,
 
         OPC__COUNT,
 };
