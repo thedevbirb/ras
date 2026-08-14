@@ -1299,8 +1299,17 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         {
                                 // This MUST be a branch, because we assume jumps are of the right size.
                                 assert_always_m(!relax_info->jump.unconditional_is && "jumps should be assumed to be in range");
+
                                 // Invert the condition, and branch over the jump.
-                                U32 instruction_1 = MATCH_BNE | encode_immediate_b_m(8);
+                                // Keep rs1/rs2 from the original branch, invert its funct3
+                                // (beq<->bne, blt<->bge, bltu<->bgeu), and skip over the following jal.
+
+                                // A bit raw logic here, but it does the job.
+                                U32 original_instruction = *(U32 *)fragment->data_variable;
+                                U32 inverted_funct3      = ((original_instruction >> OP_SH_FUNCT3) & OP_MASK_FUNCT3) ^ 0x1;
+                                U32 opcode_and_registers = original_instruction
+                                                      & (OP_MASK_OP | (OP_MASK_RS1 << OP_SH_RS1) | (OP_MASK_RS2 << OP_SH_RS2));
+                                U32 instruction_1 = opcode_and_registers | (inverted_funct3 << OP_SH_FUNCT3) | encode_immediate_b_m(8);
                                 U32 instruction_2 = MATCH_JAL;
 
                                 // Adjust associated fixup information
@@ -1419,12 +1428,12 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
 {
         S64 target   = fixup->expression->integer_value;
         target      += fixup->expression->symbol ? fixup->expression->symbol->value : 0;
-        // The distance is measured from the start of the fixup's fragment
-        // data area (which is at object_file_offset).  Unlike GAS which uses
-        // (target - (frag->fr_address + frag->fr_fix)) we use data_size rather
-        // than fragment_write_area offset because our frag model is simpler:
-        // data_size is the fixed portion before variable-length fill data.
-        S64 distance = target - (fixup->fragment->object_file_offset + fixup->fragment->data_size);
+        // The distance is measured from the physical address of the patched
+        // instruction, i.e. the fixup's write position.  For an in-range
+        // branch the fixup sits at fragment start (fixup->offset == data_size),
+        // but a relaxed branch repositions it to `data_size + 4` to point at
+        // the emitted JAL, so we must use fixup->offset rather than data_size.
+        S64 distance = target - (fixup->fragment->object_file_offset + fixup->offset);
 
         // Works also for U16 encoding.
         U32 encoding = 0;
