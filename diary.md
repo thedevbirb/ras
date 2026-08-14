@@ -1746,3 +1746,96 @@ There are a lot of some spots where behaviour is somewhat unknown and you have t
 some gnarly example and just see what happens. Want to write `.lcomm` with an already global symbol?
 Sure thing! But it won't end up as local, and no error happens. Do you want to reliably know whether
 a symbol will end up in the symbols table? Good luck!
+
+---
+
+Just realised that compilers don't always rely on a `.float` or `.double` directive to emit floating
+point numbers. Instead, they write the byte encoding of such number themselves, and it is then load
+using F-extension instructions. Example:
+
+```c
+#include <stdio.h>
+
+int main()
+{
+    double test = 3.14;
+    double other = 2.0;
+    double result = test * other;
+    printf("hello, world: %f\n", result);
+
+	return 0;
+}
+```
+
+Output from GCC 15.2 for RISCV-64 bits with `-O0 -g`:
+
+```asm
+.LC2:
+        .string "hello, world: %f\n"
+main:
+        addi    sp,sp,-48
+        sd      ra,40(sp)
+        sd      s0,32(sp)
+        addi    s0,sp,48
+        lui     a5,%hi(.LC0)
+        fld     fa5,%lo(.LC0)(a5)
+        fsd     fa5,-24(s0)
+        lui     a5,%hi(.LC1)
+        fld     fa5,%lo(.LC1)(a5)
+        fsd     fa5,-32(s0)
+        fld     fa4,-24(s0)
+        fld     fa5,-32(s0)
+        fmul.d  fa5,fa4,fa5
+        fsd     fa5,-40(s0)
+        ld      a1,-40(s0)
+        lui     a5,%hi(.LC2)
+        addi    a0,a5,%lo(.LC2)
+        call    printf
+        li      a5,0
+        mv      a0,a5
+        ld      ra,40(sp)
+        ld      s0,32(sp)
+        addi    sp,sp,48
+        jr      ra
+.LC0:
+        .word   1374389535
+        .word   1074339512
+.LC1:
+        .word   0
+        .word   1073741824
+```
+
+This is interesting because it would be easier for this assembler to support the F-extension, while
+omitting the `.float` or `.double` directive which would require pulling in all the floating pointer
+decoding (from strings) and byte-encoding logic, which I consider a bit out of scope for now.
+
+There is also an interesting syntax `fld     fa5,%lo(.LC1)(a5)` which I don't know whether it would
+work already in my assembler. It's essentially an offset expression which supports a relocation.
+
+### Fri Aug 14 14:04:22 CEST 2026
+
+Decided to give a shot to 32-bit support and I've implemented it. It was easier than expected, and
+consisted mainly about:
+
+1. Producing 32-bit variant of object file, accepting other -march and -mabi in the CLI
+2. Adding checks to values that would be written inside 32-bit slots for overflows: symbol values,
+   data directives, .comm size, and relocation addends
+3. Normalizing 32-bit constants, meaning that if a xlen is 32 and a number is written as a
+   zero-extended 32-bit number, it is sign-extended to a 64-bit number to preserve signedness
+4. Adding xlen requirements on instructions that are 64-bit exclusive
+5. Modifying `li` expansion for 32-bit support, since `addiw` should be replaced with regular
+   `addi`.
+
+Overall, now that I have much more context it wasn't that hard, but I can firmly remember that at
+the beginning it was one of the too many things to keep in mind while doing it and reasoning about
+the design of the assembler.
+Now I have a strong core of the software and understanding of it. In this case, using LLMs to
+compare with GNU as and finding missing spots have been very helpful, and I could concretely see it
+as a way to move a bit faster while retaining full control. I'm not a super rush, but I have to
+account that a) I want to get this out, and go back to job hunting in a reasonable timeframe b) it
+is some kind of accounting that can be error prone and easy to miss some spots. For this use case,
+a matrix machine is probably more brutal than me at finding missing spots.
+
+The core problem unsolved still remains a reliable way of testing that doesn't consisting of
+creating ad hoc object files and compare readelf output or objdump output. Maybe after adding enough
+features I can try running a test suite of a certain program and checking that is passes.
