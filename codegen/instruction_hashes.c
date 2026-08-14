@@ -96,6 +96,29 @@ const char *Instruction_Kind_strings[] =
         "fcvt.d.w","fcvt.d.wu","fcvt.d.l","fcvt.d.lu",
         "fcvt.d.s","fcvt.s.d",
         "fclass.d","feq.d","flt.d","fle.d","fgt.d","fge.d",
+
+        // Zifencei / Zicntr
+        "fence.i","rdcycle","rdtime","rdinstret",
+
+        // Zicond
+        "czero.eqz","czero.nez",
+
+        // Zba
+        "sh1add","sh2add","sh3add","sh1add.uw","sh2add.uw","sh3add.uw",
+
+        // Zbc
+        "clmul","clmulh","clmulr",
+
+        // Zbs
+        "bclr","bclri","bset","bseti","binv","binvi","bext","bexti",
+
+        // Zbb
+        "clz","ctz","cpop","clzw","ctzw","cpopw",
+        "min","minu","max","maxu",
+        "sext.b","sext.h","zext.h",
+        "andn","orn","xnor",
+        "rol","ror","rori","rolw","rorw","roriw",
+        "rev8","orc.b",
 };
 
 ////////////////////////////////

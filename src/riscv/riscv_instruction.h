@@ -670,6 +670,104 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MATCH_REMUW 0x200703b
 #define MASK_REMUW  0xfe00707f
 
+// Zicond extension.
+#define MATCH_CZERO_EQZ 0xe005033
+#define MASK_CZERO_EQZ  0xfe00707f
+#define MATCH_CZERO_NEZ 0xe007033
+#define MASK_CZERO_NEZ  0xfe00707f
+
+// Zba extension (address generation).
+#define MATCH_SH1ADD     0x20002033
+#define MASK_SH1ADD      0xfe00707f
+#define MATCH_SH2ADD     0x20004033
+#define MASK_SH2ADD      0xfe00707f
+#define MATCH_SH3ADD     0x20006033
+#define MASK_SH3ADD      0xfe00707f
+#define MATCH_SH1ADD_UW  0x2000203b
+#define MASK_SH1ADD_UW   0xfe00707f
+#define MATCH_SH2ADD_UW  0x2000403b
+#define MASK_SH2ADD_UW   0xfe00707f
+#define MATCH_SH3ADD_UW  0x2000603b
+#define MASK_SH3ADD_UW   0xfe00707f
+
+// Zbc extension (carry-less multiplication).
+#define MATCH_CLMUL  0xa001033
+#define MASK_CLMUL   0xfe00707f
+#define MATCH_CLMULH 0xa003033
+#define MASK_CLMULH  0xfe00707f
+#define MATCH_CLMULR 0xa002033
+#define MASK_CLMULR  0xfe00707f
+
+// Zbs extension (single-bit operations).
+#define MATCH_BCLR  0x48001033
+#define MASK_BCLR   0xfe00707f
+#define MATCH_BCLRI 0x48001013
+#define MASK_BCLRI  0xfc00707f
+#define MATCH_BEXT  0x48005033
+#define MASK_BEXT   0xfe00707f
+#define MATCH_BEXTI 0x48005013
+#define MASK_BEXTI  0xfc00707f
+#define MATCH_BINV  0x68001033
+#define MASK_BINV   0xfe00707f
+#define MATCH_BINVI 0x68001013
+#define MASK_BINVI  0xfc00707f
+#define MATCH_BSET  0x28001033
+#define MASK_BSET   0xfe00707f
+#define MATCH_BSETI 0x28001013
+#define MASK_BSETI  0xfc00707f
+
+// Zbb extension (basic bit manipulation).
+#define MATCH_CLZ     0x60001013
+#define MASK_CLZ      0xfff0707f
+#define MATCH_CTZ     0x60101013
+#define MASK_CTZ      0xfff0707f
+#define MATCH_CPOP    0x60201013
+#define MASK_CPOP     0xfff0707f
+#define MATCH_CLZW    0x6000101b
+#define MASK_CLZW     0xfff0707f
+#define MATCH_CTZW    0x6010101b
+#define MASK_CTZW     0xfff0707f
+#define MATCH_CPOPW   0x6020101b
+#define MASK_CPOPW    0xfff0707f
+#define MATCH_MIN     0xa004033
+#define MASK_MIN      0xfe00707f
+#define MATCH_MINU    0xa005033
+#define MASK_MINU     0xfe00707f
+#define MATCH_MAX     0xa006033
+#define MASK_MAX      0xfe00707f
+#define MATCH_MAXU    0xa007033
+#define MASK_MAXU     0xfe00707f
+#define MATCH_SEXT_B  0x60401013
+#define MASK_SEXT_B   0xfff0707f
+#define MATCH_SEXT_H  0x60501013
+#define MASK_SEXT_H   0xfff0707f
+#define MATCH_PACK    0x8004033
+#define MASK_PACK     0xfe00707f
+#define MATCH_PACKW   0x800403b
+#define MASK_PACKW    0xfe00707f
+#define MATCH_ANDN    0x40007033
+#define MASK_ANDN     0xfe00707f
+#define MATCH_ORN     0x40006033
+#define MASK_ORN      0xfe00707f
+#define MATCH_XNOR    0x40004033
+#define MASK_XNOR     0xfe00707f
+#define MATCH_ROL     0x60001033
+#define MASK_ROL      0xfe00707f
+#define MATCH_ROR     0x60005033
+#define MASK_ROR      0xfe00707f
+#define MATCH_RORI    0x60005013
+#define MASK_RORI     0xfc00707f
+#define MATCH_ROLW    0x6000103b
+#define MASK_ROLW     0xfe00707f
+#define MATCH_RORW    0x6000503b
+#define MASK_RORW     0xfe00707f
+#define MATCH_RORIW   0x6000501b
+#define MASK_RORIW    0xfc00707f
+#define MATCH_REV8    0x6b805013
+#define MASK_REV8     0xfff0707f
+#define MATCH_ORC_B   0x28705013
+#define MASK_ORC_B    0xfff0707f
+
 // F extension (single-precision floating-point).
 #define MATCH_FLW       0x2007
 #define MASK_FLW        0x707f
@@ -1011,6 +1109,13 @@ enum
         OPC__ZMMUL,
         OPC__F,
         OPC__D,
+        OPC__ZICOND,
+        OPC__ZBA,
+        OPC__ZBC,
+        OPC__ZBS,
+        OPC__ZBB,
+        OPC__ZIFENCEI,
+        OPC__ZICNTR,
 
         OPC__COUNT,
 };
