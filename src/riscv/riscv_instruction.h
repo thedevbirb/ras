@@ -5,11 +5,6 @@
 // Compile-time configuration
 //------------------------------------------------------------------------------
 
-// TODO(32-bit): both of this should not relied upon too much, and ideally be configurable
-// depending on either on (currently unsupported) runtime/compile options.
-#define INSTRUCTION_SIZE 4
-#define XLEN 64
-
 #define RISCV_IMMEDIATE_BITS         12
 #define RISCV_IMMEDIATE_LARGE_BITS   (32 - RISCV_IMMEDIATE_BITS)
 #define RISCV_IMMEDIATE_REACH        (1LL << RISCV_IMMEDIATE_BITS)
@@ -870,7 +865,7 @@ assert_static_m(OPC__COUNT < U8_max, OPC__count_check);
 //
 // From GNU as, adapted. `name` and `count` are adjacent so a table row can be seeded with
 // `String8__inline_m("mnemonic")` (it expands to `<ptr>, <len>` in that order). The other
-// fields are laid out so the struct has no wasted padding (it packs into exactly 40 bytes).
+// fields are laid out so the struct has no wasted padding.
 typedef struct RISCV_Opcode RISCV_Opcode;
 struct RISCV_Opcode
 {
@@ -880,6 +875,11 @@ struct RISCV_Opcode
 
         // Length of `name`.
         U8  count;
+
+        // Required XLEN for this instruction: 0 means any XLEN is valid, 32 means RV32-only,
+        // 64 means RV64-only. Used to decide whether or not this instruction is legal in the
+        // current -march context.
+        U8  xlen_requirement;
 
         // Class to which this instruction belongs. Used to decide whether or not this instruction is
         // legal in the current -march context.
@@ -907,7 +907,7 @@ struct RISCV_Opcode
         // `((word & mask) == match)`.
         B32 (*match_function) (const RISCV_Opcode *opcode, U32 word);
 };
-assert_static_m(sizeof(RISCV_Opcode) == 40, RISCV_Opcode__size_check);
+assert_static_m(sizeof(RISCV_Opcode) == 48, RISCV_Opcode__size_check);
 
 // Check whether the encoded instruction bits match the provided opcode.
 //

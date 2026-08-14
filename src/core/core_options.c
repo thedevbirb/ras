@@ -3,9 +3,12 @@ Options__default(void)
 {
         Options result =
         {
-                .relax = 1,
-                .machine_abi = String8__literal("lp64d"),
+                .xlen             = XLEN_64,
+                .abi_xlen         = XLEN_64,
+                .relax            = 1,
+                .machine_abi      = String8__literal("lp64d"),
                 .elf_header_flags = EF_RISCV_FLOAT_ABI_DOUBLE,
+
                 .attributes =
                 {
                         .architecture = String8__literal("rv64i"),

@@ -20,7 +20,9 @@ RISCV_Instruction__parse
         Token_Cursor cursor_start = *cursor;
 
         Expression *expression = 0;
-        B32 match = 0;
+
+        B32 match         = 0;
+        B32 xlen_mismatch = 0;
 
         // Iterate over opcode entries with the same name.
         for (;;)
@@ -30,11 +32,14 @@ RISCV_Instruction__parse
                 U32 arguments_index = 0;
                 B32 try_next = 0;
 
+                // TODO(medium): check also for class mismatch
+                xlen_mismatch = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
+
                 // Iterate over opcode arguments.
                 for (;;)
                 {
                         U8 slot = (U8)(arguments >> (8 * arguments_index));
-                        if (!slot || try_next)
+                        if (!slot || try_next || xlen_mismatch)
                         {
                                 match = !try_next && opcode->hash && (!opcode->match_function || opcode->match_function(opcode, parsed.data.encoding));
                                 break;
@@ -316,7 +321,7 @@ RISCV_Instruction__parse
 
                                         expression_evaluate(expression);
                                         S64 value = expression->integer_value;
-                                        B32 fits = 0 <= value && value < XLEN;
+                                        B32 fits = 0 <= value && value < options->xlen;
                                         if (expression->evaluation != Expression_Kind__Constant || !fits)
                                         {
                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -415,7 +420,7 @@ RISCV_Instruction__parse
 
                 String8 opcode_string = String8__new(opcode->name, opcode->count);
                 B32 same_name = String8__match_exact(opcode_name, opcode_string);
-                if (match || opcode->hash == 0 || !same_name)
+                if (match || opcode->hash == 0 || !same_name || xlen_mismatch)
                 {
                         break;
                 }
@@ -424,7 +429,14 @@ RISCV_Instruction__parse
                 opcode += 1;
         }
 
-        if (!match)
+        if (xlen_mismatch)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->location   = opcode_token.location;
+                diagnostic->message    = String8__literal("instruction doesn't match xlen requirement");
+                diagnostic->ranges[0]  = Token__range(opcode_token);
+        }
+        else if (!match)
         {
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location   = opcode_token.location;
