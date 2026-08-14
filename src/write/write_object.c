@@ -65,6 +65,15 @@ write_object_file
         for each_node_m(symbols_table->first, symbol)
         {
                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Finalize);
+                B32 truncate = options->xlen == XLEN_32 && !S64_bits_range_in(symbol->value, XLEN_32);
+                if (truncate)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        diagnostic->message    = String8__literal("symbol value exceeds 32 bits, will be truncated");
+                        diagnostic->location   = symbol->location;
+                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+                }
         }
         Expressions__finalize(expressions, diagnostics);
         for each_node_m(symbols_table->section_first, section)
