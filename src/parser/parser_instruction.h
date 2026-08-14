@@ -110,7 +110,8 @@ RISCV_call_expand
 internal U8
 RISCV_li_expand
 (
-        Section         *section,
+        Section *section,
+        U8 xlen,
 
         S64 immediate,
         U8  register_destination,

@@ -649,7 +649,8 @@ RISCV_call_expand
 //
 //   - If the value fits in a 12-bit signed range, a single ADDI suffices.
 //   - If it fits in a 32-bit signed range, it takes LUI alone (if the low 12 bits are zero) or LUI + ADDIW otherwise.
-//     ADDIW (not ADDI) is used because the result is meant to be a 32-bit sign-extended value.
+//     ADDIW (not ADDI) is used on RV64 because the result is meant to be a 32-bit sign-extended value; on RV32 plain
+//     ADDI is emitted instead (GNU as: ADD32_INSN).
 //
 // Otherwise, we peel the low 12 bits off as a sign-extended tail (to be spliced back with an ADDI later),
 // arithmetic-shift the remainder right by 12, and recurse on the upper portion. Each recursive level contributes one
@@ -687,7 +688,8 @@ RISCV_call_expand
 internal U8
 RISCV_li_expand
 (
-        Section         *section,
+        Section *section,
+        U8 xlen,
 
         S64 immediate,
         U8  register_destination,
@@ -697,6 +699,11 @@ RISCV_li_expand
         U8  instructions_count = 0;
         S64 immediate_low_12   = 0;
         U32 index              = 0;
+
+        // The base case seeds the topmost chunk with a 32-bit sign-extending
+        // add. On RV64 that is `addiw`; on RV32 the same word width is
+        // reached with plain `addi` (GNU as: ADD32_INSN, tc-riscv.c:189).
+        U32 opcode_add32 = (xlen == XLEN_64) ? OPCODE_I_TYPE_W : OPCODE_I_TYPE;
 
         // Peeled chunks: for each level we store the shift amount AND the
         // low-12-bit tail. Shifts are at least 12, but can be larger because
@@ -717,8 +724,8 @@ RISCV_li_expand
                         instructions_count += 1;
                         if (section)
                         {
-                                // Single ADDIW from x0
-                                U32 addiw_encoding      = instruction_i_encode_m(register_destination, 0, immediate, OPCODE_I_TYPE_W, FUNCT3_ADDIW);
+                                // Single ADDIW (or ADDI on RV32) from x0
+                                U32 addiw_encoding      = instruction_i_encode_m(register_destination, 0, immediate, opcode_add32, FUNCT3_ADDIW);
                                 U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
                                 Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                         }
@@ -730,9 +737,9 @@ RISCV_li_expand
                         instructions_count += lui_suffices ? 1 : 2;
                         if (section)
                         {
-                                // LUI, plus ADDIW if the low 12 bits are non-zero. The LUI
+                                // LUI, plus ADDIW/ADDI if the low 12 bits are non-zero. The LUI
                                 // immediate is `immediate` with its low 12 bits cleared;
-                                // ADDIW splices them back in (sign-extended to 64 bits).
+                                // ADDIW/ADDI splices them back in (sign-extended to register width).
                                 // instruction_u_encode_m expects the 20-bit U-field (the value already shifted right by 12).
                                 S64 lui_immediate     = (S64)((U32)(immediate - immediate_low_12) >> 12);
                                 U32 lui_encoding      = instruction_u_encode_m(register_destination, lui_immediate, OPCODE_LUI);
@@ -741,7 +748,7 @@ RISCV_li_expand
                                 if (!lui_suffices)
                                 {
                                         U32 addiw_encoding = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
-                                                OPCODE_I_TYPE_W, FUNCT3_ADDIW);
+                                                opcode_add32, FUNCT3_ADDIW);
                                         U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
                                         Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                                 }
@@ -871,6 +878,7 @@ RISCV_instruction_pseudo_append
                         RISCV_li_expand
                         (
                                 section,
+                                options->xlen,
                                 instruction->expression->integer_value,
                                 rd,
                                 instruction->data.location
@@ -962,7 +970,7 @@ RISCV_instruction_pseudo_append
         } break;
         case MACRO_LI:
         {
-                RISCV_li_expand(section, instruction->expression->integer_value, rd, instruction->data.location);
+                RISCV_li_expand(section, options->xlen, instruction->expression->integer_value, rd, instruction->data.location);
         } break;
         }
 }
