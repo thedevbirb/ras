@@ -133,6 +133,19 @@ String8__match_prefix(String8 source, String8 expected)
         return result;
 }
 
+internal B32
+String8__match_suffix(String8 source, String8 expected)
+{
+        if (source.count < expected.count)
+        {
+                return 0;
+        }
+
+        String8 suffix = { .data = source.data + source.count - expected.count, .count = expected.count };
+        B32 result = String8__match_exact(suffix, expected);
+        return result;
+}
+
 
 // ----------------------------------------------------------------------------
 // Formatting

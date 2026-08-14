@@ -490,6 +490,8 @@ C_LINKAGE void __asan_unpoison_memory_region(void const volatile *addr, size_t s
 #define each_index_t_m(list, T, index) (T index = 0; index < list.count; index += 1)
 #define each_index_m(list, index)      each_index_t_m(list, U64, index)
 
+#define each_array_index(array, index) (U64 index = 0; index < array_count_m(array); index += 1)
+
 #define each_node_zt_m(first, element, T, sentinel) (T *element = first; element != sentinel; element = element->next)
 #ifdef typeof_m
 #       define each_node_m(first, element)              each_node_zt_m(first, element, typeof_m(*first), 0)
