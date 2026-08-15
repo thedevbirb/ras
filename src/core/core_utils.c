@@ -167,7 +167,7 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
                         {
                                 byte = escape_table[data[index]];
                                 assert_always_m(byte != escape_value_invalid);
-                                index += 2;
+                                index += 1;
                         }
                 }
                 else
