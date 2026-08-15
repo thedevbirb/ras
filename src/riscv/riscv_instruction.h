@@ -535,6 +535,20 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_SCALL  0xffffffff
 #define MATCH_SBREAK 0x100073
 #define MASK_SBREAK  0xffffffff
+#define MATCH_URET 0x200073
+#define MASK_URET  0xffffffff
+#define MATCH_SRET 0x10200073
+#define MASK_SRET  0xffffffff
+#define MATCH_HRET 0x20200073
+#define MASK_HRET  0xffffffff
+#define MATCH_MRET 0x30200073
+#define MASK_MRET  0xffffffff
+#define MATCH_DRET 0x7b200073
+#define MASK_DRET  0xffffffff
+#define MATCH_WFI 0x10500073
+#define MASK_WFI  0xffffffff
+#define MATCH_SFENCE_VMA 0x12000073
+#define MASK_SFENCE_VMA  0xfe007fff
 #define MATCH_BEQ 0x63
 #define MASK_BEQ  0x707f
 #define MATCH_BNE 0x1063
@@ -689,6 +703,10 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_SH2ADD_UW   0xfe00707f
 #define MATCH_SH3ADD_UW  0x2000603b
 #define MASK_SH3ADD_UW   0xfe00707f
+#define MATCH_ADD_UW     0x800003b
+#define MASK_ADD_UW      0xfe00707f
+#define MATCH_SLLI_UW    0x800101b
+#define MASK_SLLI_UW     0xfc00707f
 
 // Zbc extension (carry-less multiplication).
 #define MATCH_CLMUL  0xa001033
