@@ -60,8 +60,11 @@ const char *Instruction_Kind_strings[] =
         "ecall","ebreak","fence", "fence.tso", "pause",
 
         // Pseudo instructions
-        "nop","ret","mv","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",
-        "bgez","bltz","bgtz","bgt","ble","bgtu","bleu","j","call","tail","jr","li","la", "lla",
+        "nop","ret","mv","move","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",
+        "bgez","bltz","bgtz","bgt","bgtu","sgt","sgtu","ble","bleu","j","call","tail","jr","li","la", "lla",
+
+        // System instructions (privileged)
+        "scall","sbreak","mret","sret","uret","hret","dret","wfi","sfence.vma",
 
         "csrrw","csrrs","csrrc","csrrwi","csrrsi","csrrci",
 
@@ -105,6 +108,7 @@ const char *Instruction_Kind_strings[] =
 
         // Zba
         "sh1add","sh2add","sh3add","sh1add.uw","sh2add.uw","sh3add.uw",
+        "add.uw","slli.uw","zext.w",
 
         // Zbc
         "clmul","clmulh","clmulr",
@@ -161,8 +165,8 @@ main(void)
                 sizeof(Instruction_Kind_strings) /
                 sizeof(Instruction_Kind_strings[0]);
 
-        char safe_names[256][64];
-        U32 instruction_hashes[256];
+        char safe_names[512][64];
+        U32 instruction_hashes[512];
 
         size_t maximum_name_length = 0;
 
