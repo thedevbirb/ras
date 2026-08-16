@@ -1539,7 +1539,15 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         {
         default: { unreachable_m(); }
 
-        case Relocation_RISC_V__High_20:       { Fixup__apply_constant(fixup, encode_immediate_u_m(expression->integer_value)); relaxable = 1; } break;
+        case Relocation_RISC_V__High_20:
+        {
+                // Remember that `%lo` is treated as a signed 12-bit field, so the pair must satisfy `x = %hi(x) << 12 +
+                // signext(%lo(x))` with %lo in [-0x800, 0x7ff]. Round the value up to the nearest 0x1000 by re-adding
+                // the 0x800 offset, so the low 12 bits stay signed-representable.
+                S64 high_part = (expression->integer_value + 0x800) & ~(S64)0xfff;
+                Fixup__apply_constant(fixup, encode_immediate_u_m(high_part));
+                relaxable = 1;
+        } break;
         case Relocation_RISC_V__Low_12_I_Type: { Fixup__apply_constant(fixup, encode_immediate_i_m(expression->integer_value)); relaxable = 1; } break;
         case Relocation_RISC_V__Low_12_S_Type: { Fixup__apply_constant(fixup, encode_immediate_s_m(expression->integer_value)); relaxable = 1; } break;
 
@@ -1825,9 +1833,10 @@ Section__finish(Section *section)
         if (table_section)
         {
                 // We take the highest power of two divisor as best alignment boundary.
-                U8 trailing_zeroes                = count_trailing_zeros(section->elf.entry_size);
+                U8 trailing_zeroes                = section->elf.entry_size ? count_trailing_zeros(section->elf.entry_size) : 0;
                 U8 trailing_zeroes_capped         = min_m(31, trailing_zeroes);
-                U32 alignment_boundary_entry_size = (1UL << trailing_zeroes_capped);
+                U32 alignment_boundary_entry_size = trailing_zeroes ? (1UL << trailing_zeroes_capped) : 0;
+
                 alignment.boundary                = max_m(alignment_boundary_entry_size, alignment.boundary);
         }
 
@@ -1868,22 +1877,21 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                 } break;
                 case Relax_State__Align:
                 {
-                        // TODO(medium): `|| 1` not sure if it's a patch or not. I don't know yet whether a zero
-                        // boundary is something we should silently convert to 1 (a no-op) or error.
-                        U32 boundary = fragment->relax_info.alignment.boundary || 1;
+                        U32 boundary = fragment->relax_info.alignment.boundary ? fragment->relax_info.alignment.boundary : 1;
                         assert_always_m(pow_2_is_m(boundary) || !boundary);
 
                         U64 address_aligned = align_pow_2_m(address, boundary);
                         U64 growth          = address_aligned - address;
                         U8 pattern_size     = fragment->data_variable_size;
 
-                        if (growth > fragment->relax_info.alignment.write_size_max)
+                        U32 write_size_max = fragment->relax_info.alignment.write_size_max;
+                        if (write_size_max && growth > write_size_max)
                         {
                                 // Explicitly give up as alignment, as request by the user.
                                 growth = 0;
                         }
 
-                        if (growth % pattern_size != 0)
+                        if (growth % (pattern_size || 1) != 0)
                         {
                                 // The padding added should be a multiple of the size of the align pattern.
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -2008,8 +2016,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         } break;
                         case Relax_State__Align:
                         {
-                                // TODO(medium): same consideration about boundary that can be zero.
-                                U32 boundary = fragment->relax_info.alignment.boundary || 1;
+                                U32 boundary = fragment->relax_info.alignment.boundary ? fragment->relax_info.alignment.boundary : 1;
                                 S64 offset_was_alignment = offset_was + fragment->data_size;
                                 S64 offset_alignment     = offset     + fragment->data_size;
 
