@@ -164,7 +164,7 @@ expression_parse_with_flags
         struct Frame
         {
                 Frame            *next;
-                Expression  *node;
+                Expression       *node;
                 Binding_Power     binding_power_minimum;
                 B32               is_right_side_of_next;
                 B32               null_denotation_parsed;

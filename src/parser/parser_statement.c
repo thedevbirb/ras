@@ -112,6 +112,7 @@ statements_read
                                 case Directive_Kind__Option: { directive_option(cursor, diagnostics, options);                         } break;
                                 case Directive_Kind__File:   { directive_file(cursor, diagnostics, symbols_table);                     } break;
                                 case Directive_Kind__Type:   { directive_type(cursor, diagnostics, symbols_table);                     } break;
+                                case Directive_Kind__Ident:  { directive_ident(cursor, diagnostics, symbols_table);                    } break;
                                 case Directive_Kind__Size:   { directive_size(arena, cursor, diagnostics, expressions, symbols_table); } break;
 
                                 case Directive_Kind__Word_Double: { directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8); } break;
@@ -122,6 +123,7 @@ statements_read
                                 case Directive_Kind__String: { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
                                 case Directive_Kind__Asciz:  { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
                                 case Directive_Kind__Ascii:  { directive_string(cursor, diagnostics, symbols_table->section_current, 0); } break;
+                                case Directive_Kind__Base64: { directive_base64(cursor, diagnostics, symbols_table->section_current); } break;
 
                                 case Directive_Kind__Text: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
                                 case Directive_Kind__Data: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;

@@ -267,8 +267,9 @@ main(S32 argument_count, char **argument_vector)
         }
 
         U64 size = write_object_file(arena, diagnostics, &expressions, symbols_table, &options, file_descriptor_out);
+        unused_m(size);
 
-        fprintf(stderr, "written %llu bytes of object file\n", size);
+        // fprintf(stderr, "written %llu bytes of object file\n", size);
 
         for each_node_m(diagnostics->first, diagnostic)
         {

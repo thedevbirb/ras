@@ -301,6 +301,151 @@ directive_string
         token_next(cursor, diagnostics);
 }
 
+// Implementation follows https://www.sourceware.org/binutils/docs/as.html#g_t_002ebase64-_0022string_0022_005b_002c-_002e_002e_002e_005d
+internal void
+directive_base64
+(
+        Token_Cursor *cursor,
+        Diagnostics  *diagnostics,
+        Section      *section
+)
+{
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind != Token_Kind__String)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->location = cursor->current.location;
+                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+        }
+
+        String8 text    = Token_Cursor__text(cursor);
+        String8 content = String8__skip_chop(text);
+
+        B32 replace = 0;
+        U8  replacement_data[4] = {0};
+        if (content.count % 4 != 0)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("base64 string length should a multiple of 4");
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Token__range(cursor->current);
+
+                replace = 1;
+        }
+        else if (content.count == 0)
+        {
+                replace = 1;
+        }
+
+        if (replace)
+        {
+                content.data = replacement_data;
+                content.count = array_count_m(replacement_data);
+        }
+
+        // Decode in place: 4 base64 chars -> 3 bytes (RFC 4648, with '=' padding).
+        U64 output_size = (content.count / 4) * 3;
+        assert_always_m(output_size > 0);
+
+        // Account for at most two bytes of padding
+        if (content.data[content.count - 1] == '=')
+        {
+                output_size   -= 1;
+                content.count -= 1;
+        }
+        if (content.data[content.count - 1] == '=')
+        {
+                output_size   -= 1;
+                content.count -= 1;
+        }
+
+        U8 *data = Fragments__push(&section->fragments, cursor->current.location, output_size);
+
+        U64 input_index  = 0;
+        U64 output_index = 0;
+
+        for (;;)
+        {
+                B32 break_should = input_index >= content.count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                U32 accumulator = 0;
+                U8  valid_bits  = 0;
+                U8  index       = 0;
+                for (;;)
+                {
+                        B32 break_should_group = index >= 4 || input_index >= content.count;
+                        if (break_should_group)
+                        {
+                                break;
+                        }
+
+                        U8 character = content.data[input_index];
+                        input_index += 1;
+
+                        U8 value = base64_table[character];
+                        if (value == 0xFF)
+                        {
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                diagnostic->message    = String8__literal("invalid base64 character");
+                                diagnostic->location   = cursor->current.location + input_index;
+                        }
+
+                        accumulator = (accumulator << 6) | (value & 0x3F);
+                        valid_bits += 6;
+                        index += 1;
+                }
+
+                for (;;)
+                {
+                        if (valid_bits < 8)
+                        {
+                                break;
+                        }
+
+                        valid_bits -= 8;
+                        data[output_index] = (U8)(accumulator >> valid_bits);
+                        output_index += 1;
+                }
+        }
+
+        token_next(cursor, diagnostics);
+}
+
+internal void
+directive_ident
+(
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Symbols_Table   *symbols_table
+)
+{
+        token_next(cursor, diagnostics);
+        if (cursor->current.kind == Token_Kind__String)
+        {
+                String8 text    = Token_Cursor__text(cursor);
+                String8 content = String8__skip_chop(text);
+
+                // GNU as collects all `.ident` strings into the `.comment` section,
+                // each entry prefixed by a NULL byte and NULL-terminated.
+                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name_comment);
+                if (symbol->section == &Section__undefined)
+                {
+                        Symbols_Table__create_section(symbols_table, symbol);
+                        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
+                }
+
+                // Leading NULL + content + trailing NULL.
+                U8 *data = Fragments__push(&symbol->section->fragments, cursor->current.location, text.count);
+                memory_copy(data + 1, content.data, content.count);
+        }
+
+        token_next(cursor, diagnostics);
+}
+
 internal void
 directive_section
 (
@@ -419,6 +564,23 @@ directive_section
                 else
                 {
                         symbol->section->elf.type = type;
+                }
+                token_next(cursor, diagnostics);
+        }
+
+        // Optional trailing arguments: `,align` and `,entsize`. The alignment is a byte
+        // boundary, not a power-of-two exponent (GNU as: `parse_align` with align_bytes=0).
+        // Consume and discard them for now (the section alignment is fixed elsewhere).
+        for (;;)
+        {
+                if (cursor->current.kind != Token_Kind__Comma)
+                {
+                        break;
+                }
+                token_next(cursor, diagnostics);
+                if (cursor->current.kind == Token_Kind__Error)
+                {
+                        break;
                 }
                 token_next(cursor, diagnostics);
         }

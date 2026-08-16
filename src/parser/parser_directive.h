@@ -21,6 +21,7 @@ typedef enum Directive_Kind
         Directive_Kind__Ascii,
         Directive_Kind__Asciz,
         Directive_Kind__String,
+        Directive_Kind__Base64,
         Directive_Kind__Align,
         Directive_Kind__P2_Align,
         Directive_Kind__P2_Align_W,
@@ -41,6 +42,7 @@ typedef enum Directive_Kind
         Directive_Kind__Size,
         Directive_Kind__File,
         Directive_Kind__Attribute,
+        Directive_Kind__Ident,
         Directive_Kind__COUNT,
 }
 Directive_Kind;
@@ -65,6 +67,7 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Ascii]           = String8__literal(".ascii"),
         [Directive_Kind__Asciz]           = String8__literal(".asciz"),
         [Directive_Kind__String]          = String8__literal(".string"),
+        [Directive_Kind__Base64]          = String8__literal(".base64"),
         [Directive_Kind__Align]           = String8__literal(".align"),
         [Directive_Kind__P2_Align]        = String8__literal(".p2align"),
         [Directive_Kind__P2_Align_W]      = String8__literal(".p2alignw"),
@@ -85,6 +88,7 @@ global const String8 Directive_Kind__String8_table[Directive_Kind__COUNT] =
         [Directive_Kind__Size]            = String8__literal(".size"),
         [Directive_Kind__File]            = String8__literal(".file"),
         [Directive_Kind__Attribute]       = String8__literal(".attribute"),
+        [Directive_Kind__Ident]           = String8__literal(".ident"),
 };
 
 Directive_Kind
@@ -105,6 +109,7 @@ internal void directive_binding(Token_Cursor *, Diagnostics *, Symbols_Table *, 
 internal void directive_set_like(Arena *, Token_Cursor *, Diagnostics *, Symbols_Table *, Set_Mode);
 internal void directive_data(Arena *arena, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, U8 data_directive_size);
 internal void directive_string(Token_Cursor *, Diagnostics  *, Section *, B32 null_terminated);
+internal void directive_base64(Token_Cursor *, Diagnostics  *, Section *);
 internal void directive_section(Token_Cursor *, Diagnostics *, Symbols_Table *);
 internal void directive_section_current(Token_Cursor *, Diagnostics *, Symbols_Table *, Directive_Kind);
 internal void directive_align(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 power_of_two_exponent, U8 pattern_size);
@@ -112,6 +117,7 @@ internal void directive_fill(Arena *, Token_Cursor *, Diagnostics *, Expressions
 internal void directive_option(Token_Cursor *, Diagnostics *, Options *);
 internal void directive_size(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *);
 internal void directive_file(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_ident(Token_Cursor *, Diagnostics *, Symbols_Table *);
 internal void directive_type(Token_Cursor *, Diagnostics *, Symbols_Table *);
 internal void directive_ignored(Token_Cursor *, Diagnostics *);
 

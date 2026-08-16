@@ -632,9 +632,10 @@ Fixups__resolve(Section *section, Arena *arena, Diagnostics *diagnostics);
 global String8 section_name_text      = String8__literal(".text");
 global String8 section_name_data      = String8__literal(".data");
 global String8 section_name_bss       = String8__literal(".bss");
+global String8 section_name_comment   = String8__literal(".comment");
 global String8 section_name_undefined = String8__literal("");
 global String8 section_name_absolute  = String8__literal("*ABSOLUTE*");
-// global String8 section_name_common    = String8__literal("*COMMON*");
+global String8 section_name_common    = String8__literal("*COMMON*");
 
 // A data structure modelling an object file section, in memory.
 typedef struct Section Section;
@@ -715,6 +716,7 @@ global Section Section__common =
 };
 global Symbol_Ref Symbol_Ref__common =
 {
+        .name     = &section_name_common,
         .section  = &Section__common,
         .fragment = &Fragment__nil,
         .type     = STT_SECTION
