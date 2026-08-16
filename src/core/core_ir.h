@@ -523,7 +523,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
 
 // Compute the total size of the instructions needed to relax a jump fragment.
 internal U8
-Fragment__jump_instructions_total_size(Fragment *fragment, Section *section);
+Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Diagnostics *diagnostics);
 
 //-----------------------------------------------------------------------------
 // @Fixup

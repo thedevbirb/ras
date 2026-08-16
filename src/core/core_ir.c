@@ -1378,7 +1378,7 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
 }
 
 internal U8
-Fragment__jump_instructions_total_size(Fragment *fragment, Section *section)
+Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Diagnostics *diagnostics)
 {
         U8 size = 0;
         if (fragment->relax_state == Relax_State__Jump)
@@ -1387,23 +1387,27 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section)
                 // For branches, assume worst size and then fix it.
                 size = fragment->relax_info.jump.unconditional_is ? 4 : 8;
                 Symbol_Ref *symbol_target_jump = fragment->relax_info.jump.expression->symbol;
-                B32 symbol_defined_is = symbol_target_jump && symbol_target_jump->section != &Section__undefined;
-                // TODO(weak)
-                B32 symbol_weak_is = 0;
-                B32 section_same_is = symbol_defined_is && symbol_target_jump->section == section;
+
+                B32 symbol_defined_is    = symbol_target_jump && symbol_target_jump->section != &Section__undefined;
+                B32 symbol_weak_is       = symbol_target_jump && symbol_target_jump->binding  == ELF_Symbol_Binding__Weak;
+                B32 section_same_is      = symbol_defined_is && symbol_target_jump->section   == section;
                 B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
+
+                // If we have no symbol, e.g. `j 4` or `beq zero, zero, 4`, then we default the worst expansion.
                 if (size_can_be_computed)
                 {
-                        S64 jump_target_offset = symbol_target_jump->value;
-                        // The branch instruction is placed as the last data in the fragment
+                        // The symbol's `value` is fragment-local (see `Symbol_Ref__update_section`);
+                        // add its fragment's absolute offset, matching `Symbol_Ref__resolve`.
+                        S64 jump_target_offset = Symbol_Ref__resolve(symbol_target_jump, diagnostics, Resolve_Level__Traverse);
                         S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
 
                         // TODO(compressed, check-gas): compressed range
                         //
                         // Check that `distance` fits a signed `RISCV_BRANCH_REACH`, i.e.
-                        // `[RISCV_BRANCH_REACH/2, RISCV_BRANCH_REACH/2)`
+                        // `[-RISCV_BRANCH_REACH/2, RISCV_BRANCH_REACH/2)`.
                         // if (compressed && range compressed blah blah)
-                        B32 within_branch_range_is = (S64)(distance + RISCV_BRANCH_REACH/2) < (S64)RISCV_BRANCH_REACH;
+                        B32 within_branch_range_is = (S64)(-(S64)RISCV_BRANCH_REACH / 2) <= distance
+                                                  && distance < (S64)RISCV_BRANCH_REACH / 2;
                         if (within_branch_range_is)
                         {
                                 size = 4;
@@ -1901,7 +1905,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 Symbol_Ref__resolve(symbol, diagnostics, Resolve_Level__Traverse);
                         }
 
-                        U8 size = Fragment__jump_instructions_total_size(fragment, section);
+                        U8 size = Fragment__jump_instructions_total_size(fragment, section, diagnostics);
                         fragment->data_variable_size = size;
                         address += size;
                 } break;
@@ -2027,7 +2031,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         {
                                 // `riscv_relax_frag`
                                 U8 size_old = fragment->relax_info.jump.instructions_total_size;
-                                U8 size_new = Fragment__jump_instructions_total_size(fragment, section);
+                                U8 size_new = Fragment__jump_instructions_total_size(fragment, section, diagnostics);
                                 fragment->data_variable_size = size_new;
                                 fragment->relax_info.jump.instructions_total_size = size_new;
                                 growth = (S64)size_new - (S64)size_old;
