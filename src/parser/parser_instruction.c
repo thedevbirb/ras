@@ -248,8 +248,7 @@ RISCV_Instruction__parse
                                         }
                                         else
                                         {
-                                                // TODO(refactor): this is mostly in common with the OPF_I__I case.
-                                                try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__stype);
+                                                try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__itype);
                                                 expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                                 SLL_queue_push_m(expressions->first, expressions->last, expression);
 
