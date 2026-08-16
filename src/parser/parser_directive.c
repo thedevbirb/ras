@@ -204,17 +204,20 @@ directive_data
                 Expression *expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                 SLL_queue_push_m(expressions->first, expressions->last, expression);
                 expressions_count += 1;
-                // We explicitly convert it to an unsigned value since this is how it's treated as.
-                //
-                // TODO: not very clear behaviour when in case of signed overflow.
                 S64 result = expression_evaluate(expression);
-                U64 result_unsigned = (U64)result;
 
                 U8 *data = Fragments__push(&symbols_table->section_current->fragments, cursor->current.location, data_directive_size);
                 if (expression->evaluation == Expression_Kind__Constant)
                 {
-                        B32 fits = bit_size == 64 ? 1 : (result_unsigned < ((U64)1 << (data_directive_size * 8)));
-                        memory_copy(data, (U8 *)&result_unsigned, data_directive_size);
+                        // NOTE: some carefulness here of UB for shifting more than bit size.
+                        U64 overflow_mask = bit_size >= sizeof(U64) ? 0 : ~(U64)0 << bit_size;
+                        U64 usage_mask    = ~overflow_mask;
+
+                        // Check that the absolute value fits into the required number of bytes.
+                        B32 fits = ((U64)result & overflow_mask) == 0 || ((U64)(-result) & overflow_mask) == 0;
+
+                        U64 data_to_be_written = (U64)result & usage_mask;
+                        memory_copy(data, (U8 *)&data_to_be_written, data_directive_size);
 
                         if (!fits)
                         {
