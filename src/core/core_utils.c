@@ -104,16 +104,17 @@ mmap_file_output(S32 file_descriptor, U64 size)
         return result;
 }
 
-internal void
+internal U32
 bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
 {
         U32  index         = 0;
         U32  bytes_written = 0;
+        U32  error_index   = 0;
         U8  *data = text.data;
 
         for (;;)
         {
-                B32 break_should = bytes_written >= write_max;
+                B32 break_should = error_index || bytes_written >= write_max;
                 if (break_should)
                 {
                         break;
@@ -131,14 +132,16 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
                                 index += 1;
                                 // E.g. \x1a
                                 //        ^--- cursor is here
-                                byte = data[index];
+                                byte = hex_table[data[index]];
+                                error_index = byte == escape_value_invalid ? index : 0;
+
                                 index += 1;
                                 U8 value = hex_table[data[index]];
                                 if (value != hex_table_invalid)
                                 {
                                         // E.g. \x1a
                                         //         ^--- cursor is here
-                                        byte = byte * 16 + data[index];
+                                        byte = (U8)(byte * 16 + value);
                                         index += 1;
                                 }
                         }
@@ -146,27 +149,27 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
                         {
                                 // E.g. \377
                                 //       ^--- cursor is here
-                                byte = data[index];
+                                byte = (U8)(data[index] - '0');
                                 index += 1;
                                 if (U8__octal(data[index]))
                                 {
                                         // E.g. \377
                                         //        ^--- cursor is here
-                                        byte = byte * 8 + data[index];
+                                        byte = (U8)(byte * 8 + (data[index] - '0'));
                                         index += 1;
                                 }
                                 if (U8__octal(data[index]))
                                 {
                                         // E.g. \377
                                         //         ^--- cursor is here
-                                        byte = byte * 8 + data[index];
+                                        byte = (U8)(byte * 8 + (data[index] - '0'));
                                         index += 1;
                                 }
                         }
                         else
                         {
                                 byte = escape_table[data[index]];
-                                assert_always_m(byte != escape_value_invalid);
+                                error_index = byte == escape_value_invalid ? index : 0;
                                 index += 1;
                         }
                 }
@@ -181,7 +184,7 @@ bytes_escaped_fill(String8 text, U8 *out, U32 write_max)
                 bytes_written += 1;
         }
 
-        return;
+        return error_index;
 }
 
 internal U8

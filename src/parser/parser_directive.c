@@ -296,7 +296,14 @@ directive_string
         U64 size_escaped = String8__escaped_size(content) + !!null_terminated;
 
         U8 *data = Fragments__push(&section->fragments, cursor->current.location, size_escaped);
-        bytes_escaped_fill(content, data, size_escaped - !!null_terminated);
+        U32 error_index = bytes_escaped_fill(content, data, size_escaped - !!null_terminated);
+        if (error_index)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                diagnostic->message    = String8__literal("invalid escape sequence");
+                diagnostic->location   = cursor->current.location + error_index;
+                diagnostic->ranges[0]  = (Range1_U32){{ diagnostic->location, diagnostic->location + 1 }};
+        }
 
         token_next(cursor, diagnostics);
 }
