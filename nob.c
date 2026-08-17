@@ -81,7 +81,6 @@ parse_options(int argc, char **argv)
                 }
                 else if (strcmp(argv[i], "--cc") == 0)
                 {
-                        options.compiler = false;
                         if (i + 1 == argc)
                         {
                                 fprintf(stderr, "missing argument for option %s\n", argv[i]);
