@@ -609,7 +609,7 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
         B32 prerequisites = !(symbol->flags & Symbol_Flags__Skip)
                          && symbol->name != &dot_symbol_string;
 
-        B32 section_or_other_is       = symbol->type !  = ELF_Symbol_Type__None;
+        B32 section_or_other_is       = symbol->type != ELF_Symbol_Type__None;
         B32 relocation_usage_has      = symbol->flags & Symbol_Flags__Relocation;
         B32 non_redefined_constant_is = symbol->section == &Section__absolute && !(symbol->flags & Symbol_Flags__Redefined);
 
