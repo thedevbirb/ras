@@ -15,6 +15,7 @@ write_object_file
         U64 symbol_size            = elf32_is ? sizeof(ELF32_Symbol)            : sizeof(ELF64_Symbol);
         U64 relocation_addend_size = elf32_is ? sizeof(ELF32_Relocation_Addend) : sizeof(ELF64_Relocation_Addend);
         U8  identifier_class       = elf32_is ? ELF_ID_Class__32                : ELF_ID_Class__64;
+        U64 file_alignment         = elf32_is ? 4 : 8;
 
         Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table, &options->attributes);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_riscv_attributes->section);
@@ -99,20 +100,19 @@ write_object_file
                     symbol_symtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_symtab);
         symbol_symtab->section->elf.entry_size = symbol_size;
+        symbol_symtab->section->elf.alignment  = file_alignment;
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
 
         Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
                     symbol_strtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_strtab);
-        symbol_strtab->section->elf.entry_size = 1;
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
 
         Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
                     symbol_shstrtab->flags |= Symbol_Flags__Skip;
         Symbols_Table__create_section(symbols_table, symbol_shstrtab);
-        symbol_strtab->section->elf.entry_size = 1;
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
 
@@ -127,7 +127,7 @@ write_object_file
                 section->elf.offset = section->previous
                         ? section->previous->elf.type == ELF_Section_Header_Type__No_Data
                                 ? section->previous->elf.offset
-                                : section->previous->elf.offset + section->previous->elf.size
+                                : align_pow_2_m(section->previous->elf.offset + section->previous->elf.size, section->elf.alignment)
                         : header_size;
 
                 if (section->fixups.unresolved > 0)
@@ -145,6 +145,7 @@ write_object_file
                         symbol->section->elf.flags      = ELF_Section_Header_Flags__INFO_LINK;
                         symbol->section->elf.size       = relocation_addend_size * section->fixups.unresolved;
                         symbol->section->elf.entry_size = relocation_addend_size;
+                        symbol->section->elf.alignment  = file_alignment;
                         // Fill info: https://gabi.xinuos.com/v42/elf/03-sheader.html#the-sh-link-and-sh-info-fields
                         symbol->section->elf.info       = section->index;
                 }
