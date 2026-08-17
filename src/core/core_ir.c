@@ -1815,34 +1815,27 @@ Section__add_instruction_fixed
 internal void
 Section__finish(Section *section)
 {
+        // We ensure that every section ends with a [align][fill] layout, using different heuristics for the alignment
+        // fragment size.
+        U8 alignment_power = 0;
+
+        if (section->elf.flags & ELF_Section_Header_Flags__EXECINSTR)
+        {
+                alignment_power = section->elf.alignment ? count_trailing_zeros(section->elf.alignment) : 0;
+        }
+
+        if ((section->elf.flags & (ELF_Section_Header_Flags__MERGE | ELF_Section_Header_Flags__STRINGS))
+            && section->elf.entry_size)
+        {
+                U8 entry_alignment_power = section->elf.entry_size ? count_trailing_zeros(section->elf.entry_size) : 0;
+                alignment_power = max_m(alignment_power, entry_alignment_power);
+        }
+
         Alignment alignment =
         {
-                .boundary = section->elf.alignment,
+                .boundary = 1 << alignment_power,
         };
-
-        B32 code_section  = (section->elf.flags & ELF_Section_Header_Flags__EXECINSTR) != 0;
-        B32 table_section = (section->elf.flags & ELF_Section_Header_Flags__MERGE)     != 0
-                         || (section->elf.flags & ELF_Section_Header_Flags__STRINGS)   != 0;
-
-        if (code_section)
-        {
-                // NOTE: we leave pattern zero here, will be replaced later since otherwise it'd be invalid.
-                alignment.pattern_size = 4;
-        }
-
-        if (table_section)
-        {
-                // We take the highest power of two divisor as best alignment boundary.
-                U8 trailing_zeroes                = section->elf.entry_size ? count_trailing_zeros(section->elf.entry_size) : 0;
-                U8 trailing_zeroes_capped         = min_m(31, trailing_zeroes);
-                U32 alignment_boundary_entry_size = trailing_zeroes ? (1UL << trailing_zeroes_capped) : 0;
-
-                alignment.boundary                = max_m(alignment_boundary_entry_size, alignment.boundary);
-        }
-
-
-        // TODO(location): it doesn't make much sense?
-        U32 location = section->fragments.last->location;
+        U32 location = section->fragments.last == &Fragment__nil ? 0 : section->fragments.last->location;
 
         Fragments__align(&section->fragments, location, alignment);
         Fragment__wane(section->fragments.last);
