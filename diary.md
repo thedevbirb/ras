@@ -1839,3 +1839,10 @@ a matrix machine is probably more brutal than me at finding missing spots.
 The core problem unsolved still remains a reliable way of testing that doesn't consisting of
 creating ad hoc object files and compare readelf output or objdump output. Maybe after adding enough
 features I can try running a test suite of a certain program and checking that is passes.
+
+### Mon Aug 17 16:54:22 CEST 2026
+
+Lot of small fixes made after trying to reach byte parity with GNU as on sqlite codebase. So many
+minor details that only arise from following very closely the original source code and some output.
+Some of them are really really hard to track. I have to say the brute forcing of an agent is hard to
+defeat here.
