@@ -175,6 +175,23 @@ directive_set_like
                         symbol->section = &Section__absolute;
                         symbol->value   = result;
                 }
+
+                // If we have an equation to a "real" symbol, i.e. defined on a concrete section, then we also inherit
+                // its attributes.
+                else if (expression->evaluation == Expression_Kind__Symbol && expression->symbol)
+                {
+                        Symbol_Ref *target = expression->symbol;
+                        B32 target_section_real_is = Section__normal_is(target->section);
+                        if (target_section_real_is)
+                        {
+                                symbol->section         = target->section;
+                                // TODO(low): maybe setting the value already can be omitted?
+                                symbol->value           = target->value + expression->integer_value;
+                                symbol->fragment        = target->fragment;
+                                symbol->type            = target->type;
+                                symbol->size_expression = target->size_expression;
+                        }
+                }
         }
 
         return;
