@@ -673,6 +673,9 @@ Section__add_instruction_fixed
 internal void Section__finish(Section *section);
 internal B32  Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics);
 
+// Whether the section is a real output section (not the undefined, absolute or common sentinels).
+internal B32 Section__normal_is(Section *section);
+
 // Allocate a constant-sized symbol on the .bss or a no data section. It's necessary that the symbol carries
 // its size in the `Symbol_Ref.value`.
 internal void Section__bss_allocate(Section *section, Arena *arena, Symbol_Ref *symbol, U32 alignment_boundary);

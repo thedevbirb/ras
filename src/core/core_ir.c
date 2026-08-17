@@ -609,16 +609,23 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
         B32 prerequisites = !(symbol->flags & Symbol_Flags__Skip)
                          && symbol->name != &dot_symbol_string;
 
-        B32 section_or_other_is = symbol->type != ELF_Symbol_Type__None;
-        B32 relocation_usage_has = symbol->flags & Symbol_Flags__Relocation;
+        B32 section_or_other_is       = symbol->type !  = ELF_Symbol_Type__None;
+        B32 relocation_usage_has      = symbol->flags & Symbol_Flags__Relocation;
         B32 non_redefined_constant_is = symbol->section == &Section__absolute && !(symbol->flags & Symbol_Flags__Redefined);
+
         B32 global_non_alias_is = (symbol->section == &Section__undefined || symbol->section == &Section__common)
-                && symbol->binding == ELF_Symbol_Binding__Global
-                && !symbol->expression;
-        B32 label_non_internal_is = !symbol->expression
-                && symbol->section != &Section__undefined
-                && symbol->section != &Section__absolute
-                && symbol->section != &Section__common
+                               && symbol->binding == ELF_Symbol_Binding__Global
+                               && !symbol->expression;
+
+        B32 label_in_section_is         = !symbol->expression && Section__normal_is(symbol->section);
+        B32 label_non_internal_is       = label_in_section_is
+                                       && !Symbol_Ref__internal_is(symbol);
+        B32 label_internal_relocated_is = label_in_section_is
+                                       && Symbol_Ref__internal_is(symbol)
+                                       && relocation_usage_has;
+
+        B32 set_defined_in_section_is = symbol->expression
+                && Section__normal_is(symbol->section)
                 && !Symbol_Ref__internal_is(symbol);
         B32 undefined_symbol_is = symbol == &Symbol_Ref__undefined;
 
@@ -627,6 +634,8 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
                      || non_redefined_constant_is
                      || global_non_alias_is
                      || label_non_internal_is
+                     || label_internal_relocated_is
+                     || set_defined_in_section_is
                      || undefined_symbol_is;
 
         B32 keep = prerequisites && condition;
@@ -664,14 +673,20 @@ Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 nu
         return result;
 }
 
+// True if the symbol name belongs to the internal `.L` family used for local labels or it is a dot.
+internal B32
+Symbol_Ref__internal_name_is(Symbol_Ref *symbol)
+{
+        B32 dot_is        = symbol->name->count == 1 && symbol->name->data[0] == '.';
+        B32 l_prefixed_is = String8__match_prefix(*symbol->name, String8__literal(INTERNAL_SYMBOL_PREFIX));
+        B32 result = dot_is || l_prefixed_is;
+        return result;
+}
+
 internal B32
 Symbol_Ref__internal_is(Symbol_Ref *symbol)
 {
-        B32 internal_name_has = String8__match_exact(*symbol->name, fake_label_string);
-        B32 dot_is            = symbol->name->count == 1 && symbol->name->data[0] == '.';
-
-        B32 result = symbol->expression == 0 && (internal_name_has || dot_is);
-        return result;
+        return symbol->expression == 0 && Symbol_Ref__internal_name_is(symbol);
 }
 
 internal Symbol_Ref *
@@ -1030,7 +1045,13 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                         // it as resolved.
                         if (finalize)
                         {
-                                frame->symbol->value = frame->symbol->expression->integer_value;
+                                Expression *expression = frame->symbol->expression;
+                                S64 value = expression->integer_value;
+                                if (expression->evaluation == Expression_Kind__Symbol && expression->symbol)
+                                {
+                                        value += expression->symbol->value;
+                                }
+                                frame->symbol->value = value;
                                 frame->symbol->flags |= Symbol_Flags__Finalized;
                         }
 
@@ -1844,6 +1865,15 @@ Section__finish(Section *section)
 }
 
 internal B32
+Section__normal_is(Section *section)
+{
+        B32 result = section != &Section__undefined
+                  && section != &Section__absolute
+                  && section != &Section__common;
+        return result;
+}
+
+internal B32
 Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 {
         // First pass to compute address estimate
@@ -2029,7 +2059,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 // growth of preceding fragments); counting that shift again here would count it twice.
                                 S64 padding_old = (S64)align_offset_old_aligned - align_offset_old;
                                 S64 padding     = (S64)align_offset_aligned     - align_offset;
-                                growth = padding_new - padding_old;
+                                growth = padding - padding_old;
                         } break;
                         case Relax_State__Jump:
                         {
