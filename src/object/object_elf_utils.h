@@ -33,7 +33,7 @@ struct Section_Descriptor
 global const Section_Descriptor Section_Descriptor__table[] =
 {
 { String8__literal(".bss"),              ELF_Section_Header_Type__No_Data,             ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE                                 },
-{ String8__literal(".comment"),          ELF_Section_Header_Type__Program_Data,        0                                                                                                 },
+{ String8__literal(".comment"),          ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__MERGE | ELF_Section_Header_Flags__STRINGS },
 { String8__literal(".data"),             ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE                                 },
 { String8__literal(".data1"),            ELF_Section_Header_Type__Program_Data,        ELF_Section_Header_Flags__ALLOC | ELF_Section_Header_Flags__WRITE                                 },
 { String8__literal(".debug"),            ELF_Section_Header_Type__Program_Data,        0                                                                                                 },
