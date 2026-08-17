@@ -2010,22 +2010,26 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         case Relax_State__Align:
                         {
                                 U32 boundary = fragment->relax_info.alignment.boundary ? fragment->relax_info.alignment.boundary : 1;
-                                S64 offset_was_alignment = offset_was + fragment->data_size;
-                                S64 offset_alignment     = offset     + fragment->data_size;
+                                S64 align_offset_old = offset_was + fragment->data_size;
+                                S64 align_offset     = offset     + fragment->data_size;
 
-                                U64 offset_old = align_pow_2_m(offset_was_alignment, boundary);
-                                U64 offset_new = align_pow_2_m(offset_alignment,     boundary);
+                                U64 align_offset_old_aligned = align_pow_2_m(align_offset_old, boundary);
+                                U64 align_offset_aligned     = align_pow_2_m(align_offset,     boundary);
 
                                 // Again, give up with above `fragment->relax_info.alignment.write_size_max`
                                 U32 write_size_max = fragment->relax_info.alignment.write_size_max;
                                 if (write_size_max)
                                 {
-                                        if (offset_old > fragment->relax_info.alignment.write_size_max) { offset_old = 0; }
-                                        if (offset_new > fragment->relax_info.alignment.write_size_max) { offset_new = 0; }
+                                        if (align_offset_old_aligned > fragment->relax_info.alignment.write_size_max) { align_offset_old_aligned = 0; }
+                                        if (align_offset_aligned     > fragment->relax_info.alignment.write_size_max) { align_offset_aligned = 0; }
                                 }
 
-                                // Could be negative, and it's fine!
-                                growth = offset_new - offset_old;
+                                // The growth contributed by this align is the _change in padding_ compared to the
+                                // previous iterations. The position itself already shifts by `stretch` (the cumulative
+                                // growth of preceding fragments); counting that shift again here would count it twice.
+                                S64 padding_old = (S64)align_offset_old_aligned - align_offset_old;
+                                S64 padding     = (S64)align_offset_aligned     - align_offset;
+                                growth = padding_new - padding_old;
                         } break;
                         case Relax_State__Jump:
                         {
