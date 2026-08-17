@@ -175,8 +175,7 @@ main(int argc, char **argv)
         // Flags that are specific to the selected configuration.
         if (options.release)
         {
-                // Release build: optimized, no sanitizers.
-                nob_cmd_append(&cmd, "-O2");
+                nob_cmd_append(&cmd, "-O2", "-march=native");
         }
         else
         {
