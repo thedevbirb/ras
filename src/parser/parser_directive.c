@@ -635,7 +635,7 @@ directive_align
 
         // .[p2|b]align[wl] <size> [, <pattern> [, <max_bytes>]]
         U32 location_begin = cursor->current.location;
-        Alignment alignment = {0};
+        Alignment alignment = { .pattern_size = 1 };
 
         token_next(cursor, diagnostics);
         Expression *alignment_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
@@ -668,6 +668,12 @@ directive_align
                 }
 
                 alignment.boundary = power_of_two_exponent ? (1UL << value) : value;
+
+                // Track the highest alignment requested for the section.
+                if (alignment.boundary > symbols_table->section_current->elf.alignment)
+                {
+                        symbols_table->section_current->elf.alignment = alignment.boundary;
+                }
         }
         else
         {
@@ -1122,7 +1128,6 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
         if (cursor->current.kind == Token_Kind__Comma)
         {
                 token_next(cursor, diagnostics);
-                // TODO(32-bit): check that size is in 32-bit range
                 Expression *size_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                 expression_evaluate(size_expression);
                 S64 size = size_expression->integer_value;
