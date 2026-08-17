@@ -110,7 +110,7 @@ internal void directive_set_like(Arena *, Token_Cursor *, Diagnostics *, Symbols
 internal void directive_data(Arena *arena, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, U8 data_directive_size);
 internal void directive_string(Token_Cursor *, Diagnostics  *, Section *, B32 null_terminated);
 internal void directive_base64(Token_Cursor *, Diagnostics  *, Section *);
-internal void directive_section(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_section(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *);
 internal void directive_section_current(Token_Cursor *, Diagnostics *, Symbols_Table *, Directive_Kind);
 internal void directive_align(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 power_of_two_exponent, U8 pattern_size);
 internal void directive_fill(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 size_can_be_parsed, B32 pattern_can_be_parsed);

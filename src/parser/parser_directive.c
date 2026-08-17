@@ -442,6 +442,7 @@ directive_ident
                 if (symbol->section == &Section__undefined)
                 {
                         Symbols_Table__create_section(symbols_table, symbol);
+                        symbol->section->elf.entry_size = 1; // GNU as: `.comment` is MS with entsize 1.
                         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
                 }
 
@@ -456,9 +457,11 @@ directive_ident
 internal void
 directive_section
 (
-        Token_Cursor  *cursor,
-        Diagnostics   *diagnostics,
-        Symbols_Table *symbols_table
+        Arena           *arena,
+        Token_Cursor    *cursor,
+        Diagnostics     *diagnostics,
+        Expressions     *expressions,
+        Symbols_Table   *symbols_table
 )
 {
         // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
@@ -488,6 +491,10 @@ directive_section
                 Symbols_Table__create_section(symbols_table, symbol);
                 DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
         }
+
+        // TODO(medium): some missing validations:
+        // 1. Section undefined is not sufficient to check whether we're overriding a symbol
+        // 2. Some section types requires mandatory checks or arguments. See https://www.sourceware.org/binutils/docs/as.html#ELF-Version
 
         token_next(cursor, diagnostics);
         if (cursor->current.kind == Token_Kind__Comma)
@@ -555,9 +562,8 @@ directive_section
                 if (type == ELF_Section_Header_Type__Invalid)
                 {
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Error;
-                        diagnostic->location   = cursor->current.location;
                         diagnostic->message    = String8__literal("invalid section type");
+                        diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                 }
                 if (symbol->section->special && symbol->section->elf.type != type)
@@ -575,21 +581,31 @@ directive_section
                 token_next(cursor, diagnostics);
         }
 
-        // Optional trailing arguments: `,align` and `,entsize`. The alignment is a byte
-        // boundary, not a power-of-two exponent (GNU as: `parse_align` with align_bytes=0).
-        // Consume and discard them for now (the section alignment is fixed elsewhere).
-        for (;;)
+        // Optional trailing arguments: `,entsize`. For example used on MERGE/STRINGS sections
+        // (e.g. `.rodata.str1.8,"aMS",@progbits,1`).
+        if (cursor->current.kind == Token_Kind__Comma)
         {
-                if (cursor->current.kind != Token_Kind__Comma)
-                {
-                        break;
-                }
                 token_next(cursor, diagnostics);
-                if (cursor->current.kind == Token_Kind__Error)
+                Expression *entry_size_expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                SLL_queue_push_m(expressions->first, expressions->last, entry_size_expression);
+                expression_evaluate(entry_size_expression);
+                if (entry_size_expression->evaluation == Expression_Kind__Constant)
                 {
-                        break;
+                        S64 entsize = entry_size_expression->integer_value;
+                        if (entsize < 0)
+                        {
+                                Diagnostic *diagnostic = Diagnostics__expression(diagnostics, entry_size_expression, String8__literal("invalid section entry size, ignored"));
+                                diagnostic->kind = Diagnostic_Kind__Warning;
+                        }
+                        else
+                        {
+                                symbol->section->elf.entry_size = (U64)entsize;
+                        }
                 }
-                token_next(cursor, diagnostics);
+                else
+                {
+                        Diagnostics__expression(diagnostics, entry_size_expression, String8__literal("constant expression expected"));
+                }
         }
 
         symbols_table->section_current = symbol->section;

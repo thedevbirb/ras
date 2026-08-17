@@ -129,7 +129,7 @@ statements_read
                                 case Directive_Kind__Data: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
                                 case Directive_Kind__BSS:  { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
 
-                                case Directive_Kind__Section: { directive_section(cursor, diagnostics, symbols_table); } break;
+                                case Directive_Kind__Section: { directive_section(arena, cursor, diagnostics, expressions, symbols_table); } break;
 
                                 case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);  } break;
                                 case Directive_Kind__Weak:    { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);   } break;
