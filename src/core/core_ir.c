@@ -1416,6 +1416,9 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Dia
                 {
                         // The symbol's `value` is fragment-local (see `Symbol_Ref__update_section`);
                         // add its fragment's absolute offset, matching `Symbol_Ref__resolve`.
+                        //
+                        // TODO(medium): calling resolve here is fairly slow in case of labels, who don't have an
+                        // expression.
                         S64 jump_target_offset = Symbol_Ref__resolve(symbol_target_jump, diagnostics, Resolve_Level__Traverse);
                         S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
 
@@ -2101,25 +2104,3 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
 
         return stretched_at_least_once;
 }
-
-// internal void
-// Section__bss_allocate(Section *section, Arena *arena, Symbol_Ref *symbol, U32 alignment_boundary)
-// {
-//         assert_always_m(pow_2_is_m(alignment_boundary));
-//         assert_always_m(section->elf.type & ELF_Section_Header_Type__No_Data);
-//
-//         Expression *expression = Expression__push_symbol(arena, symbol);
-//         Alignment alignment = { .boundary = alignment_boundary, .write_size_max = 0, .pattern_size = 1 };
-//         Fill fill = { .repeat = expression, .pattern = 0, .pattern_size = 1 };
-//
-//         if (section->elf.alignment < alignment_boundary)
-//         {
-//                 section->elf.alignment = alignment_boundary;
-//         }
-//
-//         U32 location = 0;
-//         Fragments__align(&section->fragments, location, alignment);
-//         Symbol_Ref__update_section(symbol, section);
-//         Fragments__fill(&section->fragments, location, fill);
-//         return;
-// }
