@@ -422,6 +422,12 @@ expression_parse_with_flags
                                 // efficient only if `Expression`s were first allocated on a scratch arena (or
                                 // stack), and then allocate on a persistent arena only what's necessary, and memory
                                 // copy from one to the other.
+                                //
+                                // In practice we should:
+                                //
+                                // 1. Simplify the stack-allocated node altogether, modifying the tree in place
+                                // 2. At the end of the whole parsing process, copy on permanent arena until we find a
+                                // leaf node.
                         }
 
                         if (!frame->next)
