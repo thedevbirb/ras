@@ -1,7 +1,6 @@
 //-----------------------------------------------------------------------------
 // @Expression
 //-----------------------------------------------------------------------------
-
 internal B32
 Expression_Kind__unary_is(Expression_Kind kind)
 {
@@ -698,18 +697,42 @@ Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
         return result;
 }
 
+internal S64
+Symbol_Ref__resolve_label(Symbol_Ref *symbol, Resolve_Level level)
+{
+        // A symbol without an expression can be either a label definition, or some undefined symbol.
+        // In any case, its value depends on its position on the fragment.
+        S64 result = symbol->value;
+        if (!(symbol->flags & Symbol_Flags__Finalized))
+        {
+                result += symbol->fragment->object_file_offset;
+
+                if (level == Resolve_Level__Finalize)
+                {
+                        symbol->value = result;
+                        symbol->flags |= Symbol_Flags__Finalized;
+                }
+        }
+
+        return result;
+}
+
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
 //
 // 1. Labels don't have an expression. Their value can be read straight into `Symbol_Ref.value`.
 // 2. `Symbol_Flags__Finalized` means the simplification pass reached an end, and the value can be read from
 //    `Symbol_Ref.value`. Undefined symbols and similar should have value zero.
 //
-// NOTE that this will be called on every symbol during the finalization process.
+// NOTE that this will be called on every symbol during the finalization process and every jump target used in
+// relaxation.
 internal S64
 Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level level)
 {
-        assert_always_m((level < Resolve_Level__Finalize || diagnostics) && "finalization requires diagnostics");
-        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+        // TODO(low): I'm not a fan of early returns, but this is extremely common for labels.
+        if (!symbol->expression)
+        {
+                return Symbol_Ref__resolve_label(symbol, level);
+        }
 
         typedef enum Frame_State
         {
@@ -737,8 +760,10 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                 Frame_State state;
         };
 
-        Frame *frame = Arena__push_struct_m(scratch.arena, Frame);
-        frame->symbol = symbol;
+        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
+        Frame frame_base = {0};
+        Frame *frame     = &frame_base;
+        frame->symbol    = symbol;
 
         // Should be updated before popping every frame. The result before popping the last frame is what we need to
         // return.
@@ -750,12 +775,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
         U16 index = 0;
         for (;;)
         {
-                assert_always_m(index < U16_max && "infinite loop");
-                if (!frame)
-                {
-                        break;
-                }
-                else if (frame->symbol && frame->symbol->flags & Symbol_Flags__Finalized)
+                if (frame->symbol && frame->symbol->flags & Symbol_Flags__Finalized)
                 {
                         // The simplest case. The symbol is already finalized.
                         result = frame->symbol->value;
@@ -765,24 +785,13 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                 {
                         // A symbol without an expression can be either a label definition, or some undefined symbol.
                         // In any case, its value depends on its position on the fragment.
-                        result = frame->symbol->value;
-                        if (!(frame->symbol->flags & Symbol_Flags__Finalized))
-                        {
-                                result += frame->symbol->fragment->object_file_offset;
-                        }
-
-                        if (finalize)
-                        {
-                                frame->symbol->value = result;
-                                frame->symbol->flags |= Symbol_Flags__Finalized;
-                        }
+                        result = Symbol_Ref__resolve_label(frame->symbol, level);
                         SLL_stack_pop_m(frame);
                 }
                 else if (!(frame->state & Frame_State__Evaluated))
                 {
                         if (frame->symbol)
-                        {
-                                B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
+                        {                                B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
                                 frame->symbol->flags |= Symbol_Flags__Resolving;
                                 frame->state         |= Frame_State__Evaluated;
                                 // We're evaluating a symbol expression in a dedicated frame, which will NOT be marked
@@ -1063,7 +1072,16 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                         result = frame->symbol->expression->integer_value;
                         SLL_stack_pop_m(frame);
                 }
-                index += 1;
+
+                if (!frame)
+                {
+                        break;
+                }
+                else
+                {
+                        index += 1;
+                        assert_always_m(index < U16_max && "infinite loop");
+                }
         }
         Arena__scratch_end_m(scratch);
 
@@ -1414,11 +1432,6 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Dia
                 // If we have no symbol, e.g. `j 4` or `beq zero, zero, 4`, then we default the worst expansion.
                 if (size_can_be_computed)
                 {
-                        // The symbol's `value` is fragment-local (see `Symbol_Ref__update_section`);
-                        // add its fragment's absolute offset, matching `Symbol_Ref__resolve`.
-                        //
-                        // TODO(medium): calling resolve here is fairly slow in case of labels, who don't have an
-                        // expression.
                         S64 jump_target_offset = Symbol_Ref__resolve(symbol_target_jump, diagnostics, Resolve_Level__Traverse);
                         S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
 

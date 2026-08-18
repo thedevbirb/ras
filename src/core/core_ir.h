@@ -222,6 +222,7 @@ struct Symbol_Ref
         Fragment         *fragment;
         // The expression which defines its value, if appropriate.
         Expression       *expression;
+
         // An expression which defines the size of the symbol.
         Expression       *size_expression;
 
@@ -348,6 +349,10 @@ typedef enum Resolve_Level
 	Resolve_Level__Finalize = 2,
 }
 Resolve_Level;
+
+// Resolves the value of a label i.e., a symbol with no expression.
+internal S64
+Symbol_Ref__resolve_label(Symbol_Ref *symbol, Resolve_Level level);
 
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
 //
