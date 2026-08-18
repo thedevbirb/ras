@@ -1167,7 +1167,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
 
                 if (!symbol->size_expression)
                 {
-                        symbol->size_expression = Expression__push_constant(arena, size);
+                        symbol->size_expression = Expression__push_constant(symbols_table->arena, size);
                 }
 
                 if (size_expression->evaluation != Expression_Kind__Constant)
@@ -1253,7 +1253,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                         symbol->binding = ELF_Symbol_Binding__Global;
                         if (!symbol->size_expression)
                         {
-                                symbol->size_expression = Expression__push_constant(arena, size);
+                                symbol->size_expression = Expression__push_constant(symbols_table->arena, size);
                         }
                 }
         }
