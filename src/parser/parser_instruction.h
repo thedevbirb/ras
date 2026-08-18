@@ -49,9 +49,6 @@ RISCV_Instruction__parse
         U32                 instruction_hash
 );
 
-internal U8
-RISCV_instruction_size(U32 encoding);
-
 internal void
 RISCV_Instruction__append
 (

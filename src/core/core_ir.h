@@ -10,6 +10,7 @@ typedef struct Symbol_Ref     Symbol_Ref;
 typedef struct Fragment       Fragment;
 typedef struct Fixup          Fixup;
 typedef struct Section        Section;
+typedef struct Token_Cursor   Token_Cursor;
 
 //-----------------------------------------------------------------------------
 // @Expression
@@ -154,6 +155,14 @@ Expression__push_constant(Arena *arena, S64 value);
 // Create an expression based on a single symbol
 internal Expression *
 Expression__push_symbol(Arena *arena, Symbol_Ref *symbol);
+
+// Evaluate an expression to a constant value, if possible. See `Symbol_Ref__resolve`.
+internal S64
+expression_evaluate(Expression *node_root);
+
+// Push a diagnostic anchored on the given expression.
+internal Diagnostic *
+Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message);
 
 // Evaluate all expressions while finalizing symbols. See `Symbol_Ref__resolve`/`Symbols_Table__finalize`.
 internal void
@@ -309,6 +318,9 @@ Symbol_Ref__keep(Symbol_Ref *symbol);
 // Symbols Table API
 
 internal Symbol_Ref *
+Symbols_Table__create(Symbols_Table *symbols_table, String8 name);
+
+internal Symbol_Ref *
 Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section);
 
 // Create a section associated to the provided symbol.
@@ -325,6 +337,10 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name);
 // symbol, if available.
 internal Symbol_Ref *
 Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name);
+
+// Ensure the undefined symbol and section are present in the table.
+internal void
+Symbols_Table__ensure_undefined_present(Symbols_Table *symbols_table);
 
 // Get or create a default numeric symbol (e.g. `1b`/`1f`). See `Symbols_Table__get_or_default`.
 internal Symbol_Numeric
@@ -353,6 +369,10 @@ Resolve_Level;
 // Resolves the value of a label i.e., a symbol with no expression.
 internal S64
 Symbol_Ref__resolve_label(Symbol_Ref *symbol, Resolve_Level level);
+
+// Emit a "symbol cannot be redefined" diagnostic at the cursor position, plus a note at the previous declaration.
+internal void
+Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor);
 
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
 //
