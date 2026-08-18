@@ -1343,9 +1343,6 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         assert_always_m(fragment->data_variable_size == instructions_total_size);
                         assert_always_m(array_count_m(fragment->data_variable) >= instructions_total_size);
 
-                        // TODO(low): inserting a fixup here messes up their ordering, and they're not sorted anymore.
-                        // A solution could be provided as argument the fixup of the "right position". Or attach fixup
-                        // to jump info? review the whole process starting from appending an instruction.
                         if (instructions_total_size == 8)
                         {
                                 // This MUST be a branch, because we assume jumps are of the right size.
