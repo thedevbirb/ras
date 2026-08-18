@@ -10,7 +10,10 @@ placement and mapping symbols):
   - `.rela.*` contents: each relocation compared by (offset, type, addend) plus
     the *value* of the referenced symbol (indices may differ).
   - `.symtab` contents: symbols compared as a multiset of
-    (name, type, bind, section-index, value, size), ignoring order.
+    (name, type, bind, visibility, section-name, value, size), ignoring
+    order. Section indices are canonicalized to section names so the
+    comparison is insensitive to section ordering; visibility (st_other)
+    is included.
 """
 import json
 import struct
@@ -52,8 +55,13 @@ def read_sections(path):
     return (sections, order, data), None
 
 
-def symbol_table(data, symtab, strtab):
-    """Return a list of (name, type, bind, section, value, size)."""
+def symbol_table(data, symtab, strtab, order):
+    """Return a list of (name, type, bind, visibility, section, value, size).
+
+    Section indices are canonicalized to section *names* so that symbol
+    comparison stays meaningful even if the two files order sections
+    differently.
+    """
     soff = symtab[4]
     ssz = symtab[5]
     ses = symtab[9]
@@ -65,10 +73,23 @@ def symbol_table(data, symtab, strtab):
         no = struct.unpack_from('<I', s, 0)[0]
         name = cstr(data, stroff + no)
         info = struct.unpack_from('<B', s, 4)[0]
+        other = struct.unpack_from('<B', s, 5)[0]
         shndx = struct.unpack_from('<H', s, 6)[0]
         value = struct.unpack_from('<Q', s, 8)[0]
         size = struct.unpack_from('<Q', s, 16)[0]
-        out.append((name, info & 0xf, info >> 4, shndx, value, size))
+        if shndx == 0:
+            sec = 'UNDEF'
+        elif shndx == 0xfff1:
+            sec = 'ABS'
+        elif shndx == 0xfff2:
+            sec = 'COMMON'
+        elif shndx == 0xffff:
+            sec = 'XINDEX'
+        elif shndx < len(order):
+            sec = order[shndx]
+        else:
+            sec = f'shndx?{shndx}'
+        out.append((name, info & 0xf, info >> 4, other, sec, value, size))
     return out
 
 
@@ -107,10 +128,10 @@ def main():
               + (f'  [{"; ".join(diffs)}]' if diffs else ''))
 
     # Symbols: needed to interpret relocations and for the symtab comparison.
-    rsym = symbol_table(rdata, rsecs['.symtab'], rsecs['.strtab'])
-    gsym = symbol_table(gdata, gsecs['.symtab'], gsecs['.strtab'])
-    rval = {i: v[4] for i, v in enumerate(rsym)}
-    gval = {i: v[4] for i, v in enumerate(gsym)}
+    rsym = symbol_table(rdata, rsecs['.symtab'], rsecs['.strtab'], rorder)
+    gsym = symbol_table(gdata, gsecs['.symtab'], gsecs['.strtab'], gorder)
+    rval = {i: v[5] for i, v in enumerate(rsym)}
+    gval = {i: v[5] for i, v in enumerate(gsym)}
 
     print('=== CONTENT ===')
     for name in gorder:
