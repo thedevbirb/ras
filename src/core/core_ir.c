@@ -251,7 +251,9 @@ symbols_trie_get(Symbols_Trie *trie, U64 hash, String8 name)
         for (;;)
         {
                 B32 trie_current_zero = trie_current == 0;
-                B32 found = !trie_current_zero && String8__match_exact(trie_current->name, name);
+                B32 found = !trie_current_zero && String8__match_exact(trie_current->name, name)
+                         // Get the latest definition of the symbol.
+                         && !(trie_current->symbol.flags & Symbol_Flags__Redefined);
                 if (found)
                 {
                         result = trie_current;
@@ -464,8 +466,9 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
         Fragments  fragments  = { .arena = arena, .first = &Fragment__nil, .last = &Fragment__nil };
 
         assert_always_m(symbol->name);
-        symbol->section = section;
-        symbol->type    = STT_SECTION;
+        symbol->section  = section;
+        symbol->fragment = fragments.first;
+        symbol->type     = ELF_Symbol_Type__Section;
 
         section->symbol    = symbol;
         section->fragments = fragments;
@@ -1089,13 +1092,13 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
 }
 
 internal void
-Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor)
+Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token token)
 {
         {
         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
         diagnostic->message    = String8__literal("symbol cannot be redefined");
-        diagnostic->location   = cursor->current.location;
-        diagnostic->ranges[0]  = Token__range(cursor->current);
+        diagnostic->location   = token.location;
+        diagnostic->ranges[0]  = Token__range(token);
         }
         {
         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -1793,7 +1796,10 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
 
         if (!(fixup->flags & Fixup_Flags__Done))
         {
-                if (symbol) { symbol->flags |= Symbol_Flags__Relocation; }
+                if (symbol && expression->evaluation != Expression_Kind__Constant)
+                {
+                        symbol->flags |= Symbol_Flags__Relocation;
+                }
                 section->fixups.unresolved += 1;
                 section->symbol->flags |= Symbol_Flags__Relocation;
         }

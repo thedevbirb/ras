@@ -316,7 +316,8 @@ write_object_file
                                 if (!(fixup->flags & Fixup_Flags__Done))
                                 {
                                         U32 index_offset = 0;
-                                        Symbol_Ref *fixup_symbol = fixup->expression && fixup->expression->symbol ? fixup->expression->symbol : &Symbol_Ref__undefined;
+                                        B32 omit_fixup_symbol = !fixup->expression || fixup->expression->evaluation == Expression_Kind__Constant;
+                                        Symbol_Ref *fixup_symbol = omit_fixup_symbol ? &Symbol_Ref__undefined : fixup->expression->symbol;
                                         if (fixup_symbol->binding != ELF_Symbol_Binding__Local)
                                         {
                                                 index_offset = symbols_local_to_keep;

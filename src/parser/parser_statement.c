@@ -232,7 +232,7 @@ statements_read
                                 }
                                 else
                                 {
-                                        RISCV_Instruction__append( symbols_table->arena, symbols_table->section_current, options, &instruction);
+                                        RISCV_Instruction__append(symbols_table->arena, symbols_table->section_current, options, &instruction);
                                 }
                         }
                 } break;

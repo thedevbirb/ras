@@ -370,9 +370,9 @@ Resolve_Level;
 internal S64
 Symbol_Ref__resolve_label(Symbol_Ref *symbol, Resolve_Level level);
 
-// Emit a "symbol cannot be redefined" diagnostic at the cursor position, plus a note at the previous declaration.
+// Emit a "symbol cannot be redefined" diagnostic at specified token position, plus a note at the previous declaration.
 internal void
-Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token_Cursor *cursor);
+Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token token);
 
 // Kinda based on GNU `as` `resolve_symbol_value`, although with different assumptions.
 //

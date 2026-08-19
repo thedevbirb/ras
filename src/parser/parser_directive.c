@@ -56,7 +56,7 @@ directive_binding
         B32 demoted = binding < binding_old && symbol->binding != ELF_Symbol_Binding__Weak;
         if (demoted)
         {
-                Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
+                Diagnostics__symbol_redefined(diagnostics, symbol, cursor->current);
         }
 
         if (symbol->binding != ELF_Symbol_Binding__Weak)
@@ -124,7 +124,7 @@ directive_set_like
                           || !(symbol->flags & Symbol_Flags__Volatile);
                 if (frozen)
                 {
-                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor->current);
                 }
 
                 symbol = Symbols_Table__create(symbols_table, name);
@@ -500,29 +500,38 @@ directive_section
                 diagnostic->ranges[0]  = (Range1_U32){{ location_start, cursor->current.location + cursor->current.size }};
         }
 
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get(symbols_table, name);
+        B32 switching_only_is         = symbol && symbol->type == ELF_Symbol_Type__Section;
+        B32 section_should_be_created = !switching_only_is;
+        B32 can_create_section        = !symbol
+                                     || (symbol->section == &Section__undefined && symbol->type == ELF_Symbol_Type__None)
+                                     || (symbol->flags & Symbol_Flags__Volatile);
 
-        B32 new_is = symbol->section == &Section__undefined;
-        if (new_is)
+        if (section_should_be_created)
         {
-                Symbols_Table__create_section(symbols_table, symbol);
-                DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
+                if (!can_create_section)
+                {
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor->current);
+                }
+                else
+                {
+                        symbol = Symbols_Table__create(symbols_table, name);
+                        symbol->location = cursor->current.location;
+                        Symbols_Table__create_section(symbols_table, symbol);
+                        DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
+                }
         }
 
         // TODO(medium): some missing validations:
-        // 1. Section undefined is not sufficient to check whether we're overriding a symbol
-        // 2. Some section types requires mandatory checks or arguments. See https://www.sourceware.org/binutils/docs/as.html#ELF-Version
+        // 1. Some section types requires mandatory checks or arguments. See https://www.sourceware.org/binutils/docs/as.html#ELF-Version
 
         token_next(cursor, diagnostics);
         if (cursor->current.kind == Token_Kind__Comma)
         {
                 // Error if already defined.
-                if (!new_is)
+                if (switching_only_is)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->location   = cursor->current.location;
-                        diagnostic->message    = String8__literal("cannot redefine section");
-                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor->previous);
                 }
 
                 // Read flags.
@@ -1151,7 +1160,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                 }
                 else
                 {
-                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor);
+                        Diagnostics__symbol_redefined(diagnostics, symbol, cursor->current);
                 }
         }
 
