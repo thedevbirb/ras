@@ -113,7 +113,7 @@ internal Diagnostic *
 Diagnostics__push(Diagnostics *diagnostics)
 {
         Diagnostic *result = Arena__push_struct_m(diagnostics->arena, Diagnostic);
-        SLL_queue_push_m(diagnostics->first, diagnostics->last, result);
+        DLL_push_back_m(diagnostics->first, diagnostics->last, result);
         return result;
 }
 

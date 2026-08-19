@@ -258,11 +258,10 @@ main(S32 argument_count, char **argument_vector)
                 exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
                 diagnostic_print(diagnostic, &source, arena);
                 DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
-
-                if (exit_status)
-                {
-                        exit(1);
-                }
+        }
+        if (exit_status)
+        {
+                exit(1);
         }
 
         U64 size = write_object_file(arena, diagnostics, &expressions, symbols_table, &options, file_descriptor_out);
@@ -275,11 +274,10 @@ main(S32 argument_count, char **argument_vector)
                 exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
                 diagnostic_print(diagnostic, &source, arena);
                 DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
-
-                if (exit_status)
-                {
-                        exit(1);
-                }
+        }
+        if (exit_status)
+        {
+                exit(1);
         }
 
         close(file_descriptor_in);
