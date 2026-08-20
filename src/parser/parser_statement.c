@@ -49,7 +49,7 @@ statements_read
                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                         }
 
-                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, 1);
+                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, 1, arena);
                                        symbol_numeric.label->instances += 1;
 
                         assert_always_m(symbol_numeric.symbol->section == &Section__undefined && "numeric label created previously");
@@ -68,7 +68,7 @@ statements_read
                         if (label_found)
                         {
                                 // Label found
-                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier);
+                                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, identifier, arena);
                                 if (symbol->section != &Section__undefined)
                                 {
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
@@ -110,9 +110,9 @@ statements_read
                                 case Directive_Kind__Attribute: { directive_attribute(cursor, diagnostics, arena, options, symbols_table->section_first); } break;
 
                                 case Directive_Kind__Option: { directive_option(cursor, diagnostics, options);                         } break;
-                                case Directive_Kind__File:   { directive_file(cursor, diagnostics, symbols_table);                     } break;
-                                case Directive_Kind__Type:   { directive_type(cursor, diagnostics, symbols_table);                     } break;
-                                case Directive_Kind__Ident:  { directive_ident(cursor, diagnostics, symbols_table);                    } break;
+                                case Directive_Kind__File:   { directive_file(cursor, diagnostics, arena, symbols_table);              } break;
+                                case Directive_Kind__Type:   { directive_type(cursor, diagnostics, arena, symbols_table);              } break;
+                                case Directive_Kind__Ident:  { directive_ident(cursor, diagnostics, arena, symbols_table);             } break;
                                 case Directive_Kind__Size:   { directive_size(arena, cursor, diagnostics, expressions, symbols_table); } break;
 
                                 case Directive_Kind__Word_Double: { directive_data(arena, cursor, diagnostics, expressions, symbols_table, 8); } break;
@@ -123,7 +123,7 @@ statements_read
                                 case Directive_Kind__String: { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
                                 case Directive_Kind__Asciz:  { directive_string(cursor, diagnostics, symbols_table->section_current, 1); } break;
                                 case Directive_Kind__Ascii:  { directive_string(cursor, diagnostics, symbols_table->section_current, 0); } break;
-                                case Directive_Kind__Base64: { directive_base64(cursor, diagnostics, symbols_table->section_current); } break;
+                                case Directive_Kind__Base64: { directive_base64(cursor, diagnostics, symbols_table->section_current);    } break;
 
                                 case Directive_Kind__Text: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
                                 case Directive_Kind__Data: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
@@ -131,10 +131,10 @@ statements_read
 
                                 case Directive_Kind__Section: { directive_section(arena, cursor, diagnostics, expressions, symbols_table); } break;
 
-                                case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Local);  } break;
-                                case Directive_Kind__Weak:    { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Weak);   } break;
-                                case Directive_Kind__Globl:   { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
-                                case Directive_Kind__Global:  { directive_binding(cursor, diagnostics, symbols_table, ELF_Symbol_Binding__Global); } break;
+                                case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Local);  } break;
+                                case Directive_Kind__Weak:    { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Weak);   } break;
+                                case Directive_Kind__Globl:   { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Global); } break;
+                                case Directive_Kind__Global:  { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Global); } break;
 
                                 case Directive_Kind__Comm:    { directive_common(cursor, diagnostics, arena, symbols_table, options->xlen); } break;
                                 case Directive_Kind__Common:  { directive_common(cursor, diagnostics, arena, symbols_table, options->xlen); } break;
@@ -228,11 +228,11 @@ statements_read
 
                                 if (instruction.data.opcode->info & INSN_MACRO)
                                 {
-                                        RISCV_instruction_pseudo_append(symbols_table->section_current, expressions, symbols_table, options, &instruction);
+                                        RISCV_instruction_pseudo_append(arena, symbols_table->section_current, expressions, symbols_table, options, &instruction);
                                 }
                                 else
                                 {
-                                        RISCV_Instruction__append(symbols_table->arena, symbols_table->section_current, options, &instruction);
+                                        RISCV_Instruction__append(arena, symbols_table->section_current, options, &instruction);
                                 }
                         }
                 } break;

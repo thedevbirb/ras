@@ -920,6 +920,7 @@ RISCV_li_expand
 internal void
 RISCV_instruction_pseudo_append
 (
+        Arena              *arena,
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,
@@ -942,7 +943,7 @@ RISCV_instruction_pseudo_append
         {
                 RISCV_call_expand
                 (
-                        symbols_table->arena,
+                        arena,
                         section,
                         options,
                         rd,
@@ -1003,9 +1004,9 @@ RISCV_instruction_pseudo_append
                         U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Relocation);
                         S32 values_addi[]   = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
 
-                        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section);
+                        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section, arena);
                                     internal_label->flags  |= Symbol_Flags__Relocation;
-                        Expression *expression_addi         = Arena__push_struct_m(symbols_table->arena, Expression);
+                        Expression *expression_addi         = Arena__push_struct_m(arena, Expression);
                                     expression_addi->symbol = internal_label;
                                     expression_addi->kind   = Expression_Kind__Symbol;
                         SLL_queue_push_m(expressions->first, expressions->last, instruction->expression);
@@ -1034,7 +1035,7 @@ RISCV_instruction_pseudo_append
                         Fragments__ensure(&section->fragments, 8);
                         RISCV_macro_build
                         (
-                                symbols_table->arena,
+                                arena,
                                 section,
                                 options,
                                 &macro_auipc
@@ -1042,7 +1043,7 @@ RISCV_instruction_pseudo_append
                         // NOTE: GNU as creates also a second expression with an fake label for addi, why?
                         RISCV_macro_build
                         (
-                                symbols_table->arena,
+                                arena,
                                 section,
                                 options,
                                 &macro_addi

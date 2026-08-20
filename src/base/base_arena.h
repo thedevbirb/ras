@@ -68,9 +68,15 @@ struct Arena_Temporary
 
 // Globals
 
-global U64 Arena__reserve_size_default  = 64 << 20; // 64 MiB
-global U64 Arena__commit_size_default   = 64 << 10; // 64 KiB
-global Arena_Flags Arena__flags_default = 0;
+#define Arena__reserve_size_default  MiB(64)
+#define Arena__commit_size_default   KiB(64)
+#define Arena__flags_default         0
+global Arena_Parameters Arena_Parameters__default =
+{
+        .reserve_size = Arena__reserve_size_default,
+        .commit_size  = Arena__commit_size_default,
+        .flags        = Arena__flags_default
+};
 
 // Allocate a new arena using the provided parameters.
 Arena *

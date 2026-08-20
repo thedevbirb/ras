@@ -274,7 +274,7 @@ typedef struct Symbols_Table Symbols_Table;
 struct Symbols_Table
 {
         // A dedicated arena for every data, including symbols names, that are saved here.
-        Arena                    *arena;
+        // Arena                    *arena;
         Symbols_Trie             *root;
 
         Symbol_Ref               *first;
@@ -318,17 +318,20 @@ Symbol_Ref__keep(Symbol_Ref *symbol);
 // Symbols Table API
 
 internal Symbol_Ref *
-Symbols_Table__create(Symbols_Table *symbols_table, String8 name);
+Symbols_Table__create(Symbols_Table *symbols_table, String8 name, Arena *arena);
 
 internal Symbol_Ref *
-Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section);
+Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section, Arena *arena);
 
 // Create a section associated to the provided symbol.
+// Requires `Arena_Parameters` to create a specific `Arena` for `Fragments` usage.
+//
+// Special sections have already their attributes set in, according to https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections
 internal void
-Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol);
+Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol, Arena *arena, Arena_Parameters arena_parameters);
 
 internal Symbol_Ref *
-Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes);
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes, Arena *arena);
 
 internal Symbol_Ref *
 Symbols_Table__get(Symbols_Table *symbols_table, String8 name);
@@ -336,7 +339,7 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name);
 // Get or create a default symbol given its name. If it doesn't exist, the symbol is attached to the undefined section
 // symbol, if available.
 internal Symbol_Ref *
-Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name);
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Arena *arena);
 
 // Ensure the undefined symbol and section are present in the table.
 internal void
@@ -344,7 +347,7 @@ Symbols_Table__ensure_undefined_present(Symbols_Table *symbols_table);
 
 // Get or create a default numeric symbol (e.g. `1b`/`1f`). See `Symbols_Table__get_or_default`.
 internal Symbol_Numeric
-Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward);
+Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward, Arena *arena);
 
 // Update `Section` and `Fragment` information of the given symbol, and sets the ELF value of a symbol to current offset
 // within the `Fragment`.
@@ -353,7 +356,7 @@ Symbol_Ref__update_section(Symbol_Ref *symbol, Section *section);
 
 // Create a clone of the given symbol.
 internal Symbol_Ref *
-Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol);
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, Arena *arena);
 
 // Resolution levels for `Symbol_Ref__resolve`.
 typedef enum Resolve_Level

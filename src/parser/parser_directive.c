@@ -32,6 +32,7 @@ directive_binding
 (
         Token_Cursor            *cursor,
         Diagnostics             *diagnostics,
+        Arena                   *arena,
         Symbols_Table           *symbols_table,
         ELF_Symbol_Binding       binding
 )
@@ -45,7 +46,7 @@ directive_binding
         }
 
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
         if (symbol->section == &Section__undefined)
         {
                 // Still give a preliminary location for it so that we can show diagnostics.
@@ -115,7 +116,7 @@ directive_set_like
         // always able to discriminate between a register and a symbol named in the same way due to its position in the
         // instruction.
         String8 name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
 
         B32 already_defined_or_equated = symbol->section != &Section__undefined || symbol->expression;
         if (already_defined_or_equated)
@@ -127,7 +128,7 @@ directive_set_like
                         Diagnostics__symbol_redefined(diagnostics, symbol, cursor->current);
                 }
 
-                symbol = Symbols_Table__create(symbols_table, name);
+                symbol = Symbols_Table__create(symbols_table, name, arena);
         }
 
         symbol->location = cursor->current.location;
@@ -444,6 +445,7 @@ directive_ident
 (
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
+        Arena           *arena,
         Symbols_Table   *symbols_table
 )
 {
@@ -455,10 +457,10 @@ directive_ident
 
                 // GNU as collects all `.ident` strings into the `.comment` section,
                 // each entry prefixed by a NULL byte and NULL-terminated.
-                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name_comment);
+                Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name_comment, arena);
                 if (symbol->section == &Section__undefined)
                 {
-                        Symbols_Table__create_section(symbols_table, symbol);
+                        Symbols_Table__create_section(symbols_table, symbol, arena, Arena_Parameters__default);
                         symbol->section->elf.entry_size = 1; // GNU as: `.comment` is MS with entsize 1.
                         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
                 }
@@ -515,9 +517,9 @@ directive_section
                 }
                 else
                 {
-                        symbol = Symbols_Table__create(symbols_table, name);
+                        symbol = Symbols_Table__create(symbols_table, name, arena);
                         symbol->location = cursor->current.location;
-                        Symbols_Table__create_section(symbols_table, symbol);
+                        Symbols_Table__create_section(symbols_table, symbol, arena, Arena_Parameters__default);
                         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol->section);
                 }
         }
@@ -647,13 +649,11 @@ directive_section_current
 )
 {
         String8 section_name = Directive_Kind__String8_table[directive_kind];
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, section_name);
-        if (symbol->section == &Section__undefined)
+        Symbol_Ref *symbol = Symbols_Table__get(symbols_table, section_name);
+        if (symbol)
         {
-                Symbols_Table__create_section(symbols_table, symbol);
+                symbols_table->section_current = symbol->section;
         }
-
-        symbols_table->section_current = symbol->section;
 
         token_next(cursor, diagnostics);
 }
@@ -910,7 +910,7 @@ directive_size
 {
         token_next(cursor, diagnostics);
         String8 symbol_name = Token_Cursor__text(cursor);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, symbol_name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, symbol_name, arena);
 
         token_next(cursor, diagnostics);
         if (cursor->current.kind == Token_Kind__Comma)
@@ -936,6 +936,7 @@ directive_file
 (
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
+        Arena           *arena,
         Symbols_Table   *symbols_table
 )
 {
@@ -950,9 +951,9 @@ directive_file
                 // TODO(medium): this is a symbol creation which is outside the API and should be monitored, since it's
                 // a delicate process and can be error prone. Ideally these cases should be taken into account in the
                 // symbols table API.
-                String8 *name = Arena__push_struct_m(symbols_table->arena, String8);
-                *name = String8__duplicate_null_terminated(symbols_table->arena, content);
-                Symbol_Ref *symbol = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+                String8 *name = Arena__push_struct_m(arena, String8);
+                *name = String8__duplicate_null_terminated(arena, content);
+                Symbol_Ref *symbol = Arena__push_struct_m(arena, Symbol_Ref);
                 SLL_queue_push_m(symbols_table->first, symbols_table->last, symbol);
 
                 symbol->name = name;
@@ -977,12 +978,13 @@ directive_type
 (
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
+        Arena           *arena,
         Symbols_Table   *symbols_table
 )
 {
         token_next(cursor, diagnostics);
         String8 name = String8__new(cursor->source->data + cursor->current.index, cursor->current.size);
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
 
         // There are various syntaxes: https://www.sourceware.org/binutils/docs/as.html#g_t_002etype
         // We support `.type <name>,@<type>`, as emitted by GCC
@@ -1136,7 +1138,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                                    && symbol->section == &Section__undefined;
         if (!symbol)
         {
-                symbol = Symbols_Table__get_or_default(symbols_table, name);
+                symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
         }
 
         B32 replace_needed = (symbol->section != &Section__undefined || symbol->expression)
@@ -1148,7 +1150,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
         {
                 if (clonable)
                 {
-                        Symbol_Ref *clone = Symbols_Table__clone(symbols_table, symbol);
+                        Symbol_Ref *clone = Symbols_Table__clone(symbols_table, symbol, arena);
                                     clone->flags &= ~Symbol_Flags__Volatile;
                                     clone->expression = 0;
                         Symbol_Ref__update_section(clone, &Section__undefined);
@@ -1176,7 +1178,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
 
                 if (!symbol->size_expression)
                 {
-                        symbol->size_expression = Expression__push_constant(symbols_table->arena, size);
+                        symbol->size_expression = Expression__push_constant(arena, size);
                 }
 
                 if (size_expression->evaluation != Expression_Kind__Constant)
@@ -1262,7 +1264,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
                         symbol->binding = ELF_Symbol_Binding__Global;
                         if (!symbol->size_expression)
                         {
-                                symbol->size_expression = Expression__push_constant(symbols_table->arena, size);
+                                symbol->size_expression = Expression__push_constant(arena, size);
                         }
                 }
         }

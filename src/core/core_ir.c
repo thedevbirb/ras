@@ -151,7 +151,7 @@ unary_evaluate(Expression_Kind kind, S64 a)
 
         switch (kind)
         {
-        case Expression_Kind__Negate:        { result = -a; } break;
+        case Expression_Kind__Negate:        { result = a == S64_min ? a : -a; } break;
         case Expression_Kind__Logical_Not:   { result = !a; } break;
         case Expression_Kind__Bitwise_Not:   { result = ~a; } break;
 
@@ -359,11 +359,11 @@ label_numeric_string(Arena *arena, Label_Numeric label)
 // Symbols Table API
 
 internal Symbol_Ref *
-Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
+Symbols_Table__create(Symbols_Table *symbols_table, String8 name, Arena *arena)
 {
         U64 hash = FNV_hash_U64(name);
-        Symbols_Trie *trie              = Arena__push_struct_m(symbols_table->arena, Symbols_Trie);
-                      trie->name        = String8__duplicate_null_terminated(symbols_table->arena, name);
+        Symbols_Trie *trie              = Arena__push_struct_m(arena, Symbols_Trie);
+                      trie->name        = String8__duplicate_null_terminated(arena, name);
                       trie->symbol.name = &trie->name;
         symbols_trie_add(&symbols_table->root, trie, hash);
 
@@ -374,9 +374,9 @@ Symbols_Table__create(Symbols_Table *symbols_table, String8 name)
 }
 
 internal Symbol_Ref *
-Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol)
+Symbols_Table__clone(Symbols_Table *symbols_table, Symbol_Ref *symbol, Arena *arena)
 {
-        Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name);
+        Symbol_Ref *clone = Symbols_Table__create(symbols_table, *symbol->name, arena);
                    *clone = *symbol;
         return clone;
 }
@@ -394,10 +394,10 @@ Symbols_Table__get(Symbols_Table *symbols_table, String8 name)
 
 // Get or create a default symbol given its name, attaching it to the undefined section if it doesn't exist.
 internal Symbol_Ref *
-Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
+Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name, Arena *arena)
 {
         U64 hash = FNV_hash_U64(name);
-        Symbols_Trie *node   = symbols_trie_get_or_default(symbols_table->arena, &symbols_table->root, hash, name);
+        Symbols_Trie *node   = symbols_trie_get_or_default(arena, &symbols_table->root, hash, name);
         Symbol_Ref   *symbol = &node->symbol;
 
         if (!symbol->section)
@@ -412,7 +412,7 @@ Symbols_Table__get_or_default(Symbols_Table *symbols_table, String8 name)
 }
 
 internal Symbol_Numeric
-Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward)
+Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, B32 forward, Arena *arena)
 {
         Label_Numeric *current = symbols_table->label_numeric_first;
         Label_Numeric *match   = 0;
@@ -433,7 +433,7 @@ Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, 
 
         if (!match)
         {
-                match         = Arena__push_struct_m(symbols_table->arena, Label_Numeric);
+                match         = Arena__push_struct_m(arena, Label_Numeric);
                 match->number = number;
                 SLL_queue_push_m(symbols_table->label_numeric_first, symbols_table->label_numeric_last, match);
         }
@@ -448,22 +448,23 @@ Symbols_Table__get_or_default_numeric(Symbols_Table *symbols_table, U32 number, 
 
         Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
         String8 name = label_numeric_string(scratch.arena, target);
-        result.symbol = Symbols_Table__get_or_default(symbols_table, name);
+        result.symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
         Arena__scratch_end_m(scratch);
 
         return result;
 }
 
-// Create a section associated to the provided symbol.
-//
-// Special sections have already their attributes set in, according to https://gabi.xinuos.com/v42/elf/03-sheader.html#special-sections
 internal void
-Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
+Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol, Arena *arena, Arena_Parameters arena_parameters)
 {
-        Section   *section    = Arena__push_struct_m(symbols_table->arena, Section);
-        // TODO(low): configurable
-        Arena     *arena      = Arena__allocate_m();
-        Fragments  fragments  = { .arena = arena, .first = &Fragment__nil, .last = &Fragment__nil };
+        Section   *section    = Arena__push_struct_m(arena, Section);
+        Arena *arena_fragments = Arena__allocate_m
+        (
+                .reserve_size = arena_parameters.reserve_size,
+                .commit_size  = arena_parameters.commit_size,
+                .flags        = arena_parameters.flags
+        );
+        Fragments  fragments  = { .arena = arena_fragments, .first = &Fragment__nil, .last = &Fragment__nil };
 
         assert_always_m(symbol->name);
         symbol->section  = section;
@@ -484,7 +485,7 @@ Symbols_Table__create_section(Symbols_Table *symbols_table, Symbol_Ref *symbol)
 }
 
 internal Symbol_Ref *
-Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes)
+Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RISCV_Attributes *attributes, Arena *arena)
 {
         // According to the specification, small tags can be written as just a byte:
         // https://riscv-non-isa.github.io/riscv-elf-psabi-doc/#_attributes
@@ -527,8 +528,8 @@ Symbols_Table__create_section_riscv_attributes(Symbols_Table *symbols_table, RIS
         U32 total_size = sizeof(format_version) + sub_section_riscv_size;
 
         String8 name = String8__literal(".riscv.attributes");
-        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
-        Symbols_Table__create_section(symbols_table, symbol);
+        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
+        Symbols_Table__create_section(symbols_table, symbol, arena, Arena_Parameters__default);
         symbol->section->elf.alignment = 1;
 
         U32 location = 0;
@@ -645,36 +646,6 @@ Symbol_Ref__keep(Symbol_Ref *symbol)
         return keep;
 }
 
-internal Label_Numeric *
-Symbols_Table__label_numeric_get_or_default(Symbols_Table *symbols_table, U32 number)
-{
-
-        B32 found = 0;
-        Label_Numeric *first   = symbols_table->label_numeric_first;
-        Label_Numeric *last    = symbols_table->label_numeric_last;
-        Label_Numeric *current = first;
-        Label_Numeric *result  = 0;
-
-        for (;;)
-        {
-                B32 break_should = found || current == 0;
-                if (break_should)
-                {
-                        break;
-                }
-                found = current->number == number;
-                current = current->next;
-        }
-
-        if (!found)
-        {
-                result = Arena__push_struct_m(symbols_table->arena, Label_Numeric);
-                result->number = number;
-                SLL_queue_push_m(first, last, result);
-        }
-        return result;
-}
-
 // True if the symbol name belongs to the internal `.L` family used for local labels or it is a dot.
 internal B32
 Symbol_Ref__internal_name_is(Symbol_Ref *symbol)
@@ -692,10 +663,10 @@ Symbol_Ref__internal_is(Symbol_Ref *symbol)
 }
 
 internal Symbol_Ref *
-Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section)
+Symbols_Table__create_internal(Symbols_Table *symbols_table, Section *section, Arena *arena)
 {
         String8 name = String8__literal(FAKE_LABEL_NAME);
-        Symbol_Ref *result = Symbols_Table__create(symbols_table, name);
+        Symbol_Ref *result = Symbols_Table__create(symbols_table, name, arena);
         Symbol_Ref__update_section(result, section);
         return result;
 }

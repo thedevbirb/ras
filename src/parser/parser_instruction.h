@@ -61,6 +61,7 @@ RISCV_Instruction__append
 internal void
 RISCV_instruction_pseudo_append
 (
+        Arena              *arena,
         Section            *section,
         Expressions        *expressions,
         Symbols_Table      *symbols_table,

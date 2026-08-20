@@ -17,7 +17,7 @@ write_object_file
         U8  identifier_class       = elf32_is ? ELF_ID_Class__32                : ELF_ID_Class__64;
         U64 file_alignment         = elf32_is ? 4 : 8;
 
-        Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table, &options->attributes);
+        Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table, &options->attributes, arena);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_riscv_attributes->section);
 
         for each_node_m(symbols_table->section_first, section)
@@ -50,7 +50,7 @@ write_object_file
         {
                 for each_node_z_m(section->fragments.first, fragment, &Fragment__nil)
                 {
-                        Fragment__convert_to_fill(fragment, section, expressions, symbols_table->arena);
+                        Fragment__convert_to_fill(fragment, section, expressions, arena);
                 }
 
                 Fragment *fragment_last = section->fragments.last;
@@ -96,23 +96,23 @@ write_object_file
         Symbols_Table__ensure_undefined_present(symbols_table);
 
         // Add the mandatory ending sections last: `.symtab`, `.strtab`, `.shstrtab`.
-        Symbol_Ref *symbol_symtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".symtab"));
+        Symbol_Ref *symbol_symtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".symtab"), arena);
                     symbol_symtab->flags |= Symbol_Flags__Skip;
-        Symbols_Table__create_section(symbols_table, symbol_symtab);
+        Symbols_Table__create_section(symbols_table, symbol_symtab, arena, Arena_Parameters__default);
         symbol_symtab->section->elf.entry_size = symbol_size;
         symbol_symtab->section->elf.alignment  = file_alignment;
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_symtab->section);
 
-        Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"));
+        Symbol_Ref *symbol_strtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".strtab"), arena);
                     symbol_strtab->flags |= Symbol_Flags__Skip;
-        Symbols_Table__create_section(symbols_table, symbol_strtab);
+        Symbols_Table__create_section(symbols_table, symbol_strtab, arena, Arena_Parameters__default);
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_strtab->section);
 
-        Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"));
+        Symbol_Ref *symbol_shstrtab = Symbols_Table__get_or_default(symbols_table, String8__literal(".shstrtab"), arena);
                     symbol_shstrtab->flags |= Symbol_Flags__Skip;
-        Symbols_Table__create_section(symbols_table, symbol_shstrtab);
+        Symbols_Table__create_section(symbols_table, symbol_shstrtab, arena, Arena_Parameters__default);
         symbol_symtab->section->elf.size = 0;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_shstrtab->section);
 
@@ -133,13 +133,13 @@ write_object_file
                 if (section->fixups.unresolved > 0)
                 {
                         // Create relocation section.
-                        Arena_Temporary scratch = Arena_Temporary__begin(arena);
+                        Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
                         String8 name = String8__format(scratch.arena, ".rela%.*s", String8__varg(*section->symbol->name));
-                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name);
+                        Symbol_Ref *symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
                         Arena_Temporary__end(scratch);
 
                         symbol->flags |= Symbol_Flags__Skip;
-                        Symbols_Table__create_section(symbols_table, symbol);
+                        Symbols_Table__create_section(symbols_table, symbol, arena, Arena_Parameters__default);
                         DLL_insert_m(symbols_table->section_first, symbols_table->section_last, section, symbol->section);
                         symbol->section->elf.type       = ELF_Section_Header_Type__Relocations_Addends;
                         symbol->section->elf.flags      = ELF_Section_Header_Flags__INFO_LINK;

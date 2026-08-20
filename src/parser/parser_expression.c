@@ -17,8 +17,8 @@ expression_clone_forward_reference
                 B32 forward_reference_parsed;
         };
 
-        Expression *expression_clone_root = Arena__push_struct_m(symbols_table->arena, Expression);
-        Symbol_Ref *symbol_clone = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+        Expression *expression_clone_root = Arena__push_struct_m(arena, Expression);
+        Symbol_Ref *symbol_clone = Arena__push_struct_m(arena, Symbol_Ref);
         *symbol_clone = *target;
         // Otherwise its evaluation could be skipped
         symbol_clone->section = &Section__undefined;
@@ -27,7 +27,7 @@ expression_clone_forward_reference
 
         target->flags |= Symbol_Flags__Resolving;
 
-        Arena_Temporary scratch = Arena_Temporary__begin(arena);
+        Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
 
         Frame_State *frame_state = Arena__push_struct_m(scratch.arena, Frame_State);
         frame_state->target        = target->expression;
@@ -48,7 +48,7 @@ expression_clone_forward_reference
                 }
                 else if (frame_state->target->right && !frame_state->cloned_right)
                 {
-                        Expression *clone = Arena__push_struct_m(symbols_table->arena, Expression);
+                        Expression *clone = Arena__push_struct_m(arena, Expression);
                         frame_state->clone->right = clone;
                         frame_state->cloned_right = 1;
 
@@ -61,7 +61,7 @@ expression_clone_forward_reference
                 }
                 else if (frame_state->target->left && !frame_state->cloned_left)
                 {
-                        Expression *clone = Arena__push_struct_m(symbols_table->arena, Expression);
+                        Expression *clone = Arena__push_struct_m(arena, Expression);
                         frame_state->clone->left = clone;
                         frame_state->cloned_left = 1;
 
@@ -90,7 +90,7 @@ expression_clone_forward_reference
                         if (frame_state->target->symbol)
                         {
                                 String8    *name              = frame_state->target->symbol->name;
-                                Symbol_Ref *latest_definition = Symbols_Table__get_or_default(symbols_table, *name);
+                                Symbol_Ref *latest_definition = Symbols_Table__get_or_default(symbols_table, *name, arena);
 
                                 B32 expression_contains_non_looping_forward_reference =
                                                          latest_definition->flags & Symbol_Flags__Forward_Reference
@@ -104,8 +104,8 @@ expression_clone_forward_reference
                                         frame_state->forward_reference_parsed = 1;
                                         latest_definition->flags |= Symbol_Flags__Resolving;
 
-                                        Expression *clone = Arena__push_struct_m(symbols_table->arena, Expression);
-                                        Symbol_Ref *symbol_clone_inner = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+                                        Expression *clone = Arena__push_struct_m(arena, Expression);
+                                        Symbol_Ref *symbol_clone_inner = Arena__push_struct_m(arena, Symbol_Ref);
                                         *symbol_clone_inner = *frame_state->target->symbol;
                                         // Otherwise its evaluation could be skipped
                                         symbol_clone_inner->section = &Section__undefined;
@@ -224,7 +224,7 @@ expression_parse_with_flags
                                         // similar?
                                         U32 number = U32_cast_safe(cursor->current.numerical_value);
 
-                                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, forward);
+                                        Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, forward, arena);
                                         if (backward && symbol_numeric.symbol->section == &Section__undefined)
                                         {
                                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -264,7 +264,7 @@ expression_parse_with_flags
                                 Symbol_Ref *symbol = 0;
                                 if (dot_is)
                                 {
-                                        Symbol_Ref *dot = Symbols_Table__get_or_default(symbols_table, dot_symbol_string);
+                                        Symbol_Ref *dot = Symbols_Table__get_or_default(symbols_table, dot_symbol_string, arena);
                                         Symbol_Ref__update_section(dot, symbols_table->section_current);
                                         if (flags & Expression_Flags__Defer_Dot)
                                         {
@@ -272,7 +272,7 @@ expression_parse_with_flags
                                         }
                                         else
                                         {
-                                                Symbol_Ref *clone = Symbols_Table__create_internal(symbols_table, symbols_table->section_current);
+                                                Symbol_Ref *clone = Symbols_Table__create_internal(symbols_table, symbols_table->section_current, arena);
                                                 String8 *clone_name_backup = clone->name;
                                                 *clone = *dot;
                                                 clone->name = clone_name_backup;
@@ -281,7 +281,7 @@ expression_parse_with_flags
                                 }
                                 else
                                 {
-                                        symbol = Symbols_Table__get_or_default(symbols_table, name);
+                                        symbol = Symbols_Table__get_or_default(symbols_table, name, arena);
                                 }
 
                                 if (symbol->flags & Symbol_Flags__Forward_Reference && !(symbol->flags & Symbol_Flags__Resolving))
@@ -290,7 +290,7 @@ expression_parse_with_flags
                                         {
                                                 // This expression is a forward reference definition. Make just a shallow
                                                 // clone of the symbol.
-                                                Symbol_Ref *clone = Arena__push_struct_m(symbols_table->arena, Symbol_Ref);
+                                                Symbol_Ref *clone = Arena__push_struct_m(arena, Symbol_Ref);
                                                 *clone = *symbol;
 
                                                 symbol = clone;

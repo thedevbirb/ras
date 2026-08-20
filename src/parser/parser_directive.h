@@ -105,7 +105,7 @@ typedef enum Set_Mode
 }
 Set_Mode;
 
-internal void directive_binding(Token_Cursor *, Diagnostics *, Symbols_Table *, ELF_Symbol_Binding);
+internal void directive_binding(Token_Cursor *, Diagnostics *, Arena *, Symbols_Table *, ELF_Symbol_Binding);
 internal void directive_set_like(Arena *, Token_Cursor *, Diagnostics *, Symbols_Table *, Set_Mode);
 internal void directive_data(Arena *arena, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, U8 data_directive_size);
 internal void directive_string(Token_Cursor *, Diagnostics  *, Section *, B32 null_terminated);
@@ -116,9 +116,9 @@ internal void directive_align(Arena *, Token_Cursor *, Diagnostics *, Expression
 internal void directive_fill(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *, B32 size_can_be_parsed, B32 pattern_can_be_parsed);
 internal void directive_option(Token_Cursor *, Diagnostics *, Options *);
 internal void directive_size(Arena *, Token_Cursor *, Diagnostics *, Expressions *, Symbols_Table *);
-internal void directive_file(Token_Cursor *, Diagnostics *, Symbols_Table *);
-internal void directive_ident(Token_Cursor *, Diagnostics *, Symbols_Table *);
-internal void directive_type(Token_Cursor *, Diagnostics *, Symbols_Table *);
+internal void directive_file(Token_Cursor *, Diagnostics *, Arena *, Symbols_Table *);
+internal void directive_ident(Token_Cursor *, Diagnostics *, Arena *, Symbols_Table *);
+internal void directive_type(Token_Cursor *, Diagnostics *, Arena *, Symbols_Table *);
 internal void directive_ignored(Token_Cursor *, Diagnostics *);
 
 #endif // PARSER_DIRECTIVE_H
