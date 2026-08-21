@@ -1846,3 +1846,15 @@ Lot of small fixes made after trying to reach byte parity with GNU as on sqlite 
 minor details that only arise from following very closely the original source code and some output.
 Some of them are really really hard to track. I have to say the brute forcing of an agent is hard to
 defeat here.
+
+### Thu Aug 20 14:00:17 CEST 2026
+
+The past days have been spent doing some lightweight profiling and benchmarking, small bug fixing,
+and by writing the blog post. I'm happy that I'm close to share it. It feels good. It might end up
+nowehere, but it's an achievement for me.
+
+### Fri Aug 21 12:14:49 CEST 2026
+
+Finally understood in more detail how GOT and the PLT relate to each other. Seemed so magical
+before! Yet, it's hard to find posts or document that explain from scratch how the whole flow works.
+Perhaps something to write about?
