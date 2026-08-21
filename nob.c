@@ -180,7 +180,8 @@ main(int argc, char **argv)
         else
         {
                 // Debug build (default): debug info, no optimization, all the sanitizers.
-                nob_cmd_append(&cmd, "-g", "-O0");
+                nob_cmd_append(&cmd, "-g3", "-O0");
+                nob_cmd_append(&cmd, "-ftrapv");                             // trap on signed integer overflow/underflow.
                 nob_cmd_append(&cmd,
                         "-fsanitize=address",                            // ASan: out-of-bounds, use-after-free, use-after-return, etc.
                         "-fsanitize-address-use-after-scope",            // ASan: poison stack vars after their scope ends.
