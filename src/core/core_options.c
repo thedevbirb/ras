@@ -10,7 +10,7 @@ Options__default(void)
 
                 .attributes =
                 {
-                        .architecture = String8__literal("rv64i"),
+                        .architecture = String8__literal("rv64imfdc_zba_zbb_zbc_zbs_zicntr_zicond_zifencei_zmmul"),
                 }
         };
         result.elf_header_flags = ELF_Header_Flags__from_Options(&result);

@@ -22,6 +22,9 @@ struct Options
 
         String8 machine_abi;
 
+        // The extensions parsed from `-march` (XLEN + enabled extensions).
+        RISCV_Extensions extensions;
+
         U32 elf_header_flags;
 
         RISCV_Attributes attributes;

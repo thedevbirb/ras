@@ -57,13 +57,15 @@ usage_print(void)
 global const String8 march_option_prefix = String8__literal("-march=");
 global const String8 mabi_option_prefix  = String8__literal("-mabi=");
 
-// TODO(low): probably not good way to diagnostics, also not good to exit immediately each time, and more advance
-// options need heap allocations.
+// TODO(low): probably not good way to diagnostics, also not good to exit immediately each time.
 internal Options
 Options__parse(S32 *argument_count, char **argument_vector)
 {
         Options result = Options__default();
         B32 abi_explicit = 0;
+
+        // Used only to format `-march` parsing errors.
+        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
 
         arguments_shift(argument_count, &argument_vector);
         if (*argument_count < 2)
@@ -83,17 +85,36 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 if (String8__match_prefix(argument, march_option_prefix))
                 {
                         String8 architecture = String8__skip(argument, march_option_prefix.count);
-                        B32 match = String8__match_exact(architecture, String8__literal("rv32im")) ||
-                                    String8__match_exact(architecture, String8__literal("rv64im"));
-                        // TODO(low): bigger support, not super clean
-                        if (!match)
+
+                        // Must begin with rv32 or rv64.
+                        if (String8__match_prefix(architecture, String8__literal("rv32")))
                         {
-                                fprintf(stderr, "invalid architecture, expected 'rv32im' or 'rv64im', found: %*s\n", String8__varg(architecture));
+                                result.xlen = 32;
+                        }
+                        else if (String8__match_prefix(architecture, String8__literal("rv64")))
+                        {
+                                result.xlen = 64;
+                        }
+                        else
+                        {
+                                fprintf(stderr, "ISA string `%.*s' must begin with rv32 or rv64", String8__varg(architecture));
+                                exit(1);
+                        }
+
+                        String8 extensions = String8__skip(architecture, 4);
+                        String8 error = RISCV_Extensions__parse(scratch.arena, &result.extensions, extensions, result.xlen);
+
+                        if (error.count > 0)
+                        {
+                                fprintf(stderr, "%*s\n", String8__varg(error));
                                 exit(1);
                         }
 
                         result.attributes.architecture = architecture;
-                        result.xlen = architecture.data[2] == '3' ? XLEN_32 : XLEN_64;
+
+                        result.embedded   = RISCV_Extensions__supports(&result.extensions, String8__literal("e"));
+                        result.compressed = RISCV_Extensions__supports(&result.extensions, String8__literal("c"));
+
                         if (!abi_explicit)
                         {
                                 // Default ABI follows the ISA width: ilp32 for rv32, lp64 for rv64.
@@ -182,6 +203,8 @@ Options__parse(S32 *argument_count, char **argument_vector)
         }
 
         result.elf_header_flags = ELF_Header_Flags__from_Options(&result);
+
+        Arena__scratch_end_m(scratch);
 
         return result;
 }

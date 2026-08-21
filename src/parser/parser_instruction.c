@@ -29,10 +29,10 @@ RISCV_Instruction__parse
                 parsed.data = RISCV_Instruction__create(opcode, opcode_token.location);
                 U64 arguments = opcode->arguments;
                 U32 arguments_index = 0;
-                // TODO(medium): check also for class mismatch
-                B32 xlen_mismatch = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
-                B32 try_next = xlen_mismatch;
 
+                B32 xlen_mismatch   = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
+                B32 class_mismatch  = !RISCV_extensions_supports_class(&options->extensions, opcode->class);
+                B32 try_next        = xlen_mismatch || class_mismatch;
 
                 // Iterate over opcode arguments.
                 for (;;)
@@ -509,7 +509,7 @@ RISCV_Instruction__parse
 
                 String8 opcode_string = String8__new(opcode->name, opcode->count);
                 B32 same_name = String8__match_exact(opcode_name, opcode_string);
-                if (match || opcode->hash == 0 || !same_name)
+                if (match || opcode->hash == 0 || !same_name || class_mismatch)
                 {
                         break;
                 }
@@ -1018,6 +1018,7 @@ RISCV_la_pcrel_expand
                 &macro_addi
         );
         // TODO(medium, check-gas): wane and new here?
+        return;
 }
 
 internal void
@@ -1097,6 +1098,7 @@ RISCV_la_got_expand
                 options,
                 &macro_load
         );
+        return;
 }
 
 internal void
@@ -1191,5 +1193,7 @@ RISCV_instruction_pseudo_append
                 RISCV_li_expand(section, options->xlen, instruction->expression->integer_value, rd, instruction->data.location);
         } break;
         }
+
+        return;
 }
 

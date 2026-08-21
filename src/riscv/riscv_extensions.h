@@ -1,0 +1,86 @@
+#ifndef RISCV_EXTENSIONS_H
+#define RISCV_EXTENSIONS_H
+
+// RISC-V ISA extension parsing, modeled after bfd/elfxx-riscv.c (`riscv_parse_subset` and friends).
+// Parses a `-march` string such as "rv64imfdc_zba_zbb" into the base XLEN plus the list of enabled extensions, and
+// answers "is this extension enabled?" queries.
+
+// An extension token extracted from the ISA string: its name (e.g. "i", "m", "zba") plus its version.
+// A version of 0 means it was not specified in the string (e.g. "zba2p1" -> major 2, minor 1; "m" -> major 0, minor 0).
+typedef struct RISCV_Extension RISCV_Extension;
+struct RISCV_Extension
+{
+        String8 name;
+        U8      major;
+        U8      minor;
+};
+
+// Upper bound on the number of extensions in a single ISA string, including those added implicitly by the parser (g, e,
+// i, zicsr, zifencei, zmmul, zaamo, zalrsc, ...).
+#define RISCV_Extensions__max 64
+
+// The parsed result of a `-march` string.
+typedef struct RISCV_Extensions RISCV_Extensions;
+struct RISCV_Extensions
+{
+        U64     count;
+        RISCV_Extension data[RISCV_Extensions__max];
+};
+
+typedef struct RISCV_Implicit_Extension RISCV_Implicit_Extension;
+struct RISCV_Implicit_Extension
+{
+        String8  extension;
+        // Comma-separated list of implied extensions.
+        String8  implicit;
+};
+
+// Parse an ISA string. On success, fills `extensions` and returns an empty String8. On failure, returns a description
+// of the problem (allocated in `arena`).
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_parse_subset`.
+internal String8
+RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 string, U8 xlen);
+
+// Whether the extension `name` is present in the parsed list.
+internal B32
+RISCV_Extensions__supports(const RISCV_Extensions *extensions, String8 name);
+
+// Find an extension entry by name (e.g. to inspect its version), or return 0.
+internal RISCV_Extension *
+RISCV_Extensions__find(RISCV_Extensions *extensions, String8 name);
+
+// Whether `name` is a recognized extension (single-letter standard, known prefixed, or a custom `x*`).
+//
+// Mirrors the reference `riscv_ext_order` lookup for single letters and `riscv_recognized_prefixed_ext` for prefixed
+// ones.
+internal B32
+RISCV_extension_name_known(String8 name);
+
+// Parse the version part of an extension token (e.g. the "2p1" of "zba2p1"). Returns the number of characters consumed
+// (0 when there is no version) and writes major/minor (0 = not specified).
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_parsing_subset_version`.
+internal U64
+RISCV_extensions_parse_version(String8 version, U8 *major_out, U8 *minor_out);
+
+// Add the implicit extensions implied by the explicit ones.
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_parse_add_implicit_subsets`.
+internal void
+RISCV_extensions_add_implicit(RISCV_Extensions *extensions);
+
+// Check the parsed extensions against each other and the XLEN. Returns an empty String8 when there is no conflict, or a
+// description of the first conflict otherwise.
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_parse_check_conflicts`
+internal String8
+RISCV_extensions_check_conflicts(Arena *arena, RISCV_Extensions *extensions, U8 xlen);
+
+// Whether the opcode class `class` is enabled by the parsed extensions.
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_multi_subset_supports`.
+internal B32
+RISCV_extensions_supports_class(const RISCV_Extensions *extensions, OPC class);
+
+#endif // RISCV_EXTENSIONS_H
