@@ -87,6 +87,7 @@
 #define HASH_li         0x4031BD46
 #define HASH_la         0x4831C9DE
 #define HASH_lla        0x31598A0C
+#define HASH_lga        0x316655FF
 #define HASH_scall      0x79970E46
 #define HASH_sbreak     0x603964A9
 #define HASH_mret       0x71B990EF

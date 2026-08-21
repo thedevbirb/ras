@@ -61,7 +61,7 @@ const char *Instruction_Kind_strings[] =
 
         // Pseudo instructions
         "nop","ret","mv","move","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",
-        "bgez","bltz","bgtz","bgt","bgtu","sgt","sgtu","ble","bleu","j","call","tail","jr","li","la", "lla",
+        "bgez","bltz","bgtz","bgt","bgtu","sgt","sgtu","ble","bleu","j","call","tail","jr","li","la", "lla", "lga",
 
         // System instructions (privileged)
         "scall","sbreak","mret","sret","uret","hret","dret","wfi","sfence.vma",

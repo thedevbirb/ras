@@ -149,6 +149,7 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("li"),  0,    OPC__I, INSN_MACRO, HASH_li,  0,          MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Large)),   0                },
 { String8__inline_m("la"),  0,    OPC__I, INSN_MACRO, HASH_la,  0,          MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
 { String8__inline_m("lla"), 0,    OPC__I, INSN_MACRO, HASH_lla,  0,          MACRO_LLA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
+{ String8__inline_m("lga"), 0,    OPC__I, INSN_MACRO, HASH_lga,  0,          MACRO_LGA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
 
 { String8__inline_m("nop"), 0,    OPC__I, INSN_ALIAS, HASH_nop, MATCH_ADDI, MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, OP_m(OP_None), match_opcode },
 

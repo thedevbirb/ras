@@ -37,9 +37,9 @@ global const Relocation_Operator Relocation_Operator__utype[] =
 {
         {String8__literal("tprel_hi"),        Relocation_RISC_V__Thread_Pointer_Relative_High_20},
         {String8__literal("pcrel_hi"),        Relocation_RISC_V__PC_Relative_High_20            },
-        {String8__literal("got_pcrel_hi"),    Relocation_RISC_V__GOT_32_PC_Relative             },
+        {String8__literal("got_pcrel_hi"),    Relocation_RISC_V__GOT_High_20                    },
         {String8__literal("tlsdesc_hi"),      Relocation_RISC_V__TLS_Descriptor_High_20         },
-        {String8__literal("tls_ie_pcrel_hi"), Relocation_RISC_V__GOT_High_20                    },
+        {String8__literal("tls_ie_pcrel_hi"), Relocation_RISC_V__TLS_GOT_High_20                },
         {String8__literal("tls_gd_pcrel_hi"), Relocation_RISC_V__TLS_Global_Dynamic_High_20     },
         {String8__literal("hi"),              Relocation_RISC_V__High_20                        },
 };

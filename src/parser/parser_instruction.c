@@ -563,6 +563,10 @@ RISCV_Instruction__append
                 {
                         fixup->flags |= Fixup_Flags__Relax;
                 }
+                if (instruction->macro_generated_is)
+                {
+                        fixup->flags |= Fixup_Flags__Macro;
+                }
                 DLL_push_back_m(section->fixups.first, section->fixups.last, fixup);
         }
 
@@ -645,7 +649,7 @@ RISCV_macro_build
                                 switch (OP_FIELD(slot))
                                 {
                                         default: { unreachable_m(); } break;
-                                        case OPF_R__D:   { INSERT_OPERAND(RD,  instruction, value); } break;
+                                        case OPF_R__D:  { INSERT_OPERAND(RD,  instruction, value); } break;
                                         case OPF_R__S3: { INSERT_OPERAND(RS3, instruction, value); } break;
                                         case OPF_R__S2: { INSERT_OPERAND(RS2, instruction, value); } break;
                                         case OPF_R__S1: { INSERT_OPERAND(RS1, instruction, value); } break;
@@ -658,7 +662,13 @@ RISCV_macro_build
 
         assert_always_m(relocation ? macro->expression != 0 : 1);
 
-        Instruction_Parsed parsed = { .expression = macro->expression, .data = instruction, .relocation = relocation };
+        Instruction_Parsed parsed =
+        {
+                .expression = macro->expression,
+                .data = instruction,
+                .relocation = relocation,
+                .macro_generated_is = !!macro
+        };
         RISCV_Instruction__append(arena, section, options, &parsed);
         return;
 }
@@ -918,6 +928,178 @@ RISCV_li_expand
 }
 
 internal void
+RISCV_la_pcrel_expand
+(
+        Arena              *arena,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Options            *options,
+
+        U8                  rd,
+        Expression         *expression,
+        U32                 location
+)
+{
+        // We just expand to a `auipc + addi` combination. How it works:
+        //
+        // Suppose we have a symbol with 32-bit address `a`. We have to split its value
+        // into two instructions. The %pcrel_hi relocation operator computes `(a - pc) >> 12` (returns
+        // the upper 20 bits) while `auipc rd, immediate` computes `pc + (immediate << 12)` and saves it
+        // into `rd`, so that yields (once computed by linker) the value
+        //      `pc + ((a - pc) >> 12) << 12` == `pc + hi20(a - pc) << 12
+        // into `rd`. Lastly, the program counter is increased.
+        //
+        // Now, we have to add the remaining lower 12-bits of `(a - pc)` i.e. `lo12(a - pc)`, so that we
+        // erase `pc` from `rd` and get the final address `a`.
+        // We could use an `addi` paired with `%pcrel_lo`. However, now `pc` has been increased by 4
+        // bytes or whatever the instruction size is, so it would be off.
+        //
+        // To mitigate this in a standardized way, the RISC-V ELF psABI mandates the following steps:
+        //
+        // 1. A symbol (label) inside `%pcrel_lo` must point to the matching `%pcrel_hi` relocation;
+        // 2. The linker will discover the value of `a` by looking at the matching relocation, and
+        //    complete the computation by adding the sign-extended, lower 12-bits of `(a - pc)`.
+        //
+        // In essence, the `%pcrel_lo` relocation is just an artificial way to point to the matching
+        // `%pcrel_hi` because the value `(label - pc_of_addi) >> 20` is never used (it would equal -4
+        // in most cases, by the way).
+        //
+        // This is why we have to create a local label like ".L0 " is created above the `auipc`
+        // instruction.
+
+        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
+        S32 values_auipc[]  = {rd, Relocation_RISC_V__PC_Relative_High_20};
+        U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Relocation);
+        S32 values_addi[]   = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
+
+        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section, arena);
+                    internal_label->flags  |= Symbol_Flags__Relocation;
+        Expression *expression_addi         = Arena__push_struct_m(arena, Expression);
+                    expression_addi->symbol = internal_label;
+                    expression_addi->kind   = Expression_Kind__Symbol;
+        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
+        Macro_Info macro_auipc =
+        {
+                .instruction_name = String8__literal("auipc"),
+                .location         = location,
+                .expression       = expression,
+                .arguments        = arguments_auipc,
+                .values           = values_auipc,
+                .values_count     = array_count_m(values_auipc)
+        };
+
+        Macro_Info macro_addi =
+        {
+                .instruction_name = String8__literal("addi"),
+                .location         = location,
+                .expression       = expression_addi,
+                .arguments        = arguments_addi,
+                .values           = values_addi,
+                .values_count     = array_count_m(values_addi)
+        };
+
+        // Ensure the instructions are in the same fragment
+        Fragments__ensure(&section->fragments, 8);
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_auipc
+        );
+        // NOTE: GNU as creates also a second expression with an fake label for addi, why?
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_addi
+        );
+        // TODO(medium, check-gas): wane and new here?
+}
+
+internal void
+RISCV_la_got_expand
+(
+        Arena              *arena,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Options            *options,
+
+        U8                  rd,
+        Expression         *expression,
+        U32                 location
+)
+{
+        // Load the address of a global symbol through the GOT. We expand to an `auipc + ld/lw`
+        // combination:
+        //
+        //   auipc rd, %got_pcrel_hi(symbol)     // address of the symbol's GOT entry
+        //   ld/lw rd, %pcrel_lo(.L0)(rd)        // load the entry, yielding the symbol address
+        //
+        // `%pcrel_lo` references an internal label placed just above the `auipc`, pointing to the
+        // matching `%got_pcrel_hi`, following the same psABI rule as for `%pcrel_hi`. The GOT entry
+        // itself is created by the linker; the assembler only emits the relocation pair.
+
+        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
+        S32 values_auipc[]  = {rd, Relocation_RISC_V__GOT_High_20};
+        U64 arguments_load  = OP_m(OP_GPR(OPF_R__D), OP_Relocation, OP_GPR(OPF_R__S1));
+        S32 values_load[]   = {rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type, rd};
+
+        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section, arena);
+                    internal_label->flags  |= Symbol_Flags__Relocation;
+        Expression *expression_load         = Arena__push_struct_m(arena, Expression);
+                    expression_load->symbol = internal_label;
+                    expression_load->kind   = Expression_Kind__Symbol;
+        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
+        Macro_Info macro_auipc =
+        {
+                .instruction_name = String8__literal("auipc"),
+                .location         = location,
+                .expression       = expression,
+                .arguments        = arguments_auipc,
+                .values           = values_auipc,
+                .values_count     = array_count_m(values_auipc),
+                // GNU as only relaxes R_RISCV_GOT_HI20 when it was created by the `la`/`lga` macros: the
+                // relaxation rewrites this canonical `auipc %got_pcrel_hi` + `ld/lw %pcrel_lo` pair into a
+                // `auipc %pcrel_hi` + `addi %pcrel_lo` pair, which is only correct for a canonical source (a
+                // macro). We match that behaviour, so this is a macro-generated (hence relaxable) GOT.
+                // .macro_relaxable  = 1
+        };
+
+        Macro_Info macro_load =
+        {
+                .instruction_name = options->xlen == XLEN_64 ? String8__literal("ld") : String8__literal("lw"),
+                .location         = location,
+                .expression       = expression_load,
+                .arguments        = arguments_load,
+                .values           = values_load,
+                .values_count     = array_count_m(values_load)
+        };
+
+        // Ensure the instructions are in the same fragment
+        Fragments__ensure(&section->fragments, 8);
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_auipc
+        );
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_load
+        );
+}
+
+internal void
 RISCV_instruction_pseudo_append
 (
         Arena              *arena,
@@ -954,8 +1136,10 @@ RISCV_instruction_pseudo_append
                 );
         } break;
         case MACRO_LA:  {} // fallthrough
-        case MACRO_LLA:
+        case MACRO_LLA: {} // fallthrough
+        case MACRO_LGA:
         {
+                // A constant can be materialized directly, no relocation involved.
                 if (instruction->expression->evaluation == Expression_Kind__Constant)
                 {
                         RISCV_li_expand
@@ -966,89 +1150,40 @@ RISCV_instruction_pseudo_append
                                 rd,
                                 instruction->data.location
                         );
+                        break;
+                }
+
+                // `la` loads a (possibly global) address: under PIC it goes through the GOT.
+                // `lga` always loads through the GOT. `lla` always loads the local address.
+                B32 got_is = (pseudo_type == MACRO_LA && options->position_indipendent_code)
+                          || pseudo_type == MACRO_LGA;
+                if (got_is)
+                {
+                        RISCV_la_got_expand
+                        (
+                                arena,
+                                section,
+                                expressions,
+                                symbols_table,
+                                options,
+                                rd,
+                                instruction->expression,
+                                instruction->data.location
+                        );
                 }
                 else
                 {
-                        // TODO(low): no support yet for Position-Indipendent-Code (PIC) or GOT etc.
-
-                        // We just expand to a `auipc + addi` combination.
-                        // How it works:
-                        //
-                        // Suppose we have a symbol with 32-bit address `a`. We have to split its value
-                        // into two instructions. The %pcrel_hi relocation operator computes `(a - pc) >> 12` (returns
-                        // the upper 20 bits) while `auipc rd, immediate` computes `pc + (immediate << 12)` and saves it
-                        // into `rd`, so that yields (once computed by linker) the value
-                        //      `pc + ((a - pc) >> 12) << 12` == `pc + hi20(a - pc) << 12
-                        // into `rd`. Lastly, the program counter is increased.
-                        //
-                        // Now, we have to add the remaining lower 12-bits of `(a - pc)` i.e. `lo12(a - pc)`, so that we
-                        // erase `pc` from `rd` and get the final address `a`.
-                        // We could use an `addi` paired with `%pcrel_lo`. However, now `pc` has been increased by 4
-                        // bytes or whatever the instruction size is, so it would be off.
-                        //
-                        // To mitigate this in a standardized way, the RISC-V ELF psABI mandates the following steps:
-                        //
-                        // 1. A symbol (label) inside `%pcrel_lo` must point to the matching `%pcrel_hi` relocation;
-                        // 2. The linker will discover the value of `a` by looking at the matching relocation, and
-                        //    complete the computation by adding the sign-extended, lower 12-bits of `(a - pc)`.
-                        //
-                        // In essence, the `%pcrel_lo` relocation is just an artificial way to point to the matching
-                        // `%pcrel_hi` because the value `(label - pc_of_addi) >> 20` is never used (it would equal -4
-                        // in most cases, by the way).
-                        //
-                        // This is why we have to create a local label like ".L0 " is created above the `auipc`
-                        // instruction.
-
-                        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
-                        S32 values_auipc[]  = {rd, Relocation_RISC_V__PC_Relative_High_20};
-                        U64 arguments_addi  = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Relocation);
-                        S32 values_addi[]   = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
-
-                        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section, arena);
-                                    internal_label->flags  |= Symbol_Flags__Relocation;
-                        Expression *expression_addi         = Arena__push_struct_m(arena, Expression);
-                                    expression_addi->symbol = internal_label;
-                                    expression_addi->kind   = Expression_Kind__Symbol;
-                        SLL_queue_push_m(expressions->first, expressions->last, instruction->expression);
-
-                        Macro_Info macro_auipc =
-                        {
-                                .instruction_name = String8__literal("auipc"),
-                                .location         = instruction->data.location,
-                                .expression       = instruction->expression,
-                                .arguments        = arguments_auipc,
-                                .values           = values_auipc,
-                                .values_count     = array_count_m(values_auipc)
-                        };
-
-                        Macro_Info macro_addi =
-                        {
-                                .instruction_name = String8__literal("addi"),
-                                .location         = instruction->data.location,
-                                .expression       = expression_addi,
-                                .arguments        = arguments_addi,
-                                .values           = values_addi,
-                                .values_count     = array_count_m(values_addi)
-                        };
-
-                        // Ensure the instructions are in the same fragment
-                        Fragments__ensure(&section->fragments, 8);
-                        RISCV_macro_build
+                        RISCV_la_pcrel_expand
                         (
                                 arena,
                                 section,
+                                expressions,
+                                symbols_table,
                                 options,
-                                &macro_auipc
+                                rd,
+                                instruction->expression,
+                                instruction->data.location
                         );
-                        // NOTE: GNU as creates also a second expression with an fake label for addi, why?
-                        RISCV_macro_build
-                        (
-                                arena,
-                                section,
-                                options,
-                                &macro_addi
-                        );
-                        // TODO(medium, check-gas): wane and new here?
                 }
         } break;
         case MACRO_LI:

@@ -1561,14 +1561,32 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
 
         case Relocation_RISC_V__GOT_High_20:
         {
-                // TODO(GOT, check-gas):
-                // R_RISCV_GOT_HI20 and the following R_RISCV_LO12_I are relaxable
-                // only if it is created as a result of la or lga assembler macros.
-                if (0)
+                // R_RISCV_GOT_HI20 is resolved by the linker (which creates the GOT entry), so nothing is encoded here:
+                // the `auipc` immediate is left as zero and the relocation is emitted as-is.
+                //
+                // R_RISCV_GOT_HI20 and the following R_RISCV_PCREL_LO12_I are relaxable only if they were created as a
+                // result of the `la` or `lga` assembler macros. A hand-written `%got_pcrel_hi` is never relaxed
+                // (matching GNU as).
+                //
+                // GNU as restricts the relaxation to macro expansions because the relaxation rewrites the whole pattern
+                //
+                // ```asm
+                // auipc rd, %got_pcrel_hi(sym)
+                // ld/lw rd, %pcrel_lo(.L0)(rd)
+                // ```
+                // And becomes
+                // ```asm
+                // auipc rd, %pcrel_hi(sym)
+                // addi  rd, rd, %pcrel_lo(.L0)
+                // ```
+                // The rewrite is only semantically correct when the second instruction is exactly the canonical load
+                // the macro emits (`ld` on RV64, `lw` on RV32). A hand-written sequence could use a different-width
+                // load or no load at all, so relaxing it would silently produce wrong code. Hence the R_RISCV_RELAX
+                // hint is a contract with the linker that is only made for a known-safe, canonical source (a macro).
+                if (fixup->flags & Fixup_Flags__Macro)
                 {
                         relaxable = 1;
                 }
-                todo_m();
         } break;
 
         case Relocation_RISC_V__Align:  {} break;

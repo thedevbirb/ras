@@ -139,6 +139,15 @@ Options__parse(S32 *argument_count, char **argument_vector)
                         String8 output_file = String8__from_cstring(*argument_vector);
                         result.output_file = output_file;
                 }
+                else if (String8__match_exact(argument, String8__literal("-fpic"))
+                         || String8__match_exact(argument, String8__literal("-fPIC")))
+                {
+                        result.position_indipendent_code = 1;
+                }
+                else if (String8__match_exact(argument, String8__literal("-fno-pic")))
+                {
+                        result.position_indipendent_code = 0;
+                }
                 else if (String8__match_exact(argument, String8__literal("--help")))
                 {
                         usage_print();
