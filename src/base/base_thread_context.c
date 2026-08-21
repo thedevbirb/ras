@@ -43,35 +43,31 @@ Thread_Context_selected(void)
 // ```
 // int foo()
 // {
-//         Arena *arena = Arena__Temp_begin(Thread_Context_scratch_get(0, 0));
+//         Arena *arena = Arena_Temporary__begin(Thread_Context_scratch_get(0, 0));
 //         // Do your stuff here
-//         Arena__Temp_end(arena);
+//         Arena_Temporary__end(arena);
 // }
 // ```
 //
 // In this case, it would simply return the 0-th arena in the `Thread_Context`.
-// If your function needs to a "persistent" allocation, that lives outside of the scope of the
-// function, it takes an `Arena *` parameter. If the provided arena is itself a scratch arena, then
-// we might get the same one and free it. Example:
+// If your function needs to an allocation that outlives the scope of the function function, it takes an `Arena *`
+// parameter. If the provided arena is itself a scratch arena, then we might get the same one and free it. Example:
 //
 // ```
-// void *function_a(Arena *arena)
+// void example(void)
 // {
-//         Arena__Temp scratch = Arena__Temp_begin(Thread_Context_scratch_get(0, 0));
-//         void *result = Arena__push_array_zero(arena, U8, 1024);
+//         Arena__Temp scratch = Arena_Temporary__begin(Thread_Context_scratch_get(0, 0));
+//         void *result = 0;
+//         // Suppose this scope being a function `void *inner(Arena *arena)` called as `inner(scratch.arena)`.
+//         {
+//                 // BAD: arena == scratch
+//                 Arena__Temp scratch = Arena_Temporary__begin(Thread_Context_scratch_get(0, 0));
+//                 result = Arena__push_array_zero(arena, U8, 1024);
+//                 // `result` points to dropped data!
+//                 Arena_Temporary__end(scratch);
+//         }
 //         // other code...
-//         Arena__Temp_end(scratch);
-//         return result;
-// }
-// ```
-//
-// ```
-// void function_b(void)
-// {
-//         Arena__Temp scratch = Arena__Temp_begin(Thread_Context_scratch_get(0, 0));
-//         void *result = FunctionA(scratch.arena);
-//         // other code...
-//         Arena__Temp_end(scratch);
+//         Arena_Temporary__end(scratch);
 //         return;
 // }
 // ```
