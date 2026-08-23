@@ -59,13 +59,8 @@ global const String8 mabi_option_prefix  = String8__literal("-mabi=");
 
 // TODO(low): probably not good way to diagnostics, also not good to exit immediately each time.
 internal Options
-Options__parse(S32 *argument_count, char **argument_vector)
+Options__parse(S32 *argument_count, char **argument_vector, Arena *arena)
 {
-        Options result = Options__default();
-        B32 abi_explicit = 0;
-
-        // Used only to format `-march` parsing errors.
-        Arena_Temporary scratch = Arena__scratch_begin_m(0, 0);
 
         arguments_shift(argument_count, &argument_vector);
         if (*argument_count < 2)
@@ -73,6 +68,12 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 usage_print();
                 exit(1);
         }
+
+        Arena_Temporary scratch = Arena__scratch_begin_m(&arena, 1);
+        Options options = Options__default(arena);
+
+        String8 architecture = {0};
+        String8 abi          = {0};
 
         for (;;)
         {
@@ -84,69 +85,18 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 String8 argument = String8__from_cstring(*argument_vector);
                 if (String8__match_prefix(argument, march_option_prefix))
                 {
-                        String8 architecture = String8__skip(argument, march_option_prefix.count);
+                        architecture = String8__skip(argument, march_option_prefix.count);
 
-                        // Must begin with rv32 or rv64.
-                        if (String8__match_prefix(architecture, String8__literal("rv32")))
-                        {
-                                result.xlen = 32;
-                        }
-                        else if (String8__match_prefix(architecture, String8__literal("rv64")))
-                        {
-                                result.xlen = 64;
-                        }
-                        else
-                        {
-                                fprintf(stderr, "ISA string `%.*s' must begin with rv32 or rv64", String8__varg(architecture));
-                                exit(1);
-                        }
-
-                        String8 extensions = String8__skip(architecture, 4);
-                        String8 error = RISCV_Extensions__parse(scratch.arena, &result.extensions, extensions, result.xlen);
-
-                        if (error.count > 0)
-                        {
-                                fprintf(stderr, "%*s\n", String8__varg(error));
-                                exit(1);
-                        }
-
-                        result.attributes.architecture = architecture;
-
-                        result.embedded   = RISCV_Extensions__supports(&result.extensions, String8__literal("e"));
-                        result.compressed = RISCV_Extensions__supports(&result.extensions, String8__literal("c"));
-
-                        if (!abi_explicit)
-                        {
-                                // Default ABI follows the ISA width: ilp32 for rv32, lp64 for rv64.
-                                result.machine_abi = result.xlen == XLEN_32 ? String8__literal("ilp32") : String8__literal("lp64");
-                                result.abi_xlen = result.xlen;
-                        }
                 }
                 else if (String8__match_prefix(argument, mabi_option_prefix))
                 {
-                        String8 abi = String8__skip(argument, mabi_option_prefix.count);
-                        B32 match = String8__match_exact(abi, String8__literal("ilp32"))
-                                 || String8__match_exact(abi, String8__literal("ilp32f"))
-                                 || String8__match_exact(abi, String8__literal("ilp32d"))
-                                 || String8__match_exact(abi, String8__literal("lp64"))
-                                 || String8__match_exact(abi, String8__literal("lp64f"))
-                                 || String8__match_exact(abi, String8__literal("lp64d"));
-                        // TODO(low): not very clean
-                        if (!match)
-                        {
-                                fprintf(stderr, "invalid abi, expected 'ilp32', 'ilp32f', 'ilp32d', 'lp64', 'lp64f' or 'lp64d', found: %*s\n", String8__varg(abi));
-                                exit(1);
-                        }
-
-                        result.machine_abi = abi;
-                        result.abi_xlen = abi.data[3] == '3' ? XLEN_32 : XLEN_64;
-                        abi_explicit = 1;
+                        abi = String8__skip(argument, mabi_option_prefix.count);
                 }
                 else if (String8__match_exact(argument, String8__literal("-o")))
                 {
-                        if (result.output_file.count != 0)
+                        if (options.output_file.count != 0)
                         {
-                                fprintf(stderr, "output file already provided: %*s\n", String8__varg(result.output_file));
+                                fprintf(stderr, "output file already provided: %*s\n", String8__varg(options.output_file));
                                 exit(1);
                         }
 
@@ -158,16 +108,16 @@ Options__parse(S32 *argument_count, char **argument_vector)
                         }
 
                         String8 output_file = String8__from_cstring(*argument_vector);
-                        result.output_file = output_file;
+                        options.output_file = output_file;
                 }
                 else if (String8__match_exact(argument, String8__literal("-fpic"))
                          || String8__match_exact(argument, String8__literal("-fPIC")))
                 {
-                        result.position_indipendent_code = 1;
+                        options.position_indipendent_code = 1;
                 }
                 else if (String8__match_exact(argument, String8__literal("-fno-pic")))
                 {
-                        result.position_indipendent_code = 0;
+                        options.position_indipendent_code = 0;
                 }
                 else if (String8__match_exact(argument, String8__literal("--help")))
                 {
@@ -177,36 +127,64 @@ Options__parse(S32 *argument_count, char **argument_vector)
                 else
                 {
                         // TODO(low): actually support more than one file
-                        if (result.input_file.count != 0)
+                        if (options.input_file.count != 0)
                         {
-                                fprintf(stderr, "input file already provided: %*s\n", String8__varg(result.input_file));
+                                fprintf(stderr, "input file already provided: %*s\n", String8__varg(options.input_file));
                                 exit(1);
                         }
 
-                        result.input_file = argument;
+                        options.input_file = argument;
                 }
 
                 arguments_shift(argument_count, &argument_vector);
         }
 
-        if (result.abi_xlen != result.xlen)
+        if (abi.count)
         {
-                fprintf(stderr, "can't have %d-bit ABI on %d-bit ISA\n", result.abi_xlen, result.xlen);
+                B32 match = String8__match_exact(abi, String8__literal("ilp32"))
+                        || String8__match_exact(abi, String8__literal("ilp32f"))
+                        || String8__match_exact(abi, String8__literal("ilp32d"))
+                        || String8__match_exact(abi, String8__literal("lp64"))
+                        || String8__match_exact(abi, String8__literal("lp64f"))
+                        || String8__match_exact(abi, String8__literal("lp64d"));
+                // TODO(low): not very clean
+                if (!match)
+                {
+                        fprintf(stderr, "invalid abi, expected 'ilp32', 'ilp32f', 'ilp32d', 'lp64', 'lp64f' or 'lp64d', found: %*s\n", String8__varg(abi));
+                        exit(1);
+                }
+
+                options.machine_abi = abi;
+                options.abi_xlen = abi.data[3] == '3' ? XLEN_32 : XLEN_64;
+        }
+
+        if (architecture.count)
+        {
+                String8 error = Options__architecture_parse(&options, architecture, scratch.arena);
+                if (error.count)
+                {
+                        fprintf(stderr, "%*s\n", String8__varg(error));
+                        exit(1);
+                }
+
+                if (!abi.count)
+                {
+                        // Default ABI follows the ISA width: ilp32 for rv32, lp64 for rv64.
+                        options.machine_abi = options.xlen == XLEN_32 ? String8__literal("ilp32") : String8__literal("lp64");
+                        options.abi_xlen = options.xlen;
+                }
+        }
+
+        if (options.abi_xlen != options.xlen)
+        {
+                fprintf(stderr, "can't have %d-bit ABI on %d-bit ISA\n", options.abi_xlen, options.xlen);
                 exit(1);
         }
 
-        // TODO(low): make embedded configurable
-        if (result.embedded && result.xlen == XLEN_64)
-        {
-                fprintf(stderr, "can't have E extension on 64-bit ISA\n");
-                exit(1);
-        }
-
-        result.elf_header_flags = ELF_Header_Flags__from_Options(&result);
+        options.elf_header_flags = ELF_Header_Flags__from_Options(&options);
 
         Arena__scratch_end_m(scratch);
-
-        return result;
+        return options;
 }
 
 S32
@@ -215,7 +193,8 @@ main(S32 argument_count, char **argument_vector)
         Thread_Context *thread_context = Thread_Context_alloc();
         Thread_Context_select(thread_context);
 
-        Options options = Options__parse(&argument_count, argument_vector);
+        Arena *arena = Arena__allocate_m();
+        Options options = Options__parse(&argument_count, argument_vector, arena);
 
         S32 file_descriptor_in = open((char *)options.input_file.data, O_RDONLY);
         if (file_descriptor_in <= 0)
@@ -237,7 +216,6 @@ main(S32 argument_count, char **argument_vector)
         U64 file_in_size = (U64)file_in_statistics.st_size;
 
         // TODO(medium): non-trivial lifetime relationship between the source and diagnostics.
-        Arena *arena = Arena__allocate_m();
         U8 *input_data_mapped = mmap_file(file_descriptor_in, file_in_size + 4);
         String8 input = { .data = input_data_mapped, .count = file_in_size };
 

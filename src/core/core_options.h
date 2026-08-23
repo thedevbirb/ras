@@ -22,16 +22,22 @@ struct Options
 
         String8 machine_abi;
 
-        // The extensions parsed from `-march` (XLEN + enabled extensions).
-        RISCV_Extensions extensions;
-
         U32 elf_header_flags;
 
         RISCV_Attributes attributes;
+        // The extensions parsed from `-march` (XLEN + enabled extensions).
+        RISCV_Extensions extensions;
 };
 
 internal Options
-Options__default(void);
+Options__default(Arena *arena);
+
+// internal void
+// Options__architecture_parse(Options *options, String8 architecture);
+
+// Return the architecture string created from extensions and xlen.
+internal String8
+architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena);
 
 internal U32
 ELF_Header_Flags__from_Options(Options *options);

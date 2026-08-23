@@ -36,9 +36,28 @@ global const String8 RISCV_extensions_prefixed[] =
         String8__literal("zbs"),
         String8__literal("zicntr"),
         String8__literal("zicond"),
+        String8__literal("zicsr"), /* TODO(medium): In practice, zicsr isn't supported in its instructions yet */
         String8__literal("zifencei"),
         String8__literal("zmmul"),
 };
+
+global const RISCV_Extension RISCV_Extension__defaults[] =
+{
+        { .name = String8__literal("i"),        2, 1 },
+        { .name = String8__literal("m"),        2, 0 },
+        { .name = String8__literal("f"),        2, 2 },
+        { .name = String8__literal("d"),        2, 2 },
+        { .name = String8__literal("zba"),      1, 0 },
+        { .name = String8__literal("zbb"),      1, 0 },
+        { .name = String8__literal("zbc"),      1, 0 },
+        { .name = String8__literal("zbs"),      1, 0 },
+        { .name = String8__literal("zicntr"),   2, 0 },
+        { .name = String8__literal("zicond"),   1, 0 },
+        { .name = String8__literal("zicsr"),    2, 0 },
+        { .name = String8__literal("zifencei"), 2, 0 },
+        { .name = String8__literal("zmmul"),    1, 0 },
+};
+assert_static_m(array_count_m(RISCV_Extension__defaults) <= RISCV_Extensions__max, RISCV_Extension__defaults_size_check);
 
 global const RISCV_Implicit_Extension RISCV_extensions_implicit[] =
 {
@@ -322,7 +341,7 @@ internal String8
 RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 string, U8 xlen)
 {
 
-        *extensions = (RISCV_Extensions){0};
+        extensions->count = 0;
         String8 error = {0};
 
         // ISA strings cannot contain uppercase letters.
@@ -344,8 +363,7 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
         }
 
         // The first extension must be i, e or g.
-        String8 rest = String8__skip(string, 4);
-        if (rest.count == 0 || (rest.data[0] != 'i' && rest.data[0] != 'e' && rest.data[0] != 'g'))
+        if (string.count == 0 || (string.data[0] != 'i' && string.data[0] != 'e' && string.data[0] != 'g'))
         {
                 error = error.count ? error : String8__format(arena, "ISA string `%.*s': first ISA extension must be `e', `i' or `g'", String8__varg(string));
         }
@@ -356,22 +374,22 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
         U64 cursor = 0;
         for (;;)
         {
-                B32 break_should = error.count > 0 || cursor >= rest.count;
+                B32 break_should = error.count > 0 || cursor >= string.count;
                 if (break_should)
                 {
                         break;
                 }
 
-                if (rest.data[cursor] == '_')
+                if (string.data[cursor] == '_')
                 {
                         cursor += 1;
                 }
                 else
                 {
                         // Prefixed extensions start with z, s or x (covering "zxm", "zaamo", ...).
-                        B32 prefixed_is = rest.data[cursor] == 'z'
-                                       || rest.data[cursor] == 's'
-                                       || rest.data[cursor] == 'x';
+                        B32 prefixed_is = string.data[cursor] == 'z'
+                                       || string.data[cursor] == 's'
+                                       || string.data[cursor] == 'x';
 
                         // The name is the run of letters leading up to the first digit. A
                         // single-letter standard extension is exactly one character.
@@ -380,9 +398,9 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                         {
                                 for (;;)
                                 {
-                                        B32 name_break = cursor >= rest.count
-                                                     || rest.data[cursor] == '_'
-                                                     || ('0' <= rest.data[cursor] && rest.data[cursor] <= '9');
+                                        B32 name_break = cursor >= string.count
+                                                     || string.data[cursor] == '_'
+                                                     || ('0' <= string.data[cursor] && string.data[cursor] <= '9');
                                         if (name_break)
                                         {
                                                 break;
@@ -395,10 +413,10 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                         {
                                 cursor += 1;
                         }
-                        String8 name = String8__substring(String8__skip(rest, name_begin), cursor - name_begin);
+                        String8 name = String8__substring(String8__skip(string, name_begin), cursor - name_begin);
 
                         // The version is whatever follows the name, up to the next '_'.
-                        String8 version = String8__skip(rest, cursor);
+                        String8 version = String8__skip(string, cursor);
                         U8 major = 0;
                         U8 minor = 0;
                         U64 version_count = RISCV_extensions_parse_version(version, &major, &minor);
@@ -413,22 +431,23 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                                 error = error.count ? error : String8__format(arena, "ISA string `%.*s': unknown ISA extension `%.*s'", String8__varg(string), String8__varg(name));
                         }
                         // Prefixed extensions must be separated by '_'.
-                        else if (prefixed_is && cursor < rest.count && rest.data[cursor] != '_')
+                        else if (prefixed_is && cursor < string.count && string.data[cursor] != '_')
                         {
                                 error = error.count ? error : String8__format(arena, "ISA string `%.*s': prefixed ISA extension must separate with '_'", String8__varg(string));
                         }
-                        else if (extensions->count >= RISCV_Extensions__max)
+                        else if (extensions->count >= extensions->max)
                         {
                                 error = error.count ? error : String8__format(arena, "ISA string `%.*s': too many extensions", String8__varg(string));
                         }
                         else
                         {
-                                extensions->data[extensions->count++] = (RISCV_Extension)
+                                extensions->data[extensions->count] = (RISCV_Extension)
                                 {
                                         .name  = name,
                                         .major = major,
                                         .minor = minor,
                                 };
+                                extensions->count += 1;
                         }
                 }
         }

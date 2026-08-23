@@ -1858,3 +1858,8 @@ nowehere, but it's an achievement for me.
 Finally understood in more detail how GOT and the PLT relate to each other. Seemed so magical
 before! Yet, it's hard to find posts or document that explain from scratch how the whole flow works.
 Perhaps something to write about?
+
+### Sun Aug 23 11:01:53 CEST 2026
+
+I've added extensions support, finally. Started from a ported stub from GNU as, revisited into
+something that is okay.

@@ -24,8 +24,11 @@ typedef struct RISCV_Extensions RISCV_Extensions;
 struct RISCV_Extensions
 {
         U64     count;
-        RISCV_Extension data[RISCV_Extensions__max];
+        U64     max;
+        RISCV_Extension *data;
 };
+
+global const RISCV_Extension RISCV_Extension__defaults[];
 
 typedef struct RISCV_Implicit_Extension RISCV_Implicit_Extension;
 struct RISCV_Implicit_Extension

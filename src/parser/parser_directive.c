@@ -1083,6 +1083,14 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                         // TODO(architecture, medium): should be validated.
                                         case RISCV_Tag__Architecture:
                                         {
+                                                String8 error = Options__architecture_parse(options, value_content, diagnostics->arena);
+                                                if (error.count)
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                        diagnostic->message    = error;
+                                                        diagnostic->location   = cursor->current.location;
+                                                        diagnostic->ranges[0]  = Token__range(cursor->current);
+                                                }
                                                 String8 duplicate = String8__duplicate(arena, value_content);
                                                 options->attributes.architecture = duplicate;
                                         } break;
