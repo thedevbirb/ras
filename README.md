@@ -21,14 +21,18 @@ RV64). Compressed instructions are still in progress.
 
 ### Extensions
 
-The instruction opcode table carries encodings for the following extensions: `I`, `M`, `A`, `F`,
-`D`, `Q`, `C`, `V`, `H`, and the `Z`-extensions `Zicsr`, `Zifencei`, `Zmmul`, `Zicntr`,
-`Zihintpause`, `Zicond`, `Zba`, `Zbb`, `Zbc`, `Zbs`, `Zbkb`, `Zbkc`, `Zbkx`, `Zk`, `Zkn`, `Zks`,
-`Zkt`, `Zca`, `Zcb`, `Zcd`, `Zfh`, `Zfinx`.
+`-march=` parses the full ISA string (`rv32`/`rv64` followed by the extension list; prefixed
+extensions are separated by `_`) and gates instructions by extension. The recognized extensions
+are:
 
-Note that the CLI `-march=` handling is currently limited to `rv32im` and `rv64im`; the broader
-extension table is not yet wired into the selection logic, so for now everything is assembled with
-the full opcode table regardless of the requested march.
+- Base and standard: `I`, `E` (RV32E embedded), `M`, `F`, `D`, `C` (compressed), and the `G` group
+  (expands to `I`/`M`/`A`/`F`/`D`/`Zicsr`/`Zifencei`).
+- `Z`-extensions: `Zba`, `Zbb`, `Zbc`, `Zbs`, `Zicntr`, `Zicond`, `Zicsr`, `Zifencei`, `Zmmul`.
+
+Implicit dependencies are applied automatically (`G` implies the standard group, `D` implies `F`,
+`F` implies `Zicsr`, `M` implies `Zmmul`, ...). `Zicsr` is recognized for parsing but has no
+instructions implemented yet; extensions such as `A`, `Q`, `V`, `H` are not recognized by
+`-march`.
 
 ## Directives
 
@@ -53,14 +57,16 @@ Example usage:
 ```sh
 cc -o nob nob.c
 ./nob
-./build/ras hello.s -o hello.o          # default: RV64, lp64d
+./build/ras hello.s -o hello.o          # default: RV64, lp64d, full extension set
 ./build/ras -march=rv64im hello.s -o hello.o
 ./build/ras -march=rv32im -mabi=ilp32 hello.s -o hello.o
+./build/ras -march=rv64imfd_zba_zbb_zbc_zbs_zicntr_zicond_zifencei_zmmul hello.s -o hello.o
+./build/ras -fPIC -march=rv64im hello.s -o hello.o
 readelf -h -S hello.o
 ```
 
 The command line follows `usage: ras <filepath_in> -o <filepath_out>` and supports `-march=`,
-`-mabi=`, `-o`, and `--help`.
+`-mabi=`, `-fpic`/`-fPIC`/`-fno-pic`, `-o`, and `--help`.
 
 ## Feature and testing parity with GNU as
 
@@ -99,7 +105,8 @@ amalgamation.
    ```
 
    (`-DSQLITE_OS_OTHER=1` and `-DSQLITE_THREADSAFE=0` skip the OS/pthread layers that newlib does
-   not provide. The march deliberately omits `c`/`a`, which this assembler does not support yet.)
+   not provide. The march deliberately omits `c`/`a`: `a` is not recognized by this assembler yet,
+   and `c` is recognized but compressed instruction emission is still in progress.)
 
 3. Assemble with both assemblers and compare the resulting relocatable objects section by
    section using the `compare_objects.py` script:
