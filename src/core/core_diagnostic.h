@@ -114,13 +114,7 @@ Diagnostics__push(Diagnostics *diagnostics)
 {
         Diagnostic *result = Arena__push_struct_m(diagnostics->arena, Diagnostic);
         DLL_push_back_m(diagnostics->first, diagnostics->last, result);
-        return result;
-}
-
-internal Diagnostic *
-Diagnostics__push_conditional(Diagnostics *diagnostics, B32 condition)
-{
-        Diagnostic *result = condition ? Diagnostics__push(diagnostics) : diagnostics->dummy;
+        diagnostics->count += 1;
         return result;
 }
 
