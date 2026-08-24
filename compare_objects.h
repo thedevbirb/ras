@@ -1,10 +1,6 @@
 #ifndef COMPARE_OBJECTS_H
 #define COMPARE_OBJECTS_H
 
-// Compares two relocatable ELF objects (ELF32 or ELF64) and reports whether
-// they are equivalent. The equivalence definition is described at the top of
-// compare_objects.c.
-
 // A decoded ELF section header: name plus the fields the comparison uses.
 typedef struct Object_Section Object_Section;
 struct Object_Section
@@ -55,6 +51,30 @@ struct Object_File
         U8              class;
         Object_Section *sections;
         U64             sections_count;
+};
+
+// Result of merging two sorted record arrays as multisets.
+typedef struct Multiset_Diff Multiset_Diff;
+struct Multiset_Diff
+{
+        // Distinct keys present only in one multiset (or in excess), sorted.
+        void *only_a;
+        void *only_b;
+        U64   only_a_count;
+        U64   only_b_count;
+        U64   common;
+        U64   only_a_total;
+        U64   only_b_total;
+};
+
+// Counts accumulated while printing the streamed report.
+typedef struct Report_Result Report_Result;
+struct Report_Result
+{
+        U64 identical_count;
+        U64 diff_count;
+        B32 text_first_has;
+        U64 text_first;
 };
 
 // Compare the two objects and print the report to stdout. Returns non-zero

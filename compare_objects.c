@@ -6,7 +6,7 @@
 //     entry size;
 //   - matching contents, byte for byte (NOBITS sections and `.note.GNU-stack`
 //     are skipped);
-//   - matching `.rela.*` contents, as a set of (offset, type, addend,
+//   - matching `.rela.*` contents, as a multiset of (offset, type, addend,
 //     referenced-symbol) tuples. Two symbols are the same when every field
 //     matches, so the comparison is insensitive to symbol indices;
 //   - matching `.symtab` contents, as a multiset of
@@ -15,9 +15,9 @@
 //     section ordering does not matter either.
 //
 // A section present in only one of the two objects is reported as a
-// difference. The report is one line per section, then a summary of the
-// differences. Both ELF32 and ELF64 objects are supported. The exit status is
-// non-zero when any difference is found.
+// difference. The report is one line per section, then a summary. Both ELF32
+// and ELF64 objects are supported. The exit status is non-zero when any
+// difference is found.
 //
 // Usage: compare_objects <object_a> <object_b>
 
@@ -62,6 +62,37 @@ string_from_table(U8 *data, U64 table_offset, U64 table_size, U64 offset)
         return result;
 }
 
+// The two classes' header/symbol structs share field names, so one fill macro
+// covers both widths (the 32-bit values widen implicitly).
+
+#define section_header_fill_m(result, header, data, string_table_offset, string_table_size) \
+        do { \
+                (result).name       = string_from_table((data), (string_table_offset), (string_table_size), (header).string_table_offset); \
+                (result).type       = (header).type; \
+                (result).flags      = (header).flags; \
+                (result).offset     = (header).offset; \
+                (result).size       = (header).size; \
+                (result).link       = (header).link; \
+                (result).info       = (header).info; \
+                (result).alignment  = (header).alignment; \
+                (result).entry_size = (header).entry_size; \
+        } while (0)
+
+#define symbol_fill_m(result, symbol, data, string_table_offset, string_table_size) \
+        do { \
+                (result).name         = string_from_table((data), (string_table_offset), (string_table_size), (symbol).string_table_offset); \
+                (result).type         = ELF_Symbol_type_m((symbol).type_and_binding); \
+                (result).bind         = ELF_Symbol_bind_m((symbol).type_and_binding); \
+                (result).visibility   = (symbol).visibility; \
+                (result).value        = (symbol).value; \
+                (result).size         = (symbol).size; \
+        } while (0)
+
+// Read one record of `class` from the mapped file into `out`. The serial
+// cursor is a compound literal, so the read is a single expression.
+#define record_read_m(out, Type, data, offset) \
+        String8__serial_write_m((&(String8){ .data = (U8 *)(out), .count = sizeof(Type) }), (Type *)((data) + (offset)))
+
 // Read one section header entry (ELF32 or ELF64) at `offset`, resolving its
 // name through the `.shstrtab` range.
 internal Object_Section
@@ -71,32 +102,14 @@ section_header_read(U8 *data, U64 offset, U64 string_table_offset, U64 string_ta
         if (class == ELF_ID_Class__32)
         {
                 ELF32_Section_Header header = {0};
-                String8 cursor = String8__new((U8 *)&header, sizeof(header));
-                String8__serial_write_m(&cursor, (ELF32_Section_Header *)(data + offset));
-                result.name       = string_from_table(data, string_table_offset, string_table_size, header.string_table_offset);
-                result.type       = header.type;
-                result.flags      = header.flags;
-                result.offset     = header.offset;
-                result.size       = header.size;
-                result.link       = header.link;
-                result.info       = header.info;
-                result.alignment  = header.alignment;
-                result.entry_size = header.entry_size;
+                record_read_m(&header, ELF32_Section_Header, data, offset);
+                section_header_fill_m(result, header, data, string_table_offset, string_table_size);
         }
         else
         {
                 ELF64_Section_Header header = {0};
-                String8 cursor = String8__new((U8 *)&header, sizeof(header));
-                String8__serial_write_m(&cursor, (ELF64_Section_Header *)(data + offset));
-                result.name       = string_from_table(data, string_table_offset, string_table_size, header.string_table_offset);
-                result.type       = header.type;
-                result.flags      = header.flags;
-                result.offset     = header.offset;
-                result.size       = header.size;
-                result.link       = header.link;
-                result.info       = header.info;
-                result.alignment  = header.alignment;
-                result.entry_size = header.entry_size;
+                record_read_m(&header, ELF64_Section_Header, data, offset);
+                section_header_fill_m(result, header, data, string_table_offset, string_table_size);
         }
         return result;
 }
@@ -141,35 +154,21 @@ internal Object_Symbol
 symbol_read(U8 *data, U64 offset, U8 class, U64 string_table_offset, U64 string_table_size, Object_File *file, Arena *arena)
 {
         Object_Symbol result = {0};
-        U32 name_offset = 0;
         U16 section_index = 0;
         if (class == ELF_ID_Class__32)
         {
                 ELF32_Symbol symbol = {0};
-                String8 cursor = String8__new((U8 *)&symbol, sizeof(symbol));
-                String8__serial_write_m(&cursor, (ELF32_Symbol *)(data + offset));
-                result.type       = ELF_Symbol_type_m(symbol.type_and_binding);
-                result.bind       = ELF_Symbol_bind_m(symbol.type_and_binding);
-                result.visibility = symbol.visibility;
-                result.value      = symbol.value;
-                result.size       = symbol.size;
-                name_offset       = symbol.string_table_offset;
-                section_index     = symbol.section_index;
+                record_read_m(&symbol, ELF32_Symbol, data, offset);
+                symbol_fill_m(result, symbol, data, string_table_offset, string_table_size);
+                section_index = symbol.section_index;
         }
         else
         {
                 ELF64_Symbol symbol = {0};
-                String8 cursor = String8__new((U8 *)&symbol, sizeof(symbol));
-                String8__serial_write_m(&cursor, (ELF64_Symbol *)(data + offset));
-                result.type       = ELF_Symbol_type_m(symbol.type_and_binding);
-                result.bind       = ELF_Symbol_bind_m(symbol.type_and_binding);
-                result.visibility = symbol.visibility;
-                result.value      = symbol.value;
-                result.size       = symbol.size;
-                name_offset       = symbol.string_table_offset;
-                section_index     = symbol.section_index;
+                record_read_m(&symbol, ELF64_Symbol, data, offset);
+                symbol_fill_m(result, symbol, data, string_table_offset, string_table_size);
+                section_index = symbol.section_index;
         }
-        result.name = string_from_table(data, string_table_offset, string_table_size, name_offset);
         result.section_name = symbol_section_name(file, section_index, arena);
         return result;
 }
@@ -184,8 +183,7 @@ relocation_read(U8 *data, U64 offset, U8 class, Object_Symbol *symbols, U64 symb
         if (class == ELF_ID_Class__32)
         {
                 ELF32_Relocation_Addend relocation = {0};
-                String8 cursor = String8__new((U8 *)&relocation, sizeof(relocation));
-                String8__serial_write_m(&cursor, (ELF32_Relocation_Addend *)(data + offset));
+                record_read_m(&relocation, ELF32_Relocation_Addend, data, offset);
                 result.offset = relocation.offset;
                 result.addend = relocation.addend;
                 result.type   = relocation.info & 0xff;
@@ -194,8 +192,7 @@ relocation_read(U8 *data, U64 offset, U8 class, Object_Symbol *symbols, U64 symb
         else
         {
                 ELF64_Relocation_Addend relocation = {0};
-                String8 cursor = String8__new((U8 *)&relocation, sizeof(relocation));
-                String8__serial_write_m(&cursor, (ELF64_Relocation_Addend *)(data + offset));
+                record_read_m(&relocation, ELF64_Relocation_Addend, data, offset);
                 result.offset = relocation.offset;
                 result.addend = relocation.addend;
                 result.type   = (U32)(relocation.info & 0xffffffff);
@@ -274,8 +271,7 @@ object_file_read(String8 path, Arena *arena, Object_File *result)
                 if (class == ELF_ID_Class__32)
                 {
                         ELF32_Header header = {0};
-                        String8 cursor = String8__new((U8 *)&header, sizeof(header));
-                        String8__serial_write_m(&cursor, (ELF32_Header *)data);
+                        record_read_m(&header, ELF32_Header, data, 0);
                         section_headers_offset = header.section_header_table_file_offset;
                         section_headers_size   = header.section_header_table_entry_size;
                         sections_count         = header.section_header_table_entry_count;
@@ -284,8 +280,7 @@ object_file_read(String8 path, Arena *arena, Object_File *result)
                 else
                 {
                         ELF64_Header header = {0};
-                        String8 cursor = String8__new((U8 *)&header, sizeof(header));
-                        String8__serial_write_m(&cursor, (ELF64_Header *)data);
+                        record_read_m(&header, ELF64_Header, data, 0);
                         section_headers_offset = header.section_header_table_file_offset;
                         section_headers_size   = header.section_header_table_entry_size;
                         sections_count         = header.section_header_table_entry_count;
@@ -370,8 +365,18 @@ object_file_symbols(Object_File *file, Arena *arena, U64 *count_out)
 }
 
 //------------------------------------------------------------------------------
-// Sorting and multiset machinery
+// Multiset comparison
 //------------------------------------------------------------------------------
+
+// Comparison model: a collection of records (symbols, relocations) is compared
+// as a *multiset* — the same records with the same multiplicity, in any order.
+// Records are already canonical (symbol indices resolved to the referenced
+// symbol's fields, section indices to section names), so record equality is
+// field equality. Both collections are sorted by a total order and merged with
+// a two-pointer walk: equal runs contribute to `common`, runs present on only
+// one side become the `only_*` totals and the distinct keys reported by the
+// caller. Sorting is what makes "equal" mean "adjacent", so the merge needs
+// only a comparator — no hash table.
 
 // Total order over the (name, type, bind, visibility, section, value, size)
 // tuple. The `const void *` signature is the one `qsort` requires.
@@ -429,15 +434,15 @@ relocation_item_compare(const void *a, const void *b)
         return result;
 }
 
-// Number of entries equal to `symbols[start]` at the head of the run.
+// Number of elements equal to `data[start]` at the head of its sorted run.
 internal U64
-symbol_runs_count(Object_Symbol *symbols, U64 count, U64 start)
+multiset_run_count(const void *data, U64 count, U64 element_size, U64 start, S32 (*compare)(const void *, const void *))
 {
         U64 run = 0;
         U64 index = start;
         for (;;)
         {
-                B32 break_should = index >= count || symbol_compare(&symbols[index], &symbols[start]) != 0;
+                B32 break_should = index >= count || compare((U8 *)data + index * element_size, (U8 *)data + start * element_size) != 0;
                 if (break_should)
                 {
                         break;
@@ -448,8 +453,108 @@ symbol_runs_count(Object_Symbol *symbols, U64 count, U64 start)
         return run;
 }
 
-// Build the sorted, de-duplicated set of relocation tuples for `section`,
-// resolving each referenced symbol's *value* through `symbols`.
+// Merge two sorted record arrays (element_size stride) and summarize their
+// multiset difference. `compare` is the total order used by both `qsort`s.
+internal void
+multisets_diff
+(
+        void *a,
+        U64   a_count,
+        void *b,
+        U64   b_count,
+        U64   element_size,
+        S32 (*compare)(const void *, const void *),
+        Arena *arena,
+        Multiset_Diff *out
+)
+{
+        out->only_a = Arena__push_array_no_zero_m(arena, U8, a_count * element_size);
+        out->only_b = Arena__push_array_no_zero_m(arena, U8, b_count * element_size);
+
+        U64 a_index = 0;
+        U64 b_index = 0;
+        for (;;)
+        {
+                B32 break_should = a_index >= a_count || b_index >= b_count;
+                if (break_should)
+                {
+                        break;
+                }
+
+                U8 *a_key = (U8 *)a + a_index * element_size;
+                U8 *b_key = (U8 *)b + b_index * element_size;
+                S32 order = compare(a_key, b_key);
+                if (order < 0)
+                {
+                        U64 run = multiset_run_count(a, a_count, element_size, a_index, compare);
+                        memory_copy((U8 *)out->only_a + out->only_a_count * element_size, a_key, element_size);
+                        out->only_a_count += 1;
+                        out->only_a_total += run;
+                        a_index += run;
+                }
+                else if (order > 0)
+                {
+                        U64 run = multiset_run_count(b, b_count, element_size, b_index, compare);
+                        memory_copy((U8 *)out->only_b + out->only_b_count * element_size, b_key, element_size);
+                        out->only_b_count += 1;
+                        out->only_b_total += run;
+                        b_index += run;
+                }
+                else
+                {
+                        U64 a_run = multiset_run_count(a, a_count, element_size, a_index, compare);
+                        U64 b_run = multiset_run_count(b, b_count, element_size, b_index, compare);
+                        out->common += min_m(a_run, b_run);
+                        if (a_run > b_run)
+                        {
+                                memory_copy((U8 *)out->only_a + out->only_a_count * element_size, a_key, element_size);
+                                out->only_a_count += 1;
+                                out->only_a_total += a_run - b_run;
+                        }
+                        else if (b_run > a_run)
+                        {
+                                memory_copy((U8 *)out->only_b + out->only_b_count * element_size, b_key, element_size);
+                                out->only_b_count += 1;
+                                out->only_b_total += b_run - a_run;
+                        }
+                        a_index += a_run;
+                        b_index += b_run;
+                }
+        }
+
+        for (;;)
+        {
+                if (a_index >= a_count)
+                {
+                        break;
+                }
+                U8 *a_key = (U8 *)a + a_index * element_size;
+                U64 run = multiset_run_count(a, a_count, element_size, a_index, compare);
+                memory_copy((U8 *)out->only_a + out->only_a_count * element_size, a_key, element_size);
+                out->only_a_count += 1;
+                out->only_a_total += run;
+                a_index += run;
+        }
+
+        for (;;)
+        {
+                if (b_index >= b_count)
+                {
+                        break;
+                }
+                U8 *b_key = (U8 *)b + b_index * element_size;
+                U64 run = multiset_run_count(b, b_count, element_size, b_index, compare);
+                memory_copy((U8 *)out->only_b + out->only_b_count * element_size, b_key, element_size);
+                out->only_b_count += 1;
+                out->only_b_total += run;
+                b_index += run;
+        }
+
+        return;
+}
+
+// Build the sorted multiset of relocation tuples for `section`, resolving
+// each referenced symbol's *value* through `symbols`.
 internal U64
 relocation_items_build(Object_File *file, Object_Section *section, Object_Symbol *symbols, U64 symbols_count, Arena *arena, Relocation_Item **items_out)
 {
@@ -469,123 +574,8 @@ relocation_items_build(Object_File *file, Object_Section *section, Object_Symbol
 
         qsort(items, entry_count, sizeof(Relocation_Item), relocation_item_compare);
 
-        // Collapse duplicates, since the comparison unit is a set.
-        U64 unique_count = 0;
-        index = 0;
-        for (;;)
-        {
-                if (index >= entry_count)
-                {
-                        break;
-                }
-                B32 duplicate_is = unique_count > 0 && relocation_item_compare(&items[unique_count - 1], &items[index]) == 0;
-                if (!duplicate_is)
-                {
-                        items[unique_count] = items[index];
-                        unique_count += 1;
-                }
-                index += 1;
-        }
-
         *items_out = items;
-        return unique_count;
-}
-
-// Set difference of two sorted, de-duplicated relocation arrays. `sample` is
-// the first gnu-only element if any, else the first ras-only element.
-internal void
-relocation_sets_difference
-(
-        Relocation_Item *gnu,
-        U64              gnu_count,
-        Relocation_Item *ras,
-        U64              ras_count,
-        U64             *common_out,
-        U64             *gnu_only_out,
-        U64             *ras_only_out,
-        Relocation_Item *sample_out
-)
-{
-        U64 gnu_index = 0;
-        U64 ras_index = 0;
-        U64 common    = 0;
-        U64 gnu_only  = 0;
-        U64 ras_only  = 0;
-        Relocation_Item sample = {0};
-        B32 sample_has = 0;
-
-        for (;;)
-        {
-                B32 break_should = gnu_index >= gnu_count || ras_index >= ras_count;
-                if (break_should)
-                {
-                        break;
-                }
-
-                S32 order = relocation_item_compare(&gnu[gnu_index], &ras[ras_index]);
-                if (order < 0)
-                {
-                        if (!sample_has)
-                        {
-                                sample     = gnu[gnu_index];
-                                sample_has = 1;
-                        }
-                        gnu_only += 1;
-                        gnu_index += 1;
-                }
-                else if (order > 0)
-                {
-                        if (!sample_has)
-                        {
-                                sample     = ras[ras_index];
-                                sample_has = 1;
-                        }
-                        ras_only += 1;
-                        ras_index += 1;
-                }
-                else
-                {
-                        common += 1;
-                        gnu_index += 1;
-                        ras_index += 1;
-                }
-        }
-
-        for (;;)
-        {
-                if (gnu_index >= gnu_count)
-                {
-                        break;
-                }
-                if (!sample_has)
-                {
-                        sample     = gnu[gnu_index];
-                        sample_has = 1;
-                }
-                gnu_only += 1;
-                gnu_index += 1;
-        }
-
-        for (;;)
-        {
-                if (ras_index >= ras_count)
-                {
-                        break;
-                }
-                if (!sample_has)
-                {
-                        sample     = ras[ras_index];
-                        sample_has = 1;
-                }
-                ras_only += 1;
-                ras_index += 1;
-        }
-
-        *common_out   = common;
-        *gnu_only_out = gnu_only;
-        *ras_only_out = ras_only;
-        *sample_out   = sample;
-        return;
+        return entry_count;
 }
 
 //------------------------------------------------------------------------------
@@ -606,22 +596,6 @@ hex_print(FILE *out, U64 value)
                 fprintf(out, "%#llx", value);
         }
         return;
-}
-
-// Format `value` the way `hex_print` does, into arena memory.
-internal String8
-hex_string(Arena *arena, U64 value)
-{
-        String8 result;
-        if (value == 0)
-        {
-                result = String8__literal("0x0");
-        }
-        else
-        {
-                result = String8__format(arena, "%#llx", value);
-        }
-        return result;
 }
 
 // First index in `[0, count)` where the byte arrays differ, else
@@ -677,7 +651,7 @@ section_field_diff_print(FILE *out, String8 label, U64 gnu_value, U64 ras_value,
 //------------------------------------------------------------------------------
 
 internal void
-sections_headers_compare(Object_File *ras, Object_File *gnu, Arena *arena, String8_Node_List *diffs)
+sections_compare(Object_File *ras, Object_File *gnu, Report_Result *result)
 {
         fprintf(stdout, "=== SECTION HEADERS ===\n");
 
@@ -696,9 +670,7 @@ sections_headers_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
                         if (r == 0)
                         {
                                 fprintf(stdout, "  MISSING  %.*s\n", String8__varg(g->name));
-                                String8_Node *node = Arena__push_struct_m(arena, String8_Node);
-                                node->string = String8__format(arena, "%.*s: missing in ras", String8__varg(g->name));
-                                String8_Node_List__push(diffs, node);
+                                result->diff_count += 1;
                         }
                         else
                         {
@@ -726,6 +698,7 @@ sections_headers_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
                                         section_field_diff_print(stdout, String8__literal("addralign"), g->alignment,  r->alignment,  &first_diff);
                                         section_field_diff_print(stdout, String8__literal("entsize"),   g->entry_size, r->entry_size, &first_diff);
                                         fprintf(stdout, "]");
+                                        result->diff_count += 1;
                                 }
                                 fprintf(stdout, "\n");
                         }
@@ -733,16 +706,10 @@ sections_headers_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
 
                 index += 1;
         }
-        return;
-}
 
-internal U64
-sections_content_compare(Object_File *ras, Object_File *gnu, Arena *arena, String8_Node_List *diffs)
-{
         fprintf(stdout, "=== CONTENT ===\n");
 
-        U64 identical_count = 0;
-        U64 index = 0;
+        index = 0;
         for (;;)
         {
                 if (index >= gnu->sections_count)
@@ -764,7 +731,7 @@ sections_content_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
                                 if (equal)
                                 {
                                         fprintf(stdout, "  OK    %.*s (%lluB)\n", String8__varg(g->name), g->size);
-                                        identical_count += 1;
+                                        result->identical_count += 1;
                                 }
                                 else
                                 {
@@ -774,11 +741,15 @@ sections_content_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
                                                 String8__varg(g->name), g->size, r->size);
                                         hex_print(stdout, first);
                                         fprintf(stdout, "\n");
-                                        String8_Node *node = Arena__push_struct_m(arena, String8_Node);
-                                        node->string = String8__format(arena, "%.*s: content (first byte %.*s, gnu %lluB ras %lluB)",
-                                                String8__varg(g->name), String8__varg(hex_string(arena, first)),
-                                                g->size, r->size);
-                                        String8_Node_List__push(diffs, node);
+                                        result->diff_count += 1;
+
+                                        // Remember the first differing byte of `.text`.
+                                        B32 text_is = String8__match_exact(g->name, String8__literal(".text"));
+                                        if (text_is && !result->text_first_has && first < compare_count)
+                                        {
+                                                result->text_first_has = 1;
+                                                result->text_first     = first;
+                                        }
                                 }
                         }
                 }
@@ -795,20 +766,14 @@ sections_content_compare(Object_File *ras, Object_File *gnu, Arena *arena, Strin
                         break;
                 }
                 Object_Section *r = &ras->sections[index];
-                if (r->name.count != 0)
+                if (r->name.count != 0 && object_file_section(gnu, r->name) == 0)
                 {
-                        B32 in_gnu = object_file_section(gnu, r->name) != 0;
-                        if (!in_gnu)
-                        {
-                                String8_Node *node = Arena__push_struct_m(arena, String8_Node);
-                                node->string = String8__format(arena, "%.*s: extra in ras", String8__varg(r->name));
-                                String8_Node_List__push(diffs, node);
-                        }
+                        fprintf(stdout, "  EXTRA   %.*s\n", String8__varg(r->name));
+                        result->diff_count += 1;
                 }
                 index += 1;
         }
-
-        return identical_count;
+        return;
 }
 
 internal void
@@ -821,7 +786,7 @@ relocations_compare
         Object_Symbol    *gnu_symbols,
         U64               gnu_symbols_count,
         Arena            *arena,
-        String8_Node_List *diffs
+        Report_Result    *result
 )
 {
         fprintf(stdout, "=== RELOCATIONS (content, by offset/type/addend/symbol-value) ===\n");
@@ -835,35 +800,31 @@ relocations_compare
                 }
 
                 Object_Section *g = &gnu->sections[index];
-                B32 is_rela = String8__match_prefix(g->name, String8__literal(".rela"));
-                if (is_rela)
+                if (String8__match_prefix(g->name, String8__literal(".rela")))
                 {
                         Object_Section *r = object_file_section(ras, g->name);
                         if (r)
                         {
                                 Relocation_Item *gnu_items = 0;
-                                U64 gnu_items_count = relocation_items_build(gnu, g, gnu_symbols, gnu_symbols_count, arena, &gnu_items);
+                                U64 gnu_count = relocation_items_build(gnu, g, gnu_symbols, gnu_symbols_count, arena, &gnu_items);
                                 Relocation_Item *ras_items = 0;
-                                U64 ras_items_count = relocation_items_build(ras, r, ras_symbols, ras_symbols_count, arena, &ras_items);
+                                U64 ras_count = relocation_items_build(ras, r, ras_symbols, ras_symbols_count, arena, &ras_items);
 
-                                U64 common    = 0;
-                                U64 gnu_only  = 0;
-                                U64 ras_only  = 0;
-                                Relocation_Item sample = {0};
-                                relocation_sets_difference(gnu_items, gnu_items_count, ras_items, ras_items_count, &common, &gnu_only, &ras_only, &sample);
+                                Multiset_Diff diff = {0};
+                                multisets_diff(gnu_items, gnu_count, ras_items, ras_count, sizeof(Relocation_Item), relocation_item_compare, arena, &diff);
 
-                                B32 any_diff = gnu_only != 0 || ras_only != 0;
+                                B32 any_diff = diff.only_a_total != 0 || diff.only_b_total != 0;
                                 fprintf(stdout, "  %s %.*s: GNU=%llu ras=%llu common=%llu gnu-only=%llu ras-only=%llu\n",
                                         any_diff ? "DIFF" : "OK  ", String8__varg(g->name),
-                                        gnu_items_count, ras_items_count, common, gnu_only, ras_only);
+                                        gnu_count, ras_count, diff.common, diff.only_a_total, diff.only_b_total);
                                 if (any_diff)
                                 {
-                                        String8_Node *node_diff = Arena__push_struct_m(arena, String8_Node);
-                                        node_diff->string = String8__format(arena, "%.*s: reloc content differs (sample (%llu, %u, %lld, '%.*s'))",
+                                        Relocation_Item *sample = (Relocation_Item *)(diff.only_a_count ? diff.only_a : diff.only_b);
+                                        fprintf(stdout, "  - %.*s: reloc content differs (sample (%llu, %u, %lld, '%.*s'))\n",
                                                 String8__varg(g->name),
-                                                sample.offset, sample.type, sample.addend,
-                                                String8__varg(sample.symbol.name));
-                                        String8_Node_List__push(diffs, node_diff);
+                                                sample->offset, sample->type, sample->addend,
+                                                String8__varg(sample->symbol.name));
+                                        result->diff_count += 1;
                                 }
                         }
                 }
@@ -874,147 +835,66 @@ relocations_compare
 }
 
 internal void
-symbols_compare(Object_File *ras, Object_File *gnu, Arena *arena, String8_Node_List *diffs)
+symbols_compare
+(
+        Object_Symbol *ras_symbols,
+        U64            ras_symbols_count,
+        Object_Symbol *gnu_symbols,
+        U64            gnu_symbols_count,
+        Arena         *arena,
+        Report_Result *result
+)
 {
         fprintf(stdout, "=== SYMBOL TABLE (contents as multiset, order ignored) ===\n");
 
-        U64 gnu_count = 0;
-        U64 ras_count = 0;
-        Object_Symbol *gnu_symbols = object_file_symbols(gnu, arena, &gnu_count);
-        Object_Symbol *ras_symbols = object_file_symbols(ras, arena, &ras_count);
+        Object_Symbol *gnu_sorted = Arena__push_array_m(arena, Object_Symbol, gnu_symbols_count);
+        Object_Symbol *ras_sorted = Arena__push_array_m(arena, Object_Symbol, ras_symbols_count);
+        memory_copy(gnu_sorted, gnu_symbols, gnu_symbols_count * sizeof(Object_Symbol));
+        memory_copy(ras_sorted, ras_symbols, ras_symbols_count * sizeof(Object_Symbol));
+        qsort(gnu_sorted, gnu_symbols_count, sizeof(Object_Symbol), symbol_compare);
+        qsort(ras_sorted, ras_symbols_count, sizeof(Object_Symbol), symbol_compare);
 
-        // Sorted copies, since the value-by-index lookup for relocations still
-        // needs the original file order.
-        Object_Symbol *gnu_sorted = Arena__push_array_m(arena, Object_Symbol, gnu_count);
-        Object_Symbol *ras_sorted = Arena__push_array_m(arena, Object_Symbol, ras_count);
-        memory_copy(gnu_sorted, gnu_symbols, gnu_count * sizeof(Object_Symbol));
-        memory_copy(ras_sorted, ras_symbols, ras_count * sizeof(Object_Symbol));
-        qsort(gnu_sorted, gnu_count, sizeof(Object_Symbol), symbol_compare);
-        qsort(ras_sorted, ras_count, sizeof(Object_Symbol), symbol_compare);
+        Multiset_Diff diff = {0};
+        multisets_diff(gnu_sorted, gnu_symbols_count, ras_sorted, ras_symbols_count, sizeof(Object_Symbol), symbol_compare, arena, &diff);
 
-        // Merge both sorted arrays, counting the symbols present in both files
-        // and collecting the distinct keys present in only one.
-        Object_Symbol *gnu_only = Arena__push_array_m(arena, Object_Symbol, gnu_count + ras_count);
-        Object_Symbol *ras_only = Arena__push_array_m(arena, Object_Symbol, gnu_count + ras_count);
-        U64 common         = 0;
-        U64 gnu_only_total = 0;
-        U64 ras_only_total = 0;
-        U64 gnu_only_count = 0;
-        U64 ras_only_count = 0;
-        U64 gnu_index = 0;
-        U64 ras_index = 0;
-        for (;;)
+        if (diff.only_a_total == 0 && diff.only_b_total == 0)
         {
-                B32 break_should = gnu_index >= gnu_count || ras_index >= ras_count;
-                if (break_should)
-                {
-                        break;
-                }
-
-                S32 order = symbol_compare(&gnu_sorted[gnu_index], &ras_sorted[ras_index]);
-                if (order < 0)
-                {
-                        U64 run = symbol_runs_count(gnu_sorted, gnu_count, gnu_index);
-                        gnu_only[gnu_only_count] = gnu_sorted[gnu_index];
-                        gnu_only_count += 1;
-                        gnu_only_total += run;
-                        gnu_index += run;
-                }
-                else if (order > 0)
-                {
-                        U64 run = symbol_runs_count(ras_sorted, ras_count, ras_index);
-                        ras_only[ras_only_count] = ras_sorted[ras_index];
-                        ras_only_count += 1;
-                        ras_only_total += run;
-                        ras_index += run;
-                }
-                else
-                {
-                        U64 gnu_run = symbol_runs_count(gnu_sorted, gnu_count, gnu_index);
-                        U64 ras_run = symbol_runs_count(ras_sorted, ras_count, ras_index);
-                        common += min_m(gnu_run, ras_run);
-                        if (gnu_run > ras_run)
-                        {
-                                gnu_only[gnu_only_count] = gnu_sorted[gnu_index];
-                                gnu_only_count += 1;
-                                gnu_only_total += gnu_run - ras_run;
-                        }
-                        else if (ras_run > gnu_run)
-                        {
-                                ras_only[ras_only_count] = ras_sorted[ras_index];
-                                ras_only_count += 1;
-                                ras_only_total += ras_run - gnu_run;
-                        }
-                        gnu_index += gnu_run;
-                        ras_index += ras_run;
-                }
-        }
-
-        // Remaining runs belong to a single file.
-        for (;;)
-        {
-                if (gnu_index >= gnu_count)
-                {
-                        break;
-                }
-                U64 run = symbol_runs_count(gnu_sorted, gnu_count, gnu_index);
-                gnu_only[gnu_only_count] = gnu_sorted[gnu_index];
-                gnu_only_count += 1;
-                gnu_only_total += run;
-                gnu_index += run;
-        }
-
-        for (;;)
-        {
-                if (ras_index >= ras_count)
-                {
-                        break;
-                }
-                U64 run = symbol_runs_count(ras_sorted, ras_count, ras_index);
-                ras_only[ras_only_count] = ras_sorted[ras_index];
-                ras_only_count += 1;
-                ras_only_total += run;
-                ras_index += run;
-        }
-
-        if (gnu_only_total == 0 && ras_only_total == 0)
-        {
-                fprintf(stdout, "  OK    %llu symbols, all match\n", gnu_count);
+                fprintf(stdout, "  OK    %llu symbols, all match\n", gnu_symbols_count);
         }
         else
         {
                 fprintf(stdout, "  DIFF  GNU=%llu ras=%llu common=%llu gnu-only=%llu ras-only=%llu\n",
-                        gnu_count, ras_count, common, gnu_only_total, ras_only_total);
+                        gnu_symbols_count, ras_symbols_count, diff.common, diff.only_a_total, diff.only_b_total);
 
+                Object_Symbol *only_a = (Object_Symbol *)diff.only_a;
                 U64 index = 0;
                 for (;;)
                 {
-                        if (index >= gnu_only_count)
+                        if (index >= diff.only_a_count)
                         {
                                 break;
                         }
-                        String8_Node *node = Arena__push_struct_m(arena, String8_Node);
-                        node->string = String8__format(arena, ".symtab: gnu-only ('%.*s', %u, %u, %u, '%.*s', %llu, %llu)",
-                                String8__varg(gnu_only[index].name), gnu_only[index].type, gnu_only[index].bind,
-                                gnu_only[index].visibility, String8__varg(gnu_only[index].section_name),
-                                gnu_only[index].value, gnu_only[index].size);
-                        String8_Node_List__push(diffs, node);
+                        fprintf(stdout, "  - .symtab: gnu-only ('%.*s', %u, %u, %u, '%.*s', %llu, %llu)\n",
+                                String8__varg(only_a[index].name), only_a[index].type, only_a[index].bind,
+                                only_a[index].visibility, String8__varg(only_a[index].section_name),
+                                only_a[index].value, only_a[index].size);
+                        result->diff_count += 1;
                         index += 1;
                 }
 
+                Object_Symbol *only_b = (Object_Symbol *)diff.only_b;
                 index = 0;
                 for (;;)
                 {
-                        if (index >= ras_only_count)
+                        if (index >= diff.only_b_count)
                         {
                                 break;
                         }
-                        String8_Node *node = Arena__push_struct_m(arena, String8_Node);
-                        node->string = String8__format(arena, ".symtab: ras-only ('%.*s', %u, %u, %u, '%.*s', %llu, %llu)",
-                                String8__varg(ras_only[index].name), ras_only[index].type, ras_only[index].bind,
-                                ras_only[index].visibility, String8__varg(ras_only[index].section_name),
-                                ras_only[index].value, ras_only[index].size);
-                        String8_Node_List__push(diffs, node);
+                        fprintf(stdout, "  - .symtab: ras-only ('%.*s', %u, %u, %u, '%.*s', %llu, %llu)\n",
+                                String8__varg(only_b[index].name), only_b[index].type, only_b[index].bind,
+                                only_b[index].visibility, String8__varg(only_b[index].section_name),
+                                only_b[index].value, only_b[index].size);
+                        result->diff_count += 1;
                         index += 1;
                 }
         }
@@ -1030,9 +910,9 @@ symbols_compare(Object_File *ras, Object_File *gnu, Arena *arena, String8_Node_L
 internal S32
 compare_objects_execute(Object_File *ras, Object_File *gnu, Arena *arena)
 {
-        String8_Node_List diffs = {0};
+        Report_Result result = {0};
 
-        sections_headers_compare(ras, gnu, arena, &diffs);
+        sections_compare(ras, gnu, &result);
 
         // Symbols are needed to interpret relocations and for the symtab comparison.
         U64 ras_symbols_count = 0;
@@ -1040,41 +920,16 @@ compare_objects_execute(Object_File *ras, Object_File *gnu, Arena *arena)
         Object_Symbol *ras_symbols = object_file_symbols(ras, arena, &ras_symbols_count);
         Object_Symbol *gnu_symbols = object_file_symbols(gnu, arena, &gnu_symbols_count);
 
-        U64 identical_count = sections_content_compare(ras, gnu, arena, &diffs);
-
-        relocations_compare(ras, gnu, ras_symbols, ras_symbols_count, gnu_symbols, gnu_symbols_count, arena, &diffs);
-
-        symbols_compare(ras, gnu, arena, &diffs);
-
-        // First differing byte of `.text`, if any.
-        B32 text_first_has = 0;
-        U64 text_first     = 0;
-        Object_Section *text_gnu = object_file_section(gnu, String8__literal(".text"));
-        Object_Section *text_ras = object_file_section(ras, String8__literal(".text"));
-        if (text_gnu && text_ras)
-        {
-                U64 compare_count = min_m(text_gnu->size, text_ras->size);
-                U64 first = bytes_first_difference(gnu->data + text_gnu->offset, ras->data + text_ras->offset, compare_count, compare_count);
-                if (first < compare_count)
-                {
-                        text_first_has = 1;
-                        text_first     = first;
-                }
-        }
+        relocations_compare(ras, gnu, ras_symbols, ras_symbols_count, gnu_symbols, gnu_symbols_count, arena, &result);
+        symbols_compare(ras_symbols, ras_symbols_count, gnu_symbols, gnu_symbols_count, arena, &result);
 
         fprintf(stdout, "=== SUMMARY ===\n");
-        fprintf(stdout, "identical sections: %llu\n", identical_count);
-        fprintf(stdout, "differing: %llu\n", diffs.count);
-
-        for each_node_m(diffs.first, node)
-        {
-                fprintf(stdout, "  - %.*s\n", String8__varg(node->string));
-        }
-
+        fprintf(stdout, "identical sections: %llu\n", result.identical_count);
+        fprintf(stdout, "differing: %llu\n", result.diff_count);
         fprintf(stdout, "text first diff: ");
-        if (text_first_has)
+        if (result.text_first_has)
         {
-                hex_print(stdout, text_first);
+                hex_print(stdout, result.text_first);
         }
         else
         {
@@ -1082,8 +937,8 @@ compare_objects_execute(Object_File *ras, Object_File *gnu, Arena *arena)
         }
         fprintf(stdout, "\n");
 
-        S32 result = diffs.count != 0;
-        return result;
+        S32 exit_code = result.diff_count != 0;
+        return exit_code;
 }
 
 internal S32
@@ -1091,7 +946,7 @@ compare_objects_run(String8 path_first, String8 path_second)
 {
         Arena *arena = Arena__allocate_m();
 
-        S32 result = 1;
+        S32 exit_code = 1;
         Object_File ras = {0};
         Object_File gnu = {0};
         String8 error_ras = object_file_read(path_first, arena, &ras);
@@ -1108,25 +963,25 @@ compare_objects_run(String8 path_first, String8 path_second)
                 }
                 else
                 {
-                        result = compare_objects_execute(&ras, &gnu, arena);
+                        exit_code = compare_objects_execute(&ras, &gnu, arena);
                 }
         }
-        return result;
+        return exit_code;
 }
 
 S32
 main(S32 argument_count, char **argument_vector)
 {
-        S32 result = 1;
+        S32 exit_code = 1;
         if (argument_count == 3)
         {
                 String8 path_first  = String8__from_cstring(argument_vector[1]);
                 String8 path_second = String8__from_cstring(argument_vector[2]);
-                result = compare_objects_run(path_first, path_second);
+                exit_code = compare_objects_run(path_first, path_second);
         }
         else
         {
                 fprintf(stderr, "usage: compare_objects <object_a> <object_b>\n");
         }
-        return result;
+        return exit_code;
 }
