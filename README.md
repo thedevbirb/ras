@@ -16,8 +16,7 @@ Both major RISC-V base ISAs are supported:
 - **RV32** (32-bit registers / XLEN)
 - **RV64** (64-bit registers / XLEN)
 
-The matching ABIs are supported (`ilp32`/`ilp32f`/`ilp32d` for RV32 and `lp64`/`lp64f`/`lp64d` for
-RV64). Compressed instructions are still in progress.
+The matching ABIs are supported (`ilp32`/`ilp32f`/`ilp32d` for RV32 and `lp64`/`lp64f`/`lp64d` for RV64).
 
 ### Extensions
 
@@ -73,7 +72,7 @@ The command line follows `usage: ras <filepath_in> -o <filepath_out>` and suppor
 Testing this type of software is hard, and doing it well will for sure take more time than to write
 this code. A practical approach I've taken to this for now is feature parity with GNU `as` on a
 sufficiently large C codebase: the SQLite 3 amalgamation. The GCC-generated `sqlite3.s` (~3.7 MB of
-compiler output using `rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul`) is assembled by `ras` and compared
+compiler output using `rv64imfd_zba_zbb_zbc_zbs_zicond_zmmul`) is assembled by `ras` and compared
 section-by-section against the object produced by GNU `as`.
 
 As of the latest recorded run, the comparison is clean on every semantic check: the `.text`
@@ -111,8 +110,9 @@ The following reproduces the parity check from scratch, all from the repository 
    ```
 
    (`-DSQLITE_OS_OTHER=1` and `-DSQLITE_THREADSAFE=0` skip the OS/pthread layers that newlib does
-   not provide. The march deliberately omits `c`/`a`: `a` is not recognized by this assembler yet,
-   and `c` is recognized but compressed instruction emission is still in progress.)
+   not provide.
+
+   Note that you can also check for `riscv32` toolchain as well.
 
 4. Assemble `sqlite3.s` with both assemblers:
 
@@ -124,6 +124,8 @@ The following reproduces the parity check from scratch, all from the repository 
 
    By default, `as` should honor the architecture provided by `.attribute arch, "<arch>"` written by
    GCC, so the `-march` flag can be optional.
+
+   Note that you can also check for `riscv32` toolchain as well.
 
 5. Compare the two relocatable objects. `nob` builds `build/compare_objects` from
    `compare_objects.c` and runs it on the two objects:

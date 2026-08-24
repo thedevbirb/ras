@@ -784,6 +784,8 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_RORIW    0xfc00707f
 #define MATCH_REV8    0x6b805013
 #define MASK_REV8     0xfff0707f
+// REV8 has a per-XLEN encoding: the funct7 field carries the XLEN (0x34 = 32-bit, 0x35 = 64-bit).
+#define MATCH_REV8_RV32 0x69805013
 #define MATCH_ORC_B   0x28705013
 #define MASK_ORC_B    0xfff0707f
 
