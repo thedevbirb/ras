@@ -501,6 +501,17 @@ C_LINKAGE void __asan_unpoison_memory_region(void const volatile *addr, size_t s
 #endif
 
 // -----------------------------------------------------------------------------
+// Byte lookup tables
+// -----------------------------------------------------------------------------
+
+// Value marking a byte that is not an ASCII hex digit in `hex_table`.
+#define hex_table_invalid 0xFF
+
+// Maps ASCII hex digits to their 4-bit value; 0xFF for anything else. Lives in
+// the base layer because `base_string.c`'s escape-size computation needs it.
+global const U8 hex_table[256];
+
+// -----------------------------------------------------------------------------
 // Memory operation macros
 // -----------------------------------------------------------------------------
 

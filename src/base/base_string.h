@@ -76,6 +76,13 @@ String_Match_Flags;
 
 internal B32 String8__match_exact(String8 a, String8 b);
 
+// Three-way lexicographic byte comparison over the full spans: negative if
+// `a` sorts before `b`, positive if after, 0 if equal. A prefix sorts before
+// its extension. Unlike `strcmp`, the whole `count` is compared (embedded NULs
+// are ordinary bytes), so this is for length-delimited strings, not
+// NUL-terminated C strings. Used by sorting comparators.
+internal S32 String8__compare(String8 a, String8 b);
+
 // -----------------------------------------------------------------------------
 // Formatting
 // -----------------------------------------------------------------------------

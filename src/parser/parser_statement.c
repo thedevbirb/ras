@@ -223,6 +223,15 @@ statements_read
                         {
                                 U32 instruction_hash = FNV_hash_U32(identifier);
 
+                                if (!symbols_table->section_current->symbol_architecture)
+                                {
+                                        B32 symbol_is = 1;
+                                        String8 symbol_architecture_name = architecture_string(&options->extensions, options->xlen, arena, symbol_is);
+                                        Symbol_Ref *symbol_architecture = Symbols_Table__create(symbols_table, symbol_architecture_name, arena);
+                                        Symbol_Ref__update_section(symbol_architecture, symbols_table->section_current);
+                                        symbols_table->section_current->symbol_architecture = symbol_architecture;
+                                }
+
                                 Instruction_Parsed instruction =
                                         RISCV_Instruction__parse(arena, cursor, diagnostics, expressions, symbols_table, options, instruction_hash);
 

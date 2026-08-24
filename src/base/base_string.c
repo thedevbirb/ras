@@ -125,6 +125,31 @@ String8__match_exact(String8 a, String8 b)
 	return match;
 }
 
+// Lexicographic order over the full byte spans: compare up to the shorter
+// count, then break the tie by length. `memory_match` (memcmp) treats embedded
+// NULs as ordinary bytes, so this does *not* behave like `strcmp`, which stops
+// at the first NUL.
+internal S32
+String8__compare(String8 a, String8 b)
+{
+	U64 compare_count = min_m(a.count, b.count);
+	S32 result = memory_match(a.data, b.data, compare_count);
+	if (result != 0)
+	{
+		return result;
+	}
+
+	if (a.count < b.count)
+	{
+		return -1;
+	}
+	if (a.count > b.count)
+	{
+		return 1;
+	}
+	return 0;
+}
+
 internal B32
 String8__match_prefix(String8 source, String8 expected)
 {

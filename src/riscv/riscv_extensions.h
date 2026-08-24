@@ -45,27 +45,9 @@ struct RISCV_Implicit_Extension
 internal String8
 RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 string, U8 xlen);
 
-// Whether the extension `name` is present in the parsed list.
-internal B32
-RISCV_Extensions__supports(const RISCV_Extensions *extensions, String8 name);
-
 // Find an extension entry by name (e.g. to inspect its version), or return 0.
-internal RISCV_Extension *
-RISCV_Extensions__find(RISCV_Extensions *extensions, String8 name);
-
-// Whether `name` is a recognized extension (single-letter standard, known prefixed, or a custom `x*`).
-//
-// Mirrors the reference `riscv_ext_order` lookup for single letters and `riscv_recognized_prefixed_ext` for prefixed
-// ones.
-internal B32
-RISCV_extension_name_known(String8 name);
-
-// Parse the version part of an extension token (e.g. the "2p1" of "zba2p1"). Returns the number of characters consumed
-// (0 when there is no version) and writes major/minor (0 = not specified).
-//
-// Mirrors bfd/elfxx-riscv.c `riscv_parsing_subset_version`.
-internal U64
-RISCV_extensions_parse_version(String8 version, U8 *major_out, U8 *minor_out);
+internal const RISCV_Extension *
+RISCV_Extensions__find(const RISCV_Extension *extension, U64 count, String8 name);
 
 // Add the implicit extensions implied by the explicit ones.
 //

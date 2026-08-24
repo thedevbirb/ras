@@ -36,8 +36,10 @@ Options__default(Arena *arena);
 // Options__architecture_parse(Options *options, String8 architecture);
 
 // Return the architecture string created from extensions and xlen.
+//
+// If `symbol` is true, returns the `$xrv32`-like string for .symtab
 internal String8
-architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena);
+architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B32 symbol);
 
 internal U32
 ELF_Header_Flags__from_Options(Options *options);

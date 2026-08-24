@@ -675,6 +675,7 @@ struct Section
         Section             *previous;
         Section             *next;
         Symbol_Ref          *symbol;
+        Symbol_Ref          *symbol_architecture;
         Fixups               fixups;
         Fragments            fragments;
 

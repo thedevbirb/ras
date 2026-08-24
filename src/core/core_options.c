@@ -3,7 +3,19 @@ Options__default(Arena *arena)
 {
         RISCV_Extension *extensions_data = Arena__push_array_m(arena, RISCV_Extension, RISCV_Extensions__max);
         U64 extensions_count = array_count_m(RISCV_Extension__defaults);
-        memory_copy(extensions_data, RISCV_Extension__defaults, extensions_count);
+        U64 index = 0;
+        for (;;)
+        {
+                if (index >= extensions_count)
+                {
+                        break;
+                }
+
+                RISCV_Extension extension = RISCV_Extension__defaults[index];
+                extension.name = String8__duplicate(arena, RISCV_Extension__defaults[index].name);
+                extensions_data[index] = extension;
+                index += 1;
+        }
 
         Options result =
         {
@@ -76,19 +88,19 @@ Options__architecture_parse(Options *options, String8 architecture, Arena *arena
         String8 error_parse = RISCV_Extensions__parse(arena, &options->extensions, extensions, options->xlen);
         error = error.count ? error : error_parse;
 
-        options->embedded   = RISCV_Extensions__supports(&options->extensions, String8__literal("e"));
-        options->compressed = RISCV_Extensions__supports(&options->extensions, String8__literal("c"));
+        options->embedded   = !!RISCV_Extensions__find(options->extensions.data, options->extensions.count, String8__literal("e"));
+        options->compressed = !!RISCV_Extensions__find(options->extensions.data, options->extensions.count, String8__literal("c"));
 
         return error;
 }
 
 internal String8
-architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena)
+architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B32 symbol)
 {
         // Compute total char count first
 
-        // rv32/rv64
-        U64 count = 4;
+        // [$x]rv32/rv64
+        U64 count = (!!symbol * 2) + 4;
         U64 count_index = 0;
         for (;;)
         {
@@ -114,6 +126,11 @@ architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena)
         U8 *data = Arena__push_array_m(arena, U8, count + 1);
         String8 result = String8__new(data, count);
         String8 cursor = result;
+
+        if (symbol)
+        {
+                String8__serial_write(&cursor, (U8 *)"$x", 2);
+        }
 
         String8__serial_write(&cursor, (U8 *)"rv", 2);
         const char *xlen_cstring = xlen == 64 ? "64" : "32";
