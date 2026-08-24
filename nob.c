@@ -41,6 +41,10 @@ struct Options
 {
         int release;
         int codegen;
+        // Build and run the object comparator on the two provided objects.
+        int compare_objects;
+        const char *compare_objects_ras;
+        const char *compare_objects_gnu;
         // Name of a different compiler to use, by default `cc`.
         const char *compiler;
 };
@@ -54,6 +58,7 @@ print_usage(const char *program)
                         "\n"
                         "Options:\n"
                         "    --codegen     Regenerate "GENERATED_FOLDER"instruction_hashes.h from "CODEGEN_FOLDER"instruction_hashes.c.\n"
+                        "    --compare-objects <obj1> <obj2>  Build the object comparator and compare the two ELF objects.\n"
                         "    --cc <cc>     Use another C compiler to build the program, by default `cc`\n"
                         "    --debug       Build the debug configuration (default): -g -O0 + sanitizers.\n"
                         "    --release     Build the release configuration: -O2\n"
@@ -70,6 +75,19 @@ parse_options(int argc, char **argv)
                 if (strcmp(argv[i], "--codegen") == 0)
                 {
                         options.codegen = true;
+                }
+                else if (strcmp(argv[i], "--compare-objects") == 0)
+                {
+                        if (i + 2 >= argc)
+                        {
+                                fprintf(stderr, "expected two object files after --compare-objects\n");
+                                print_usage(argv[0]);
+                                exit(1);
+                        }
+                        options.compare_objects = true;
+                        options.compare_objects_ras = argv[i + 1];
+                        options.compare_objects_gnu = argv[i + 2];
+                        i += 2;
                 }
                 else if (strcmp(argv[i], "--release") == 0)
                 {
@@ -144,6 +162,45 @@ main(int argc, char **argv)
                 nob_cmd_append(&run, BUILD_FOLDER"instruction_hashes");
                 // This `.stdout_path` option is very very cool.
                 if (!nob_cmd_run(&run, .stdout_path = GENERATED_FOLDER"instruction_hashes.h")) return 1;
+
+                return 0;
+        }
+
+        if (options.compare_objects)
+        {
+                Nob_Cmd cmd = {0};
+
+                // Same shared flags as the main `ras` build, so the comparator is
+                // held to the same standard.
+                nob_cmd_append(&cmd, options.compiler,
+                        "-std=c11",
+                        "-Wall", "-Wextra",
+                        "-Wno-override-init",
+                        "-Wno-unused-function",
+                        "-Werror=shadow",
+                        "-Werror=incompatible-pointer-types",
+                        "-Werror=int-conversion",
+                        "-Werror=sign-compare",
+                        "-Werror=parentheses",
+                        "-I.",
+                        "-I"SRC_FOLDER,
+                        "-DU8_AS_UNSIGNED_CHAR",
+                        "-o", BUILD_FOLDER"compare_objects",
+                        "compare_objects.c");
+
+#ifdef NOB_CC_CLANG
+                nob_cmd_append(&cmd, "-Wno-gnu-designator");
+#endif
+
+                if (!nob_cmd_run(&cmd)) return 1;
+
+                // Run the comparison. The tool exits non-zero when differences
+                // are found, which is propagated as a failure here.
+                Nob_Cmd run = {0};
+                nob_cmd_append(&run, BUILD_FOLDER"compare_objects",
+                        options.compare_objects_ras,
+                        options.compare_objects_gnu);
+                if (!nob_cmd_run(&run)) return 1;
 
                 return 0;
         }
