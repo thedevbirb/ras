@@ -76,52 +76,63 @@ sufficiently large C codebase: the SQLite 3 amalgamation. The GCC-generated `sql
 compiler output using `rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul`) is assembled by `ras` and compared
 section-by-section against the object produced by GNU `as`.
 
-As of the latest recorded run, the output is **byte-per-byte identical for the major sections**: 9
-of the compared sections match exactly, and the `.text` section (nearly 890 KB of machine code) is
-byte-for-byte equal with no differences. The only remaining differences are in the `.rela.*`
-relocation sections (`.rela.text`, `.rela.data`, `.rela.rodata`, `.rela.srodata`), which have the
-same size but differ in ordering of the symbol indexes.
+As of the latest recorded run, the comparison is clean on every semantic check: the `.text`
+section (nearly 890 KB of machine code) is byte-for-byte identical, all four `.rela.*` sections
+match as sets of (offset, type, addend, referenced-symbol), and the `.symtab` matches as a
+multiset of all 26,991 symbols. In practice, sections are equivalent modulo symbol indexes.
+Similarly, the string tables may slightly differ just because `ras` doesn't support merging strings.
 
 ### Reproducing the test
 
-The following reproduces the parity check from scratch:
-amalgamation.
+The following reproduces the parity check from scratch, all from the repository root.
 
-1. Get the SQLite amalgamation. This project targets SQLite 3.53.4, Download
-   `sqlite-amalgamation-3530400.zip` from `https://www.sqlite.org/` and unzip it:
+1. Get the SQLite amalgamation. This project targets SQLite 3.53.4. Download
+   `sqlite-amalgamation-3530400.zip` from `https://www.sqlite.org/` and unzip it (a copy also
+   lives in the repo under `sqlite-amalgamation-3530400/`):
 
    ```sh
    unzip sqlite-amalgamation-3530400.zip
    ```
 
-2. Compile it to RISC-V assembly, with the bare-metal RISC-V toolchain (newlib), matching the
-   flags used for the milestone run:
+2. Build `ras`
+
+   ```sh
+   ./nob --release
+   ```
+
+3. Compile the amalgamation to RISC-V assembly with the bare-metal RISC-V toolchain (newlib),
+   matching the flags used for the milestone run:
 
    ```sh
    riscv64-unknown-elf-gcc -S -O2 \
        -DSQLITE_OS_OTHER=1 -DSQLITE_THREADSAFE=0 \
        -march=rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul -mabi=lp64d \
-       sqlite3.c -o sqlite3.s
+       sqlite-amalgamation-3530400/sqlite3.c -o sqlite-amalgamation-3530400/sqlite3.s
    ```
 
    (`-DSQLITE_OS_OTHER=1` and `-DSQLITE_THREADSAFE=0` skip the OS/pthread layers that newlib does
    not provide. The march deliberately omits `c`/`a`: `a` is not recognized by this assembler yet,
    and `c` is recognized but compressed instruction emission is still in progress.)
 
-3. Assemble with both assemblers and compare the resulting relocatable objects section by
-   section using the `compare_objects.py` script:
+4. Assemble `sqlite3.s` with both assemblers:
 
    ```sh
-   ./build/ras sqlite3.s -o sqlite3_ras.o
+   ./build/ras sqlite-amalgamation-3530400/sqlite3.s -o sqlite-amalgamation-3530400/sqlite3_ras.o
    riscv64-unknown-elf-as -march=rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul \
-       -mabi=lp64d sqlite3.s -o sqlite3_gnu.o
-   python3 compare_objects.py
+       -mabi=lp64d sqlite-amalgamation-3530400/sqlite3.s -o sqlite-amalgamation-3530400/sqlite3_gnu.o
    ```
 
-   The script prints a per-section `OK`/`DIFF` listing and a `JSON:` summary of the identical and
-   differing sections.
+   By default, `as` should honor the architecture provided by `.attribute arch, "<arch>"` written by
+   GCC, so the `-march` flag can be optional.
 
-Yes, the script is obviously AI-generated. I know this is far from optimal, but creating a separate
-C program that does object file equivalence isn't exactly small scope either, and I've decided to
-defer it. For now, I've found this enough for finding obvious bugs, given the strong feedback loop
-model that an agent can use.
+5. Compare the two relocatable objects. `nob` builds `build/compare_objects` from
+   `compare_objects.c` and runs it on the two objects:
+
+   ```sh
+   ./nob --compare-objects sqlite-amalgamation-3530400/sqlite3_ras.o sqlite-amalgamation-3530400/sqlite3_gnu.o
+   ```
+
+   The comparator prints a per-section `OK`/`DIFF` listing plus a `=== SUMMARY ===` block with the
+   counts of identical and differing sections, the list of differences, and the first differing
+   byte of `.text`. It takes any two relocatable ELF32 or ELF64 objects, exits `0` when they are
+   equivalent, and non-zero when any difference is found.
