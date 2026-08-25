@@ -162,7 +162,7 @@ expression_evaluate(Expression *node_root);
 
 // Push a diagnostic anchored on the given expression.
 internal Diagnostic *
-Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message);
+Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, DG dg);
 
 // Evaluate all expressions while finalizing symbols. See `Symbol_Ref__resolve`/`Symbols_Table__finalize`.
 internal void

@@ -45,4 +45,3 @@ internal U32
 ELF_Header_Flags__from_Options(Options *options);
 
 #endif // CORE_OPTIONS_H
-

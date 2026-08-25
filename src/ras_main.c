@@ -266,7 +266,7 @@ main(S32 argument_count, char **argument_vector)
         for each_node_m(diagnostics->first, diagnostic)
         {
                 exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
-                diagnostic_print(diagnostic, &source, arena);
+                Diagnostic__print(diagnostic, &source, arena);
                 DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
         }
         if (exit_status)
@@ -282,7 +282,7 @@ main(S32 argument_count, char **argument_vector)
         for each_node_m(diagnostics->first, diagnostic)
         {
                 exit_status |= diagnostic->kind == Diagnostic_Kind__Error;
-                diagnostic_print(diagnostic, &source, arena);
+                Diagnostic__print(diagnostic, &source, arena);
                 DLL_remove_m(diagnostics->first, diagnostics->last, diagnostic);
         }
         if (exit_status)

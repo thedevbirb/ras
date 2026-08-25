@@ -64,8 +64,7 @@ write_object_file
 
                 if (section->elf.entry_size && (section->elf.size % section->elf.entry_size))
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Size_Not_Multiple);
                         diagnostic->message    = String8__format(arena, "section '%.*s' size (%u bytes) is not a multiple of its entry size (%u bytes)",
                                                                  String8__varg(*section->symbol->name), section->elf.size, section->elf.entry_size);
                         diagnostic->location   = section->symbol->location;
@@ -78,11 +77,9 @@ write_object_file
                 B32 truncate = options->xlen == XLEN_32 && !S64_bits_range_in(symbol->value, XLEN_32);
                 if (truncate)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Warning;
-                        diagnostic->message    = String8__literal("symbol value exceeds 32 bits, will be truncated");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Symbol_Value_Truncated);
                         diagnostic->location   = symbol->location;
-                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+                        diagnostic->ranges[0]  = Range1_U32_m(symbol->location, symbol->name->count);
                 }
         }
         Expressions__finalize(expressions, diagnostics);

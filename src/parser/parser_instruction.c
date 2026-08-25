@@ -133,8 +133,7 @@ RISCV_Instruction__parse
                                         B32 constant_is = expression->evaluation == Expression_Kind__Constant;
                                         if (!(symbol_is || constant_is))
                                         {
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("expression must be either symbol or a constant");
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Expression_Symbol_Or_Constant);
                                                 diagnostic->location   = expression->location_range.v[0];
                                                 diagnostic->ranges[0]  = expression->location_range;
                                         }
@@ -148,8 +147,7 @@ RISCV_Instruction__parse
                                         B32 constant_fits = sign_extended_32_bit_is_m(expression->integer_value);
                                         if (constant_is && !constant_fits)
                                         {
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("offset too large for this opcode");
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Offset_Too_Large);
                                                 diagnostic->location   = expression->location_range.v[0];
                                                 diagnostic->ranges[0]  = expression->location_range;
                                         }
@@ -164,8 +162,7 @@ RISCV_Instruction__parse
 
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {
-                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                               diagnostic->message    = String8__literal("Constant expression expected");
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Expression_Expected);
                                                diagnostic->location   = expression->location_range.v[0];
                                                diagnostic->ranges[0]  = expression->location_range;
                                         }
@@ -325,8 +322,7 @@ RISCV_Instruction__parse
                                                 B32 valid = (lui_must_be && hash == HASH_lui) || hash == HASH_auipc;
                                                 if (!valid)
                                                 {
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("invalid relocation operator for opcode");
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Relocation_Operator_Invalid_Instruction);
                                                         diagnostic->location   = location_current;
                                                         diagnostic->ranges[0]  = Range1_U32_m(opcode_token.location, opcode_token.size);
                                                         diagnostic->ranges[1]  = (Range1_U32){{ location_current, location_end_of_relocation }};
@@ -341,9 +337,8 @@ RISCV_Instruction__parse
                                                         B32 fits = 0 <= result && result < (S64)(1 << 20);
                                                         if (!fits)
                                                         {
-                                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Value_Range);
                                                                 diagnostic->location   = expression->location_range.v[0];
-                                                                diagnostic->message    = String8__literal("constant expression value must in the range 0..1048576");
                                                                 diagnostic->ranges[0]  = expression->location_range;
                                                         }
 
@@ -357,8 +352,7 @@ RISCV_Instruction__parse
                                                 {
 
 
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("Non-constant expression must have an appropriate relocation operator");
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Relocation_Non_Constant);
                                                         diagnostic->location   = expression->location_range.v[0];
                                                         diagnostic->ranges[0]  = expression->location_range;
                                                 }
@@ -381,8 +375,7 @@ RISCV_Instruction__parse
                                         B32 fits = 0 <= value && value < options->xlen;
                                         if (expression->evaluation != Expression_Kind__Constant || !fits)
                                         {
-                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                               diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Shift_Doesnt_Fit);
                                                diagnostic->location   = expression->location_range.v[0];
                                                diagnostic->ranges[0]  = expression->location_range;
                                         }
@@ -400,8 +393,7 @@ RISCV_Instruction__parse
                                         B32 fits = 0 <= value && value < (1 << 5);
                                         if (expression->evaluation != Expression_Kind__Constant || !fits)
                                         {
-                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                               diagnostic->message    = String8__literal("shift amount doesn't fit register size");
+                                               Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Shift_Doesnt_Fit);
                                                diagnostic->location   = expression->location_range.v[0];
                                                diagnostic->ranges[0]  = expression->location_range;
                                         }
@@ -537,9 +529,8 @@ RISCV_Instruction__parse
 
         if (!match)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Opcode_Format_Unrecognized);
                 diagnostic->location   = opcode_token.location;
-                diagnostic->message    = String8__literal("unrecognized opcode format");
                 diagnostic->ranges[0]  = Range1_U32_m(opcode_token.location, opcode_token.size);
         }
 

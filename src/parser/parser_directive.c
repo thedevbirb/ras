@@ -40,9 +40,8 @@ directive_binding
         token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__Identifier)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location = cursor->current.location;
-                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Identifier_Expected);
+                diagnostic->location   = cursor->current.location;
         }
 
         String8 name = Token_Cursor__text(cursor);
@@ -106,9 +105,8 @@ directive_set_like
         token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__Identifier)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location = cursor->current.location;
-                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__Identifier_Expected];
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Identifier_Expected);
+                diagnostic->location   = cursor->current.location;
         }
 
         // What if you set the name of a section or a register? Well, for a section, you can't since a section is a
@@ -151,9 +149,8 @@ directive_set_like
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
                 diagnostic->location   = cursor->current.location;
-                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 
         symbol->flags |= Symbol_Flags__Resolving;
@@ -239,11 +236,9 @@ directive_data
 
                         if (!fits)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->kind      = Diagnostic_Kind__Warning;
-                                diagnostic->location  = expression->location_range.v[0];
-                                diagnostic->message   = String8__literal("value too large, truncated");
-                                diagnostic->ranges[0] = expression->location_range;
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Value_Too_Large_Truncated);
+                                diagnostic->location   = expression->location_range.v[0];
+                                diagnostic->ranges[0]  = expression->location_range;
                         }
                 }
                 else
@@ -283,7 +278,7 @@ directive_data
         B32 padding_invalid      = (directive_total_size % section->elf.alignment) != 0;
         if (section_code_is && padding_invalid)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Data_Directive_Disrupts_Alignment);
                 diagnostic->message    = String8__format(arena, "data directive total size (%u bytes) disrupts alignment (%u bytes) in code section", directive_total_size, section->elf.alignment);
                 diagnostic->location   = location_begin;
                 diagnostic->ranges[0]  = (Range1_U32){{ location_begin, cursor->current.location }};
@@ -303,9 +298,8 @@ directive_string
         token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__String)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location = cursor->current.location;
-                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_Literal_Expected);
+                diagnostic->location   = cursor->current.location;
         }
 
         // Can be of the form "\nhello\n", so with quotes and optional escaped characters.
@@ -317,8 +311,7 @@ directive_string
         U32 error_index = bytes_escaped_fill(content, data, size_escaped - !!null_terminated);
         if (error_index)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("invalid escape sequence");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Directive_Escape_Sequence_Invalid);
                 diagnostic->location   = cursor->current.location + error_index;
                 diagnostic->ranges[0]  = (Range1_U32){{ diagnostic->location, diagnostic->location + 1 }};
         }
@@ -338,9 +331,8 @@ directive_base64
         token_next(cursor, diagnostics);
         if (cursor->current.kind != Token_Kind__String)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->location = cursor->current.location;
-                diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_Literal_Expected);
+                diagnostic->location   = cursor->current.location;
         }
 
         String8 text    = Token_Cursor__text(cursor);
@@ -350,8 +342,7 @@ directive_base64
         U8  replacement_data[4] = {0};
         if (content.count % 4 != 0)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("base64 string length should a multiple of 4");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Base64_Length_Multiple_4);
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
 
@@ -414,8 +405,7 @@ directive_base64
                         U8 value = base64_table[character];
                         if (value == 0xFF)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = String8__literal("invalid base64 character");
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Base64_Character_Invalid);
                                 diagnostic->location   = cursor->current.location + input_index;
                         }
 
@@ -496,9 +486,8 @@ directive_section
         String8 name = Token_Cursor__text(cursor);
         if (!name.count)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Name_Empty);
                 diagnostic->location   = location_start;
-                diagnostic->message    = String8__literal("section directive has empty name");
                 diagnostic->ranges[0]  = (Range1_U32){{ location_start, cursor->current.location + cursor->current.size }};
         }
 
@@ -540,9 +529,8 @@ directive_section
                 token_next(cursor, diagnostics);
                 if (cursor->current.kind != Token_Kind__String)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->location = cursor->current.location;
-                        diagnostic->message  = Parser_Error_Kind_messages[Parser_Error_Kind__String_Literal_Expected];
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_Literal_Expected);
+                        diagnostic->location   = cursor->current.location;
                 }
                 String8 text    = Token_Cursor__text(cursor);
                 String8 content = String8__skip_chop(text);
@@ -550,18 +538,14 @@ directive_section
 
                 if (flags == ELF_Section_Header_Flags__Invalid)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Error;
-                        diagnostic->message    = String8__literal("invalid section flags, expected: " ELF_Section_Header_Flags__cstring);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Flags_Invalid);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                 }
 
                 if (symbol->section->special && symbol->section->elf.flags != flags)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Warning;
-                        diagnostic->message    = String8__literal("ignoring redefinition of flags for special section");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Flags_Redefinition_Ignored);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
                 }
@@ -580,27 +564,23 @@ directive_section
                 token_next(cursor, diagnostics);
                 if (cursor->current.kind != Token_Kind__At)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Type_Syntax_Invalid);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->message    = String8__literal("invalid section type syntax, expected @type");
                 }
                 token_next(cursor, diagnostics);
                 String8 content = Token_Cursor__text(cursor);
                 ELF_Section_Header_Type type = ELF_Section_Header_Type__from_String8(content);
                 if (type == ELF_Section_Header_Type__Invalid)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("invalid section type");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Type_Invalid);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->ranges[0] = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                 }
                 if (symbol->section->special && symbol->section->elf.type != type)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind       = Diagnostic_Kind__Warning;
-                        diagnostic->message    = String8__literal("ignoring redefinition of type for special section");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Type_Redefinition_Ignored);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                 }
                 else
                 {
@@ -622,8 +602,7 @@ directive_section
                         S64 entsize = entry_size_expression->integer_value;
                         if (entsize < 0)
                         {
-                                Diagnostic *diagnostic = Diagnostics__expression(diagnostics, entry_size_expression, String8__literal("invalid section entry size, ignored"));
-                                diagnostic->kind = Diagnostic_Kind__Warning;
+                                Diagnostics__expression(diagnostics, entry_size_expression, DG__Entry_Size_Invalid_Ignored);
                         }
                         else
                         {
@@ -632,7 +611,7 @@ directive_section
                 }
                 else
                 {
-                        Diagnostics__expression(diagnostics, entry_size_expression, String8__literal("constant expression expected"));
+                        Diagnostics__expression(diagnostics, entry_size_expression, DG__Constant_Expression_Expected_Lower);
                 }
         }
 
@@ -692,8 +671,7 @@ directive_align
                 // both very large values and negative ones are unsupported.
                 if ((value > 32 && power_of_two_exponent) || value > U32_max)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("alignment larger than 2^32 bytes");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Alignment_Larger_2_32);
                         diagnostic->location   = alignment_expression->location_range.v[0];
                         diagnostic->ranges[0]  = alignment_expression->location_range;
                         value = 0;
@@ -701,9 +679,8 @@ directive_align
                 B32 bytes_boundary_invalid = !power_of_two_exponent && !pow_2_is_m(value) && !value;
                 if (bytes_boundary_invalid)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Alignment_Not_Power_Of_Two);
                         diagnostic->kind       = Diagnostic_Kind__Warning;
-                        diagnostic->message    = String8__literal("alignment boundary not a power of two");
                         diagnostic->location   = alignment_expression->location_range.v[0];
                         diagnostic->ranges[0]  = alignment_expression->location_range;
                         value = 0;
@@ -719,10 +696,9 @@ directive_align
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message   = String8__literal("constant expression expected");
-                diagnostic->location  = alignment_expression->location_range.v[0];
-                diagnostic->ranges[0] = alignment_expression->location_range;
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Expression_Expected_Lower);
+                diagnostic->location   = alignment_expression->location_range.v[0];
+                diagnostic->ranges[0]  = alignment_expression->location_range;
         }
 
         if (cursor->current.kind == Token_Kind__Comma)
@@ -738,19 +714,17 @@ directive_align
                         U64 pattern_evaluation = (U64)expression_evaluate(pattern_expression);
                         if (pattern_expression->evaluation != Expression_Kind__Constant)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = String8__literal("constant expression expected");
-                                diagnostic->location  = pattern_expression->location_range.v[0];
-                                diagnostic->ranges[0] = pattern_expression->location_range;
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Expression_Expected_Lower);
+                                diagnostic->location   = pattern_expression->location_range.v[0];
+                                diagnostic->ranges[0]  = pattern_expression->location_range;
                         }
 
                         U64 pattern = pattern_evaluation >> (64 - pattern_size);
                         if (pattern != pattern_evaluation)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = String8__literal("alignment pattern larger than pattern size");
-                                diagnostic->location  = pattern_expression->location_range.v[0];
-                                diagnostic->ranges[0] = pattern_expression->location_range;
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Alignment_Pattern_Too_Large);
+                                diagnostic->location   = pattern_expression->location_range.v[0];
+                                diagnostic->ranges[0]  = pattern_expression->location_range;
                         }
 
                         alignment.pattern = pattern;
@@ -767,29 +741,24 @@ directive_align
                 S64 write_size_max = expression_evaluate(write_size_max_expression);
                 if (write_size_max_expression->evaluation != Expression_Kind__Constant)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message  = String8__literal("constant expression expected");
-                        diagnostic->location  = write_size_max_expression->location_range.v[0];
-                        diagnostic->ranges[0] = write_size_max_expression->location_range;
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Expression_Expected_Lower);
+                        diagnostic->location   = write_size_max_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = write_size_max_expression->location_range;
                 }
                 if (write_size_max <= 0)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind     = Diagnostic_Kind__Warning;
-                        diagnostic->message  = String8__literal("non-positive max alignment write size, ensuring it is zero");
-                        diagnostic->location  = write_size_max_expression->location_range.v[0];
-                        diagnostic->ranges[0] = write_size_max_expression->location_range;
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Alignment_Max_Non_Positive);
+                        diagnostic->location   = write_size_max_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = write_size_max_expression->location_range;
                         write_size_max = 0;
                 }
                 // NOTE: I don't know what should be an upper limit but there should be one probably.
                 // GNU as allows you to pass zero to NOT provide one which I think can be risky.
                 if (write_size_max > U32_max)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->kind     = Diagnostic_Kind__Warning;
-                        diagnostic->message  = String8__literal("capping fill size to 2^31 bytes");
-                        diagnostic->location  = write_size_max_expression->location_range.v[0];
-                        diagnostic->ranges[0] = write_size_max_expression->location_range;
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Fill_Size_Capping);
+                        diagnostic->location   = write_size_max_expression->location_range.v[0];
+                        diagnostic->ranges[0]  = write_size_max_expression->location_range;
                         write_size_max = U32_max;
                 }
                 alignment.write_size_max = (U32)write_size_max;
@@ -836,9 +805,8 @@ directive_fill
 
                 if (fill_size != fill_capped || !constant)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->location = cursor->current.location;
-                        diagnostic->message  = String8__literal("expected constant size expression between 1 and 8 included");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Fill_Size_1_8);
+                        diagnostic->location   = cursor->current.location;
                 }
                 fill.pattern_size = fill_capped;
         }
@@ -853,9 +821,8 @@ directive_fill
                 U64 fill_pattern = (U64)expression_evaluate(pattern_expression);
                 if (pattern_expression->evaluation != Expression_Kind__Constant)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->location = cursor->current.location;
-                        diagnostic->message  = String8__literal("constant expression expected");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Constant_Expression_Expected_Lower);
+                        diagnostic->location   = cursor->current.location;
                 }
                 fill.pattern = fill_pattern;
         }
@@ -887,8 +854,7 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *option
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("unknown option");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Option_Unknown);
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
@@ -923,9 +889,8 @@ directive_size
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
                 diagnostic->location   = cursor->current.location;
-                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 
         return;
@@ -966,8 +931,7 @@ directive_file
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("expected string file");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_File_Expected);
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
@@ -1004,16 +968,14 @@ directive_type
                 }
                 else
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Type_Syntax_Expected);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->message    = String8__literal("`.type <name>,@<type>` syntax expected");
                 }
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
                 diagnostic->location   = cursor->current.location;
-                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Comma_Expected];
         }
 }
 
@@ -1027,8 +989,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
 
         if (tag == RISCV_Tag__None)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("unknown attribute");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Attribute_Unknown);
                 diagnostic->location   = cursor->current.location;
                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
@@ -1056,8 +1017,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
 
                         if (assembly_started)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = String8__literal("cannot set this attribute after assembly started");
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Attribute_After_Assembly);
                                 diagnostic->location   = cursor->current.location;
                                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
@@ -1086,7 +1046,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                                 String8 error = Options__architecture_parse(options, value_content, diagnostics->arena);
                                                 if (error.count)
                                                 {
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Architecture_Parse);
                                                         diagnostic->message    = error;
                                                         diagnostic->location   = cursor->current.location;
                                                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
@@ -1106,8 +1066,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                                 }
                                                 else
                                                 {
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("invalid value for attributes, must be either 0 or 1");
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Attribute_Value_0_1);
                                                         diagnostic->location   = cursor->current.location;
                                                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                                 }
@@ -1118,16 +1077,14 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                         }
                         else
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = String8__literal("expected number or string, depending on attribute");
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Number_Or_String_Expected);
                                 diagnostic->location   = cursor->current.location;
                                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
                 }
                 else
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("comma expected");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
                         diagnostic->location   = cursor->current.location;
                 }
 
@@ -1191,21 +1148,20 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
 
                 if (size_expression->evaluation != Expression_Kind__Constant)
                 {
-                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have constant evaluation"));
+                        Diagnostics__expression(diagnostics, size_expression, DG__Size_Expression_Not_Constant);
                 }
                 else if (size <= 0)
                 {
-                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression expected to have positive evaluation"));
+                        Diagnostics__expression(diagnostics, size_expression, DG__Size_Expression_Not_Positive);
                 }
                 else if (xlen == XLEN_32 && (U64)size > U32_max)
                 {
-                        Diagnostics__expression(diagnostics, size_expression, String8__literal("size expression exceeds 32 bits"));
+                        Diagnostics__expression(diagnostics, size_expression, DG__Size_Expression_Exceeds_32);
                 }
                 else if (symbol->size_expression && symbol->size_expression->integer_value != size)
                 {
                         // Fix one size per object file, the linker will pick the largest among them.
-                        Diagnostic *diagnostic = Diagnostics__expression(diagnostics, size_expression, String8__literal("size already set, not changing it"));
-                        diagnostic->kind       = Diagnostic_Kind__Warning;
+                        Diagnostics__expression(diagnostics, size_expression, DG__Size_Already_Set);
                 }
 
                 U64 alignment_boundary = 1;
@@ -1228,15 +1184,15 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
 
                         if (alignment_expression->evaluation != Expression_Kind__Constant)
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary expression expected to have constant evaluation"));
+                                Diagnostics__expression(diagnostics, alignment_expression, DG__Alignment_Boundary_Not_Constant);
                         }
                         else if ((S64)alignment_boundary <= 0)
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary expression expected to have positive evaluation"));
+                                Diagnostics__expression(diagnostics, alignment_expression, DG__Alignment_Boundary_Not_Positive);
                         }
                         else if (!pow_2_is_m(alignment_boundary))
                         {
-                                Diagnostics__expression(diagnostics, alignment_expression, String8__literal("alignment_boundary is not a power of two"));
+                                Diagnostics__expression(diagnostics, alignment_expression, DG__Alignment_Boundary_Not_Power_Of_Two);
                         }
                         else
                         {
@@ -1278,8 +1234,7 @@ directive_common(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, S
         }
         else
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = String8__literal("comma expected");
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
                 diagnostic->location   = cursor->current.location;
         }
 }
@@ -1299,9 +1254,8 @@ directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics)
                 token_next(cursor, diagnostics);
         }
 
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Directive_Unsupported);
         diagnostic->kind       = Diagnostic_Kind__Warning;
-        diagnostic->message    = String8__literal("directive unsupported, skipping");
         diagnostic->location   = backup.current.location;
         diagnostic->ranges[0]  = Range1_U32_m(backup.current.location, backup.current.size);
 

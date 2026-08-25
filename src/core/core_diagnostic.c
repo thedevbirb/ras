@@ -1,3 +1,18 @@
+internal Diagnostics *
+Diagnostics__new(Arena *arena)
+{
+        Diagnostics *result = Arena__push_struct_m(arena, Diagnostics);
+        Diagnostic  *dummy  = Arena__push_struct_m(arena, Diagnostic);
+
+        *result = (Diagnostics)
+        {
+                .arena = arena,
+                .dummy = dummy,
+                .errors_max = Diagnostics__errors_max_default,
+        };
+        return result;
+}
+
 internal void
 set_color(FILE *f, Diagnostic_Style s)
 {
@@ -18,28 +33,47 @@ reset_color(FILE *f)
 }
 
 internal void
-print_recap_line(U8 *name, U32 line_number, U32 column_number, Diagnostic_Kind kind)
+print_recap_line(U8 *name, U32 line_number, U32 column_number, Diagnostic_Kind kind, DG code)
 {
         set_color(stderr, Diagnostic_Style__default_bold);
         fprintf(stderr, "%s:%d:%d:", name, line_number, column_number);
         reset_color(stderr);
         fprintf(stderr, " ");
         set_color(stderr, diagnostic_styles[kind]);
+        if (kind == Diagnostic_Kind__Note)
+        {
+                fprintf(stderr, "%s", diagnostic_labels[kind]);
+        }
+        else
+        {
+                fprintf(stderr, "%s[E%05d]", diagnostic_labels[kind], code);
+        }
+        reset_color(stderr);
+        set_color(stderr, Diagnostic_Style__default_bold);
+        fprintf(stderr, ": ");
+        reset_color(stderr);
+}
+
+internal void
+print_raw_message(Diagnostic_Kind kind, String8 message)
+{
+        set_color(stderr, Diagnostic_Style__default_bold);
+        fprintf(stderr, "ras");
+        reset_color(stderr);
+        fprintf(stderr, " ");
+        set_color(stderr, diagnostic_styles[kind]);
         fprintf(stderr, "%s:", diagnostic_labels[kind]);
         reset_color(stderr);
         fprintf(stderr, " ");
+        set_color(stderr, Diagnostic_Style__default_bold);
+        fprintf(stderr, "%*s\n",  String8__varg(message));
+        reset_color(stderr);
+        return;
 }
-
 
 // TODO(feature): support multiple sources.
 internal void
-diagnostic_print
-(
-        Diagnostic *diagnostic,
-        Source     *source,
-        // For lazily computing the line start indexes.
-        Arena      *arena
-)
+Diagnostic__print(Diagnostic *diagnostic, Source *source, Arena *arena)
 {
         // Fill those indexes lazily if it hasn't been done already.
         if (!source->line_start_indexes)
@@ -82,7 +116,7 @@ diagnostic_print
         U32 line_number      = row_index    + 1;
         U32 column_number    = column_index + 1;
 
-        print_recap_line(source->name, line_number, column_number, diagnostic->kind);
+        print_recap_line(source->name, line_number, column_number, diagnostic->kind, diagnostic->code);
         if (diagnostic->kind <= Diagnostic_Kind__Warning)
         {
                 set_color(stderr, Diagnostic_Style__default_bold);
@@ -149,4 +183,38 @@ diagnostic_print
         fprintf(stderr, "\n");
 
         return;
+}
+
+internal Diagnostic *
+Diagnostics__push(Diagnostics *diagnostics, DG code)
+{
+        Diagnostic *result = diagnostics->dummy;
+        DG_Info info = DG_Info__table[code];
+
+        B32 emit = !diagnostics->count_max || diagnostics->count < diagnostics->count_max;
+        if (info.severity == Diagnostic_Kind__Error)
+        {
+                emit = emit && (!diagnostics->errors_max || diagnostics->errors_count < diagnostics->errors_max)
+                            && (!diagnostics->limit_max || diagnostics->limit_count < diagnostics->limit_max);
+
+                if (emit)
+                {
+                        diagnostics->limit_count += 1;
+                        diagnostics->errors_count += 1;
+                }
+        }
+
+        if (emit)
+        {
+                result = Arena__push_struct_m(diagnostics->arena, Diagnostic);
+                DLL_push_back_m(diagnostics->first, diagnostics->last, result);
+
+                diagnostics->count += 1;
+        }
+
+        result->code    = code;
+        result->kind    = info.severity;
+        result->message = info.message;
+
+        return result;
 }

@@ -227,8 +227,7 @@ expression_parse_with_flags
                                         Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, forward, arena);
                                         if (backward && symbol_numeric.symbol->section == &Section__undefined)
                                         {
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("backward label reference not found");
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Label_Backward_Not_Found);
                                                 diagnostic->location   = cursor->current.location;
                                                 diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, peek.location + peek.size }};
                                         }
@@ -356,8 +355,7 @@ expression_parse_with_flags
                                 frame->null_denotation_parsed = 1;
                                 frame->node->location = cursor->current.location;
 
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Expression_Null_Denotation);
                                 diagnostic->location   = cursor->current.location;
                                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
 
@@ -399,8 +397,7 @@ expression_parse_with_flags
                 {
                         if (!parenthesis_frame)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Right_Unmatching];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Parenthesis_Right_Unmatched);
                                 diagnostic->location   = cursor->current.location;
                         }
 
@@ -474,8 +471,7 @@ expression_parse_with_flags
 
         if (parenthesis_frame)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Parenthesis_Left_Unclosed];
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Parenthesis_Left_Unclosed);
                 diagnostic->location   = parenthesis_frame->location;
         }
 
@@ -540,10 +536,9 @@ try_parse_relocation_prefix
 
                 if (!(*relocation_out))
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Relocation_Operator_Invalid_Instruction);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
-                        diagnostic->message    = String8__literal("invalid relocation operator for instruction");
                 }
 
                 token_next(cursor, diagnostics);

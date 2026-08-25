@@ -176,8 +176,7 @@ lex_at
                         if (index >= count)
                         {
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Unterminated];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Character_Literal_Unterminated);
                                 diagnostic->location = source->start_offset_logical + index;
 
                         }
@@ -205,8 +204,7 @@ lex_at
                                         if (error_index)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Escape_Sequence_Invalid);
                                                 diagnostic->location = source->start_offset_logical + error_index;
                                         }
                                         result = result * 16 + first;
@@ -236,8 +234,7 @@ lex_at
                                         if (result == escape_value_invalid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Escape_Sequence_Invalid);
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
                                         index += 1;
@@ -246,8 +243,7 @@ lex_at
                         else if (data[index] == '\n')
                         {
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Multiline_Unsupported];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Character_Literal_Multiline);
                                 diagnostic->location = source->start_offset_logical + index;
                         }
                         else
@@ -260,8 +256,7 @@ lex_at
                         {
                                 // Could add hint here?
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Literal_Unterminated];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Character_Literal_Unterminated);
                                 diagnostic->location = source->start_offset_logical + index;
                         }
 
@@ -294,8 +289,7 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Escape_Sequence_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Escape_Sequence_Invalid);
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
 
@@ -314,8 +308,7 @@ lex_at
                                                 if (error_index)
                                                 {
                                                         token.kind = Token_Kind__Error;
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid];
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Numeric_Hex_Literal_Invalid);
                                                         diagnostic->location = source->start_offset_logical + error_index;
                                                 }
                                         }
@@ -331,8 +324,7 @@ lex_at
                                 else if (data[index] == '\n')
                                 {
                                         token.kind = Token_Kind__Error;
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__String_Multiline_Unsupported];
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_Multiline_Unsupported);
                                         diagnostic->location = source->start_offset_logical + index;
                                 }
                         }
@@ -340,8 +332,7 @@ lex_at
                         if (!quote_ending_found && token.kind != Token_Kind__Error)
                         {
                                         token.kind = Token_Kind__Error;
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__String_Literal_Unterminated];
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__String_Literal_Unterminated);
                                         diagnostic->location = source->start_offset_logical + index;
                         }
                 } break;
@@ -389,8 +380,7 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Hex_Literal_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Numeric_Hex_Literal_Invalid);
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
                                 }
@@ -412,8 +402,7 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Binary_Literal_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Numeric_Binary_Literal_Invalid);
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
                                 }
@@ -436,8 +425,7 @@ lex_at
                                         if (!valid)
                                         {
                                                 token.kind = Token_Kind__Error;
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Numeric_Octal_Literal_Invalid];
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Numeric_Octal_Literal_Invalid);
                                                 diagnostic->location = source->start_offset_logical + index;
                                         }
                                 }
@@ -460,8 +448,7 @@ lex_at
                         {
                                 // NOTE: decide on whether erroring after a while bunch on invalid tokens are read.
                                 token.kind = Token_Kind__Error;
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message  = lexer_error_kind_messages[Lexer_Error_Kind__Character_Unexpected];
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Character_Unexpected);
                                 diagnostic->location = source->start_offset_logical + index;
 
                                 index += 1;

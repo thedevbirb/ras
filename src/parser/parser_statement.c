@@ -15,6 +15,10 @@ statements_read
                 B32            label_found            = 0;
                 B32            empty_line             = 0;
 
+                // Max 1 error diagnostic per line
+                diagnostics->limit_count = 0;
+                diagnostics->limit_max   = 1;
+
                 U32 source_index_start = cursor->source_index;
                 B32 break_should_outer = !progress
                                       || cursor->current.kind == Token_Kind__Error;
@@ -43,8 +47,7 @@ statements_read
                         }
                         else
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                diagnostic->message    = String8__literal("expected ':' for numeric label declaration");
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Label_Numeric_Expected_Colon);
                                 diagnostic->location   = cursor->current.location;
                                 diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
@@ -74,16 +77,13 @@ statements_read
                                         // NOTE: GNU as accepts the case where the fragment is the same AND same offset.
                                         // It also accepts defining the symbol via `.set`, and then as a label.
                                         {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Label_Duplicate);
                                         diagnostic->location   = cursor->current.location;
-                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
                                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                         }
                                         {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->kind       = Diagnostic_Kind__Note;
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Declaration_Previous);
                                         diagnostic->location   = symbol->location;
-                                        diagnostic->message    = Diagnostic__previous_declaration_String8;
                                         diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + identifier.count }};
                                         }
                                 }
@@ -101,9 +101,8 @@ statements_read
                                 {
                                 case Directive_Kind__None:
                                 {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Directive_Unknown);
                                         diagnostic->location   = cursor->current.location;
-                                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Directive_Unknown];
                                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                 } break;
 
@@ -248,9 +247,8 @@ statements_read
                 default:
                 {
                         // Sort of catch-all
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Line_Invalid);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Line_Invalid];
                         diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                 } break;
                 }
@@ -275,9 +273,8 @@ statements_read
 
                 if (junk_location_end)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Line_End_Junk);
                         diagnostic->location   = junk_location_begin;
-                        diagnostic->message    = String8__literal("junk found at the end of line");
                         diagnostic->ranges[0]  = (Range1_U32){{ junk_location_begin, junk_location_end }};
                 }
 

@@ -227,10 +227,9 @@ Expressions__finalize(Expressions *expressions, Diagnostics *diagnostics)
 }
 
 internal Diagnostic *
-Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, String8 message)
+Diagnostics__expression(Diagnostics *diagnostics, Expression *expression, DG dg)
 {
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->message    = message;
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics, dg);
         diagnostic->location   = expression->location;
         diagnostic->ranges[0]  = expression->location_range;
         return diagnostic;
@@ -782,10 +781,9 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                 {
                                         {
                                         // TODO(low): finding the previous definition here is NOT trivial.
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("recursive symbolic expression found");
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Expression_Recursive_Symbolic);
                                         diagnostic->location   = symbol->location;
-                                        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+                                        diagnostic->ranges[0]  = Range1_U32_m(symbol->location, symbol->name->count);
                                         }
                                         SLL_stack_pop_m(frame);
                                 }
@@ -892,8 +890,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 if (finalize && !valid)
                                                 {
                                                         // TODO(medium): needs printf with section info style.
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("expression cannot be fully resolved and finalized");
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Expression_Not_Resolved_Finalized);
                                                         diagnostic->location   = node->location;
                                                         diagnostic->ranges[0]  = node->location_range;
                                                 }
@@ -927,8 +924,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 if (finalize && (node->kind != Expression_Kind__Subtract && node->kind != Expression_Kind__Add))
                                                 {
                                                         // We have to nitpick with the possible operations.
-                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                        diagnostic->message    = String8__literal("unsupported binary operator on non-constant symbols");
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Binary_Operator_Unsupported_Non_Constant);
                                                         diagnostic->location   = node->location;
                                                         diagnostic->ranges[0]  = node->location_range;
                                                 }
@@ -950,8 +946,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         else if (finalize && node->kind != Expression_Kind__Logical_Not)
                                         {
                                                 // TODO(low): report symbol sections with format?
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("unsupported unary operator on non-constant symbols");
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Unary_Operator_Unsupported_Non_Constant);
                                                 diagnostic->location   = node->location;
                                                 diagnostic->ranges[0]  = node->location_range;
                                         }
@@ -1066,17 +1061,14 @@ internal void
 Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Token token)
 {
         {
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->message    = String8__literal("symbol cannot be redefined");
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Symbol_Redefined);
         diagnostic->location   = token.location;
         diagnostic->ranges[0]  = Range1_U32_m(token.location, token.size);
         }
         {
-        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-        diagnostic->kind       = Diagnostic_Kind__Note;
-        diagnostic->message    = Diagnostic__previous_declaration_String8;
+        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Declaration_Previous);
         diagnostic->location   = symbol->location;
-        diagnostic->ranges[0]  = (Range1_U32){{ symbol->location, symbol->location + symbol->name->count }};
+        diagnostic->ranges[0]  = Range1_U32_m(symbol->location, symbol->name->count);
         }
 
         return;
@@ -1489,8 +1481,7 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
         B32 valid_immediate = valid_immediate_callback && valid_immediate_callback(distance);
         if (!valid_immediate)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                diagnostic->kind       = Diagnostic_Kind__Error;
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Jump_Offset_Invalid);
                 diagnostic->message    = String8__format(diagnostics->arena, "invalid jump offset (%lld)", distance);
                 diagnostic->location   = fixup->expression->location;
                 diagnostic->ranges[0]  = fixup->expression->location_range;
@@ -1651,8 +1642,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
                 }
                 else if (fixup->relocation_type == Fixup__8_Bit || fixup->relocation_type == Fixup__16_Bit)
                 {
-                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                        diagnostic->message    = String8__literal("cannot represent an 8-bit or 16-bit relocation on RISC-V/ELF object file");
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Relocation_8_16_Bit_Cant_Represent);
                         diagnostic->location   = expression->location_range.v[0];
                         diagnostic->ranges[0]  = expression->location_range;
                 }
@@ -1689,7 +1679,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
                         B32 fits = S64_bits_range_in(target_compensated, 32);
                         if (!fits)
                         {
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__PC_Relative_High_Offset_Invalid);
                                 diagnostic->message    = String8__format(diagnostics->arena, "invalid pc-relative high offset: %lld", target);
                                 diagnostic->location   = expression->location;
                                 diagnostic->ranges[0]  = expression->location_range;
@@ -1759,7 +1749,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
 
         if (!(fixup->flags & Fixup_Flags__Done) && expression && expression->evaluation == Expression_Kind__Subtract)
         {
-                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Subtract_Cannot_Resolve);
                 diagnostic->message    = String8__format
                         (
                                 diagnostics->arena,
@@ -1796,7 +1786,7 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         B32 addend_doesnt_fit = options->xlen == XLEN_32 && expression && expression->integer_value > (S64)U32_max;
         if (addend_doesnt_fit)
         {
-                Diagnostics__expression(diagnostics, expression, String8__literal("relocation addend doesn't fit in 32 bits"));
+                Diagnostics__expression(diagnostics, expression, DG__Relocation_Addend_32_Bits);
         }
 
         return;
@@ -1925,7 +1915,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                         if (growth % (pattern_size || 1) != 0)
                         {
                                 // The padding added should be a multiple of the size of the align pattern.
-                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Alignment_Padding_Multiple);
                                 diagnostic->message    = String8__format
                                 (
                                         arena,
@@ -1999,8 +1989,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                         Symbol_Ref__resolve(&symbol_expression, diagnostics, Resolve_Level__Traverse);
                                         if (expression->evaluation != Expression_Kind__Constant)
                                         {
-                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                                diagnostic->message    = String8__literal("filling directive doesn't resolve to constant expression");
+                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Fill_Not_Constant);
                                                 diagnostic->location   = expression->location;
                                                 diagnostic->ranges[0]  = expression->location_range;
 
@@ -2016,8 +2005,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 {
                                         // TODO(low, check-gas): GNU as doesn't error on the first two passes, and on
                                         // negative values it is ignored
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
-                                        diagnostic->message    = String8__literal("filling directive resolves to negative value");
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Fill_Negative);
                                         diagnostic->location   = expression->location;
                                         diagnostic->ranges[0]  = expression->location_range;
 
@@ -2029,7 +2017,7 @@ Section__relax(Section *section, Arena *arena, Diagnostics *diagnostics)
                                 B32 padding_invalid = section->elf.flags & ELF_Section_Header_Flags__EXECINSTR && write_size % section->elf.alignment != 0;
                                 if (padding_invalid)
                                 {
-                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Fill_Disrupts_Alignment);
                                         diagnostic->message    = String8__format(arena, "filling directive total write size (%u bytes) disrupts alignment (%u bytes) in code section", write_size, section->elf.alignment);
                                         diagnostic->location   = expression->location;
                                         diagnostic->ranges[0]  = expression->location_range;
