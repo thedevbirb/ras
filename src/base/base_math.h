@@ -166,6 +166,11 @@ union Range1_U32
 	U32 v[2];
 };
 
+#define Range1_U_m(type, start, count) (Range1_##type){{ (start), (((start) > type##_max - (count)) ? type##_max : (start) + (count)) }}
+#define Range1_U8_m(start, count)  Range1_U_m(U8,  start, count)
+#define Range1_U16_m(start, count) Range1_U_m(U16, start, count)
+#define Range1_U32_m(start, count) Range1_U_m(U32, start, count)
+
 // -----------------------------------------------------------------------------
 // Range operations
 // -----------------------------------------------------------------------------

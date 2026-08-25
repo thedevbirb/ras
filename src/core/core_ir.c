@@ -1069,7 +1069,7 @@ Diagnostics__symbol_redefined(Diagnostics *diagnostics, Symbol_Ref *symbol, Toke
         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
         diagnostic->message    = String8__literal("symbol cannot be redefined");
         diagnostic->location   = token.location;
-        diagnostic->ranges[0]  = Token__range(token);
+        diagnostic->ranges[0]  = Range1_U32_m(token.location, token.size);
         }
         {
         Diagnostic *diagnostic = Diagnostics__push(diagnostics);

@@ -353,7 +353,7 @@ directive_base64
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__literal("base64 string length should a multiple of 4");
                 diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = Token__range(cursor->current);
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
 
                 replace = 1;
         }
@@ -890,7 +890,7 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *option
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__literal("unknown option");
                 diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = Token__range(cursor->current);
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
 
         token_next(cursor, diagnostics);
@@ -969,7 +969,7 @@ directive_file
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__literal("expected string file");
                 diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = Token__range(cursor->current);
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
 }
 
@@ -1030,7 +1030,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->message    = String8__literal("unknown attribute");
                 diagnostic->location   = cursor->current.location;
-                diagnostic->ranges[0]  = Token__range(cursor->current);
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
         }
         else
         {
@@ -1059,7 +1059,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__literal("cannot set this attribute after assembly started");
                                 diagnostic->location   = cursor->current.location;
-                                diagnostic->ranges[0]  = Token__range(cursor->current);
+                                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
 
 
@@ -1089,7 +1089,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->message    = error;
                                                         diagnostic->location   = cursor->current.location;
-                                                        diagnostic->ranges[0]  = Token__range(cursor->current);
+                                                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                                 }
                                                 String8 duplicate = String8__duplicate(arena, value_content);
                                                 options->attributes.architecture = duplicate;
@@ -1109,7 +1109,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                                         diagnostic->message    = String8__literal("invalid value for attributes, must be either 0 or 1");
                                                         diagnostic->location   = cursor->current.location;
-                                                        diagnostic->ranges[0]  = Token__range(cursor->current);
+                                                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                                 }
                                         } break;
                                 }
@@ -1121,7 +1121,7 @@ directive_attribute(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__literal("expected number or string, depending on attribute");
                                 diagnostic->location   = cursor->current.location;
-                                diagnostic->ranges[0]  = Token__range(cursor->current);
+                                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
                 }
                 else
@@ -1303,7 +1303,7 @@ directive_ignored(Token_Cursor *cursor, Diagnostics *diagnostics)
         diagnostic->kind       = Diagnostic_Kind__Warning;
         diagnostic->message    = String8__literal("directive unsupported, skipping");
         diagnostic->location   = backup.current.location;
-        diagnostic->ranges[0]  = Token__range(backup.current);
+        diagnostic->ranges[0]  = Range1_U32_m(backup.current.location, backup.current.size);
 
         return;
 }

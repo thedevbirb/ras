@@ -359,7 +359,7 @@ expression_parse_with_flags
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Expression_Null_Denotation_Expected];
                                 diagnostic->location   = cursor->current.location;
-                                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
 
                                 token_next(cursor, diagnostics);
                         } break;
@@ -542,7 +542,7 @@ try_parse_relocation_prefix
                 {
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location   = cursor->current.location;
-                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         diagnostic->message    = String8__literal("invalid relocation operator for instruction");
                 }
 

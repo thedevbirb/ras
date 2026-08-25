@@ -311,11 +311,28 @@ RISCV_Instruction__parse
                                 case OPF_I__U:
                                 {
 
+                                        U32 location_current = cursor->current.location;
                                         try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__utype);
+                                        U32 location_end_of_relocation = cursor->current.location;
                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
 
-                                        if (!parsed.relocation)
+                                        if (parsed.relocation)
+                                        {
+                                                B32 lui_must_be   = parsed.relocation == Relocation_RISC_V__High_20
+                                                                 || parsed.relocation == Relocation_RISC_V__Thread_Pointer_Relative_High_20;
+                                                U32 hash = parsed.data.opcode->hash;
+                                                B32 valid = (lui_must_be && hash == HASH_lui) || hash == HASH_auipc;
+                                                if (!valid)
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics);
+                                                        diagnostic->message    = String8__literal("invalid relocation operator for opcode");
+                                                        diagnostic->location   = location_current;
+                                                        diagnostic->ranges[0]  = Range1_U32_m(opcode_token.location, opcode_token.size);
+                                                        diagnostic->ranges[1]  = (Range1_U32){{ location_current, location_end_of_relocation }};
+                                                }
+                                        }
+                                        else
                                         {
                                                 expression_evaluate(expression);
                                                 if (expression->evaluation == Expression_Kind__Constant)
@@ -523,7 +540,7 @@ RISCV_Instruction__parse
                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                 diagnostic->location   = opcode_token.location;
                 diagnostic->message    = String8__literal("unrecognized opcode format");
-                diagnostic->ranges[0]  = Token__range(opcode_token);
+                diagnostic->ranges[0]  = Range1_U32_m(opcode_token.location, opcode_token.size);
         }
 
         parsed.expression = expression;

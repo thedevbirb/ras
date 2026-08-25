@@ -46,7 +46,7 @@ statements_read
                                 Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                 diagnostic->message    = String8__literal("expected ':' for numeric label declaration");
                                 diagnostic->location   = cursor->current.location;
-                                diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                         }
 
                         Symbol_Numeric symbol_numeric = Symbols_Table__get_or_default_numeric(symbols_table, number, 1, arena);
@@ -77,7 +77,7 @@ statements_read
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Label_Duplicate];
-                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                         }
                                         {
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
@@ -104,7 +104,7 @@ statements_read
                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                                         diagnostic->location   = cursor->current.location;
                                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Directive_Unknown];
-                                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                                 } break;
 
                                 case Directive_Kind__Attribute: { directive_attribute(cursor, diagnostics, arena, options, symbols_table->section_first); } break;
@@ -251,7 +251,7 @@ statements_read
                         Diagnostic *diagnostic = Diagnostics__push(diagnostics);
                         diagnostic->location   = cursor->current.location;
                         diagnostic->message    = Parser_Error_Kind_messages[Parser_Error_Kind__Line_Invalid];
-                        diagnostic->ranges[0]  = (Range1_U32){{ cursor->current.location, cursor->current.location + cursor->current.size }};
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
                 } break;
                 }
 

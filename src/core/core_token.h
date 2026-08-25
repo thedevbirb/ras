@@ -129,8 +129,6 @@ struct Token
         Token_Kind  kind;
 };
 
-internal Range1_U32 Token__range(Token token);
-
 // NOTE: this is syntax-specific though.
 internal B32 Token_Kind__end_of_statement(Token_Kind);
 
