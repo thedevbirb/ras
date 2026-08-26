@@ -51,7 +51,17 @@ arguments_shift(int *argument_count, char ***argument_vector)
 void
 usage_print(void)
 {
-        fprintf(stderr, "usage: ras <filepath_in> -o <filepath_out>\n");
+        fprintf(stderr,
+                "usage: ras <filepath_in> -o <filepath_out> [options]\n"
+                "options:\n"
+                "  -march=<isa>     set the target ISA (e.g. rv32imac)\n"
+                "  -mabi=<abi>      set the ABI (ilp32, ilp32f, ilp32d, lp64, lp64f, lp64d)\n"
+                "  -fpic, -fPIC     generate position independent code (default: off)\n"
+                "  -fno-pic         disable position independent code\n"
+                "  -mrelax          enable linker relaxation (default: on)\n"
+                "  -mno-relax       disable linker relaxation\n"
+                "  -o <file>        write output object file to <file>\n"
+                "  --help           print this message and exit\n");
 }
 
 global const String8 march_option_prefix = String8__literal("-march=");
@@ -118,6 +128,14 @@ Options__parse(S32 *argument_count, char **argument_vector, Arena *arena)
                 else if (String8__match_exact(argument, String8__literal("-fno-pic")))
                 {
                         options.position_indipendent_code = 0;
+                }
+                else if (String8__match_exact(argument, String8__literal("-mrelax")))
+                {
+                        options.relax = 1;
+                }
+                else if (String8__match_exact(argument, String8__literal("-mno-relax")))
+                {
+                        options.relax = 0;
                 }
                 else if (String8__match_exact(argument, String8__literal("--help")))
                 {
