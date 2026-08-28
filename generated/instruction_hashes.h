@@ -103,6 +103,13 @@
 #define HASH_csrrwi     0xC0CAFC7F
 #define HASH_csrrsi     0xB8C0628B
 #define HASH_csrrci     0xD8E7A45B
+#define HASH_csrr       0xECF7F8B3
+#define HASH_csrw       0xEFF7FD6C
+#define HASH_csrs       0xEBF7F720
+#define HASH_csrc       0xFBF81050
+#define HASH_csrwi      0xC8634EDF
+#define HASH_csrsi      0xC05A47EB
+#define HASH_csrci      0xE08189BB
 #define HASH_mul        0xEB84ED81
 #define HASH_mulh       0xAB4285CB
 #define HASH_mulhsu     0x8272DBE7

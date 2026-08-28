@@ -1,5 +1,5 @@
 internal B32
-token_is_register(Token_Cursor *cursor)
+token_register_is(Token_Cursor *cursor)
 {
         String8 text = Token_Cursor__text(cursor);
         B32 result = Register_List__lookup(RISCV_register_list, text, 0) != 0;
@@ -412,10 +412,9 @@ RISCV_Instruction__parse
                                                 // Compressed load/store offsets must be constants; a relocation prefix
                                                 // (`%hi`, `%lo`, ...) or a register name makes the form fall through to
                                                 // the uncompressed instruction.
-                                                B32 parsable = cursor->current.kind == Token_Kind__Percentage
-                                                           || token_is_register(cursor);
+                                                B32 parsable = cursor->current.kind != Token_Kind__Percentage && !token_register_is(cursor);
                                                 B32 valid = 0;
-                                                if (!parsable)
+                                                if (parsable)
                                                 {
                                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
@@ -535,6 +534,87 @@ RISCV_Instruction__parse
                                                 }
                                         }
                                 } break;
+                                case OPF_I__CSR:
+                                {
+                                        // The CSR address is either one of the `RISCV_csr_registers` names, or a
+                                        // constant expression in the range 0..0xfff.
+                                        String8 text = Token_Cursor__text(cursor);
+                                        const Register_CS *csr = Register_CS_List__lookup(RISCV_csr_register_list, text);
+                                        if (csr)
+                                        {
+                                                INSERT_OPERAND(CSR, parsed.data, csr->address);
+                                                token_next(cursor, diagnostics);
+                                        }
+                                        else
+                                        {
+                                                // A register name or a relocation operator cannot be a CSR address;
+                                                // skip the expression parser for those, so it does not emit a spurious
+                                                // symbol / null-denotation.
+                                                B32 parsable = !token_register_is(cursor);
+                                                if (parsable)
+                                                {
+
+                                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                                        expression_evaluate(expression);
+
+                                                        S64 value    = expression->integer_value;
+                                                        B32 constant = expression->evaluation == Expression_Kind__Constant;
+                                                        B32 fits     = constant && 0 <= value && value <= 0xfff;
+                                                        if (fits)
+                                                        {
+                                                                // The CSR number shares the I-type immediate
+                                                                // bit position (bits 31:20).
+                                                                INSERT_OPERAND(CSR, parsed.data, value);
+                                                        }
+                                                        else
+                                                        {
+                                                                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__CSR_Number_Invalid);
+                                                                diagnostic->location   = expression->location_range.v[0];
+                                                                diagnostic->ranges[0]  = expression->location_range;
+                                                        }
+                                                }
+                                                else
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__CSR_Number_Invalid);
+                                                        diagnostic->location   = cursor->current.location;
+                                                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
+                                                        token_next(cursor, diagnostics);
+                                                }
+                                        }
+                                } break;
+                                case OPF_I__Z:
+                                {
+                                        // The 5-bit CSR-immediate (the `csr*i` instructions and the immediate form of
+                                        // the `csrrw/csrrs/csrrc` aliases) accepts either a register name or a constant
+                                        // 0..31.
+                                        B32 parsable = !token_register_is(cursor);
+                                        if (parsable)
+                                        {
+                                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                                SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                                expression_evaluate(expression);
+
+                                                S64 value    = expression->integer_value;
+                                                B32 constant = expression->evaluation == Expression_Kind__Constant;
+                                                B32 fits     = constant && 0 <= value && value < (1 << 5);
+                                                if (fits)
+                                                {
+                                                        INSERT_OPERAND(RS1, parsed.data, value);
+                                                }
+                                                else
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__CSR_Immediate_Invalid);
+                                                        diagnostic->location   = expression->location_range.v[0];
+                                                        diagnostic->ranges[0]  = expression->location_range;
+                                                }
+                                        }
+                                        else
+                                        {
+                                                // Try other variants which accepts may accept a register
+                                                try_next = 1;
+                                        }
+                                } break;
                                 default: { unreachable_m(); }
                                 }
                         } break;
@@ -544,10 +624,10 @@ RISCV_Instruction__parse
                                 // a register name cannot be a constant, so the expression parser is guarded from them
                                 // (parsing would emit a spurious null-denotation node / symbol reference); the form
                                 // then falls through to the uncompressed instruction.
-                                B32 parsable = cursor->current.kind == Token_Kind__Percentage || token_is_register(cursor);
+                                B32 parsable = cursor->current.kind != Token_Kind__Percentage && !token_register_is(cursor);
                                 B32 valid = 0;
                                 S64 value = 0;
-                                if (!parsable)
+                                if (parsable)
                                 {
                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);
@@ -611,11 +691,10 @@ RISCV_Instruction__parse
                         case OPK__Immediate_CL:
                         {
                                 // Same shared constant-expression parse as OPK__Immediate_C.
-                                B32 parsable = cursor->current.kind == Token_Kind__Percentage
-                                           || token_is_register(cursor);
+                                B32 parsable = cursor->current.kind != Token_Kind__Percentage && !token_register_is(cursor);
                                 B32 valid = 0;
                                 S64 value = 0;
-                                if (!parsable)
+                                if (parsable)
                                 {
                                         expression = expression_parse(arena, cursor, symbols_table, diagnostics);
                                         SLL_queue_push_m(expressions->first, expressions->last, expression);

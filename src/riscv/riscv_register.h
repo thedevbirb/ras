@@ -139,8 +139,81 @@ global const Register RISCV_fp_registers[] =
 
 global const Register_List RISCV_fp_register_list = { .data = RISCV_fp_registers, .count = array_count_m(RISCV_fp_registers) };
 
+// Control and status registers (Zicsr extension).
+//
+// A subset of the RISC-V privileged CSR namespace: the user-, supervisor- and machine-level registers that show up in
+// boot code, trap handlers and benchmarking loops, plus the F-extension floating-point CSRs.
+typedef struct Register_CS Register_CS;
+struct Register_CS
+{
+        String8 name;
+        U16     address;
+};
+
+typedef struct Register_CS_List Register_CS_List;
+struct Register_CS_List
+{
+        const Register_CS *data;
+        U64                 count;
+};
+
+global const Register_CS RISCV_csr_registers[] =
+{
+        // User / counter CSRs.
+        {String8__literal("cycle"),    0xc00},
+        {String8__literal("time"),     0xc01},
+        {String8__literal("instret"),  0xc02},
+
+        {String8__literal("mcycle"),   0xb00},
+        {String8__literal("minstret"), 0xb02},
+
+        // Machine information (read-only).
+        {String8__literal("mvendorid"), 0xf11},
+        {String8__literal("marchid"),   0xf12},
+        {String8__literal("mimpid"),    0xf13},
+        {String8__literal("mhartid"),   0xf14},
+
+        // Machine trap setup and handling.
+        {String8__literal("mstatus"),       0x300},
+        {String8__literal("misa"),          0x301},
+        {String8__literal("medeleg"),       0x302},
+        {String8__literal("mideleg"),       0x303},
+        {String8__literal("mie"),           0x304},
+        {String8__literal("mtvec"),         0x305},
+        {String8__literal("mcounteren"),    0x306},
+        {String8__literal("menvcfg"),       0x30a},
+        {String8__literal("mcountinhibit"), 0x320},
+        {String8__literal("mscratch"),      0x340},
+        {String8__literal("mepc"),          0x341},
+        {String8__literal("mcause"),        0x342},
+        {String8__literal("mtval"),         0x343},
+        {String8__literal("mip"),           0x344},
+
+        // Supervisor trap setup and handling.
+        {String8__literal("sstatus"),  0x100},
+        {String8__literal("sie"),      0x104},
+        {String8__literal("stvec"),    0x105},
+        {String8__literal("senvcfg"),  0x10a},
+        {String8__literal("sscratch"), 0x140},
+        {String8__literal("sepc"),     0x141},
+        {String8__literal("scause"),   0x142},
+        {String8__literal("stval"),    0x143},
+        {String8__literal("sip"),      0x144},
+        {String8__literal("satp"),     0x180},
+
+        // F-extension floating-point CSRs.
+        {String8__literal("fflags"), 0x001},
+        {String8__literal("frm"),    0x002},
+        {String8__literal("fcsr"),   0x003},
+};
+
+global const Register_CS_List RISCV_csr_register_list = { .data = RISCV_csr_registers, .count = array_count_m(RISCV_csr_registers) };
+
 internal const Register *
 Register_List__lookup(Register_List, String8, B32 e_extension_enabled);
+
+internal const Register_CS *
+Register_CS_List__lookup(Register_CS_List, String8);
 
 #endif // RISCV_REGISTER_H
 

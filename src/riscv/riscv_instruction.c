@@ -411,6 +411,29 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("rdtime"),     0, OPC__ZICNTR, INSN_ALIAS, HASH_rdtime,     MATCH_RDTIME,    MASK_RDTIME,    OP_m(OP_GPR(OPF_R__D)), match_opcode },
 { String8__inline_m("rdinstret"),  0, OPC__ZICNTR, INSN_ALIAS, HASH_rdinstret,  MATCH_RDINSTRET, MASK_RDINSTRET, OP_m(OP_GPR(OPF_R__D)), match_opcode },
 
+// Zicsr extension.
+{ String8__inline_m("csrrw"),  0, OPC__ZICSR, 0,          HASH_csrrw,  MATCH_CSRRW,  MASK_CSRRW,  OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),       match_opcode },
+{ String8__inline_m("csrrw"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrrw,  MATCH_CSRRWI, MASK_CSRRWI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+{ String8__inline_m("csrrs"),  0, OPC__ZICSR, 0,          HASH_csrrs,  MATCH_CSRRS,  MASK_CSRRS,  OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),       match_opcode },
+{ String8__inline_m("csrrs"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrrs,  MATCH_CSRRSI, MASK_CSRRSI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+{ String8__inline_m("csrrc"),  0, OPC__ZICSR, 0,          HASH_csrrc,  MATCH_CSRRC,  MASK_CSRRC,  OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),       match_opcode },
+{ String8__inline_m("csrrc"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrrc,  MATCH_CSRRCI, MASK_CSRRCI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+{ String8__inline_m("csrrwi"), 0, OPC__ZICSR, 0,          HASH_csrrwi, MATCH_CSRRWI, MASK_CSRRWI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+{ String8__inline_m("csrrsi"), 0, OPC__ZICSR, 0,          HASH_csrrsi, MATCH_CSRRSI, MASK_CSRRSI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+{ String8__inline_m("csrrci"), 0, OPC__ZICSR, 0,          HASH_csrrci, MATCH_CSRRCI, MASK_CSRRCI, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)),  match_opcode },
+
+// Zicsr pseudo-ops.
+{ String8__inline_m("csrr"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrr,  MATCH_CSRRS,   MASK_CSRRS|MASK_RS1,   OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__CSR)),       match_opcode },
+{ String8__inline_m("csrw"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrw,  MATCH_CSRRW,   MASK_CSRRW|MASK_RD,    OP_m(OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),      match_opcode },
+{ String8__inline_m("csrw"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrw,  MATCH_CSRRWI,  MASK_CSRRWI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+{ String8__inline_m("csrs"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrs,  MATCH_CSRRS,   MASK_CSRRS|MASK_RD,    OP_m(OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),      match_opcode },
+{ String8__inline_m("csrs"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrs,  MATCH_CSRRSI,  MASK_CSRRSI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+{ String8__inline_m("csrc"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrc,  MATCH_CSRRC,   MASK_CSRRC|MASK_RD,    OP_m(OP_Immediate(OPF_I__CSR), OP_GPR(OPF_R__S1)),      match_opcode },
+{ String8__inline_m("csrc"),  0, OPC__ZICSR, INSN_ALIAS, HASH_csrc,  MATCH_CSRRCI,  MASK_CSRRCI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+{ String8__inline_m("csrwi"), 0, OPC__ZICSR, INSN_ALIAS, HASH_csrwi, MATCH_CSRRWI,  MASK_CSRRWI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+{ String8__inline_m("csrsi"), 0, OPC__ZICSR, INSN_ALIAS, HASH_csrsi, MATCH_CSRRSI,  MASK_CSRRSI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+{ String8__inline_m("csrci"), 0, OPC__ZICSR, INSN_ALIAS, HASH_csrci, MATCH_CSRRCI,  MASK_CSRRCI|MASK_RD,   OP_m(OP_Immediate(OPF_I__CSR), OP_Immediate(OPF_I__Z)), match_opcode },
+
 // Zicond extension.
 { String8__inline_m("czero.eqz"), 0, OPC__ZICOND, 0, HASH_czero_eqz, MATCH_CZERO_EQZ, MASK_CZERO_EQZ, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)), match_opcode },
 { String8__inline_m("czero.nez"), 0, OPC__ZICOND, 0, HASH_czero_nez, MATCH_CZERO_NEZ, MASK_CZERO_NEZ, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)), match_opcode },

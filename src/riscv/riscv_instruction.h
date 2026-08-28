@@ -679,6 +679,21 @@ internal B32 riscv_compressed_lui_immediate_is(S64 uimm);
 #define MASK_RDTIMEH  0xfffff07f
 #define MATCH_RDINSTRETH 0xc8202073
 #define MASK_RDINSTRETH  0xfffff07f
+
+// Zicsr extension.
+#define MATCH_CSRRW  0x1073
+#define MASK_CSRRW   0x707f
+#define MATCH_CSRRS  0x2073
+#define MASK_CSRRS   0x707f
+#define MATCH_CSRRC  0x3073
+#define MASK_CSRRC   0x707f
+#define MATCH_CSRRWI 0x5073
+#define MASK_CSRRWI  0x707f
+#define MATCH_CSRRSI 0x6073
+#define MASK_CSRRSI  0x707f
+#define MATCH_CSRRCI 0x7073
+#define MASK_CSRRCI  0x707f
+
 #define MATCH_SCALL 0x73
 #define MASK_SCALL  0xffffffff
 #define MATCH_SBREAK 0x100073
@@ -1303,6 +1318,10 @@ enum
         OPF_I__I,
         // U-type 20-bit upper
         OPF_I__U,
+        // CSR address, 12-bit unsigned constant in bits 31:20
+        OPF_I__CSR,
+        // Zicsr `csr*i` immediate, 5-bit unsigned constant in bits 19:15
+        OPF_I__Z,
         OPF_I__COUNT
 };
 OPF_size_check_m(OPF_I);
@@ -1476,6 +1495,7 @@ enum
         OPC__ZBB,
         OPC__ZIFENCEI,
         OPC__ZICNTR,
+        OPC__ZICSR,
 
         OPC__COUNT,
 };

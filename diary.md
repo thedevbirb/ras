@@ -1871,3 +1871,11 @@ instruction support. So much macro boilerplate.
 
 Yeah, it adds complexity. However it is quite ubiquitous in microcontrollers, which are the main
 targets of RISC-V...
+
+Currently error tracking is done via `Diagnostics`. I think it can be one of the most interesting
+structs or concepts of the codebase, as it can greatly shape the code or offer great ergonomics and
+precise error handling at the same time. Right now it is not in its best shape, and more usage shows
+designs flaws. One of the recent needs is to try expression parsing when parsing an instruction, and
+if an error is found (like an unexpected relocation prefix, met as an invalid null denotation), then
+try the next variant. A possibility is to backup the current `last` pointer of the queue, swap the
+arena to a scratch one, and push onto it. Then check what happened.

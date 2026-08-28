@@ -29,9 +29,13 @@ are:
 - `Z`-extensions: `Zba`, `Zbb`, `Zbc`, `Zbs`, `Zicntr`, `Zicond`, `Zicsr`, `Zifencei`, `Zmmul`.
 
 Implicit dependencies are applied automatically (`G` implies the standard group, `D` implies `F`,
-`F` implies `Zicsr`, `M` implies `Zmmul`, ...). `Zicsr` is recognized for parsing but has no
-instructions implemented yet; extensions such as `A`, `Q`, `V`, `H` are not recognized by
-`-march`.
+`F` implies `Zicsr`, `M` implies `Zmmul`, ...). `Zicsr` provides the CSR instructions
+(`csrrw`/`csrrs`/`csrrc`, `csrrwi`/`csrrsi`/`csrrci`, and the `csrr`/`csrw`/`csrs`/`csrc`/
+`csrwi`/`csrsi`/`csrci` pseudo-ops), with the CSR operand accepting either a constant expression
+(`csrrw t0, 0x300, t1`) or one of the curated CSR names in `src/riscv/riscv_register.h` (`mstatus`,
+`mepc`, `satp`, ...).
+
+Extensions such as `A`, `Q`, `V`, `H` are not recognized by `-march`.
 
 ## Directives
 

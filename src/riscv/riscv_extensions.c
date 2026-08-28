@@ -38,7 +38,7 @@ global const String8 RISCV_extensions_prefixed[] =
         String8__literal("zcd"),
         String8__literal("zicntr"),
         String8__literal("zicond"),
-        String8__literal("zicsr"), /* TODO(medium): In practice, zicsr isn't supported in its instructions yet */
+        String8__literal("zicsr"),
         String8__literal("zifencei"),
         String8__literal("zmmul"),
         String8__literal("zaamo"),
@@ -218,6 +218,7 @@ RISCV_extensions_supports_class(const RISCV_Extensions *extensions, OPC class)
         case OPC__ZBB:      { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zbb"))      != 0; } break;
         case OPC__ZIFENCEI: { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zifencei")) != 0; } break;
         case OPC__ZICNTR:   { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zicntr"))   != 0; } break;
+        case OPC__ZICSR:    { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zicsr"))    != 0; } break;
         default:            { result = 0; } break;
         }
 

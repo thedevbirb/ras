@@ -97,6 +97,8 @@ typedef enum DG
 	DG__Offset_Too_Large = 4000,
 	DG__Opcode_Format_Unrecognized,
 	DG__Shift_Doesnt_Fit,
+	DG__CSR_Number_Invalid,
+	DG__CSR_Immediate_Invalid,
 
 	// Relocation
 	DG__Jump_Offset_Invalid = 5000,
@@ -270,6 +272,8 @@ global const DG_Info DG_Info__table[] =
 	[DG__Offset_Too_Large]                 = { Diagnostic_Kind__Error,  String8__literal("offset too large for this opcode") },
 	[DG__Opcode_Format_Unrecognized]       = { Diagnostic_Kind__Error,  String8__literal("unrecognized opcode format") },
 	[DG__Shift_Doesnt_Fit]                 = { Diagnostic_Kind__Error,  String8__literal("shift amount doesn't fit register size") },
+	[DG__CSR_Number_Invalid]               = { Diagnostic_Kind__Error,  String8__literal("CSR address must be a constant expression in the range 0..4095") },
+	[DG__CSR_Immediate_Invalid]            = { Diagnostic_Kind__Error,  String8__literal("CSR immediate must be a constant expression in the range 0..31") },
 
 	// Relocation
 	[DG__Jump_Offset_Invalid]                     = { Diagnostic_Kind__Error, String8__literal("") },

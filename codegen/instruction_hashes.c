@@ -67,6 +67,7 @@ const char *Instruction_Kind_strings[] =
         "scall","sbreak","mret","sret","uret","hret","dret","wfi","sfence.vma",
 
         "csrrw","csrrs","csrrc","csrrwi","csrrsi","csrrci",
+        "csrr","csrw","csrs","csrc","csrwi","csrsi","csrci",
 
         // M
         "mul","mulh","mulhsu","mulhu","div","divu","rem","remu",
