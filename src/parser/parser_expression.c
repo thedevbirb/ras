@@ -311,7 +311,6 @@ expression_parse_with_flags
                                 token_next(cursor, diagnostics);
                         } break;
 
-                        case Token_Kind__Percentage:
                         case Token_Kind__Minus:
                         case Token_Kind__Tilde:
                         case Token_Kind__Bang:
