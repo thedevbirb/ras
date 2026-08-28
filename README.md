@@ -60,6 +60,7 @@ cc -o nob nob.c
 ./build/ras -march=rv64im hello.s -o hello.o
 ./build/ras -march=rv32im -mabi=ilp32 hello.s -o hello.o
 ./build/ras -march=rv64imfd_zba_zbb_zbc_zbs_zicntr_zicond_zifencei_zmmul hello.s -o hello.o
+./build/ras -march=rv64imac hello.s -o hello.o   # with the compressed extension
 ./build/ras -fPIC -march=rv64im hello.s -o hello.o
 readelf -h -S hello.o
 ```

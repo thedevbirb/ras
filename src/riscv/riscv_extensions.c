@@ -34,29 +34,39 @@ global const String8 RISCV_extensions_prefixed[] =
         String8__literal("zbb"),
         String8__literal("zbc"),
         String8__literal("zbs"),
+        String8__literal("zca"),
+        String8__literal("zcd"),
         String8__literal("zicntr"),
         String8__literal("zicond"),
         String8__literal("zicsr"), /* TODO(medium): In practice, zicsr isn't supported in its instructions yet */
         String8__literal("zifencei"),
         String8__literal("zmmul"),
+        String8__literal("zaamo"),
+        String8__literal("zalrsc"),
 };
 
 global const RISCV_Extension RISCV_Extension__defaults[] =
 {
         { .name = String8__literal("i"),        2, 1 },
+        { .name = String8__literal("a"),        2, 1 },
+        { .name = String8__literal("c"),        2, 0 },
         { .name = String8__literal("m"),        2, 0 },
+        { .name = String8__literal("b"),        1, 0 },
         { .name = String8__literal("f"),        2, 2 },
         { .name = String8__literal("d"),        2, 2 },
-        { .name = String8__literal("b"),        1, 0 },
         { .name = String8__literal("zba"),      1, 0 },
         { .name = String8__literal("zbb"),      1, 0 },
         { .name = String8__literal("zbc"),      1, 0 },
         { .name = String8__literal("zbs"),      1, 0 },
+        { .name = String8__literal("zca"),      1, 0 },
+        { .name = String8__literal("zcd"),      1, 0 },
         { .name = String8__literal("zicntr"),   2, 0 },
         { .name = String8__literal("zicond"),   1, 0 },
         { .name = String8__literal("zicsr"),    2, 0 },
         { .name = String8__literal("zifencei"), 2, 0 },
         { .name = String8__literal("zmmul"),    1, 0 },
+        { .name = String8__literal("zaamo"),    1, 0 },
+        { .name = String8__literal("zalrsc"),   1, 0 },
 };
 assert_static_m(array_count_m(RISCV_Extension__defaults) <= RISCV_Extensions__max, RISCV_Extension__defaults_size_check);
 
@@ -64,12 +74,14 @@ global const RISCV_Implicit_Extension RISCV_extensions_implicit[] =
 {
         { String8__literal("g"),      String8__literal("i,m,a,f,d,zicsr,zifencei") },
         { String8__literal("e"),      String8__literal("i")                        },
+        { String8__literal("c"),      String8__literal("zca,zcd")                  },
         { String8__literal("zicntr"), String8__literal("zicsr")                    },
         { String8__literal("m"),      String8__literal("zmmul")                    },
         { String8__literal("a"),      String8__literal("zaamo,zalrsc")             },
         { String8__literal("d"),      String8__literal("f")                        },
         { String8__literal("f"),      String8__literal("zicsr")                    },
         { String8__literal("f"),      String8__literal("zba,zbb,zbs")              },
+        { String8__literal("b"),      String8__literal("zba,zbb,zbc,zbs")          },
 };
 
 internal const RISCV_Extension *
@@ -193,6 +205,8 @@ RISCV_extensions_supports_class(const RISCV_Extensions *extensions, OPC class)
         {
         case OPC__None:     { result = 1; } break;
         case OPC__I:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("i"))        != 0; } break;
+        case OPC__C:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zca"))      != 0
+                           || RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zcd"))      != 0; } break;
         case OPC__M:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("m"))        != 0; } break;
         case OPC__ZMMUL:    { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zmmul"))    != 0; } break;
         case OPC__F:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("f"))        != 0; } break;

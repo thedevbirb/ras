@@ -21,7 +21,12 @@
 #define RISCV_BRANCH_ALIGNMENT       (1 << RISCV_BRANCH_ALIGNMENT_BITS)
 #define RISCV_BRANCH_REACH           ((1ULL << RISCV_BRANCH_BITS) * RISCV_BRANCH_ALIGNMENT)
 
-#define RISCV_RVC_IMMEDIATE_REACH    (1LL << 6)
+#define RISCV_C_IMMEDIATE_REACH    (1LL << 6)
+
+#define RISCV_C_JUMP_BITS          11
+#define RISCV_C_JUMP_REACH         ((1ULL << RISCV_C_JUMP_BITS) * RISCV_JUMP_ALIGNMENT)
+#define RISCV_C_BRANCH_BITS        8
+#define RISCV_C_BRANCH_REACH       ((1ULL << RISCV_C_BRANCH_BITS) * RISCV_BRANCH_ALIGNMENT)
 
 //------------------------------------------------------------------------------
 // Opcode constants
@@ -311,6 +316,105 @@
         )
 #define validate_immediate_cj_m(x)              (extract_immediate_cj_m(encode_immediate_cj_m(x)) == (x))
 
+// CI-format c.lui immediate: the 20-bit upper immediate, encoded in the 6-bit
+// CI field (only a small range of u-field values is representable).
+#define encode_immediate_ci_lui_m(x)            encode_immediate_ci_m((x) >> 12)
+#define extract_immediate_ci_lui_m(x)           ((U64)extract_immediate_ci_m(x) << 12)
+#define validate_immediate_ci_lui_m(x)          (encode_immediate_ci_lui_m(x) != 0 && (S64)(extract_immediate_ci_m(encode_immediate_ci_lui_m(x))) == (S64)((x) >> 12))
+
+// CI-format addi16sp immediate: [ funct3 |i9| rd   |i8|i7|i6|i5|i4|i3| op] Immediate: {i9, i8, i7:i6, i5, i4:i3, 0}
+#define encode_immediate_ci_addi16sp_m(x)                                                      \
+(                                                                                              \
+        (shift_right_mask_m(x, 4, 1) <<  6) | (shift_right_mask_m(x, 5, 1) <<  2) |            \
+        (shift_right_mask_m(x, 6, 1) <<  5) | (shift_right_mask_m(x, 7, 2) <<  3) |            \
+        (shift_right_mask_m(x, 9, 1) << 12)                                                    \
+)
+#define extract_immediate_ci_addi16sp_m(x)                                                      \
+        sign_extend_m                                                                           \
+        (                                                                                       \
+                (                                                                               \
+                (shift_right_mask_m(x,  6, 1) <<  4) | (shift_right_mask_m(x,  2, 1) <<  5) |   \
+                (shift_right_mask_m(x,  5, 1) <<  6) | (shift_right_mask_m(x,  3, 2) <<  7) |   \
+                (shift_right_mask_m(x, 12, 1) <<  9)                                            \
+                ),                                                                              \
+                10                                                                              \
+        )
+#define validate_immediate_ci_addi16sp_m(x)     (encode_immediate_ci_addi16sp_m(x) != 0 && (U64)(extract_immediate_ci_addi16sp_m(encode_immediate_ci_addi16sp_m(x))) == (U64)(x))
+
+// CI-format lwsp immediate:
+// [ funct3 |i5| rd   |i4|i3|i2|i1|i0| op]
+// Immediate: {i5, i4:i2, i1:i0, 0}
+#define encode_immediate_ci_lwsp_m(x)                                                \
+(                                                                                    \
+        (shift_right_mask_m(x, 2, 3) <<  4) | (shift_right_mask_m(x, 5, 1) << 12) |  \
+        (shift_right_mask_m(x, 6, 2) <<  2)                                          \
+)
+#define extract_immediate_ci_lwsp_m(x)                                                 \
+        (shift_right_mask_m(x,  4, 3) <<  2) | (shift_right_mask_m(x, 12, 1) <<  5) |  \
+        (shift_right_mask_m(x,  2, 2) <<  6)
+#define validate_immediate_ci_lwsp_m(x)         ((U64)(extract_immediate_ci_lwsp_m(encode_immediate_ci_lwsp_m(x))) == (U64)(x))
+
+// CI-format ldsp immediate:
+// [ funct3 |i5| rd   |i4|i3|i2|i1|i0| op]
+// Immediate: {i5, i4:i3, i2:i0, 0}
+#define encode_immediate_ci_ldsp_m(x)                                                        \
+(                                                                                            \
+        (shift_right_mask_m(x, 3, 2) <<  5) | (shift_right_mask_m(x, 5, 1) << 12) |          \
+        (shift_right_mask_m(x, 6, 3) <<  2)                                                  \
+)
+#define extract_immediate_ci_ldsp_m(x)                                                       \
+        (shift_right_mask_m(x,  5, 2) <<  3) | (shift_right_mask_m(x, 12, 1) <<  5) |        \
+        (shift_right_mask_m(x,  2, 3) <<  6)
+#define validate_immediate_ci_ldsp_m(x)         ((U64)(extract_immediate_ci_ldsp_m(encode_immediate_ci_ldsp_m(x))) == (U64)(x))
+
+// CSS-format swsp immediate:
+// [ funct3 |      imm[5:0]         |   rs2    | op]
+// Immediate: {imm[5:0]} where imm = {i5:i4, i3:i2, i1:i0, 00}
+#define encode_immediate_css_swsp_m(x)                                                          \
+        ((shift_right_mask_m(x, 2, 4) <<  9) | (shift_right_mask_m(x, 6, 2) << 7))
+#define extract_immediate_css_swsp_m(x)         (shift_right_mask_m(x, 9, 4) << 2 | shift_right_mask_m(x, 7, 2) << 6)
+#define validate_immediate_css_swsp_m(x)        ((U64)(extract_immediate_css_swsp_m(encode_immediate_css_swsp_m(x))) == (U64)(x))
+
+// CSS-format sdsp immediate:
+// [ funct3 |      imm[5:0]         |   rs2    | op]
+// Immediate: {imm[5:0]} where imm = {i5:i4, i3:i2, i1:i0, 000}
+#define encode_immediate_css_sdsp_m(x)                                                          \
+        ((shift_right_mask_m(x, 3, 3) << 10) | (shift_right_mask_m(x, 6, 3) << 7))
+#define extract_immediate_css_sdsp_m(x)         (shift_right_mask_m(x, 10, 3) << 3 | shift_right_mask_m(x, 7, 3) << 6)
+#define validate_immediate_css_sdsp_m(x)        ((U64)(extract_immediate_css_sdsp_m(encode_immediate_css_sdsp_m(x))) == (U64)(x))
+
+// CIW-format addi4spn immediate:
+// [ funct3 |      imm[7:0]            | rd' | op]
+// Immediate: {imm[7:0]} where imm = {i5:i4, i3, i2, i1:i0, 00}
+#define encode_immediate_ciw_addi4spn_m(x)                                                   \
+(                                                                                            \
+        (shift_right_mask_m(x, 2, 1) <<  6) | (shift_right_mask_m(x, 3, 1) <<  5) |          \
+        (shift_right_mask_m(x, 4, 2) << 11) | (shift_right_mask_m(x, 6, 4) <<  7)            \
+)
+#define extract_immediate_ciw_addi4spn_m(x)                                                  \
+        (shift_right_mask_m(x, 6, 1) <<  2) | (shift_right_mask_m(x, 5, 1) <<  3) |          \
+        (shift_right_mask_m(x, 11, 2) << 4) | (shift_right_mask_m(x, 7, 4) <<  6)
+#define validate_immediate_ciw_addi4spn_m(x)    (encode_immediate_ciw_addi4spn_m(x) != 0 && (U64)(extract_immediate_ciw_addi4spn_m(encode_immediate_ciw_addi4spn_m(x))) == (U64)(x))
+
+// CL-format lw immediate:
+// [ funct3 |i4|i3|i2| rs1'   |i1|i0| rd' | op]
+// Immediate: {i4:i3:i2, i1:i0, 00}
+#define encode_immediate_cl_lw_m(x)                                                          \
+(                                                                                            \
+        (shift_right_mask_m(x, 2, 1) <<  6) | (shift_right_mask_m(x, 3, 3) << 10) |          \
+        (shift_right_mask_m(x, 6, 1) <<  5)                                                  \
+)
+#define extract_immediate_cl_lw_m(x)            (shift_right_mask_m(x, 6, 1) <<  2 | shift_right_mask_m(x, 10, 3) << 3 | shift_right_mask_m(x, 5, 1) << 6)
+#define validate_immediate_cl_lw_m(x)           ((U64)(extract_immediate_cl_lw_m(encode_immediate_cl_lw_m(x))) == (U64)(x))
+
+// CL-format ld immediate:
+// [ funct3 |i4|i3|i2| rs1'   |i1|i0| rd' | op]
+// Immediate: {i4:i3:i2, i1:i0, 000}
+#define encode_immediate_cl_ld_m(x)                                                             \
+        ((shift_right_mask_m(x, 3, 3) << 10) | (shift_right_mask_m(x, 6, 2) << 5))
+#define extract_immediate_cl_ld_m(x)            (shift_right_mask_m(x, 10, 3) << 3 | shift_right_mask_m(x, 5, 2) << 6)
+#define validate_immediate_cl_ld_m(x)           ((U64)(extract_immediate_cl_ld_m(encode_immediate_cl_ld_m(x))) == (U64)(x))
+
 #ifndef shift_right_mask_m
 #define shift_right_mask_m(x, shift, bits)  (((U64)(x) >> (shift)) & ((1ULL << (bits)) - 1))
 #endif
@@ -390,6 +494,15 @@ internal U32 encode_immediate_cs(S64 x)    { return encode_immediate_cs_m(x);  }
 internal U32 encode_immediate_css(S64 x)   { return encode_immediate_css_m(x); }
 internal U32 encode_immediate_cb(S64 x)    { return encode_immediate_cb_m(x);  }
 internal U32 encode_immediate_cj(S64 x)    { return encode_immediate_cj_m(x);  }
+internal U32 encode_immediate_ci_lui(S64 x)         { return encode_immediate_ci_lui_m(x);         }
+internal U32 encode_immediate_ci_addi16sp(S64 x)    { return encode_immediate_ci_addi16sp_m(x);    }
+internal U32 encode_immediate_ci_lwsp(S64 x)        { return encode_immediate_ci_lwsp_m(x);        }
+internal U32 encode_immediate_ci_ldsp(S64 x)        { return encode_immediate_ci_ldsp_m(x);        }
+internal U32 encode_immediate_css_swsp(S64 x)       { return encode_immediate_css_swsp_m(x);       }
+internal U32 encode_immediate_css_sdsp(S64 x)       { return encode_immediate_css_sdsp_m(x);       }
+internal U32 encode_immediate_ciw_addi4spn(S64 x)   { return encode_immediate_ciw_addi4spn_m(x);   }
+internal U32 encode_immediate_cl_lw(S64 x)          { return encode_immediate_cl_lw_m(x);          }
+internal U32 encode_immediate_cl_ld(S64 x)          { return encode_immediate_cl_ld_m(x);          }
 
 internal B32 validate_immediate_i(S64 x)   { return (S64)extract_immediate_i_m(encode_immediate_i_m(x)) == x;     }
 internal B32 validate_immediate_u(S64 x)   { return (S64)extract_immediate_u_m(encode_immediate_u_m(x)) == x;     }
@@ -403,6 +516,15 @@ internal B32 validate_immediate_cs(S64 x)  { return (S64)extract_immediate_cs_m(
 internal B32 validate_immediate_css(S64 x) { return (S64)extract_immediate_css_m(encode_immediate_css_m(x)) == x; }
 internal B32 validate_immediate_cb(S64 x)  { return (S64)extract_immediate_cb_m(encode_immediate_cb_m(x)) == x;   }
 internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(encode_immediate_cj_m(x)) == x;   }
+internal B32 validate_immediate_ci_lui(S64 x)         { return (S64)validate_immediate_ci_lui_m(x);        }
+internal B32 validate_immediate_ci_addi16sp(S64 x)    { return (S64)validate_immediate_ci_addi16sp_m(x);   }
+internal B32 validate_immediate_ci_lwsp(S64 x)        { return (S64)validate_immediate_ci_lwsp_m(x);       }
+internal B32 validate_immediate_ci_ldsp(S64 x)        { return (S64)validate_immediate_ci_ldsp_m(x);       }
+internal B32 validate_immediate_css_swsp(S64 x)       { return (S64)validate_immediate_css_swsp_m(x);      }
+internal B32 validate_immediate_css_sdsp(S64 x)       { return (S64)validate_immediate_css_sdsp_m(x);      }
+internal B32 validate_immediate_ciw_addi4spn(S64 x)   { return (S64)validate_immediate_ciw_addi4spn_m(x);  }
+internal B32 validate_immediate_cl_lw(S64 x)          { return (S64)validate_immediate_cl_lw_m(x);         }
+internal B32 validate_immediate_cl_ld(S64 x)          { return (S64)validate_immediate_cl_ld_m(x);         }
 
 //------------------------------------------------------------------------------
 // Predefined instruction encodings
@@ -448,6 +570,25 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define OP_MASK_CSR             0xfffU
 #define OP_SH_CSR               20
 
+// Compressed (RVC) register fields.
+#define OP_MASK_CRS1S           0x7
+#define OP_SH_CRS1S             7
+#define OP_MASK_CRS2S           0x7
+#define OP_SH_CRS2S             2
+#define OP_MASK_CRS2            0x1f
+#define OP_SH_CRS2              2
+// The RVC immediate field (bits 4:2) used in the c.nop mask.
+#define MASK_RVC_IMM            0x1c
+
+// Whether `register_number` is a compressed register (x8-x15), and the encode /
+// decode helpers for the 3-bit RVC register field (reg-8).
+internal B32 riscv_compressed_register_is(U8 register_number);
+internal U8 riscv_compressed_register_encode(U8 register_number);
+internal U8 riscv_compressed_register_decode(U8 rvc_register);
+
+// Whether a 20-bit U-type immediate fits `c.lui`'s 6-bit sign-extended field.
+internal B32 riscv_compressed_lui_immediate_is(S64 uimm);
+
 #define OP_MASK_FUNCT3          0x7
 #define OP_SH_FUNCT3            12
 #define OP_MASK_FUNCT7          0x7fU
@@ -457,8 +598,14 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 
 // RISC-V GAS constants
 
-#define X_RA  1
-#define X_T1  6
+#define X_ZERO 0
+#define X_RA   1
+#define X_SP   2
+#define X_T1   6
+
+// Compressed (RVC) registers span x8-x15 and are encoded in 3-bit fields as reg-8.
+#define RISCV_RVC_REG_BASE  8
+#define RISCV_RVC_REG_COUNT 8
 
 // MASK_RD / MASK_RS1 / MASK_RS2 / MASK_IMM — field bit masks for match/mask construction
 #define MASK_RD     0x00000F80   // bits 11:7
@@ -684,6 +831,93 @@ internal B32 validate_immediate_cj(S64 x)  { return (S64)extract_immediate_cj_m(
 #define MASK_REMW  0xfe00707f
 #define MATCH_REMUW 0x200703b
 #define MASK_REMUW  0xfe00707f
+
+// C extension (compressed) instructions.  Encoding constants match
+// binutils `include/opcode/riscv-opc.h`.
+#define MATCH_C_ADDI4SPN     0x0
+#define MASK_C_ADDI4SPN      0xe003
+#define MATCH_C_FLD          0x2000
+#define MASK_C_FLD           0xe003
+#define MATCH_C_LW           0x4000
+#define MASK_C_LW            0xe003
+#define MATCH_C_FLW          0x6000
+#define MASK_C_FLW           0xe003
+#define MATCH_C_FSD          0xa000
+#define MASK_C_FSD           0xe003
+#define MATCH_C_SW           0xc000
+#define MASK_C_SW            0xe003
+#define MATCH_C_FSW          0xe000
+#define MASK_C_FSW           0xe003
+#define MATCH_C_ADDI         0x1
+#define MASK_C_ADDI          0xe003
+#define MATCH_C_JAL          0x2001
+#define MASK_C_JAL           0xe003
+#define MATCH_C_LI           0x4001
+#define MASK_C_LI            0xe003
+#define MATCH_C_LUI          0x6001
+#define MASK_C_LUI           0xe003
+#define MATCH_C_SRLI         0x8001
+#define MASK_C_SRLI          0xec03
+#define MATCH_C_SRAI         0x8401
+#define MASK_C_SRAI          0xec03
+#define MATCH_C_ANDI         0x8801
+#define MASK_C_ANDI          0xec03
+#define MATCH_C_SUB          0x8c01
+#define MASK_C_SUB           0xfc63
+#define MATCH_C_XOR          0x8c21
+#define MASK_C_XOR           0xfc63
+#define MATCH_C_OR           0x8c41
+#define MASK_C_OR            0xfc63
+#define MATCH_C_AND          0x8c61
+#define MASK_C_AND           0xfc63
+#define MATCH_C_SUBW         0x9c01
+#define MASK_C_SUBW          0xfc63
+#define MATCH_C_ADDW         0x9c21
+#define MASK_C_ADDW          0xfc63
+#define MATCH_C_J            0xa001
+#define MASK_C_J             0xe003
+#define MATCH_C_BEQZ         0xc001
+#define MASK_C_BEQZ          0xe003
+#define MATCH_C_BNEZ         0xe001
+#define MASK_C_BNEZ          0xe003
+#define MATCH_C_SLLI         0x2
+#define MASK_C_SLLI          0xe003
+#define MATCH_C_FLDSP        0x2002
+#define MASK_C_FLDSP         0xe003
+#define MATCH_C_LWSP         0x4002
+#define MASK_C_LWSP          0xe003
+#define MATCH_C_FLWSP        0x6002
+#define MASK_C_FLWSP         0xe003
+#define MATCH_C_MV           0x8002
+#define MASK_C_MV            0xf003
+#define MATCH_C_ADD          0x9002
+#define MASK_C_ADD           0xf003
+#define MATCH_C_FSDSP        0xa002
+#define MASK_C_FSDSP         0xe003
+#define MATCH_C_SWSP         0xc002
+#define MASK_C_SWSP          0xe003
+#define MATCH_C_FSWSP        0xe002
+#define MASK_C_FSWSP         0xe003
+#define MATCH_C_NOP          0x1
+#define MASK_C_NOP           0xffff
+#define MATCH_C_ADDI16SP     0x6101
+#define MASK_C_ADDI16SP      0xef83
+#define MATCH_C_JR           0x8002
+#define MASK_C_JR            0xf07f
+#define MATCH_C_JALR         0x9002
+#define MASK_C_JALR          0xf07f
+#define MATCH_C_EBREAK       0x9002
+#define MASK_C_EBREAK        0xffff
+#define MATCH_C_LD           0x6000
+#define MASK_C_LD            0xe003
+#define MATCH_C_SD           0xe000
+#define MASK_C_SD            0xe003
+#define MATCH_C_ADDIW        0x2001
+#define MASK_C_ADDIW         0xe003
+#define MATCH_C_LDSP         0x6002
+#define MASK_C_LDSP          0xe003
+#define MATCH_C_SDSP         0xe002
+#define MASK_C_SDSP          0xe003
 
 // Zicond extension.
 #define MATCH_CZERO_EQZ 0xe005033
@@ -953,9 +1187,19 @@ typedef enum OPK
         OPK__None = 0,
 
         OPK__GPR,
+        // Compressed (RVC) registers and constrained RVC operands (sp/x0/rd-equals).
+        OPK__GPR_C,
         OPK__FPR,
+        // Compressed (RVC) floating-point registers.
+        OPK__FPR_C,
         OPK__Immediate,
+        // Compressed (RVC) CI-format immediates.
+        OPK__Immediate_C,
+        // Compressed (RVC) CIW/CL/CSS-format immediates.
+        OPK__Immediate_CL,
         OPK__Offset,
+        // Compressed (RVC) offsets (load/store displacements, jumps, branches).
+        OPK__Offset_C,
         OPK__Shift,
 
         OPK__Constant,
@@ -973,7 +1217,9 @@ assert_static_m(OPK__COUNT <= (1 << 5), OPK__size_check);
 
 // Operator fields types
 
-// Operator fields: registers
+#define OPF_size_check_m(subname) assert_static_m(subname##__COUNT <= (1 << 3), OPF_##subname##_size_check)
+
+// Operator fields: registers (OPK__GPR)
 enum
 {
         OPF_R__D,
@@ -981,16 +1227,46 @@ enum
         OPF_R__S2,
         OPF_R__S3,
 
-        OPF_R__D_C,
-        OPF_R__S1_C,
-        OPF_R__S2_C,
-        OPF_R__S3_C,
-
-        OPF_R_COUNT
+        OPF_R__COUNT
 };
-assert_static_m(OPF_R_COUNT <= (1 << 3), OPF_R_size_check);
+OPF_size_check_m(OPF_R);
 
-// Operator fields: floating-point registers.
+// Operator fields: compressed registers (OPK__GPR_C).
+//
+// RVC uses three kinds of GPR fields:
+//   - `D_C`  3-bit field, register x8-x15 encoded as reg-8, in the
+//            CIW/CL `rd'` position (bits 4:2).
+//   - `S1_C` 3-bit field, register x8-x15 encoded as reg-8, in the
+//            CL/CS/CB `rs1'` position (bits 9:7).
+//   - `S2_C` 3-bit field, register x8-x15 encoded as reg-8, in the
+//            CS `rs2'` position (bits 4:2).
+//   - `S2_C5` full 5-bit register in the CSS/c.add/c.mv `rs2` position
+//            (bits 6:2).
+//
+// The constrained operands are parsed as a GPR but must satisfy an equality
+// constraint against a previously-encoded field, and are *not* inserted into
+// the instruction:
+//   - `CU` rs1 must equal the RD field (c.addi, c.slli, ...).
+//   - `CC` the register must be x2 (sp).
+//   - `CZ` the register must be x0.
+//   - `CW` a 3-bit register must equal the CRS1S (rd') field.
+enum
+{
+        OPF_R_C__D_C,
+        OPF_R_C__S1_C,
+        OPF_R_C__S2_C,
+        OPF_R_C__S2_C5,
+
+        OPF_R_C__CU,
+        OPF_R_C__CC,
+        OPF_R_C__CZ,
+        OPF_R_C__CW,
+
+        OPF_R_C__COUNT
+};
+OPF_size_check_m(OPF_R_C);
+
+// Operator fields: floating-point registers (OPK__FPR).
 // A separate namespace from OPF_R (the field bits are scoped by the OPK__FPR kind).
 enum
 {
@@ -1001,24 +1277,65 @@ enum
         // The same register goes into both RS1 and RS2 (`fmv.s rd, rs`).
         OPF_FPR__S12,
 
-        OPF_FPR_COUNT
+        OPF_FPR__COUNT
 };
-assert_static_m(OPF_FPR_COUNT <= (1 << 3), OPF_FPR_size_check);
+OPF_size_check_m(OPF_FPR);
 
-// Operator fields: immediates
+// Operator fields: compressed floating-point registers (OPK__FPR_C):
+//   - `D_C`   3-bit field, FPR x8-x15 encoded as reg-8, in the
+//             CL `rd'` position (bits 4:2).
+//   - `D_C5`  full 5-bit FPR in the CI `rd` position (bits 11:7).
+//   - `S2_C5` full 5-bit FPR in the CSS `rs2` position (bits 6:2).
+enum
+{
+        OPF_FPR_C__D_C,
+        OPF_FPR_C__D_C5,
+        OPF_FPR_C__S2_C5,
+
+        OPF_FPR_C__COUNT
+};
+OPF_size_check_m(OPF_FPR_C);
+
+// Operator fields: immediates (OPK__Immediate)
 enum
 {
         // I-type 12-bit signed
         OPF_I__I,
         // U-type 20-bit upper
         OPF_I__U,
-        // Compressed I-type, 6-bit
-        OPF_I__I_C,
-        // Compressed J-type, 12-bit
-        OPF_I__J_C,
-        OPF_I_COUNT,
+        OPF_I__COUNT
 };
-assert_static_m(OPF_I_COUNT <= (1 << 3), OPF_I_size_check);
+OPF_size_check_m(OPF_I);
+
+// Operator fields: compressed CI-format immediates (OPK__Immediate_C)
+enum
+{
+        // 6-bit signed, zero allowed (c.li/c.addiw/c.andi)
+        OPF_I_C__I_C,
+        // 6-bit signed, immediate must be non-zero (c.addi)
+        OPF_I_C__I_C_NZ,
+        // Shift amount, 0..XLEN-1 (c.slli/c.srli/c.srai)
+        OPF_I_C__Shift,
+        // c.lui (special range, 20-bit upper input)
+        OPF_I_C__LUI,
+        // c.lui from `li` (input is a 12-bit-aligned value)
+        OPF_I_C__LI_LUI,
+        // c.addi16sp immediate
+        OPF_I_C__ADDI16SP,
+        OPF_I_C__COUNT
+};
+OPF_size_check_m(OPF_I_C);
+
+// Operator fields: compressed CIW/CL/CSS-format immediates (OPK__Immediate_CL)
+enum
+{
+        // c.addi4spn immediate
+        OPF_I_CL__CIW_ADDI4SPN,
+        // An immediate that must be exactly zero (RVC `z` operand).
+        OPF_I_CL__ZERO,
+        OPF_I_CL__COUNT
+};
+OPF_size_check_m(OPF_I_CL);
 
 // Operator fields: constants / addresses
 enum
@@ -1027,9 +1344,9 @@ enum
         OPF_C__Large,
         // Address (`la rd, symbol`): a symbol (32-bit relocation) or a 32-bit constant.
         OPF_C__Address,
-        OPF_C_COUNT
+        OPF_C__COUNT
 };
-assert_static_m(OPF_C_COUNT <= (1 << 3), OPF_C_size_check);
+OPF_size_check_m(OPF_C);
 
 // Operator fields: shift amounts
 enum
@@ -1038,10 +1355,11 @@ enum
         OPF_S__Shift,
         // 32-bit shift amount (`slliw/srliw/sraiw`).
         OPF_S__Shift_5,
-        OPF_S_COUNT
+        OPF_S__COUNT
 };
-assert_static_m(OPF_S_COUNT <= (1 << 3), OPF_S_size_check);
+OPF_size_check_m(OPF_S);
 
+// Operator fields: offsets (OPK__Offset)
 enum
 {
         // I-type encoding (lw/flw ...)
@@ -1052,14 +1370,29 @@ enum
         OPF_O__Branch,
         // J-type encoding (jal/j ...)
         OPF_O__Jal,
-        // RVC CL-format (c.lw ...)
-        OPF_O__Load_C,
-        // RVC CJ-format (c.jal ...)
-        OPF_O__Jal_C,
-        OPF_O_COUNT,
+        OPF_O__COUNT
 };
+OPF_size_check_m(OPF_O);
 
-assert_static_m(OPF_O_COUNT <= (1 << 3), OPF_O_size_check);
+// Operator fields: compressed offsets (OPK__Offset_C)
+enum
+{
+        // RVC CI-format lwsp/ldsp offset (c.lwsp/c.ldsp ...)
+        OPF_O_C__LWSP,
+        OPF_O_C__LDSP,
+        // RVC CL-format lw/ld offset (c.lw/c.ld/c.sw/c.sd ...)
+        OPF_O_C__LW,
+        OPF_O_C__LD,
+        // RVC CSS-format swsp/sdsp offset (c.swsp/c.sdsp ...)
+        OPF_O_C__SWSP,
+        OPF_O_C__SDSP,
+        // RVC CJ-format (c.j/c.jal ...)
+        OPF_O_C__Jal_C,
+        // RVC CB-format branch (c.beqz/c.bnez ...)
+        OPF_O_C__Branch_C,
+        OPF_O_C__COUNT
+};
+OPF_size_check_m(OPF_O_C);
 
 enum
 {
@@ -1068,7 +1401,7 @@ enum
         OPF_SX__PR,
         OPF_SX__COUNT
 };
-assert_static_m(OPF_SX__COUNT <= (1 << 3), OPF_SX_size_check);
+OPF_size_check_m(OPF_SX);
 
 enum
 {
@@ -1079,7 +1412,7 @@ enum
         OPF_U__Rounding_Mode,
         OPF_U__COUNT
 };
-assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
+OPF_size_check_m(OPF_U);
 
 // Slot / pattern macros
 
@@ -1088,13 +1421,18 @@ assert_static_m(OPF_U__COUNT <= (1 << 3), OPF_U_size_check);
 #define OP_KIND(a)            ((U8)((a) & 0x1f))
 #define OP_FIELD(a)           ((U8)(((a) >> 5) & 0x07))
 
-#define OP_None             OPK__None
-#define OP_GPR(field)       OP_A(OPK__GPR, field)
-#define OP_FPR(field)       OP_A(OPK__FPR, field)
-#define OP_Immediate(field) OP_A(OPK__Immediate, field)
-#define OP_Offset(field)    OP_A(OPK__Offset, field)
-#define OP_Shift(field)     OP_A(OPK__Shift, field)
-#define OP_Constant(field)  OP_A(OPK__Constant, field)
+#define OP_None                OPK__None
+#define OP_GPR(field)          OP_A(OPK__GPR, field)
+#define OP_GPR_C(field)        OP_A(OPK__GPR_C, field)
+#define OP_FPR(field)          OP_A(OPK__FPR, field)
+#define OP_FPR_C(field)        OP_A(OPK__FPR_C, field)
+#define OP_Immediate(field)    OP_A(OPK__Immediate, field)
+#define OP_Immediate_C(field)  OP_A(OPK__Immediate_C, field)
+#define OP_Immediate_CL(field) OP_A(OPK__Immediate_CL, field)
+#define OP_Offset(field)       OP_A(OPK__Offset, field)
+#define OP_Offset_C(field)     OP_A(OPK__Offset_C, field)
+#define OP_Shift(field)        OP_A(OPK__Shift, field)
+#define OP_Constant(field)     OP_A(OPK__Constant, field)
 
 #define OP_Relocation       OPK__Relocation
 #define OP_Call             OP_A(OPK__Unique, OPF_U__Call)
@@ -1126,6 +1464,7 @@ enum
 {
         OPC__None = 0,
         OPC__I,
+        OPC__C,
         OPC__M,
         OPC__ZMMUL,
         OPC__F,
@@ -1200,11 +1539,19 @@ assert_static_m(sizeof(RISCV_Opcode) == 48, RISCV_Opcode__size_check);
 // the mandatory encoding (e.g. opcode bits, funct3/funct7 etc..). On a perfect match, this returns zero.
 // Then, we perform a bitwise AND with the opcode `mask` field, which keeps only the bits checked by the `match` field,
 // skipping variable ones like immediates or registers.
-internal B32 match_opcode (const RISCV_Opcode *opcode, U32 instruction);
-internal B32 match_rd_nonzero (const RISCV_Opcode *opcode, U32 instruction);
-internal B32 match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_opcode(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_rd_nonzero(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_rs1_nonzero(const RISCV_Opcode *opcode, U32 instruction);
 
-internal const RISCV_Opcode * RISCV_Opcode__table_find(U32 instruction_hash);
+// Compressed (RVC) instruction match functions.
+internal B32 match_c_lui(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_c_add(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_c_nop(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_c_addi16sp(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_slli_as_c_slli(const RISCV_Opcode *opcode, U32 instruction);
+internal B32 match_srxi_as_c_srxi(const RISCV_Opcode *opcode, U32 instruction);
+
+internal const RISCV_Opcode * RISCV_Opcode__table_find(U32 instruction_hash, B32 skip_compressed);
 
 // Normalize a constant for the current XLEN: on RV32, sign-extend values with bit 31 set and all
 // higher bits clear (see the implementation for details). No-op on RV64.

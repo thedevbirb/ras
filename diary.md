@@ -1863,3 +1863,11 @@ Perhaps something to write about?
 
 I've added extensions support, finally. Started from a ported stub from GNU as, revisited into
 something that is okay.
+
+## Fri Aug 28 12:17:32 CEST 2026
+
+Blog written in the past days! And a small family break taken. I'm adding right now compressed
+instruction support. So much macro boilerplate.
+
+Yeah, it adds complexity. However it is quite ubiquitous in microcontrollers, which are the main
+targets of RISC-V...

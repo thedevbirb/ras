@@ -505,14 +505,14 @@ typedef U16 Relocation_RISC_V;
 #define Relocation_RISC_V__COUNT                                          66
 
 // RISC-V ELF Flags
-#define EF_RISCV_RVC 			0x0001
-#define EF_RISCV_FLOAT_ABI 		0x0006
-#define EF_RISCV_FLOAT_ABI_SOFT 	0x0000
-#define EF_RISCV_FLOAT_ABI_SINGLE 	0x0002
-#define EF_RISCV_FLOAT_ABI_DOUBLE 	0x0004
-#define EF_RISCV_FLOAT_ABI_QUAD 	0x0006
-#define EF_RISCV_RVE			0x0008
-#define EF_RISCV_TSO			0x0010
+#define EF_RISCV_RVC               0x0001
+#define EF_RISCV_FLOAT_ABI         0x0006
+#define EF_RISCV_FLOAT_ABI_SOFT    0x0000
+#define EF_RISCV_FLOAT_ABI_SINGLE  0x0002
+#define EF_RISCV_FLOAT_ABI_DOUBLE  0x0004
+#define EF_RISCV_FLOAT_ABI_QUAD    0x0006
+#define EF_RISCV_RVE               0x0008
+#define EF_RISCV_TSO               0x0010
 
 // /* RISC-V specific values for the visibility field.  */
 // #define STO_RISCV_VARIANT_CC        0x80        /* Function uses variant calling

@@ -42,85 +42,127 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 {
 // Base I instructions.
 { String8__inline_m("auipc"), 0, OPC__I, 0, HASH_auipc, MATCH_AUIPC, MASK_AUIPC, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__U)), match_opcode },
+{ String8__inline_m("lui"),   0, OPC__C, INSN_ALIAS, HASH_lui, MATCH_C_LUI, MASK_C_LUI, OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__LUI)), match_c_lui },
 { String8__inline_m("lui"),   0, OPC__I, 0, HASH_lui,   MATCH_LUI,   MASK_LUI,   OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__U)), match_opcode },
 
 // NOTE: important here to go from more specific to less specific.
-{ String8__inline_m("jal"),  0, OPC__I,  0,                   HASH_jal,  MATCH_JAL,                     MASK_JAL,                   OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Jal)),                                   match_opcode },
-{ String8__inline_m("jal"),  0, OPC__I,  0,                   HASH_jal,  MATCH_JAL|(X_RA << OP_SH_RD),  MASK_JAL| MASK_RD,          OP_m(OP_Offset(OPF_O__Jal)),                                                     match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  0,                   HASH_jalr, MATCH_JALR,                    MASK_JALR,                  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),               match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR,                    MASK_JALR|MASK_IMM,         OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  INSN_JSR,            HASH_jalr, MATCH_JALR,                    MASK_JALR,                  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD|MASK_IMM, OP_m(OP_GPR(OPF_R__S1)),                                                         match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                   match_opcode },
-{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD,          OP_m(OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                                 match_opcode },
+{ String8__inline_m("jal"), 32, OPC__C,  INSN_ALIAS|INSN_JSR, HASH_jal,  MATCH_C_JAL,                   MASK_C_JAL,                 OP_m(OP_Offset_C(OPF_O_C__Jal_C)),                                               match_opcode     },
+{ String8__inline_m("jal"),  0, OPC__I,  0,                   HASH_jal,  MATCH_JAL,                     MASK_JAL,                   OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Jal)),                                   match_opcode     },
+{ String8__inline_m("jal"),  0, OPC__I,  0,                   HASH_jal,  MATCH_JAL|(X_RA << OP_SH_RD),  MASK_JAL| MASK_RD,          OP_m(OP_Offset(OPF_O__Jal)),                                                     match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__C,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_C_JALR,                  MASK_C_JALR,                OP_m(OP_GPR(OPF_R__D)),                                                          match_rd_nonzero },
+{ String8__inline_m("jalr"), 0, OPC__I,  0,                   HASH_jalr, MATCH_JALR,                    MASK_JALR,                  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),               match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR,                    MASK_JALR|MASK_IMM,         OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__I,  INSN_JSR,            HASH_jalr, MATCH_JALR,                    MASK_JALR,                  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD|MASK_IMM, OP_m(OP_GPR(OPF_R__S1)),                                                         match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                   match_opcode     },
+{ String8__inline_m("jalr"), 0, OPC__I,  INSN_ALIAS|INSN_JSR, HASH_jalr, MATCH_JALR|(X_RA << OP_SH_RD), MASK_JALR|MASK_RD,          OP_m(OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                                 match_opcode     },
 
-{ String8__inline_m("lb"),   0, OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lb,  MATCH_LB,  MASK_LB,  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lb"),   0, OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lb,  MATCH_LB,  MASK_LB,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("lbu"),  0, OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lbu, MATCH_LBU, MASK_LBU, OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lbu"),  0, OPC__I, INSN_DREF|INSN_1_BYTE, HASH_lbu, MATCH_LBU, MASK_LBU, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("lh"),   0, OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lh,  MATCH_LH,  MASK_LH,  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lh"),   0, OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lh,  MATCH_LH,  MASK_LH,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("lhu"),  0, OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lhu, MATCH_LHU, MASK_LHU, OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lhu"),  0, OPC__I, INSN_DREF|INSN_2_BYTE, HASH_lhu, MATCH_LHU, MASK_LHU, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("lw"),   0, OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lw"),   0, OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_LW,  MASK_LW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("lwu"), 64, OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lwu, MATCH_LWU, MASK_LWU, OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("lwu"), 64, OPC__I, INSN_DREF|INSN_4_BYTE, HASH_lwu, MATCH_LWU, MASK_LWU, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("ld"),  64, OPC__I, INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_LD,  MASK_LD,  OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("ld"),  64, OPC__I, INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_LD,  MASK_LD,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                       match_opcode },
+{ String8__inline_m("lb"),   0, OPC__I, INSN_DREF|INSN_1_BYTE,            HASH_lb,  MATCH_LB,     MASK_LB,     OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lb"),   0, OPC__I, INSN_DREF|INSN_1_BYTE,            HASH_lb,  MATCH_LB,     MASK_LB,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("lbu"),  0, OPC__I, INSN_DREF|INSN_1_BYTE,            HASH_lbu, MATCH_LBU,    MASK_LBU,    OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lbu"),  0, OPC__I, INSN_DREF|INSN_1_BYTE,            HASH_lbu, MATCH_LBU,    MASK_LBU,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("lh"),   0, OPC__I, INSN_DREF|INSN_2_BYTE,            HASH_lh,  MATCH_LH,     MASK_LH,     OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lh"),   0, OPC__I, INSN_DREF|INSN_2_BYTE,            HASH_lh,  MATCH_LH,     MASK_LH,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("lhu"),  0, OPC__I, INSN_DREF|INSN_2_BYTE,            HASH_lhu, MATCH_LHU,    MASK_LHU,    OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lhu"),  0, OPC__I, INSN_DREF|INSN_2_BYTE,            HASH_lhu, MATCH_LHU,    MASK_LHU,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("lw"),   0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_C_LWSP, MASK_C_LWSP, OP_m(OP_GPR(OPF_R__D), OP_Offset_C(OPF_O_C__LWSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR),       match_rd_nonzero },
+{ String8__inline_m("lw"),   0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_lw,  MATCH_C_LW,   MASK_C_LW,   OP_m(OP_GPR_C(OPF_R_C__D_C), OP_Offset_C(OPF_O_C__LW),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR), match_opcode     },
+{ String8__inline_m("lw"),   0, OPC__I, INSN_DREF|INSN_4_BYTE,            HASH_lw,  MATCH_LW,     MASK_LW,     OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lw"),   0, OPC__I, INSN_DREF|INSN_4_BYTE,            HASH_lw,  MATCH_LW,     MASK_LW,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("lwu"), 64, OPC__I, INSN_DREF|INSN_4_BYTE,            HASH_lwu, MATCH_LWU,    MASK_LWU,    OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("lwu"), 64, OPC__I, INSN_DREF|INSN_4_BYTE,            HASH_lwu, MATCH_LWU,    MASK_LWU,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
+{ String8__inline_m("ld"),  64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_C_LDSP, MASK_C_LDSP, OP_m(OP_GPR(OPF_R__D), OP_Offset_C(OPF_O_C__LDSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR),       match_rd_nonzero },
+{ String8__inline_m("ld"),  64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_ld,  MATCH_C_LD,   MASK_C_LD,   OP_m(OP_GPR_C(OPF_R_C__D_C), OP_Offset_C(OPF_O_C__LD),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR), match_opcode     },
+{ String8__inline_m("ld"),  64, OPC__I, INSN_DREF|INSN_8_BYTE,            HASH_ld,  MATCH_LD,     MASK_LD,     OP_m(OP_GPR(OPF_R__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode     },
+{ String8__inline_m("ld"),  64, OPC__I, INSN_DREF|INSN_8_BYTE,            HASH_ld,  MATCH_LD,     MASK_LD,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                                                      match_opcode     },
 // TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
-{ String8__inline_m("sb"),  0, OPC__I, INSN_DREF|INSN_1_BYTE, HASH_sb, MATCH_SB, MASK_SB, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("sh"),  0, OPC__I, INSN_DREF|INSN_2_BYTE, HASH_sh, MATCH_SH, MASK_SH, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("sw"),  0, OPC__I, INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_SW, MASK_SW, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("sd"), 64, OPC__I, INSN_DREF|INSN_8_BYTE, HASH_sd, MATCH_SD, MASK_SD, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
+{ String8__inline_m("sb"),  0, OPC__I, INSN_DREF|INSN_1_BYTE,            HASH_sb, MATCH_SB,     MASK_SB,     OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode },
+{ String8__inline_m("sh"),  0, OPC__I, INSN_DREF|INSN_2_BYTE,            HASH_sh, MATCH_SH,     MASK_SH,     OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode },
+{ String8__inline_m("sw"),  0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_C_SWSP, MASK_C_SWSP, OP_m(OP_GPR_C(OPF_R_C__S2_C5), OP_Offset_C(OPF_O_C__SWSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR), match_opcode },
+{ String8__inline_m("sw"),  0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_sw, MATCH_C_SW,   MASK_C_SW,   OP_m(OP_GPR_C(OPF_R_C__S2_C), OP_Offset_C(OPF_O_C__LW),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),  match_opcode },
+{ String8__inline_m("sw"),  0, OPC__I, INSN_DREF|INSN_4_BYTE,            HASH_sw, MATCH_SW,     MASK_SW,     OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode },
+{ String8__inline_m("sd"), 64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_sd, MATCH_C_SDSP, MASK_C_SDSP, OP_m(OP_GPR_C(OPF_R_C__S2_C5), OP_Offset_C(OPF_O_C__SDSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR), match_opcode },
+{ String8__inline_m("sd"), 64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_sd, MATCH_C_SD,   MASK_C_SD,   OP_m(OP_GPR_C(OPF_R_C__S2_C),  OP_Offset_C(OPF_O_C__LD),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR), match_opcode },
+{ String8__inline_m("sd"), 64, OPC__I, INSN_DREF|INSN_8_BYTE,            HASH_sd, MATCH_SD,     MASK_SD,     OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                match_opcode },
 // TODO(low): add symbol version of this. GNU as treats the version A_RD_RS1 where RS1 is part of an expression and RS1 is a register symbol.
 
-{ String8__inline_m("addi"),   0, OPC__I, 0, HASH_addi,  MATCH_ADDI,  MASK_ADDI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("addiw"), 64, OPC__I, 0, HASH_addiw, MATCH_ADDIW, MASK_ADDIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("slti"),   0, OPC__I, 0, HASH_slti,  MATCH_SLTI,  MASK_SLTI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("sltiu"),  0, OPC__I, 0, HASH_sltiu, MATCH_SLTIU, MASK_SLTIU, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("xori"),   0, OPC__I, 0, HASH_xori,  MATCH_XORI,  MASK_XORI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("ori"),    0, OPC__I, 0, HASH_ori,   MATCH_ORI,   MASK_ORI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
-{ String8__inline_m("andi"),   0, OPC__I, 0, HASH_andi,  MATCH_ANDI,  MASK_ANDI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)), match_opcode },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_ADDI4SPN,  MASK_C_ADDI4SPN,          OP_m(OP_GPR_C(OPF_R_C__D_C), OP_GPR_C(OPF_R_C__CC), OP_Immediate_CL(OPF_I_CL__CIW_ADDI4SPN)),   match_opcode     },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_ADDI,      MASK_C_ADDI,              OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CU),   OP_Immediate_C(OPF_I_C__I_C_NZ)),               match_rd_nonzero },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_ADDI,      MASK_C_ADDI|MASK_RVC_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CU), OP_Immediate_CL(OPF_I_CL__ZERO)),                 match_c_nop      },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_ADDI16SP,  MASK_C_ADDI16SP,          OP_m(OP_GPR_C(OPF_R_C__CC), OP_GPR_C(OPF_R_C__CC), OP_Immediate_C(OPF_I_C__ADDI16SP)),          match_c_addi16sp },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_LI,        MASK_C_LI,                OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CZ),   OP_Immediate_C(OPF_I_C__I_C)),                  match_rd_nonzero },
+{ String8__inline_m("addi"),   0, OPC__C, INSN_ALIAS, HASH_addi,  MATCH_C_MV,        MASK_C_MV,                OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__S2_C5), OP_Immediate_CL(OPF_I_CL__ZERO)),              match_c_add      },
+{ String8__inline_m("addi"),   0, OPC__I, 0,          HASH_addi,  MATCH_ADDI,        MASK_ADDI,                OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("addiw"), 64, OPC__C, INSN_ALIAS, HASH_addiw, MATCH_C_ADDIW,     MASK_C_ADDIW,             OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CU), OP_Immediate_C(OPF_I_C__I_C)),                    match_rd_nonzero },
+{ String8__inline_m("addiw"), 64, OPC__I, 0,          HASH_addiw, MATCH_ADDIW,       MASK_ADDIW,               OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("slti"),   0, OPC__I, 0,          HASH_slti,  MATCH_SLTI,        MASK_SLTI,                OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("sltiu"),  0, OPC__I, 0,          HASH_sltiu, MATCH_SLTIU,       MASK_SLTIU,               OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("xori"),   0, OPC__I, 0,          HASH_xori,  MATCH_XORI,        MASK_XORI,                OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("ori"),    0, OPC__I, 0,          HASH_ori,   MATCH_ORI,         MASK_ORI,                 OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
+{ String8__inline_m("andi"),   0, OPC__C, INSN_ALIAS, HASH_andi,  MATCH_C_ANDI,      MASK_C_ANDI,              OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_Immediate_C(OPF_I_C__I_C)),             match_opcode     },
+{ String8__inline_m("andi"),   0, OPC__I, 0,          HASH_andi,  MATCH_ANDI,        MASK_ANDI,                OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                              match_opcode     },
 
-{ String8__inline_m("slli"),   0,  OPC__I, 0, HASH_slli,  MATCH_SLLI,  MASK_SLLI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("srli"),   0,  OPC__I, 0, HASH_srli,  MATCH_SRLI,  MASK_SRLI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("srai"),   0,  OPC__I, 0, HASH_srai,  MATCH_SRAI,  MASK_SRAI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("slliw"), 64,  OPC__I, 0, HASH_slliw, MATCH_SLLIW, MASK_SLLIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
-{ String8__inline_m("srliw"), 64,  OPC__I, 0, HASH_srliw, MATCH_SRLIW, MASK_SRLIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
-{ String8__inline_m("sraiw"), 64,  OPC__I, 0, HASH_sraiw, MATCH_SRAIW, MASK_SRAIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
+{ String8__inline_m("and"),   0,  OPC__C, INSN_ALIAS, HASH_and,  MATCH_C_AND,  MASK_C_AND,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),        match_opcode },
+{ String8__inline_m("and"),   0,  OPC__C, INSN_ALIAS, HASH_and,  MATCH_C_AND,  MASK_C_AND,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C), OP_GPR_C(OPF_R_C__CW)),        match_opcode },
+{ String8__inline_m("and"),   0,  OPC__C, INSN_ALIAS, HASH_and,  MATCH_C_ANDI, MASK_C_ANDI, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_Immediate_C(OPF_I_C__I_C)),   match_opcode },
+{ String8__inline_m("and"),   0,  OPC__I, 0,          HASH_and,  MATCH_AND,    MASK_AND,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                         match_opcode },
+{ String8__inline_m("and"),   0,  OPC__I, INSN_ALIAS, HASH_and,  MATCH_ANDI,   MASK_ANDI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                    match_opcode },
+{ String8__inline_m("or"),    0,  OPC__C, INSN_ALIAS, HASH_or,   MATCH_C_OR,   MASK_C_OR,   OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),        match_opcode },
+{ String8__inline_m("or"),    0,  OPC__C, INSN_ALIAS, HASH_or,   MATCH_C_OR,   MASK_C_OR,   OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C), OP_GPR_C(OPF_R_C__CW)),        match_opcode },
+{ String8__inline_m("or"),    0,  OPC__I, 0,          HASH_or,   MATCH_OR,     MASK_OR,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                         match_opcode },
+{ String8__inline_m("or"),    0,  OPC__I, INSN_ALIAS, HASH_or,   MATCH_ORI,    MASK_ORI,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                    match_opcode },
+{ String8__inline_m("xor"),   0,  OPC__C, INSN_ALIAS, HASH_xor,  MATCH_C_XOR,  MASK_C_XOR,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),        match_opcode },
+{ String8__inline_m("xor"),   0,  OPC__C, INSN_ALIAS, HASH_xor,  MATCH_C_XOR,  MASK_C_XOR,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C), OP_GPR_C(OPF_R_C__CW)),        match_opcode },
+{ String8__inline_m("xor"),   0,  OPC__I, 0,          HASH_xor,  MATCH_XOR,    MASK_XOR,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                         match_opcode },
+{ String8__inline_m("xor"),   0,  OPC__I, INSN_ALIAS, HASH_xor,  MATCH_XORI,   MASK_XORI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                    match_opcode },
 
-{ String8__inline_m("add"),   0,  OPC__I, 0,          HASH_add,  MATCH_ADD,   MASK_ADD,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("add"),   0,  OPC__I, INSN_ALIAS, HASH_add,  MATCH_ADDI,  MASK_ADDI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("sub"),   0,  OPC__I, 0,          HASH_sub,  MATCH_SUB,   MASK_SUB,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("addw"), 64,  OPC__I, 0,          HASH_addw, MATCH_ADDW,  MASK_ADDW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("addw"), 64,  OPC__I, INSN_ALIAS, HASH_addw, MATCH_ADDIW, MASK_ADDIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("subw"), 64,  OPC__I, 0,          HASH_subw, MATCH_SUBW,  MASK_SUBW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sll"),   0,  OPC__I, 0,          HASH_sll,  MATCH_SLL,   MASK_SLL,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sll"),   0,  OPC__I, INSN_ALIAS, HASH_sll,  MATCH_SLLI,  MASK_SLLI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("slt"),   0,  OPC__I, 0,          HASH_slt,  MATCH_SLT,   MASK_SLT,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("slt"),   0,  OPC__I, INSN_ALIAS, HASH_slt,  MATCH_SLTI,  MASK_SLTI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("sltu"),  0,  OPC__I, 0,          HASH_sltu, MATCH_SLTU,  MASK_SLTU,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sltu"),  0,  OPC__I, INSN_ALIAS, HASH_sltu, MATCH_SLTIU, MASK_SLTIU, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("sllw"), 64,  OPC__I, 0,          HASH_sllw, MATCH_SLLW,  MASK_SLLW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sllw"), 64,  OPC__I, INSN_ALIAS, HASH_sllw, MATCH_SLLIW, MASK_SLLIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
-{ String8__inline_m("xor"),   0,  OPC__I, 0,          HASH_xor,  MATCH_XOR,   MASK_XOR,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("xor"),   0,  OPC__I, INSN_ALIAS, HASH_xor,  MATCH_XORI,  MASK_XORI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("srl"),   0,  OPC__I, 0,          HASH_srl,  MATCH_SRL,   MASK_SRL,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("srl"),   0,  OPC__I, INSN_ALIAS, HASH_srl,  MATCH_SRLI,  MASK_SRLI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("sra"),   0,  OPC__I, 0,          HASH_sra,  MATCH_SRA,   MASK_SRA,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sra"),   0,  OPC__I, INSN_ALIAS, HASH_sra,  MATCH_SRAI,  MASK_SRAI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),   match_opcode },
-{ String8__inline_m("sraw"), 64,  OPC__I, 0,          HASH_sraw, MATCH_SRAW,  MASK_SRAW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("sraw"), 64,  OPC__I, INSN_ALIAS, HASH_sraw, MATCH_SRAIW, MASK_SRAIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
-{ String8__inline_m("or"),    0,  OPC__I, 0,          HASH_or,   MATCH_OR,    MASK_OR,    OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("or"),    0,  OPC__I, INSN_ALIAS, HASH_or,   MATCH_ORI,   MASK_ORI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("and"),   0,  OPC__I, 0,          HASH_and,  MATCH_AND,   MASK_AND,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("and"),   0,  OPC__I, INSN_ALIAS, HASH_and,  MATCH_ANDI,  MASK_ANDI,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),   match_opcode },
-{ String8__inline_m("srlw"), 64,  OPC__I, 0,          HASH_srlw, MATCH_SRLW,  MASK_SRLW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),        match_opcode },
-{ String8__inline_m("srlw"), 64,  OPC__I, INSN_ALIAS, HASH_srlw, MATCH_SRLIW, MASK_SRLIW, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)), match_opcode },
+{ String8__inline_m("slli"),   0,  OPC__C, INSN_ALIAS, HASH_slli,  MATCH_C_SLLI, MASK_C_SLLI, OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CU), OP_Immediate_C(OPF_I_C__Shift)),        match_slli_as_c_slli },
+{ String8__inline_m("slli"),   0,  OPC__I, 0,          HASH_slli,  MATCH_SLLI,   MASK_SLLI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                    match_opcode         },
+{ String8__inline_m("srli"),   0,  OPC__C, INSN_ALIAS, HASH_srli,  MATCH_C_SRLI, MASK_C_SRLI, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_Immediate_C(OPF_I_C__Shift)), match_srxi_as_c_srxi },
+{ String8__inline_m("srli"),   0,  OPC__I, 0,          HASH_srli,  MATCH_SRLI,   MASK_SRLI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                    match_opcode         },
+{ String8__inline_m("srai"),   0,  OPC__C, INSN_ALIAS, HASH_srai,  MATCH_C_SRAI, MASK_C_SRAI, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_Immediate_C(OPF_I_C__Shift)), match_srxi_as_c_srxi },
+{ String8__inline_m("srai"),   0,  OPC__I, 0,          HASH_srai,  MATCH_SRAI,   MASK_SRAI,   OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                    match_opcode         },
+{ String8__inline_m("slliw"), 64,  OPC__I, 0,          HASH_slliw, MATCH_SLLIW,  MASK_SLLIW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                  match_opcode         },
+{ String8__inline_m("srliw"), 64,  OPC__I, 0,          HASH_srliw, MATCH_SRLIW,  MASK_SRLIW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                  match_opcode         },
+{ String8__inline_m("sraiw"), 64,  OPC__I, 0,          HASH_sraiw, MATCH_SRAIW,  MASK_SRAIW,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                  match_opcode         },
 
-{ String8__inline_m("sext.w"), 64, OPC__I, INSN_ALIAS, HASH_sext_w, MATCH_ADDIW, MASK_ADDIW|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)), match_opcode },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_ADD,      MASK_C_ADD,      OP_m(OP_GPR(OPF_R__D),   OP_GPR_C(OPF_R_C__CU),   OP_GPR_C(OPF_R_C__S2_C5)),                     match_c_add      },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_ADD,      MASK_C_ADD,      OP_m(OP_GPR(OPF_R__D),   OP_GPR_C(OPF_R_C__S2_C5), OP_GPR_C(OPF_R_C__CU)),                       match_c_add      },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_ADDI,     MASK_C_ADDI,     OP_m(OP_GPR(OPF_R__D),   OP_GPR_C(OPF_R_C__CU),   OP_Immediate_C(OPF_I_C__I_C)),                 match_rd_nonzero },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_ADDI4SPN, MASK_C_ADDI4SPN, OP_m(OP_GPR_C(OPF_R_C__D_C), OP_GPR_C(OPF_R_C__CC),  OP_Immediate_CL(OPF_I_CL__CIW_ADDI4SPN)),   match_opcode     },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_ADDI16SP, MASK_C_ADDI16SP, OP_m(OP_GPR_C(OPF_R_C__CC), OP_GPR_C(OPF_R_C__CC),  OP_Immediate_C(OPF_I_C__ADDI16SP)),          match_c_addi16sp },
+{ String8__inline_m("add"),   0,  OPC__C, INSN_ALIAS, HASH_add,  MATCH_C_MV,       MASK_C_MV,       OP_m(OP_GPR(OPF_R__D),   OP_GPR_C(OPF_R_C__CZ),   OP_GPR_C(OPF_R_C__S2_C5)),                     match_c_add      },
+{ String8__inline_m("add"),   0,  OPC__I, 0,          HASH_add,  MATCH_ADD,        MASK_ADD,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("add"),   0,  OPC__I, INSN_ALIAS, HASH_add,  MATCH_ADDI,       MASK_ADDI,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                               match_opcode     },
+{ String8__inline_m("sub"),   0,  OPC__C, INSN_ALIAS, HASH_sub,  MATCH_C_SUB,      MASK_C_SUB,      OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),                   match_opcode     },
+{ String8__inline_m("sub"),   0,  OPC__I, 0,          HASH_sub,  MATCH_SUB,        MASK_SUB,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("addw"), 64,  OPC__C, INSN_ALIAS, HASH_addw, MATCH_C_ADDW,     MASK_C_ADDW,     OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),                   match_opcode     },
+{ String8__inline_m("addw"), 64,  OPC__C, INSN_ALIAS, HASH_addw, MATCH_C_ADDW,     MASK_C_ADDW,     OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C), OP_GPR_C(OPF_R_C__CW)),                   match_opcode     },
+{ String8__inline_m("addw"), 64,  OPC__C, INSN_ALIAS, HASH_addw, MATCH_C_ADDIW,    MASK_C_ADDIW,    OP_m(OP_GPR(OPF_R__D),   OP_GPR_C(OPF_R_C__CU),   OP_Immediate_C(OPF_I_C__I_C)),                 match_rd_nonzero },
+{ String8__inline_m("addw"), 64,  OPC__I, 0,          HASH_addw, MATCH_ADDW,       MASK_ADDW,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("addw"), 64,  OPC__I, INSN_ALIAS, HASH_addw, MATCH_ADDIW,      MASK_ADDIW,      OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                               match_opcode     },
+{ String8__inline_m("subw"), 64,  OPC__C, INSN_ALIAS, HASH_subw, MATCH_C_SUBW,     MASK_C_SUBW,     OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CW), OP_GPR_C(OPF_R_C__S2_C)),                   match_opcode     },
+{ String8__inline_m("subw"), 64,  OPC__I, 0,          HASH_subw, MATCH_SUBW,       MASK_SUBW,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sll"),   0,  OPC__I, 0,          HASH_sll,  MATCH_SLL,        MASK_SLL,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sll"),   0,  OPC__I, INSN_ALIAS, HASH_sll,  MATCH_SLLI,       MASK_SLLI,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                               match_opcode     },
+{ String8__inline_m("slt"),   0,  OPC__I, 0,          HASH_slt,  MATCH_SLT,        MASK_SLT,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("slt"),   0,  OPC__I, INSN_ALIAS, HASH_slt,  MATCH_SLTI,       MASK_SLTI,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                               match_opcode     },
+{ String8__inline_m("sltu"),  0,  OPC__I, 0,          HASH_sltu, MATCH_SLTU,       MASK_SLTU,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sltu"),  0,  OPC__I, INSN_ALIAS, HASH_sltu, MATCH_SLTIU,      MASK_SLTIU,      OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),                               match_opcode     },
+{ String8__inline_m("sllw"), 64,  OPC__I, 0,          HASH_sllw, MATCH_SLLW,       MASK_SLLW,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sllw"), 64,  OPC__I, INSN_ALIAS, HASH_sllw, MATCH_SLLIW,      MASK_SLLIW,      OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                             match_opcode     },
+{ String8__inline_m("srl"),   0,  OPC__I, 0,          HASH_srl,  MATCH_SRL,        MASK_SRL,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("srl"),   0,  OPC__I, INSN_ALIAS, HASH_srl,  MATCH_SRLI,       MASK_SRLI,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                               match_opcode     },
+{ String8__inline_m("sra"),   0,  OPC__I, 0,          HASH_sra,  MATCH_SRA,        MASK_SRA,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sra"),   0,  OPC__I, INSN_ALIAS, HASH_sra,  MATCH_SRAI,       MASK_SRAI,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift)),                               match_opcode     },
+{ String8__inline_m("sraw"), 64,  OPC__I, 0,          HASH_sraw, MATCH_SRAW,       MASK_SRAW,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("sraw"), 64,  OPC__I, INSN_ALIAS, HASH_sraw, MATCH_SRAIW,      MASK_SRAIW,      OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                             match_opcode     },
+{ String8__inline_m("srlw"), 64,  OPC__I, 0,          HASH_srlw, MATCH_SRLW,       MASK_SRLW,       OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2)),                                    match_opcode     },
+{ String8__inline_m("srlw"), 64,  OPC__I, INSN_ALIAS, HASH_srlw, MATCH_SRLIW,      MASK_SRLIW,      OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Shift(OPF_S__Shift_5)),                             match_opcode     },
+
+{ String8__inline_m("sext.w"), 64, OPC__C, INSN_ALIAS, HASH_sext_w, MATCH_C_ADDIW, MASK_C_ADDIW|MASK_RVC_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__CU)), match_rd_nonzero },
+{ String8__inline_m("sext.w"), 64, OPC__I, INSN_ALIAS, HASH_sext_w, MATCH_ADDIW,   MASK_ADDIW|  MASK_IMM,     OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),     match_opcode     },
 
 { String8__inline_m("seqz"), 0, OPC__I, INSN_ALIAS, HASH_seqz, MATCH_SLTIU|(1 << 20),   MASK_SLTIU|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                    match_opcode },
 { String8__inline_m("snez"), 0, OPC__I, INSN_ALIAS, HASH_snez, MATCH_SLTU,              MASK_SLTU|MASK_RS1,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S2)),                    match_opcode },
@@ -129,54 +171,68 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("sgt"),  0, OPC__I, INSN_ALIAS, HASH_sgt,  MATCH_SLT,               MASK_SLT,            OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1)), match_opcode },
 { String8__inline_m("sgtu"), 0, OPC__I, INSN_ALIAS, HASH_sgtu, MATCH_SLTU,              MASK_SLTU,           OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1)), match_opcode },
 
-{ String8__inline_m("beq"),  0,   OPC__I, INSN_CONDBRANCH, HASH_beq,  MATCH_BEQ,  MASK_BEQ,  OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bne"),  0,   OPC__I, INSN_CONDBRANCH, HASH_bne,  MATCH_BNE,  MASK_BNE,  OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("blt"),  0,   OPC__I, INSN_CONDBRANCH, HASH_blt,  MATCH_BLT,  MASK_BLT,  OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bge"),  0,   OPC__I, INSN_CONDBRANCH, HASH_bge,  MATCH_BGE,  MASK_BGE,  OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bltu"), 0,   OPC__I, INSN_CONDBRANCH, HASH_bltu, MATCH_BLTU, MASK_BLTU, OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bgeu"), 0,   OPC__I, INSN_CONDBRANCH, HASH_bgeu, MATCH_BGEU, MASK_BGEU, OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("beq"),  0,   OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_beq,  MATCH_C_BEQZ, MASK_C_BEQZ, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CZ), OP_Offset_C(OPF_O_C__Branch_C)), match_opcode },
+{ String8__inline_m("beq"),  0,   OPC__I, INSN_CONDBRANCH,            HASH_beq,  MATCH_BEQ,    MASK_BEQ,    OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
+{ String8__inline_m("bne"),  0,   OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_bne,  MATCH_C_BNEZ, MASK_C_BNEZ, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__CZ), OP_Offset_C(OPF_O_C__Branch_C)), match_opcode },
+{ String8__inline_m("bne"),  0,   OPC__I, INSN_CONDBRANCH,            HASH_bne,  MATCH_BNE,    MASK_BNE,    OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
+{ String8__inline_m("blt"),  0,   OPC__I, INSN_CONDBRANCH,            HASH_blt,  MATCH_BLT,    MASK_BLT,    OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
+{ String8__inline_m("bge"),  0,   OPC__I, INSN_CONDBRANCH,            HASH_bge,  MATCH_BGE,    MASK_BGE,    OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
+{ String8__inline_m("bltu"), 0,   OPC__I, INSN_CONDBRANCH,            HASH_bltu, MATCH_BLTU,   MASK_BLTU,   OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
+{ String8__inline_m("bgeu"), 0,   OPC__I, INSN_CONDBRANCH,            HASH_bgeu, MATCH_BGEU,   MASK_BGEU,   OP_m(OP_GPR(OPF_R__S1), OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                 match_opcode },
 
-{ String8__inline_m("j"),   0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_j,   MATCH_JAL,                      MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Jal)),                                    match_opcode },
-{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD|MASK_IMM, OP_m(OP_GPR(OPF_R__S1)),                                       match_opcode },
-{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
-{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),     match_opcode },
-{ String8__inline_m("ret"), 0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_ret, MATCH_JALR|(X_RA << OP_SH_RS1), MASK_JALR|MASK_RS1,         OP_m(OP_None),                                                  match_opcode },
+{ String8__inline_m("j"),   0,    OPC__C, INSN_ALIAS|INSN_JSR, HASH_j,   MATCH_C_J,                      MASK_C_J,                   OP_m(OP_Offset_C(OPF_O_C__Jal_C)),                             match_opcode     },
+{ String8__inline_m("j"),   0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_j,   MATCH_JAL,                      MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Jal)),                                   match_opcode     },
+{ String8__inline_m("jr"),  0,    OPC__C, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_C_JR,                     MASK_C_JR,                  OP_m(OP_GPR(OPF_R__D)),                                        match_rd_nonzero },
+{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD|MASK_IMM, OP_m(OP_GPR(OPF_R__S1)),                                       match_opcode     },
+{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode     },
+{ String8__inline_m("jr"),  0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_jr,  MATCH_JALR,                     MASK_JALR|MASK_RD,          OP_m(OP_GPR(OPF_R__S1), OP_Immediate(OPF_I__I)),               match_opcode     },
+{ String8__inline_m("ret"), 0,    OPC__C, INSN_ALIAS|INSN_JSR, HASH_ret, MATCH_C_JR|(X_RA << OP_SH_RD),  MASK_C_JR|MASK_RD,          OP_m(OP_None),                                                 match_opcode     },
+{ String8__inline_m("ret"), 0,    OPC__I, INSN_ALIAS|INSN_JSR, HASH_ret, MATCH_JALR|(X_RA << OP_SH_RS1), MASK_JALR|MASK_RS1,         OP_m(OP_None),                                                 match_opcode     },
 
 { String8__inline_m("call"), 0,   OPC__I, INSN_MACRO, HASH_call, (X_RA << OP_SH_RS1)|(X_RA << OP_SH_RD), MACRO_CALL, OP_m(OP_Call), 0 },
 { String8__inline_m("tail"), 0,   OPC__I, INSN_MACRO, HASH_tail, (X_T1 << OP_SH_RS1),                    MACRO_CALL, OP_m(OP_Call), 0 },
 
-{ String8__inline_m("li"),  0,    OPC__I, INSN_ALIAS, HASH_li,  MATCH_ADDI, MASK_ADDI|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__I)),      match_opcode     },
-{ String8__inline_m("li"),  0,    OPC__I, INSN_MACRO, HASH_li,  0,          MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Large)),   0                },
-{ String8__inline_m("la"),  0,    OPC__I, INSN_MACRO, HASH_la,  0,          MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
-{ String8__inline_m("lla"), 0,    OPC__I, INSN_MACRO, HASH_lla,  0,          MACRO_LLA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
-{ String8__inline_m("lga"), 0,    OPC__I, INSN_MACRO, HASH_lga,  0,          MACRO_LGA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)), match_rd_nonzero },
+{ String8__inline_m("li"),  0,    OPC__C, INSN_ALIAS, HASH_li,  MATCH_C_LUI, MASK_C_LUI,         OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__LI_LUI)), match_c_lui      },
+{ String8__inline_m("li"),  0,    OPC__C, INSN_ALIAS, HASH_li,  MATCH_C_LI,  MASK_C_LI,          OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__I_C)),    match_rd_nonzero },
+{ String8__inline_m("li"),  0,    OPC__I, INSN_ALIAS, HASH_li,  MATCH_ADDI,  MASK_ADDI|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_Immediate(OPF_I__I)),          match_opcode     },
+{ String8__inline_m("li"),  0,    OPC__I, INSN_MACRO, HASH_li,  0,           MACRO_LI,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Large)),       0,               },
+{ String8__inline_m("la"),  0,    OPC__I, INSN_MACRO, HASH_la,  0,           MACRO_LA,           OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)),     match_rd_nonzero },
+{ String8__inline_m("lla"), 0,    OPC__I, INSN_MACRO, HASH_lla, 0,           MACRO_LLA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)),     match_rd_nonzero },
+{ String8__inline_m("lga"), 0,    OPC__I, INSN_MACRO, HASH_lga, 0,           MACRO_LGA,          OP_m(OP_GPR(OPF_R__D), OP_Constant(OPF_C__Address)),     match_rd_nonzero },
 
+{ String8__inline_m("nop"), 0,    OPC__C, INSN_ALIAS, HASH_nop, MATCH_C_ADDI, 0xffff,                            OP_m(OP_None), match_opcode },
 { String8__inline_m("nop"), 0,    OPC__I, INSN_ALIAS, HASH_nop, MATCH_ADDI, MASK_ADDI|MASK_RD|MASK_RS1|MASK_IMM, OP_m(OP_None), match_opcode },
 
 { String8__inline_m("not"), 0,    OPC__I, INSN_ALIAS, HASH_not, MATCH_XORI|MASK_IMM, MASK_XORI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)), match_opcode },
 
-{ String8__inline_m("mv"),   0,   OPC__I, INSN_ALIAS, HASH_mv,   MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)), match_opcode },
-{ String8__inline_m("move"), 0,   OPC__I, INSN_ALIAS, HASH_move, MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)), match_opcode },
+{ String8__inline_m("mv"),   0,   OPC__C, INSN_ALIAS, HASH_mv,   MATCH_C_MV, MASK_C_MV,          OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__S2_C5)), match_c_add  },
+{ String8__inline_m("mv"),   0,   OPC__I, INSN_ALIAS, HASH_mv,   MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),        match_opcode },
+{ String8__inline_m("move"), 0,   OPC__C, INSN_ALIAS, HASH_move, MATCH_C_MV, MASK_C_MV,          OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__S2_C5)), match_c_add  },
+{ String8__inline_m("move"), 0,   OPC__I, INSN_ALIAS, HASH_move, MATCH_ADDI, MASK_ADDI|MASK_IMM, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),        match_opcode },
 
 { String8__inline_m("neg"),   0,  OPC__I, INSN_ALIAS, HASH_neg,  MATCH_SUB,  MASK_SUB|MASK_RS1,  OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S2)), match_opcode },
 { String8__inline_m("negw"), 64,  OPC__I, INSN_ALIAS, HASH_negw, MATCH_SUBW, MASK_SUBW|MASK_RS1, OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S2)), match_opcode },
 
-{ String8__inline_m("beqz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_beqz, MATCH_BEQ,  MASK_BEQ|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                               match_opcode },
-{ String8__inline_m("blez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_blez, MATCH_BGE,  MASK_BGE|MASK_RS1, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                               match_opcode },
-{ String8__inline_m("bgez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgez, MATCH_BGE,  MASK_BGE|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                               match_opcode },
-{ String8__inline_m("ble"),  0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_ble,  MATCH_BGE,  MASK_BGE,          OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bltz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bltz, MATCH_BLT,  MASK_BLT|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                               match_opcode },
-{ String8__inline_m("bgtz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtz, MATCH_BLT,  MASK_BLT|MASK_RS1, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                               match_opcode },
-{ String8__inline_m("bleu"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bleu, MATCH_BGEU, MASK_BGEU,         OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bgt"),  0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgt,  MATCH_BLT,  MASK_BLT,          OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bgtu"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtu, MATCH_BLTU, MASK_BLTU,         OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
-{ String8__inline_m("bnez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bnez, MATCH_BNE,  MASK_BNE|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                               match_opcode },
+{ String8__inline_m("beqz"), 0,   OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_beqz, MATCH_C_BEQZ, MASK_C_BEQZ,       OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Offset_C(OPF_O_C__Branch_C)),        match_opcode },
+{ String8__inline_m("beqz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_beqz, MATCH_BEQ,    MASK_BEQ|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                    match_opcode },
+{ String8__inline_m("blez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_blez, MATCH_BGE,    MASK_BGE|MASK_RS1, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                    match_opcode },
+{ String8__inline_m("bgez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgez, MATCH_BGE,    MASK_BGE|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                    match_opcode },
+{ String8__inline_m("ble"),  0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_ble,  MATCH_BGE,    MASK_BGE,          OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bltz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bltz, MATCH_BLT,    MASK_BLT|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                    match_opcode },
+{ String8__inline_m("bgtz"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtz, MATCH_BLT,    MASK_BLT|MASK_RS1, OP_m(OP_GPR(OPF_R__S2), OP_Offset(OPF_O__Branch)),                    match_opcode },
+{ String8__inline_m("bleu"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bleu, MATCH_BGEU,   MASK_BGEU,         OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bgt"),  0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgt,  MATCH_BLT,    MASK_BLT,          OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bgtu"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bgtu, MATCH_BLTU,   MASK_BLTU,         OP_m(OP_GPR(OPF_R__S2), OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)), match_opcode },
+{ String8__inline_m("bnez"), 0,   OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_bnez, MATCH_C_BNEZ, MASK_C_BNEZ,       OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Offset_C(OPF_O_C__Branch_C)),        match_opcode },
+{ String8__inline_m("bnez"), 0,   OPC__I, INSN_ALIAS|INSN_CONDBRANCH, HASH_bnez, MATCH_BNE,    MASK_BNE|MASK_RS2, OP_m(OP_GPR(OPF_R__S1), OP_Offset(OPF_O__Branch)),                    match_opcode },
 
-{ String8__inline_m("pause"),  0, OPC__I, 0,          HASH_pause,  MATCH_PAUSE,  MASK_PAUSE,  OP_m(OP_None), match_opcode },
-{ String8__inline_m("ecall"),  0, OPC__I, 0,          HASH_ecall,  MATCH_ECALL,  MASK_ECALL,  OP_m(OP_None), match_opcode },
-{ String8__inline_m("ebreak"), 0, OPC__I, 0,          HASH_ebreak, MATCH_EBREAK, MASK_EBREAK, OP_m(OP_None), match_opcode },
-{ String8__inline_m("scall"),  0, OPC__I, INSN_ALIAS, HASH_scall,  MATCH_SCALL,  MASK_SCALL,  OP_m(OP_None), match_opcode },
-{ String8__inline_m("sbreak"), 0, OPC__I, INSN_ALIAS, HASH_sbreak, MATCH_SBREAK, MASK_SBREAK, OP_m(OP_None), match_opcode },
+{ String8__inline_m("pause"),  0, OPC__I, 0,          HASH_pause,  MATCH_PAUSE,    MASK_PAUSE,    OP_m(OP_None), match_opcode },
+{ String8__inline_m("ecall"),  0, OPC__I, 0,          HASH_ecall,  MATCH_ECALL,    MASK_ECALL,    OP_m(OP_None), match_opcode },
+{ String8__inline_m("ebreak"), 0, OPC__C, INSN_ALIAS, HASH_ebreak, MATCH_C_EBREAK, MASK_C_EBREAK, OP_m(OP_None), match_opcode },
+{ String8__inline_m("ebreak"), 0, OPC__I, 0,          HASH_ebreak, MATCH_EBREAK,   MASK_EBREAK,   OP_m(OP_None), match_opcode },
+{ String8__inline_m("scall"),  0, OPC__I, INSN_ALIAS, HASH_scall,  MATCH_SCALL,    MASK_SCALL,    OP_m(OP_None), match_opcode },
+{ String8__inline_m("sbreak"), 0, OPC__C, INSN_ALIAS, HASH_sbreak, MATCH_C_EBREAK, MASK_C_EBREAK, OP_m(OP_None), match_opcode },
+{ String8__inline_m("sbreak"), 0, OPC__I, INSN_ALIAS, HASH_sbreak, MATCH_SBREAK,   MASK_SBREAK,   OP_m(OP_None), match_opcode },
 
 // Privileged / system instructions.
 { String8__inline_m("uret"),       0, OPC__I, 0,          HASH_uret, MATCH_URET, MASK_URET, OP_m(OP_None), match_opcode },
@@ -252,14 +308,14 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("fnmsub.s"), 0, OPC__F, 0, HASH_fnmsub_s, MATCH_FNMSUB_S, MASK_FNMSUB_S, OP_m(OP_FPR(OPF_FPR__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S3), OP_Rounding_Mode), match_opcode },
 { String8__inline_m("fnmsub.s"), 0, OPC__F, 0, HASH_fnmsub_s, MATCH_FNMSUB_S|MASK_RM, MASK_FNMSUB_S|MASK_RM, OP_m(OP_FPR(OPF_FPR__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S3)), match_opcode },
 
-{ String8__inline_m("fcvt.w.s"),  0, OPC__F, 0, HASH_fcvt_w_s,  MATCH_FCVT_W_S,  MASK_FCVT_W_S,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
-{ String8__inline_m("fcvt.w.s"),  0, OPC__F, 0, HASH_fcvt_w_s,  MATCH_FCVT_W_S|MASK_RM,  MASK_FCVT_W_S|MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)), match_opcode },
-{ String8__inline_m("fcvt.wu.s"), 0, OPC__F, 0, HASH_fcvt_wu_s, MATCH_FCVT_WU_S, MASK_FCVT_WU_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
-{ String8__inline_m("fcvt.wu.s"), 0, OPC__F, 0, HASH_fcvt_wu_s, MATCH_FCVT_WU_S|MASK_RM, MASK_FCVT_WU_S|MASK_RM, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)), match_opcode },
-{ String8__inline_m("fcvt.l.s"), 64, OPC__F, 0, HASH_fcvt_l_s,  MATCH_FCVT_L_S,  MASK_FCVT_L_S,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
-{ String8__inline_m("fcvt.l.s"), 64, OPC__F, 0, HASH_fcvt_l_s,  MATCH_FCVT_L_S|MASK_RM,  MASK_FCVT_L_S|MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)), match_opcode },
-{ String8__inline_m("fcvt.lu.s"), 64, OPC__F, 0, HASH_fcvt_lu_s, MATCH_FCVT_LU_S, MASK_FCVT_LU_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
-{ String8__inline_m("fcvt.lu.s"), 64, OPC__F, 0, HASH_fcvt_lu_s, MATCH_FCVT_LU_S|MASK_RM, MASK_FCVT_LU_S|MASK_RM, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)), match_opcode },
+{ String8__inline_m("fcvt.w.s"),   0, OPC__F, 0, HASH_fcvt_w_s,   MATCH_FCVT_W_S,  MASK_FCVT_W_S,                     OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
+{ String8__inline_m("fcvt.w.s"),   0, OPC__F, 0, HASH_fcvt_w_s,   MATCH_FCVT_W_S|  MASK_RM,  MASK_FCVT_W_S| MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)),                   match_opcode },
+{ String8__inline_m("fcvt.wu.s"),  0, OPC__F, 0, HASH_fcvt_wu_s,  MATCH_FCVT_WU_S, MASK_FCVT_WU_S,                    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
+{ String8__inline_m("fcvt.wu.s"),  0, OPC__F, 0, HASH_fcvt_wu_s,  MATCH_FCVT_WU_S| MASK_RM,  MASK_FCVT_WU_S|MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)),                   match_opcode },
+{ String8__inline_m("fcvt.l.s"),  64, OPC__F, 0, HASH_fcvt_l_s,   MATCH_FCVT_L_S,  MASK_FCVT_L_S,                     OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
+{ String8__inline_m("fcvt.l.s"),  64, OPC__F, 0, HASH_fcvt_l_s,   MATCH_FCVT_L_S|  MASK_RM,  MASK_FCVT_L_S| MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)),                   match_opcode },
+{ String8__inline_m("fcvt.lu.s"), 64, OPC__F, 0, HASH_fcvt_lu_s,  MATCH_FCVT_LU_S, MASK_FCVT_LU_S,                    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_Rounding_Mode), match_opcode },
+{ String8__inline_m("fcvt.lu.s"), 64, OPC__F, 0, HASH_fcvt_lu_s,  MATCH_FCVT_LU_S| MASK_RM,  MASK_FCVT_LU_S|MASK_RM,  OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)),                   match_opcode },
 
 { String8__inline_m("fcvt.s.w"),   0, OPC__F, 0, HASH_fcvt_s_w,  MATCH_FCVT_S_W,          MASK_FCVT_S_W,          OP_m(OP_FPR(OPF_FPR__D), OP_GPR(OPF_R__S1), OP_Rounding_Mode), match_opcode },
 { String8__inline_m("fcvt.s.w"),   0, OPC__F, 0, HASH_fcvt_s_w,  MATCH_FCVT_S_W|MASK_RM,  MASK_FCVT_S_W|MASK_RM,  OP_m(OP_FPR(OPF_FPR__D), OP_GPR(OPF_R__S1)), match_opcode },
@@ -270,16 +326,20 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("fcvt.s.lu"), 64, OPC__F, 0, HASH_fcvt_s_lu, MATCH_FCVT_S_LU,         MASK_FCVT_S_LU,         OP_m(OP_FPR(OPF_FPR__D), OP_GPR(OPF_R__S1), OP_Rounding_Mode), match_opcode },
 { String8__inline_m("fcvt.s.lu"), 64, OPC__F, 0, HASH_fcvt_s_lu, MATCH_FCVT_S_LU|MASK_RM, MASK_FCVT_S_LU|MASK_RM, OP_m(OP_FPR(OPF_FPR__D), OP_GPR(OPF_R__S1)), match_opcode },
 
-{ String8__inline_m("fclass.s"), 0, OPC__F, 0, HASH_fclass_s, MATCH_FCLASS_S, MASK_FCLASS_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)), match_opcode },
-{ String8__inline_m("feq.s"), 0, OPC__F, 0, HASH_feq_s, MATCH_FEQ_S, MASK_FEQ_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
-{ String8__inline_m("flt.s"), 0, OPC__F, 0, HASH_flt_s, MATCH_FLT_S, MASK_FLT_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
-{ String8__inline_m("fle.s"), 0, OPC__F, 0, HASH_fle_s, MATCH_FLE_S, MASK_FLE_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
-{ String8__inline_m("fgt.s"), 0, OPC__F, INSN_ALIAS, HASH_fgt_s, MATCH_FLT_S, MASK_FLT_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S1)), match_opcode },
-{ String8__inline_m("fge.s"), 0, OPC__F, INSN_ALIAS, HASH_fge_s, MATCH_FLE_S, MASK_FLE_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S1)), match_opcode },
+{ String8__inline_m("fclass.s"), 0, OPC__F, 0,          HASH_fclass_s, MATCH_FCLASS_S, MASK_FCLASS_S, OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1)),                      match_opcode },
+{ String8__inline_m("feq.s"), 0,    OPC__F, 0,          HASH_feq_s,    MATCH_FEQ_S,    MASK_FEQ_S,    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
+{ String8__inline_m("flt.s"), 0,    OPC__F, 0,          HASH_flt_s,    MATCH_FLT_S,    MASK_FLT_S,    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
+{ String8__inline_m("fle.s"), 0,    OPC__F, 0,          HASH_fle_s,    MATCH_FLE_S,    MASK_FLE_S,    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S1), OP_FPR(OPF_FPR__S2)), match_opcode },
+{ String8__inline_m("fgt.s"), 0,    OPC__F, INSN_ALIAS, HASH_fgt_s,    MATCH_FLT_S,    MASK_FLT_S,    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S1)), match_opcode },
+{ String8__inline_m("fge.s"), 0,    OPC__F, INSN_ALIAS, HASH_fge_s,    MATCH_FLE_S,    MASK_FLE_S,    OP_m(OP_GPR(OPF_R__D), OP_FPR(OPF_FPR__S2), OP_FPR(OPF_FPR__S1)), match_opcode },
 
 // D extension (double-precision floating-point).
-{ String8__inline_m("fld"), 0, OPC__D, INSN_DREF|INSN_8_BYTE, HASH_fld, MATCH_FLD, MASK_FLD, OP_m(OP_FPR(OPF_FPR__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),   match_opcode },
-{ String8__inline_m("fsd"), 0, OPC__D, INSN_DREF|INSN_8_BYTE, HASH_fsd, MATCH_FSD, MASK_FSD, OP_m(OP_FPR(OPF_FPR__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR), match_opcode },
+{ String8__inline_m("fld"), 0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_fld, MATCH_C_FLDSP, MASK_C_FLDSP, OP_m(OP_FPR_C(OPF_FPR_C__D_C5), OP_Offset_C(OPF_O_C__LDSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR),   match_opcode },
+{ String8__inline_m("fld"), 0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_fld, MATCH_C_FLD,   MASK_C_FLD,   OP_m(OP_FPR_C(OPF_FPR_C__D_C),  OP_Offset_C(OPF_O_C__LD),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),   match_opcode },
+{ String8__inline_m("fld"), 0, OPC__D, INSN_DREF|INSN_8_BYTE,            HASH_fld, MATCH_FLD,     MASK_FLD,     OP_m(OP_FPR(OPF_FPR__D), OP_Offset(OPF_O__Load), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                   match_opcode },
+{ String8__inline_m("fsd"), 0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_fsd, MATCH_C_FSDSP, MASK_C_FSDSP, OP_m(OP_FPR_C(OPF_FPR_C__S2_C5), OP_Offset_C(OPF_O_C__SDSP), OP_PL, OP_GPR_C(OPF_R_C__CC),  OP_PR),  match_opcode },
+{ String8__inline_m("fsd"), 0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_fsd, MATCH_C_FSD,   MASK_C_FSD,   OP_m(OP_FPR_C(OPF_FPR_C__D_C),  OP_Offset_C(OPF_O_C__LD),  OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),   match_opcode },
+{ String8__inline_m("fsd"), 0, OPC__D, INSN_DREF|INSN_8_BYTE,            HASH_fsd, MATCH_FSD,     MASK_FSD,     OP_m(OP_FPR(OPF_FPR__S2), OP_Offset(OPF_O__Store), OP_PL, OP_GPR(OPF_R__S1), OP_PR),                 match_opcode },
 
 { String8__inline_m("fmv.x.d"), 64, OPC__D, 0, HASH_fmv_x_d, MATCH_FMV_X_D, MASK_FMV_X_D, OP_m(OP_GPR(OPF_R__D),   OP_FPR(OPF_FPR__S1)), match_opcode },
 { String8__inline_m("fmv.d.x"), 64, OPC__D, 0, HASH_fmv_d_x, MATCH_FMV_D_X, MASK_FMV_D_X, OP_m(OP_FPR(OPF_FPR__D), OP_GPR(OPF_R__S1)),   match_opcode },
@@ -415,15 +475,63 @@ global const RISCV_Opcode RISCV_Opcode__table[] =
 { String8__inline_m("rev8"),   64, OPC__ZBB, 0,          HASH_rev8,   MATCH_REV8,      MASK_REV8,        OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                           match_opcode },
 { String8__inline_m("orc.b"),   0, OPC__ZBB, 0,          HASH_orc_b,  MATCH_ORC_B,  MASK_ORC_B,          OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1)),                           match_opcode },
 
+// Compressed extension
+{ String8__inline_m("c.addi"),      0, OPC__C, 0, HASH_c_addi,  MATCH_C_ADDI,  MASK_C_ADDI,  OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__I_C)),          match_opcode         },
+{ String8__inline_m("c.addiw"),    64, OPC__C, 0, HASH_c_addiw, MATCH_C_ADDIW, MASK_C_ADDIW, OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__I_C)),          match_rd_nonzero     },
+{ String8__inline_m("c.li"),        0, OPC__C, 0, HASH_c_li,    MATCH_C_LI,    MASK_C_LI,    OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__I_C)),          match_rd_nonzero     },
+{ String8__inline_m("c.lui"),       0, OPC__C, 0, HASH_c_lui,   MATCH_C_LUI,   MASK_C_LUI,   OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__LUI)),      match_c_lui          },
+{ String8__inline_m("c.mv"),        0, OPC__C, 0, HASH_c_mv,    MATCH_C_MV,    MASK_C_MV,    OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__S2_C5)),              match_c_add          },
+{ String8__inline_m("c.add"),       0, OPC__C, 0, HASH_c_add,   MATCH_C_ADD,   MASK_C_ADD,   OP_m(OP_GPR(OPF_R__D), OP_GPR_C(OPF_R_C__S2_C5)),              match_c_add          },
+{ String8__inline_m("c.sub"),       0, OPC__C, 0, HASH_c_sub,   MATCH_C_SUB,   MASK_C_SUB,   OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.xor"),       0, OPC__C, 0, HASH_c_xor,   MATCH_C_XOR,   MASK_C_XOR,   OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.or"),        0, OPC__C, 0, HASH_c_or,    MATCH_C_OR,    MASK_C_OR,    OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.and"),       0, OPC__C, 0, HASH_c_and,   MATCH_C_AND,   MASK_C_AND,   OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.subw"),     64, OPC__C, 0, HASH_c_subw,  MATCH_C_SUBW,  MASK_C_SUBW,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.addw"),     64, OPC__C, 0, HASH_c_addw,  MATCH_C_ADDW,  MASK_C_ADDW,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_GPR_C(OPF_R_C__S2_C)),            match_opcode         },
+{ String8__inline_m("c.slli"),      0, OPC__C, 0, HASH_c_slli,  MATCH_C_SLLI,  MASK_C_SLLI,  OP_m(OP_GPR(OPF_R__D), OP_Immediate_C(OPF_I_C__Shift)),    match_slli_as_c_slli },
+{ String8__inline_m("c.srli"),      0, OPC__C, 0, HASH_c_srli,  MATCH_C_SRLI,  MASK_C_SRLI,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Immediate_C(OPF_I_C__Shift)), match_srxi_as_c_srxi },
+{ String8__inline_m("c.srai"),      0, OPC__C, 0, HASH_c_srai,  MATCH_C_SRAI,  MASK_C_SRAI,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Immediate_C(OPF_I_C__Shift)), match_srxi_as_c_srxi },
+{ String8__inline_m("c.andi"),      0, OPC__C, 0, HASH_c_andi,  MATCH_C_ANDI,  MASK_C_ANDI,  OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Immediate_C(OPF_I_C__I_C)),       match_opcode         },
+
+{ String8__inline_m("c.addi4spn"),  0, OPC__C, 0, HASH_c_addi4spn,   MATCH_C_ADDI4SPN,   MASK_C_ADDI4SPN,   OP_m(OP_GPR_C(OPF_R_C__D_C), OP_GPR_C(OPF_R_C__CC), OP_Immediate_CL(OPF_I_CL__CIW_ADDI4SPN)), match_opcode },
+{ String8__inline_m("c.addi16sp"),  0, OPC__C, 0, HASH_c_addi16sp,   MATCH_C_ADDI16SP,   MASK_C_ADDI16SP,   OP_m(OP_GPR_C(OPF_R_C__CC), OP_Immediate_C(OPF_I_C__ADDI16SP)),                               match_c_addi16sp },
+
+{ String8__inline_m("c.nop"),       0, OPC__C, INSN_ALIAS, HASH_c_nop, MATCH_C_NOP, MASK_C_NOP, OP_m(OP_None), match_opcode },
+
+{ String8__inline_m("c.j"),         0, OPC__C, INSN_ALIAS|INSN_JSR, HASH_c_j,    MATCH_C_J,     MASK_C_J,     OP_m(OP_Offset_C(OPF_O_C__Jal_C)), match_opcode     },
+{ String8__inline_m("c.jal"),      32, OPC__C, INSN_ALIAS|INSN_JSR, HASH_c_jal,  MATCH_C_JAL,   MASK_C_JAL,   OP_m(OP_Offset_C(OPF_O_C__Jal_C)), match_opcode     },
+{ String8__inline_m("c.jr"),        0, OPC__C, INSN_ALIAS|INSN_JSR, HASH_c_jr,   MATCH_C_JR,    MASK_C_JR,    OP_m(OP_GPR(OPF_R__D)),            match_rd_nonzero },
+{ String8__inline_m("c.jalr"),      0, OPC__C, INSN_ALIAS|INSN_JSR, HASH_c_jalr, MATCH_C_JALR,  MASK_C_JALR,  OP_m(OP_GPR(OPF_R__D)),            match_rd_nonzero },
+
+{ String8__inline_m("c.beqz"),      0, OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_c_beqz, MATCH_C_BEQZ, MASK_C_BEQZ, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Offset_C(OPF_O_C__Branch_C)), match_opcode },
+{ String8__inline_m("c.bnez"),      0, OPC__C, INSN_ALIAS|INSN_CONDBRANCH, HASH_c_bnez, MATCH_C_BNEZ, MASK_C_BNEZ, OP_m(OP_GPR_C(OPF_R_C__S1_C), OP_Offset_C(OPF_O_C__Branch_C)), match_opcode },
+
+{ String8__inline_m("c.lwsp"),      0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_c_lwsp, MATCH_C_LWSP, MASK_C_LWSP, OP_m(OP_GPR(OPF_R__D), OP_Offset_C(OPF_O_C__LWSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),          match_rd_nonzero },
+{ String8__inline_m("c.ldsp"),     64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_ldsp, MATCH_C_LDSP, MASK_C_LDSP, OP_m(OP_GPR(OPF_R__D), OP_Offset_C(OPF_O_C__LDSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),          match_rd_nonzero },
+{ String8__inline_m("c.swsp"),      0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_c_swsp, MATCH_C_SWSP, MASK_C_SWSP, OP_m(OP_GPR_C(OPF_R_C__S2_C5), OP_Offset_C(OPF_O_C__SWSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),  match_opcode     },
+{ String8__inline_m("c.sdsp"),     64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_sdsp, MATCH_C_SDSP, MASK_C_SDSP, OP_m(OP_GPR_C(OPF_R_C__S2_C5), OP_Offset_C(OPF_O_C__SDSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),  match_opcode     },
+{ String8__inline_m("c.lw"),        0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_c_lw,   MATCH_C_LW,   MASK_C_LW,   OP_m(OP_GPR_C(OPF_R_C__D_C), OP_Offset_C(OPF_O_C__LW), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),    match_opcode     },
+{ String8__inline_m("c.ld"),       64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_ld,   MATCH_C_LD,   MASK_C_LD,   OP_m(OP_GPR_C(OPF_R_C__D_C), OP_Offset_C(OPF_O_C__LD), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),    match_opcode     },
+{ String8__inline_m("c.sw"),        0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_4_BYTE, HASH_c_sw,   MATCH_C_SW,   MASK_C_SW,   OP_m(OP_GPR_C(OPF_R_C__S2_C), OP_Offset_C(OPF_O_C__LW), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),   match_opcode     },
+{ String8__inline_m("c.sd"),       64, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_sd,   MATCH_C_SD,   MASK_C_SD,   OP_m(OP_GPR_C(OPF_R_C__S2_C), OP_Offset_C(OPF_O_C__LD), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),   match_opcode     },
+
+{ String8__inline_m("c.fldsp"),     0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_fldsp, MATCH_C_FLDSP, MASK_C_FLDSP, OP_m(OP_FPR_C(OPF_FPR_C__D_C5), OP_Offset_C(OPF_O_C__LDSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),   match_opcode },
+{ String8__inline_m("c.fsdsp"),     0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_fsdsp, MATCH_C_FSDSP, MASK_C_FSDSP, OP_m(OP_FPR_C(OPF_FPR_C__S2_C5), OP_Offset_C(OPF_O_C__SDSP), OP_PL, OP_GPR_C(OPF_R_C__CC), OP_PR),  match_opcode },
+{ String8__inline_m("c.fld"),       0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_fld,   MATCH_C_FLD,   MASK_C_FLD,   OP_m(OP_FPR_C(OPF_FPR_C__D_C), OP_Offset_C(OPF_O_C__LD), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),    match_opcode },
+{ String8__inline_m("c.fsd"),       0, OPC__C, INSN_ALIAS|INSN_DREF|INSN_8_BYTE, HASH_c_fsd,   MATCH_C_FSD,   MASK_C_FSD,   OP_m(OP_FPR_C(OPF_FPR_C__D_C), OP_Offset_C(OPF_O_C__LD), OP_PL, OP_GPR_C(OPF_R_C__S1_C), OP_PR),    match_opcode },
+
+{ String8__inline_m("c.ebreak"),    0, OPC__C, 0, HASH_c_ebreak, MATCH_C_EBREAK, MASK_C_EBREAK, OP_m(OP_None), match_opcode },
+
 { String8__inline_m(""), 0, OPC__None, 0, 0, 0, 0, 0, 0 }
 };
 
 // TODO(low): for now this is dumb enough and works. However, it would be nicer to create a fixed-size hashmap at
 // compile-time.
 //
-// Returns empty opcode if not found.
+// Returns empty opcode if not found.  When `skip_compressed` is set, RVC (OPC__C) entries are ensured to be skipped,
+// returning the first non-compressed variant.
 internal const RISCV_Opcode *
-RISCV_Opcode__table_find(U32 instruction_hash)
+RISCV_Opcode__table_find(U32 instruction_hash, B32 skip_compressed)
 {
         U32 count = array_count_m(RISCV_Opcode__table);
         U32 index = 0;
@@ -439,7 +547,8 @@ RISCV_Opcode__table_find(U32 instruction_hash)
                 }
 
                 result = &RISCV_Opcode__table[index];
-                match = result->hash == instruction_hash ? 1 : 0;
+                B32 hash_is = result->hash == instruction_hash;
+                match = hash_is && !(skip_compressed && result->class == OPC__C);
 
                 index += 1;
         }
@@ -502,6 +611,100 @@ match_rs1_nonzero (const RISCV_Opcode *opcode, U32 instruction)
 {
         unused_m(opcode);
         return ((instruction >> OP_SH_RS1) & OP_MASK_RS1) != 0;
+}
+
+internal B32
+riscv_compressed_register_is(U8 register_number)
+{
+        B32 result = RISCV_RVC_REG_BASE <= register_number
+                  && register_number < RISCV_RVC_REG_BASE + RISCV_RVC_REG_COUNT;
+        return result;
+}
+
+internal U8
+riscv_compressed_register_encode(U8 register_number)
+{
+        assert_always_m(riscv_compressed_register_is(register_number));
+        return register_number - RISCV_RVC_REG_BASE;
+}
+
+internal U8
+riscv_compressed_register_decode(U8 rvc_register)
+{
+        assert_always_m(rvc_register < RISCV_RVC_REG_COUNT);
+        return RISCV_RVC_REG_BASE + rvc_register;
+}
+
+// Whether a 20-bit U-type immediate (as used by `lui rd, uimm`) is representable
+// in `c.lui`'s 6-bit sign-extended immediate field.
+//
+// `c.lui rd, uimm` loads `sign_extend(imm[5:0]) << 12` into rd, so it is a valid
+// encoding of `lui rd, uimm` exactly when `sign_extend(imm[5:0]) == uimm`.  The
+// 6-bit field sign-extends to either a small positive value (1..31) or a small
+// negative one (-32..-1), i.e. `uimm` lies in [1, 32) or [2^20-2^5, 2^20).  Zero
+// is excluded (`c.lui rd, 0` is reserved; the `rd != x0/sp` constraints are
+// checked separately).
+internal B32
+riscv_compressed_lui_immediate_is(S64 uimm)
+{
+        B32 in_low  = 0 < uimm && uimm < (S64)(1 << 5);
+        B32 in_high = (S64)((1 << 20) - (1 << 5)) <= uimm && uimm < (S64)(1 << 20);
+        B32 result  = in_low || in_high;
+        return result;
+}
+
+// c.lui: rd != x0, rd != sp, and a non-zero compressed LUI immediate.
+static B32
+match_c_lui (const RISCV_Opcode *opcode, U32 instruction)
+{
+        B32 result = match_rd_nonzero(opcode, instruction)
+                  && ((instruction >> OP_SH_RD) & OP_MASK_RD) != 2
+                  && extract_immediate_ci_m(instruction) != 0;
+        return result;
+}
+
+// c.add / c.mv: the source (CRS2) must be non-zero.
+static B32
+match_c_add (const RISCV_Opcode *opcode, U32 instruction)
+{
+        unused_m(opcode);
+        return ((instruction >> OP_SH_CRS2) & OP_MASK_CRS2) != 0;
+}
+
+// c.nop: rd must be x0.
+static B32
+match_c_nop (const RISCV_Opcode *opcode, U32 instruction)
+{
+        B32 result = match_opcode(opcode, instruction)
+                  && ((instruction >> OP_SH_RD) & OP_MASK_RD) == 0;
+        return result;
+}
+
+// c.addi16sp: rd must be sp.
+static B32
+match_c_addi16sp (const RISCV_Opcode *opcode, U32 instruction)
+{
+        B32 result = match_opcode(opcode, instruction)
+                  && ((instruction >> OP_SH_RD) & OP_MASK_RD) == 2;
+        return result;
+}
+
+// c.slli as an alias of slli: non-zero rd and non-zero shift.
+static B32
+match_slli_as_c_slli (const RISCV_Opcode *opcode, U32 instruction)
+{
+        B32 result = match_rd_nonzero(opcode, instruction)
+                  && extract_immediate_ci_m(instruction) != 0;
+        return result;
+}
+
+// c.srli/c.srai as aliases of srli/srai: non-zero shift.
+static B32
+match_srxi_as_c_srxi (const RISCV_Opcode *opcode, U32 instruction)
+{
+        B32 result = match_opcode(opcode, instruction)
+                  && extract_immediate_ci_m(instruction) != 0;
+        return result;
 }
 
 // internal const RISCV_Opcode *

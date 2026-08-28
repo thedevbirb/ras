@@ -1,3 +1,28 @@
+internal B32
+token_is_register(Token_Cursor *cursor)
+{
+        String8 text = Token_Cursor__text(cursor);
+        B32 result = Register_List__lookup(RISCV_register_list, text, 0) != 0;
+        return result;
+}
+
+internal U32
+encode_compressed_offset(U8 field, S64 value)
+{
+        U32 result = U32_max;
+        switch (field)
+        {
+        case OPF_O_C__LWSP: { if (validate_immediate_ci_lwsp(value))  { result = encode_immediate_ci_lwsp(value);  }} break;
+        case OPF_O_C__LDSP: { if (validate_immediate_ci_ldsp(value))  { result = encode_immediate_ci_ldsp(value);  }} break;
+        case OPF_O_C__LW:   { if (validate_immediate_cl_lw(value))    { result = encode_immediate_cl_lw(value);    }} break;
+        case OPF_O_C__LD:   { if (validate_immediate_cl_ld(value))    { result = encode_immediate_cl_ld(value);    }} break;
+        case OPF_O_C__SWSP: { if (validate_immediate_css_swsp(value)) { result = encode_immediate_css_swsp(value); }} break;
+        case OPF_O_C__SDSP: { if (validate_immediate_css_sdsp(value)) { result = encode_immediate_css_sdsp(value); }} break;
+        default: { unreachable_m(); }
+        }
+        return result;
+}
+
 internal Instruction_Parsed
 RISCV_Instruction__parse
 (
@@ -12,7 +37,8 @@ RISCV_Instruction__parse
 {
         Instruction_Parsed parsed = {0};
 
-        const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
+        B32 skip_compressed = !options->compressed;
+        const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash, skip_compressed);
         String8 opcode_name = (String8){ .data = opcode->name, .count = opcode->count };
 
         Token opcode_token = cursor->current;
@@ -91,7 +117,62 @@ RISCV_Instruction__parse
                                        default: { unreachable_m(); }
                                 }
 
-                                try_next = !reg;
+                                try_next |= !reg;
+                                token_next(cursor, diagnostics);
+                        } break;
+                        case OPK__GPR_C:
+                        {
+                                String8 text = Token_Cursor__text(cursor);
+                                const Register *reg = Register_List__lookup(RISCV_register_list, text, options->embedded);
+
+                                U8 register_number = reg ? reg->number : 0;
+                                switch (OP_FIELD(slot))
+                                {
+                                        // Compressed registers (x8-x15, encoded as reg-8).
+                                       case OPF_R_C__D_C:
+                                       {
+                                               try_next |= !riscv_compressed_register_is(register_number);
+                                               if (riscv_compressed_register_is(register_number))
+                                               {
+                                                       INSERT_OPERAND(CRS2S, parsed.data, riscv_compressed_register_encode(register_number));
+                                               }
+                                       } break;
+                                       case OPF_R_C__S1_C:
+                                       {
+                                               try_next |= !riscv_compressed_register_is(register_number);
+                                               if (riscv_compressed_register_is(register_number))
+                                               {
+                                                       INSERT_OPERAND(CRS1S, parsed.data, riscv_compressed_register_encode(register_number));
+                                               }
+                                       } break;
+                                       case OPF_R_C__S2_C:
+                                       {
+                                                try_next |= !riscv_compressed_register_is(register_number);
+                                                if (riscv_compressed_register_is(register_number))
+                                                {
+                                                        INSERT_OPERAND(CRS2S, parsed.data, riscv_compressed_register_encode(register_number));
+                                                }
+                                       } break;
+                                       // Full 5-bit compressed register (c.add/c.mv/c.swsp/c.sdsp rs2).
+                                       case OPF_R_C__S2_C5: { INSERT_OPERAND(CRS2, parsed.data, register_number); } break;
+                                       // Constrained compressed registers: consume the operand but do not insert.
+                                       case OPF_R_C__CU:
+                                       {
+                                                U8 rd = (U8)((parsed.data.encoding >> OP_SH_RD) & OP_MASK_RD);
+                                                try_next |= reg != 0 && register_number != rd;
+                                       } break;
+                                       case OPF_R_C__CC: { try_next |= reg != 0 && register_number != X_SP; } break;
+                                       case OPF_R_C__CZ: { try_next |= reg != 0 && register_number != X_ZERO; } break;
+                                       case OPF_R_C__CW:
+                                       {
+                                                U8 rd = (U8)((parsed.data.encoding >> OP_SH_CRS1S) & OP_MASK_CRS1S);
+                                                try_next |= !riscv_compressed_register_is(register_number)
+                                                         || riscv_compressed_register_encode(register_number) != rd;
+                                       } break;
+                                       default: { unreachable_m(); }
+                                }
+
+                                try_next |= !reg;
                                 token_next(cursor, diagnostics);
                         } break;
                         case OPK__FPR:
@@ -115,7 +196,34 @@ RISCV_Instruction__parse
                                        default: { unreachable_m(); }
                                 }
 
-                                try_next = !reg;
+                                try_next |= !reg;
+                                token_next(cursor, diagnostics);
+                        } break;
+                        case OPK__FPR_C:
+                        {
+                                // NOTE: the embedded (RVE) register restriction applies to the GPR
+                                // file only; the FPR file is always 32 registers wide.
+                                String8 text = Token_Cursor__text(cursor);
+                                const Register *reg = Register_List__lookup(RISCV_fp_register_list, text, 0);
+
+                                U8 register_number = reg ? reg->number : 0;
+                                switch (OP_FIELD(slot))
+                                {
+                                        // Compressed floating-point registers.
+                                       case OPF_FPR_C__D_C:
+                                       {
+                                               try_next |= !riscv_compressed_register_is(register_number);
+                                               if (riscv_compressed_register_is(register_number))
+                                               {
+                                                       INSERT_OPERAND(CRS2S, parsed.data, riscv_compressed_register_encode(register_number));
+                                               }
+                                       } break;
+                                       case OPF_FPR_C__D_C5:  { INSERT_OPERAND(RD,   parsed.data, register_number); } break;
+                                       case OPF_FPR_C__S2_C5: { INSERT_OPERAND(CRS2, parsed.data, register_number); } break;
+                                       default: { unreachable_m(); }
+                                }
+
+                                try_next |= !reg;
                                 token_next(cursor, diagnostics);
                         } break;
                         case OPK__Constant:
@@ -274,6 +382,75 @@ RISCV_Instruction__parse
                                 default: { unreachable_m(); }
                                 }
                         } break;
+                        case OPK__Offset_C:
+                        {
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_O_C__LWSP: {} // fallthrough
+                                case OPF_O_C__LDSP: {} // fallthrough
+                                case OPF_O_C__LW:   {} // fallthrough
+                                case OPF_O_C__LD:   {} // fallthrough
+                                case OPF_O_C__SWSP: {} // fallthrough
+                                case OPF_O_C__SDSP:
+                                {
+                                        // Compressed load/store offsets must be constants: a symbolic
+                                        // (or out-of-range) offset falls through to the uncompressed
+                                        // instruction, matching GNU as. No relocation is produced.
+                                        U8 offset_field = OP_FIELD(slot);
+
+                                        U8 next = (U8)(arguments >> (8 * (arguments_index + 1)));
+                                        if (next == OP_PL && cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                        {
+                                                // Omitted immediate, e.g. c.lw t1, (t0): the offset is zero,
+                                                // which every compressed load/store form can represent.
+                                                arguments_index += 1;
+                                                token_next(cursor, diagnostics);
+                                                parsed.data.encoding |= encode_compressed_offset(offset_field, 0);
+                                        }
+                                        else
+                                        {
+                                                // Compressed load/store offsets must be constants; a relocation prefix
+                                                // (`%hi`, `%lo`, ...) or a register name makes the form fall through to
+                                                // the uncompressed instruction.
+                                                B32 parsable = cursor->current.kind == Token_Kind__Percentage
+                                                           || token_is_register(cursor);
+                                                B32 valid = 0;
+                                                if (!parsable)
+                                                {
+                                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                                        expression_evaluate(expression);
+                                                        if (expression->evaluation == Expression_Kind__Constant)
+                                                        {
+                                                                S64 value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                                                U32 encoded = encode_compressed_offset(offset_field, value);
+                                                                if (encoded != U32_max)
+                                                                {
+                                                                        parsed.data.encoding |= encoded;
+                                                                        valid = 1;
+                                                                }
+                                                        }
+                                                }
+                                                try_next |= !valid;
+                                        }
+                                } break;
+                                case OPF_O_C__Jal_C:
+                                {
+                                        // c.j / c.jal: a relaxable compressed jump.
+                                        parsed.relocation = Relocation_RISC_V__Jump_Compressed;
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                } break;
+                                case OPF_O_C__Branch_C:
+                                {
+                                        // c.beqz / c.bnez: a relaxable compressed branch.
+                                        parsed.relocation = Relocation_RISC_V__Branch_Compressed;
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+                        } break;
                         case OPK__Immediate:
                         {
                                 switch (OP_FIELD(slot))
@@ -360,6 +537,112 @@ RISCV_Instruction__parse
                                 } break;
                                 default: { unreachable_m(); }
                                 }
+                        } break;
+                        case OPK__Immediate_C:
+                        {
+                                // Compressed immediates are constants-only.  A relocation prefix (`%hi`, `%lo`, ...) or
+                                // a register name cannot be a constant, so the expression parser is guarded from them
+                                // (parsing would emit a spurious null-denotation node / symbol reference); the form
+                                // then falls through to the uncompressed instruction.
+                                B32 parsable = cursor->current.kind == Token_Kind__Percentage || token_is_register(cursor);
+                                B32 valid = 0;
+                                S64 value = 0;
+                                if (!parsable)
+                                {
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                        expression_evaluate(expression);
+                                        if (expression->evaluation == Expression_Kind__Constant)
+                                        {
+                                                value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                                valid = 1;
+                                        }
+                                }
+
+                                // Per-kind validation and encoding.
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_I_C__I_C:
+                                {
+                                        valid = valid && validate_immediate_ci(value);
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci(value); }
+                                } break;
+                                case OPF_I_C__I_C_NZ:
+                                {
+                                        // c.addi: 6-bit signed immediate, zero disallowed.
+                                        valid = valid && validate_immediate_ci(value) && value != 0;
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci(value); }
+                                } break;
+                                case OPF_I_C__Shift:
+                                {
+                                        valid = valid && 0 <= value && value < options->xlen && value != 0;
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci_m(value); }
+                                } break;
+                                case OPF_I_C__LUI:
+                                {
+                                        // `lui rd, imm`: imm is the 20-bit upper value; only a few
+                                        // values are representable in c.lui's 6-bit field.
+                                        B32 in_low  = 0 < value && value < (S64)(1 << 5);
+                                        B32 in_high = (S64)((1 << 20) - (1 << 5)) <= value && value < (S64)(1 << 20);
+                                        valid = valid && (in_low || in_high);
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci_m(value); }
+                                } break;
+                                case OPF_I_C__LI_LUI:
+                                {
+                                        // `li rd, imm`: c.lui applies when imm is a 12-bit-aligned
+                                        // 32-bit value whose upper 20 bits fit c.lui.
+                                        S64 upper = (value & 0xfff) == 0 && (S32)value == (S32)(value & 0xffffffff)
+                                                  ? (U32)value >> 12 : 0;
+                                        B32 in_low  = 0 < upper && upper < (S64)(1 << 5);
+                                        B32 in_high = (S64)((1 << 20) - (1 << 5)) <= upper && upper < (S64)(1 << 20);
+                                        valid = valid && (in_low || in_high);
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci_m(upper); }
+                                } break;
+                                case OPF_I_C__ADDI16SP:
+                                {
+                                        valid = valid && validate_immediate_ci_addi16sp(value);
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ci_addi16sp(value); }
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+
+                                try_next |= !valid;
+                        } break;
+                        case OPK__Immediate_CL:
+                        {
+                                // Same shared constant-expression parse as OPK__Immediate_C.
+                                B32 parsable = cursor->current.kind == Token_Kind__Percentage
+                                           || token_is_register(cursor);
+                                B32 valid = 0;
+                                S64 value = 0;
+                                if (!parsable)
+                                {
+                                        expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                        SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                        expression_evaluate(expression);
+                                        if (expression->evaluation == Expression_Kind__Constant)
+                                        {
+                                                value = RISCV_normalize_constant_expression(expression->integer_value, options->xlen);
+                                                valid = 1;
+                                        }
+                                }
+
+                                // Per-kind validation and encoding.
+                                switch (OP_FIELD(slot))
+                                {
+                                case OPF_I_CL__CIW_ADDI4SPN:
+                                {
+                                        valid = valid && validate_immediate_ciw_addi4spn(value) && value != 0;
+                                        if (valid) { parsed.data.encoding |= encode_immediate_ciw_addi4spn(value); }
+                                } break;
+                                case OPF_I_CL__ZERO:
+                                {
+                                        valid = valid && value == 0;
+                                } break;
+                                default: { unreachable_m(); }
+                                }
+
+                                try_next |= !valid;
                         } break;
                         case OPK__Shift:
                         {
@@ -518,7 +801,10 @@ RISCV_Instruction__parse
 
                 String8 opcode_string = String8__new(opcode->name, opcode->count);
                 B32 same_name = String8__match_exact(opcode_name, opcode_string);
-                if (match || opcode->hash == 0 || !same_name || class_mismatch)
+                // NOTE: a class/xlen-mismatched entry is skipped by falling through to the
+                // next opcode with the same name (e.g. a compressed alias when `c` is not
+                // enabled must fall back to the 32-bit form).
+                if (match || opcode->hash == 0 || !same_name)
                 {
                         break;
                 }
@@ -552,8 +838,11 @@ RISCV_Instruction__append
         Fixup *fixup                 = 0;
         // NOTE: although jumps are assumed to be in range, if the compressed extension is enabled
         // then this might get reduced to a compressed 2-byte instruction.
-        B32    jump_unconditional_is = instruction->relocation == Relocation_RISC_V__JAL;
-        B32    jump_is               = instruction->relocation == Relocation_RISC_V__Branch || jump_unconditional_is;
+        B32    jump_unconditional_is = instruction->relocation == Relocation_RISC_V__JAL
+                                    || instruction->relocation == Relocation_RISC_V__Jump_Compressed;
+        B32    jump_is               = instruction->relocation == Relocation_RISC_V__Branch
+                                    || instruction->relocation == Relocation_RISC_V__Branch_Compressed
+                                    || jump_unconditional_is;
         // NOTE: fixups, which are deferred patches, can be created only for fixed size instructions
         // (non-jump_is) because they need a precise location to be applied. Jump instructions,
         // like branches, break this invariant. However, some kind of fixup AND relocation will be needed, so for those
@@ -602,8 +891,9 @@ RISCV_Instruction__append
                         encoding_size
                 );
 
-                sealed->relax_info.jump.fixup->fragment = sealed;
-                sealed->relax_info.jump.fixup->offset   = sealed->data_size;
+                sealed->relax_info.jump.fixup->fragment            = sealed;
+                sealed->relax_info.jump.fixup->offset              = sealed->data_size;
+                sealed->relax_info.jump.fixup->fragment_write_size = encoding_size;
         }
         else
         {
@@ -630,7 +920,12 @@ RISCV_macro_build
 )
 {
         U32 instruction_hash = FNV_hash_U32(macro->instruction_name);
-        const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash);
+        // Here, we forcefully skip compressed variants, for two reasons:
+        // 1. Some macros will result in relocations, like a `call` expansions, and downstream consumers of relocatable
+        //    object files, like linkers, expect a 8-byte format patch.
+        // 2. Compatibility with GNU as source code.
+        B32 skip_compressed = 1;
+        const RISCV_Opcode *opcode = RISCV_Opcode__table_find(instruction_hash, skip_compressed);
         assert_always_m(opcode && opcode->hash);
 
         RISCV_Instruction instruction = RISCV_Instruction__create(opcode, macro->location);
@@ -785,11 +1080,15 @@ RISCV_call_expand
 //
 // Other minor optimizations are in place. In particular, the algorithm will also take into account additional trailing
 // zeros after shifting right by 12, so that numbers with many trailing zero don't need more instructions than needed.
+//
+// NOTE: in case of compressed instructions the algorithm doesn't change too much, the heuristic is that, if possible, a
+// compressed instruction is used instead of a full-sized one.
 internal U8
 RISCV_li_expand
 (
         Section *section,
         U8 xlen,
+        B32 compressed,
 
         S64 immediate,
         U8  register_destination,
@@ -800,16 +1099,15 @@ RISCV_li_expand
         S64 immediate_low_12   = 0;
         U32 index              = 0;
 
-        // The base case seeds the topmost chunk with a 32-bit sign-extending
-        // add. On RV64 that is `addiw`; on RV32 the same word width is
-        // reached with plain `addi` (GNU as: ADD32_INSN, tc-riscv.c:189).
+        // The base case seeds the topmost chunk with a 32-bit sign-extending add. On RV64 that is `addiw`; on RV32 the
+        // same word width is reached with plain `addi`.
         U32 opcode_add32 = (xlen == XLEN_64) ? OPCODE_I_TYPE_W : OPCODE_I_TYPE;
 
-        // Peeled chunks: for each level we store the shift amount AND the
-        // low-12-bit tail. Shifts are at least 12, but can be larger because
-        // trailing zero bits of the upper residual are absorbed into the next
-        // SLLI (folding runs of zeros for free). Worst case on RV64 is 3
-        // peels = 8 total instructions (LUI + ADDIW + 3 x (SLLI + ADDI)).
+        // Peeled chunks: for each level we store the shift amount AND the low-12-bit tail. Shifts are at least 12, but
+        // can be larger because trailing zero bits of the upper residual are absorbed into the next SLLI
+        // (folding runs of zeros for free).
+        //
+        // Worst case on RV64 is 3 peels = 8 total instructions (LUI + ADDIW + 3 x (SLLI + ADDI)).
         struct { U8 shift; S64 tail; } peels[4];
         U32 peels_count = 0;
 
@@ -825,7 +1123,16 @@ RISCV_li_expand
                         if (section)
                         {
                                 // Single ADDIW (or ADDI on RV32) from x0
-                                U32 addiw_encoding      = instruction_i_encode_m(register_destination, 0, immediate, opcode_add32, FUNCT3_ADDIW);
+                                U32 addiw_encoding = 0;
+                                if (compressed && xlen == XLEN_32 && register_destination != X_ZERO && validate_immediate_ci_m(immediate))
+                                {
+                                        // c.li rd, imm  (only the RV32 `addi rd, x0, imm` form can compress)
+                                        addiw_encoding = MATCH_C_LI | (U32)register_destination << OP_SH_RD | encode_immediate_ci_m(immediate);
+                                }
+                                else
+                                {
+                                        addiw_encoding = instruction_i_encode_m(register_destination, 0, immediate, opcode_add32, FUNCT3_ADDIW);
+                                }
                                 U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
                                 Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                         }
@@ -842,13 +1149,37 @@ RISCV_li_expand
                                 // ADDIW/ADDI splices them back in (sign-extended to register width).
                                 // instruction_u_encode_m expects the 20-bit U-field (the value already shifted right by 12).
                                 S64 lui_immediate     = (S64)((U32)(immediate - immediate_low_12) >> 12);
-                                U32 lui_encoding      = instruction_u_encode_m(register_destination, lui_immediate, OPCODE_LUI);
+                                U32 lui_encoding = 0;
+                                if (compressed && register_destination != X_ZERO && register_destination != X_SP && riscv_compressed_lui_immediate_is(lui_immediate))
+                                {
+                                        // c.lui rd, uimm
+                                        lui_encoding = MATCH_C_LUI | (U32)register_destination << OP_SH_RD | encode_immediate_ci_m(lui_immediate);
+                                }
+                                else
+                                {
+                                        lui_encoding = instruction_u_encode_m(register_destination, lui_immediate, OPCODE_LUI);
+                                }
                                 U8  lui_encoding_size = RISCV_instruction_size(lui_encoding);
                                 Section__add_instruction_fixed(section, 0, lui_encoding, lui_encoding_size, location);
                                 if (!lui_suffices)
                                 {
-                                        U32 addiw_encoding = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
-                                                opcode_add32, FUNCT3_ADDIW);
+                                        U32 addiw_encoding = 0;
+                                        if (compressed && register_destination != X_ZERO && validate_immediate_ci_m(immediate_low_12))
+                                        {
+                                                // c.addiw (RV64) / c.addi (RV32) rd, rd, imm
+                                                addiw_encoding = (xlen == XLEN_64 ? MATCH_C_ADDIW : MATCH_C_ADDI)
+                                                               | (U32)register_destination << OP_SH_RD | encode_immediate_ci_m(immediate_low_12);
+                                        }
+                                        else if (compressed && xlen == XLEN_32 && register_destination == X_SP && validate_immediate_ci_addi16sp_m(immediate_low_12))
+                                        {
+                                                // c.addi16sp sp, sp, imm (RV32 `addi` form only)
+                                                addiw_encoding = MATCH_C_ADDI16SP | encode_immediate_ci_addi16sp_m(immediate_low_12);
+                                        }
+                                        else
+                                        {
+                                                addiw_encoding = instruction_i_encode_m(register_destination, register_destination, immediate_low_12,
+                                                        opcode_add32, FUNCT3_ADDIW);
+                                        }
                                         U8  addiw_encoding_size = RISCV_instruction_size(addiw_encoding);
                                         Section__add_instruction_fixed(section, 0, addiw_encoding, addiw_encoding_size, location);
                                 }
@@ -861,25 +1192,22 @@ RISCV_li_expand
                         // composed by the 54 highest bits. However, as we see below there might be more trailing zeros!
                         immediate        = (immediate - immediate_low_12) >> 12;
 
-                        // Absorb trailing zero bits of the upper residual into this
-                        // peel's SLLI. Each absorbed bit means the residual we recurse
-                        // on is denser, potentially bottoming out in fewer iterations
-                        // (e.g. a huge value like 0x8000000000000000 collapses to just
-                        // ADDI + SLLI after this).
+                        // Absorb trailing zero bits of the upper residual into this peel's SLLI. Each absorbed bit
+                        // means the residual we recurse on is denser, potentially bottoming out in fewer iterations
+                        // (e.g. a huge value like 0x8000000000000000 collapses to just ADDI + SLLI after this).
                         U8 trailing = count_trailing_zeros((U64)immediate);
                         U8 shift    = (12 + trailing);
                         immediate  >>= trailing;
 
-                        // SLLI is always needed to shift the upper part into place;
-                        // ADDI is only needed when the peeled tail is non-zero.
+                        // SLLI is always needed to shift the upper part into place; ADDI is only needed when the peeled
+                        // tail is non-zero.
                         B32 addi_needed = (immediate_low_12 != 0);
                         instructions_count += 1 + (addi_needed ? 1 : 0);
 
                         if (section)
                         {
-                                // Record (shift, tail) for later replay. No emission yet:
-                                // the SLLI + (optional) ADDI can't be emitted until the
-                                // upper residual has been materialized by the base case.
+                                // Record (shift, tail) for later replay. No emission yet: the SLLI + (optional) ADDI
+                                // can't be emitted until the upper residual has been materialized by the base case.
                                 assert_always_m(peels_count < 4 && "LI expansion exceeded worst case");
                                 peels[peels_count].shift = shift;
                                 peels[peels_count].tail  = immediate_low_12;
@@ -916,13 +1244,36 @@ RISCV_li_expand
                         U8  shift = peels[peel_index].shift;
                         S64 tail  = peels[peel_index].tail;
 
-                        U32 slli_encoding      = instruction_i_encode_m(register_destination, register_destination, shift, OPCODE_I_TYPE, FUNCT3_SLLI);
-                        U8  slli_encoding_size = RISCV_instruction_size(slli_encoding);
+                        U32 slli_encoding = 0;
+                        if (compressed && register_destination != X_ZERO && shift != 0 && shift < xlen)
+                        {
+                                // c.slli rd, rd, shamt
+                                slli_encoding = MATCH_C_SLLI | (U32)register_destination << OP_SH_RD | encode_immediate_ci_m(shift);
+                        }
+                        else
+                        {
+                                slli_encoding = instruction_i_encode_m(register_destination, register_destination, shift, OPCODE_I_TYPE, FUNCT3_SLLI);
+                        }
+                        U8 slli_encoding_size = RISCV_instruction_size(slli_encoding);
                         Section__add_instruction_fixed(section, 0, slli_encoding, slli_encoding_size, location);
 
                         if (tail != 0)
                         {
-                                U32 addi_encoding      = instruction_i_encode_m(register_destination, register_destination, tail, OPCODE_I_TYPE, FUNCT3_ADDI);
+                                U32 addi_encoding = 0;
+                                // c.addi rd, rd, imm
+                                if (compressed && register_destination != X_ZERO && validate_immediate_ci_m(tail))
+                                {
+                                        addi_encoding = MATCH_C_ADDI | (U32)register_destination << OP_SH_RD | encode_immediate_ci_m(tail);
+                                }
+                                // c.addi16sp sp, sp, imm
+                                else if (compressed && register_destination == X_SP && validate_immediate_ci_addi16sp_m(tail))
+                                {
+                                        addi_encoding = MATCH_C_ADDI16SP | encode_immediate_ci_addi16sp_m(tail);
+                                }
+                                else
+                                {
+                                        addi_encoding = instruction_i_encode_m(register_destination, register_destination, tail, OPCODE_I_TYPE, FUNCT3_ADDI);
+                                }
                                 U8  addi_encoding_size = RISCV_instruction_size(addi_encoding);
                                 Section__add_instruction_fixed(section, 0, addi_encoding, addi_encoding_size, location);
                         }
@@ -1156,6 +1507,7 @@ RISCV_instruction_pseudo_append
                         (
                                 section,
                                 options->xlen,
+                                options->compressed,
                                 instruction->expression->integer_value,
                                 rd,
                                 instruction->data.location
@@ -1198,7 +1550,7 @@ RISCV_instruction_pseudo_append
         } break;
         case MACRO_LI:
         {
-                RISCV_li_expand(section, options->xlen, instruction->expression->integer_value, rd, instruction->data.location);
+                RISCV_li_expand(section, options->xlen, options->compressed, instruction->expression->integer_value, rd, instruction->data.location);
         } break;
         }
 

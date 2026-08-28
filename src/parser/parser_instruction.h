@@ -112,6 +112,7 @@ RISCV_li_expand
 (
         Section *section,
         U8 xlen,
+        B32 compressed,
 
         S64 immediate,
         U8  register_destination,

@@ -1280,26 +1280,21 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
                         // TODO(low) at the moment we panic, but we can convert this into a fairly elaborate diagnostic.
                         // In essence, this should NOT happen due to previous steps.
                         assert_always_m(boundary < section_alignment || boundary % section_alignment == 0);
-                        assert_always_m(write_size % section_alignment == 0);
+                        assert_always_m(write_size % 2 == 0);
 
-                        U64 data_variable_size = array_count_m(fragment->data_variable);
-
-                        U8  null_variable_bytes_pattern[array_count_m(fragment->data_variable)] = {0};
-                        B32 null_variable_bytes_set = memory_match(fragment->data_variable, &null_variable_bytes_pattern, array_count_m(fragment->data_variable));
+                        U8  data_variable_size = fragment->data_variable_size;
+                        U8  null_variable_bytes_pattern[Fragment__data_variable_size_max] = {0};
+                        B32 null_variable_bytes_set = memory_match(fragment->data_variable, &null_variable_bytes_pattern, data_variable_size) == 0;
 
                         if (null_variable_bytes_set)
                         {
-                                // Insert NOPs.
-
-                                // Check whether we can get away with just no-ops or we need a compressed version.
-                                B32 compressed_needed = write_size % 2 != 0;
-                                assert_always_m(!compressed_needed || section_alignment != 2);
-
-                                U32 pattern      = compressed_needed ? ENCODING_C_NOP : ENCODING_NOP;
-                                U8  pattern_size = compressed_needed ? 2 : 4;
+                                // Insert NOPs: a padding that is not a multiple of 4 bytes is
+                                // filled with 2-byte compressed NOPs, otherwise with 4-byte NOPs.
+                                U8  pattern_size = (write_size % 4 == 0) ? 4 : 2;
+                                U32 pattern      = (pattern_size == 4) ? ENCODING_NOP : ENCODING_C_NOP;
 
                                 fragment->data_variable_size = pattern_size;
-                                assert_always_m(pattern_size <= data_variable_size);
+                                assert_always_m(pattern_size <= array_count_m(fragment->data_variable));
                                 memory_copy(fragment->data_variable, (U8 *)&pattern, pattern_size);
                         }
 
@@ -1316,65 +1311,134 @@ Fragment__convert_to_fill(Fragment *fragment, Section *section, Expressions *exp
         {
                 // Expand branches into multi-instruction sequences.
 
-                // TODO(compressed): support it
-                if (relax_info->jump.compressed_is)
+                U8  instructions_total_size = relax_info->jump.instructions_total_size;
+                B32 compressed_is           = relax_info->jump.compressed_is;
+                B32 unconditional_is        = relax_info->jump.unconditional_is;
+                assert_always_m(fragment->data_variable_size == instructions_total_size);
+                assert_always_m(array_count_m(fragment->data_variable) >= instructions_total_size);
+
+                if (instructions_total_size == 2)
                 {
-                        unreachable_m();
+                        // Compressed branch/jump in range: keep the 2-byte encoding and emit an RVC branch/jump relocation.
+                        assert_always_m(compressed_is);
+                        relax_info->jump.fixup->offset              = fragment->data_size;
+                        relax_info->jump.fixup->fragment_write_size = 2;
+                        relax_info->jump.fixup->relocation_type     = unconditional_is
+                                ? Relocation_RISC_V__Jump_Compressed
+                                : Relocation_RISC_V__Branch_Compressed;
                 }
-                else
+                else if (instructions_total_size == 4)
                 {
-                        U8 instructions_total_size = relax_info->jump.instructions_total_size;
-                        assert_always_m(fragment->data_variable_size == instructions_total_size);
-                        assert_always_m(array_count_m(fragment->data_variable) >= instructions_total_size);
-
-                        if (instructions_total_size == 8)
+                        if (compressed_is)
                         {
-                                // This MUST be a branch, because we assume jumps are of the right size.
-                                assert_always_m(!relax_info->jump.unconditional_is && "jumps should be assumed to be in range");
+                                // Expand the compressed branch/jump into its 4-byte uncompressed form
+                                U16 rvc_encoding = 0;
+                                memory_copy(&rvc_encoding, fragment->data_variable, 2);
 
-                                // Invert the condition, and branch over the jump.
-                                // Keep rs1/rs2 from the original branch, invert its funct3
-                                // (beq<->bne, blt<->bge, bltu<->bgeu), and skip over the following jal.
+                                U32 expanded = 0;
+                                U8  crs1s    = (U8)((rvc_encoding >> OP_SH_CRS1S) & OP_MASK_CRS1S);
 
-                                // A bit raw logic here, but it does the job.
-                                U32 original_instruction = *(U32 *)fragment->data_variable;
-                                U32 inverted_funct3      = ((original_instruction >> OP_SH_FUNCT3) & OP_MASK_FUNCT3) ^ 0x1;
-                                U32 opcode_and_registers = original_instruction
-                                                      & (OP_MASK_OP | (OP_MASK_RS1 << OP_SH_RS1) | (OP_MASK_RS2 << OP_SH_RS2));
-                                U32 instruction_1 = opcode_and_registers | (inverted_funct3 << OP_SH_FUNCT3) | encode_immediate_b_m(8);
-                                U32 instruction_2 = MATCH_JAL;
+                                if (0) {}
+                                else if ((rvc_encoding & MASK_C_J)    == MATCH_C_J)    { expanded = MATCH_JAL;                                                               }
+                                else if ((rvc_encoding & MASK_C_JAL)  == MATCH_C_JAL)  { expanded = MATCH_JAL | (X_RA << OP_SH_RD);                                          }
+                                else if ((rvc_encoding & MASK_C_BEQZ) == MATCH_C_BEQZ) { expanded = MATCH_BEQ | ((U32)riscv_compressed_register_decode(crs1s) << OP_SH_RS1); }
+                                else if ((rvc_encoding & MASK_C_BNEZ) == MATCH_C_BNEZ) { expanded = MATCH_BNE | ((U32)riscv_compressed_register_decode(crs1s) << OP_SH_RS1); }
+                                else { unreachable_m(); }
 
-                                // Adjust associated fixup information
-                                relax_info->jump.fixup->offset              = fragment->data_size + sizeof(instruction_1);
-                                relax_info->jump.fixup->fragment_write_size = sizeof(instruction_2);
-                                relax_info->jump.fixup->relocation_type     = Relocation_RISC_V__JAL;
-
-                                memory_copy(fragment->data_variable,                         (U8 *)&instruction_1, sizeof(instruction_1));
-                                memory_copy(fragment->data_variable + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
-
+                                memory_copy(fragment->data_variable, (U8 *)&expanded, 4);
                         }
-                        else if (instructions_total_size == 4)
+
+                        U16 relocation_type = unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__Branch;
+                        // Adjust associated fixup information
+                        relax_info->jump.fixup->offset              = fragment->data_size;
+                        relax_info->jump.fixup->fragment_write_size = instructions_total_size;
+                        relax_info->jump.fixup->relocation_type     = relocation_type;
+                }
+                else if (instructions_total_size == 6)
+                {
+                        // Compressed branch out of 4-byte range: invert the condition,
+                        // branch over the following JAL (2 + 4 = 6 bytes).
+                        assert_always_m(compressed_is && !unconditional_is);
+
+                        U16 rvc_encoding = 0;
+                        memory_copy(&rvc_encoding, fragment->data_variable, 2);
+                        rvc_encoding ^= MATCH_C_BEQZ ^ MATCH_C_BNEZ;
+                        rvc_encoding |= (U16)encode_immediate_cb_m(6);
+                        memory_copy(fragment->data_variable, (U8 *)&rvc_encoding, 2);
+
+                        U32 instruction_2 = MATCH_JAL;
+                        memory_copy(fragment->data_variable + 2, (U8 *)&instruction_2, 4);
+
+                        // Adjust associated fixup information
+                        relax_info->jump.fixup->offset              = fragment->data_size + 2;
+                        relax_info->jump.fixup->fragment_write_size = 4;
+                        relax_info->jump.fixup->relocation_type     = Relocation_RISC_V__JAL;
+                }
+                else if (instructions_total_size == 8)
+                {
+                        // This MUST be a branch, because we assume jumps are of the right size.
+                        assert_always_m(!unconditional_is && "jumps should be assumed to be in range");
+
+                        U32 original_instruction = 0;
+                        if (compressed_is)
                         {
-                                U16 relocation_type = relax_info->jump.unconditional_is ? Relocation_RISC_V__JAL : Relocation_RISC_V__Branch;
-                                // Adjust associated fixup information
-                                relax_info->jump.fixup->offset              = fragment->data_size;
-                                relax_info->jump.fixup->fragment_write_size = instructions_total_size;
-                                relax_info->jump.fixup->relocation_type     = relocation_type;
+                                // Expand the compressed branch to its 4-byte RISC-V form first.
+                                //
+                                // TODO(medium): instead of reverse-engineer the encoding, it should be added into
+                                // Relax_Jump_Info first.
+                                U16 rvc_encoding = 0;
+                                memory_copy(&rvc_encoding, fragment->data_variable, 2);
+                                U8  crs1s = (U8)((rvc_encoding >> OP_SH_CRS1S) & OP_MASK_CRS1S);
+                                if ((rvc_encoding & MASK_C_BEQZ) == MATCH_C_BEQZ)
+                                {
+                                        original_instruction = MATCH_BEQ | ((U32)riscv_compressed_register_decode(crs1s) << OP_SH_RS1);
+                                }
+                                else if ((rvc_encoding & MASK_C_BNEZ) == MATCH_C_BNEZ)
+                                {
+                                        original_instruction = MATCH_BNE | ((U32)riscv_compressed_register_decode(crs1s) << OP_SH_RS1);
+                                }
+                                else
+                                {
+                                        unreachable_m();
+                                }
                         }
                         else
                         {
-                                unreachable_m();
+                                memory_copy(&original_instruction, fragment->data_variable, 4);
                         }
 
-                        Expression *repeat_expression = Expression__push_constant(arena, 1);
-                        fragment->relax_info  = (Relax_Info){ .fill_expression = repeat_expression };
-                        fragment->relax_state = Relax_State__Fill;
+                        // Invert the condition, and branch over the jump. Keep rs1/rs2 from the original branch,
+                        // invert its funct3 (beq<->bne, blt<->bge, bltu<->bgeu), and skip over the following jal.
+
+                        // A bit raw logic here, but it does the job.
+                        U32 inverted_funct3      = ((original_instruction >> OP_SH_FUNCT3) & OP_MASK_FUNCT3) ^ 0x1;
+                        U32 opcode_and_registers = original_instruction
+                                              & (OP_MASK_OP | (OP_MASK_RS1 << OP_SH_RS1) | (OP_MASK_RS2 << OP_SH_RS2));
+                        U32 instruction_1 = opcode_and_registers | (inverted_funct3 << OP_SH_FUNCT3) | encode_immediate_b_m(8);
+                        U32 instruction_2 = MATCH_JAL;
+
+                        // Adjust associated fixup information
+                        relax_info->jump.fixup->offset              = fragment->data_size + sizeof(instruction_1);
+                        relax_info->jump.fixup->fragment_write_size = sizeof(instruction_2);
+                        relax_info->jump.fixup->relocation_type     = Relocation_RISC_V__JAL;
+
+                        memory_copy(fragment->data_variable,                         (U8 *)&instruction_1, sizeof(instruction_1));
+                        memory_copy(fragment->data_variable + sizeof(instruction_1), (U8 *)&instruction_2, sizeof(instruction_2));
+
                 }
+                else
+                {
+                        unreachable_m();
+                }
+
+                Expression *repeat_expression = Expression__push_constant(arena, 1);
+                fragment->relax_info  = (Relax_Info){ .fill_expression = repeat_expression };
+                fragment->relax_state = Relax_State__Fill;
         } break;
         }
 
-        assert_always_m(data_size_before          == fragment->data_size);
-        assert_always_m(data_variable_size_before == fragment->data_variable_size);
+        assert_always_m(data_size_before == fragment->data_size);
+        assert_always_m(relax_state == Relax_State__Align || data_variable_size_before == fragment->data_variable_size);
 
         return;
 }
@@ -1385,9 +1449,12 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Dia
         U8 size = 0;
         if (fragment->relax_state == Relax_State__Jump)
         {
+                B32 jump_is       = fragment->relax_info.jump.unconditional_is;
+                B32 compressed_is = fragment->relax_info.jump.compressed_is;
+
                 // NOTE: assume jumps are in range; the linker will catch any that aren't.
                 // For branches, assume worst size and then fix it.
-                size = fragment->relax_info.jump.unconditional_is ? 4 : 8;
+                size = jump_is ? 4 : 8;
                 Symbol_Ref *symbol_target_jump = fragment->relax_info.jump.expression->symbol;
 
                 B32 symbol_defined_is    = symbol_target_jump && symbol_target_jump->section != &Section__undefined;
@@ -1396,23 +1463,29 @@ Fragment__jump_instructions_total_size(Fragment *fragment, Section *section, Dia
                 B32 size_can_be_computed = symbol_defined_is && !symbol_weak_is && section_same_is;
 
                 // If we have no symbol, e.g. `j 4` or `beq zero, zero, 4`, then we default the worst expansion.
+                //
+                // COMPATIBILITY(gnu-as): if compressed, the total size could never be past 6, because of compressed
+                // branch over a full-size JAL. We don't do that to match GNU as.
                 if (size_can_be_computed)
                 {
                         S64 jump_target_offset = Symbol_Ref__resolve(symbol_target_jump, diagnostics, Resolve_Level__Traverse);
                         S64 distance = jump_target_offset - (fragment->object_file_offset + fragment->data_size);
 
-                        // TODO(compressed, check-gas): compressed range
-                        //
-                        // Check that `distance` fits a signed `RISCV_BRANCH_REACH`, i.e.
-                        // `[-RISCV_BRANCH_REACH/2, RISCV_BRANCH_REACH/2)`.
-                        // if (compressed && range compressed blah blah)
-                        B32 within_branch_range_is = (S64)(-(S64)RISCV_BRANCH_REACH / 2) <= distance
-                                                  && distance < (S64)RISCV_BRANCH_REACH / 2;
-                        if (within_branch_range_is)
+                        // A compressed branch/jump first tries the RVC range, then the plain branch range, and
+                        // finally expands a branch into a branch-over-jump sequence.
+                        U64 range_compressed = jump_is ? RISCV_C_JUMP_REACH : RISCV_C_BRANCH_REACH;
+                        if (compressed_is && (U64)(distance + range_compressed / 2) < range_compressed)
+                        {
+                                size = 2;
+                        }
+                        else if ((U64)(distance + RISCV_BRANCH_REACH / 2) < RISCV_BRANCH_REACH)
                         {
                                 size = 4;
                         }
-                        // else if (!unconditional && compressed) then this is 6.
+                        else if (!jump_is && compressed_is)
+                        {
+                                size = 6;
+                        }
                 }
         }
 
