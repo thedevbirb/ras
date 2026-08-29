@@ -36,6 +36,8 @@ struct RISCV_Implicit_Extension
         String8  extension;
         // Comma-separated list of implied extensions.
         String8  implicit;
+        // The rule fires only when `requires` is also present; empty means always.
+        String8  requires;
 };
 
 // Parse an ISA string. On success, fills `extensions` and returns an empty String8. On failure, returns a description
@@ -54,6 +56,11 @@ RISCV_Extensions__find(const RISCV_Extension *extension, U64 count, String8 name
 // Mirrors bfd/elfxx-riscv.c `riscv_parse_add_implicit_subsets`.
 internal void
 RISCV_extensions_add_implicit(RISCV_Extensions *extensions);
+
+// Add a single extension at its canonical position, unless it is already
+// present.  Keeps the list canonically sorted at all times.
+internal void
+RISCV_extensions_add(RISCV_Extensions *extensions, String8 name, U8 major, U8 minor);
 
 // Check the parsed extensions against each other and the XLEN. Returns an empty String8 when there is no conflict, or a
 // description of the first conflict otherwise.

@@ -80,6 +80,18 @@ const char *Instruction_Kind_strings[] =
         "lr.d","sc.d","amoswap.d","amoadd.d","amoxor.d","amoand.d","amoor.d",
         "amomin.d","amomax.d","amominu.d","amomaxu.d",
 
+        // A: .aq/.rl/.aqrl ordering suffixes
+        "lr.w.aq","lr.w.rl","lr.w.aqrl","sc.w.aq","sc.w.rl","sc.w.aqrl","lr.d.aq",
+        "lr.d.rl","lr.d.aqrl","sc.d.aq","sc.d.rl","sc.d.aqrl","amoswap.w.aq","amoswap.w.rl",
+        "amoswap.w.aqrl","amoadd.w.aq","amoadd.w.rl","amoadd.w.aqrl","amoxor.w.aq","amoxor.w.rl","amoxor.w.aqrl",
+        "amoand.w.aq","amoand.w.rl","amoand.w.aqrl","amoor.w.aq","amoor.w.rl","amoor.w.aqrl","amomin.w.aq",
+        "amomin.w.rl","amomin.w.aqrl","amomax.w.aq","amomax.w.rl","amomax.w.aqrl","amominu.w.aq","amominu.w.rl",
+        "amominu.w.aqrl","amomaxu.w.aq","amomaxu.w.rl","amomaxu.w.aqrl","amoswap.d.aq","amoswap.d.rl","amoswap.d.aqrl",
+        "amoadd.d.aq","amoadd.d.rl","amoadd.d.aqrl","amoxor.d.aq","amoxor.d.rl","amoxor.d.aqrl","amoand.d.aq",
+        "amoand.d.rl","amoand.d.aqrl","amoor.d.aq","amoor.d.rl","amoor.d.aqrl","amomin.d.aq","amomin.d.rl",
+        "amomin.d.aqrl","amomax.d.aq","amomax.d.rl","amomax.d.aqrl","amominu.d.aq","amominu.d.rl","amominu.d.aqrl",
+        "amomaxu.d.aq","amomaxu.d.rl","amomaxu.d.aqrl",
+
         // F
         "flw","fsw",
         "fmv.x.w","fmv.w.x","fmv.x.s","fmv.s.x","fmv.s","fneg.s","fabs.s",

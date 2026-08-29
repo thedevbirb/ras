@@ -6,8 +6,7 @@ be ingested by a linker. The design of the assembler is greatly based on GNU `as
 as `gas`), which has been an indispensable source of inspiration other than a source of truth for
 how a production assembler works.
 
-This is clearly alpha software, not thoroughly tested, made primarily for learning. Future
-developments might change this.
+This is alpha software, not thoroughly tested, made primarily for learning. Use at your own risk.
 
 ## Supported architecture
 
@@ -24,18 +23,17 @@ The matching ABIs are supported (`ilp32`/`ilp32f`/`ilp32d` for RV32 and `lp64`/`
 extensions are separated by `_`) and gates instructions by extension. The recognized extensions
 are:
 
-- Base and standard: `I`, `E` (RV32E embedded), `M`, `F`, `D`, `C` (compressed), and the `G` group
-  (expands to `I`/`M`/`A`/`F`/`D`/`Zicsr`/`Zifencei`).
-- `Z`-extensions: `Zba`, `Zbb`, `Zbc`, `Zbs`, `Zicntr`, `Zicond`, `Zicsr`, `Zifencei`, `Zmmul`.
+- Base and standard: `I`, `E` (RV32E embedded), `M`, `A`, `F`, `D`, `C` (compressed), and the `G`
+  group (expands to `I`/`M`/`A`/`F`/`D`/`Zicsr`/`Zifencei`).
+- `Z`-extensions: `Zba`, `Zbb`, `Zbc`, `Zbs`, `Zicntr`, `Zicond`, `Zicsr`, `Zifencei`, `Zmmul`,
+  `Zaamo`, `Zalrsc`.
 
 Implicit dependencies are applied automatically (`G` implies the standard group, `D` implies `F`,
-`F` implies `Zicsr`, `M` implies `Zmmul`, ...). `Zicsr` provides the CSR instructions
-(`csrrw`/`csrrs`/`csrrc`, `csrrwi`/`csrrsi`/`csrrci`, and the `csrr`/`csrw`/`csrs`/`csrc`/
-`csrwi`/`csrsi`/`csrci` pseudo-ops), with the CSR operand accepting either a constant expression
-(`csrrw t0, 0x300, t1`) or one of the curated CSR names in `src/riscv/riscv_register.h` (`mstatus`,
-`mepc`, `satp`, ...).
-
-Extensions such as `A`, `Q`, `V`, `H` are not recognized by `-march`.
+`F` implies `Zicsr`, `M` implies `Zmmul`, `A` implies `Zaamo`/`Zalrsc`, ...). `Zicsr` provides the
+CSR instructions (`csrrw`/`csrrs`/`csrrc`, `csrrwi`/`csrrsi`/`csrrci`, and the
+`csrr`/`csrw`/`csrs`/`csrc`/`csrwi`/`csrsi`/`csrci` pseudo-ops), with the CSR operand accepting
+either a constant expression (`csrrw t0, 0x300, t1`) or one of the curated CSR names in
+`src/riscv/riscv_register.h` (`mstatus`, `mepc`, `satp`, ...).
 
 ## Directives
 
@@ -77,22 +75,20 @@ The command line follows `usage: ras <filepath_in> -o <filepath_out>` and suppor
 Testing this type of software is hard, and doing it well will for sure take more time than to write
 this code. A practical approach I've taken to this for now is feature parity with GNU `as` on a
 sufficiently large C codebase: the SQLite 3 amalgamation. The GCC-generated `sqlite3.s` (~3.7 MB of
-compiler output using `rv64imfd_zba_zbb_zbc_zbs_zicond_zmmul`) is assembled by `ras` and compared
-section-by-section against the object produced by GNU `as`.
+compiler output using `rv64gc`/`rv32gc` or whatever extension you want to use) is assembled by `ras`
+and compared section-by-section against the object produced by GNU `as`.
 
 As of the latest recorded run, the comparison is clean on every semantic check: the `.text`
 section (nearly 890 KB of machine code) is byte-for-byte identical, all four `.rela.*` sections
 match as sets of (offset, type, addend, referenced-symbol), and the `.symtab` matches as a
-multiset of all 26,991 symbols. In practice, sections are equivalent modulo symbol indexes.
-Similarly, the string tables may slightly differ just because `ras` doesn't support merging strings.
+multiset of all 26,991 symbols.
 
 ### Reproducing the test
 
 The following reproduces the parity check from scratch, all from the repository root.
 
 1. Get the SQLite amalgamation. This project targets SQLite 3.53.4. Download
-   `sqlite-amalgamation-3530400.zip` from `https://www.sqlite.org/` and unzip it (a copy also
-   lives in the repo under `sqlite-amalgamation-3530400/`):
+   `sqlite-amalgamation-3530400.zip` from `https://www.sqlite.org/` and unzip it.
 
    ```sh
    unzip sqlite-amalgamation-3530400.zip
@@ -104,39 +100,26 @@ The following reproduces the parity check from scratch, all from the repository 
    ./nob --release
    ```
 
-3. Compile the amalgamation to RISC-V assembly with the bare-metal RISC-V toolchain (newlib),
-   matching the flags used for the milestone run:
+3. Compile the amalgamation to RISC-V assembly with the bare-metal RISC-V toolchain, in particular,
+   use `riscv64-unknown-elf-gcc -S -O2` (and the `riscv32` counterpart) with `-DSQLITE_OS_OTHER=1
+   -DSQLITE_THREADSAFE=0` (skipping the OS/pthread layers that newlib does not provide) and
+   `-march=<arch>` `-mabi=<mabi>` of your choice.
+
+4. Assemble the compiled code with both assemblers, example:
 
    ```sh
-   riscv64-unknown-elf-gcc -S -O2 \
-       -DSQLITE_OS_OTHER=1 -DSQLITE_THREADSAFE=0 \
-       -march=rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul -mabi=lp64d \
-       sqlite-amalgamation-3530400/sqlite3.c -o sqlite-amalgamation-3530400/sqlite3.s
+   ./build/ras sqlite-amalgamation-3530400/sqlite3_rv64.s -o sqlite-amalgamation-3530400/sqlite3_rv64_ras.o
+   riscv64-unknown-elf-as sqlite-amalgamation-3530400/sqlite3_rv64.s -o sqlite-amalgamation-3530400/sqlite3_rv64_gnu.o
    ```
 
-   (`-DSQLITE_OS_OTHER=1` and `-DSQLITE_THREADSAFE=0` skip the OS/pthread layers that newlib does
-   not provide.
-
-   Note that you can also check for `riscv32` toolchain as well.
-
-4. Assemble `sqlite3.s` with both assemblers:
-
-   ```sh
-   ./build/ras sqlite-amalgamation-3530400/sqlite3.s -o sqlite-amalgamation-3530400/sqlite3_ras.o
-   riscv64-unknown-elf-as -march=rv64imafd_zba_zbb_zbc_zbs_zicond_zmmul \
-       -mabi=lp64d sqlite-amalgamation-3530400/sqlite3.s -o sqlite-amalgamation-3530400/sqlite3_gnu.o
-   ```
-
-   By default, `as` should honor the architecture provided by `.attribute arch, "<arch>"` written by
+   Both `ras` and GNU `as` honors the architecture provided by `.attribute arch, "<arch>"` written by
    GCC, so the `-march` flag can be optional.
 
-   Note that you can also check for `riscv32` toolchain as well.
-
 5. Compare the two relocatable objects. `nob` builds `build/compare_objects` from
-   `compare_objects.c` and runs it on the two objects:
+   `compare_objects.c` and runs it on the two objects; example:
 
    ```sh
-   ./nob --compare-objects sqlite-amalgamation-3530400/sqlite3_ras.o sqlite-amalgamation-3530400/sqlite3_gnu.o
+   ./nob --compare-objects sqlite-amalgamation-3530400/sqlite3_rv64_ras.o sqlite-amalgamation-3530400/sqlite3_rv64_gnu.o
    ```
 
    The comparator prints a per-section `OK`/`DIFF` listing plus a `=== SUMMARY ===` block with the

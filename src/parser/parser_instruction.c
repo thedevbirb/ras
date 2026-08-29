@@ -379,6 +379,34 @@ RISCV_Instruction__parse
                                                 }
                                         }
                                 } break;
+                                case OPF_O__AMO:
+                                {
+                                        // Atomic instructions (lr/sc/amo) have no offset field: GNU as
+                                        // accepts an omitted offset (`lr.w t1, (t0)`) or an explicit zero,
+                                        // and rejects anything else.
+                                        U8 next = (U8)(arguments >> (8 * (arguments_index + 1)));
+                                        if (next == OP_PL && cursor->current.kind == Token_Kind__Parenthesis_Left)
+                                        {
+                                               // Omitted immediate, e.g. lr.w t1, (t0)
+                                               arguments_index += 1;
+                                               token_next(cursor, diagnostics);
+                                        }
+                                        else
+                                        {
+                                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                                SLL_queue_push_m(expressions->first, expressions->last, expression);
+                                                expression_evaluate(expression);
+
+                                                B32 constant = expression->evaluation == Expression_Kind__Constant;
+                                                B32 zero     = constant && expression->integer_value == 0;
+                                                if (!zero)
+                                                {
+                                                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__AMO_Offset_Nonzero);
+                                                        diagnostic->location   = expression->location_range.v[0];
+                                                        diagnostic->ranges[0]  = expression->location_range;
+                                                }
+                                        }
+                                } break;
                                 default: { unreachable_m(); }
                                 }
                         } break;

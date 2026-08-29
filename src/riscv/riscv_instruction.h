@@ -694,6 +694,60 @@ internal B32 riscv_compressed_lui_immediate_is(S64 uimm);
 #define MATCH_CSRRCI 0x7073
 #define MASK_CSRRCI  0x707f
 
+// A extension (atomics: ZAAMO for the AMOs, ZALRSC for LR/SC).
+// The aq (bit 26) and rl (bit 25) ordering suffixes select these bits; the base
+// mnemonic encodes them as zero.
+#define MASK_AQ   0x04000000
+#define MASK_RL   0x02000000
+#define MASK_AQRL (MASK_AQ | MASK_RL)
+
+#define MATCH_LR_W 0x1000202f
+#define MASK_LR_W  0xf9f0707f
+#define MATCH_LR_D 0x1000302f
+#define MASK_LR_D  0xf9f0707f
+#define MATCH_SC_W 0x1800202f
+#define MASK_SC_W  0xf800707f
+#define MATCH_SC_D 0x1800302f
+#define MASK_SC_D  0xf800707f
+
+#define MATCH_AMOADD_W   0x202f
+#define MASK_AMOADD_W    0xf800707f
+#define MATCH_AMOXOR_W   0x2000202f
+#define MASK_AMOXOR_W    0xf800707f
+#define MATCH_AMOOR_W    0x4000202f
+#define MASK_AMOOR_W     0xf800707f
+#define MATCH_AMOAND_W   0x6000202f
+#define MASK_AMOAND_W    0xf800707f
+#define MATCH_AMOMIN_W   0x8000202f
+#define MASK_AMOMIN_W    0xf800707f
+#define MATCH_AMOMAX_W   0xa000202f
+#define MASK_AMOMAX_W    0xf800707f
+#define MATCH_AMOMINU_W  0xc000202f
+#define MASK_AMOMINU_W   0xf800707f
+#define MATCH_AMOMAXU_W  0xe000202f
+#define MASK_AMOMAXU_W   0xf800707f
+#define MATCH_AMOSWAP_W  0x800202f
+#define MASK_AMOSWAP_W   0xf800707f
+
+#define MATCH_AMOADD_D   0x302f
+#define MASK_AMOADD_D    0xf800707f
+#define MATCH_AMOXOR_D   0x2000302f
+#define MASK_AMOXOR_D    0xf800707f
+#define MATCH_AMOOR_D    0x4000302f
+#define MASK_AMOOR_D     0xf800707f
+#define MATCH_AMOAND_D   0x6000302f
+#define MASK_AMOAND_D    0xf800707f
+#define MATCH_AMOMIN_D   0x8000302f
+#define MASK_AMOMIN_D    0xf800707f
+#define MATCH_AMOMAX_D   0xa000302f
+#define MASK_AMOMAX_D    0xf800707f
+#define MATCH_AMOMINU_D  0xc000302f
+#define MASK_AMOMINU_D   0xf800707f
+#define MATCH_AMOMAXU_D  0xe000302f
+#define MASK_AMOMAXU_D   0xf800707f
+#define MATCH_AMOSWAP_D  0x800302f
+#define MASK_AMOSWAP_D   0xf800707f
+
 #define MATCH_SCALL 0x73
 #define MASK_SCALL  0xffffffff
 #define MATCH_SBREAK 0x100073
@@ -1389,6 +1443,8 @@ enum
         OPF_O__Branch,
         // J-type encoding (jal/j ...)
         OPF_O__Jal,
+        // Atomic-instruction offset (lr/sc/amo ...): omitted or zero only.
+        OPF_O__AMO,
         OPF_O__COUNT
 };
 OPF_size_check_m(OPF_O);
@@ -1496,6 +1552,8 @@ enum
         OPC__ZIFENCEI,
         OPC__ZICNTR,
         OPC__ZICSR,
+        OPC__ZALRSC,
+        OPC__ZAAMO,
 
         OPC__COUNT,
 };

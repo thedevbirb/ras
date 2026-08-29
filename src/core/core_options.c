@@ -2,18 +2,31 @@ internal Options
 Options__default(Arena *arena)
 {
         RISCV_Extension *extensions_data = Arena__push_array_m(arena, RISCV_Extension, RISCV_Extensions__max);
-        U64 extensions_count = array_count_m(RISCV_Extension__defaults);
+        RISCV_Extensions extensions =
+        {
+                .count = 0,
+                .max   = RISCV_Extensions__max,
+                .data  = extensions_data,
+        };
+
         U64 index = 0;
         for (;;)
         {
-                if (index >= extensions_count)
+                if (index >= array_count_m(RISCV_Extension__defaults))
                 {
                         break;
                 }
 
-                RISCV_Extension extension = RISCV_Extension__defaults[index];
-                extension.name = String8__duplicate(arena, RISCV_Extension__defaults[index].name);
-                extensions_data[index] = extension;
+                const RISCV_Extension *extension = &RISCV_Extension__defaults[index];
+                // `g` is a group alias (expanded when parsed) and `e` is RV32-only;
+                // neither belongs in the default RV64 extension set.
+                B32 skip = String8__match_exact(extension->name, String8__literal("g"))
+                        || String8__match_exact(extension->name, String8__literal("e"));
+                if (!skip)
+                {
+                        RISCV_extensions_add(&extensions, extension->name, extension->major, extension->minor);
+                }
+
                 index += 1;
         }
 
@@ -24,12 +37,7 @@ Options__default(Arena *arena)
                 .relax            = 1,
                 .machine_abi      = String8__literal("lp64d"),
 
-                .extensions =
-                {
-                        .count = extensions_count,
-                        .max   = RISCV_Extensions__max,
-                        .data  = extensions_data
-                }
+                .extensions = extensions
         };
         result.elf_header_flags = ELF_Header_Flags__from_Options(&result);
 
@@ -97,11 +105,14 @@ Options__architecture_parse(Options *options, String8 architecture, Arena *arena
 internal String8
 architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B32 symbol)
 {
-        // Compute total char count first
+        // Compute total char count first, skipping the base `i` when `e` is
+        // present (RV32E), mirroring GNU as's `riscv_arch_str1`.
 
         // [$x]rv32/rv64
         U64 count = (!!symbol * 2) + 4;
+        U64 emitted_count = 0;
         U64 count_index = 0;
+        B32 count_previous_is_e = 0;
         for (;;)
         {
                 if (count_index >= extensions->count)
@@ -110,16 +121,23 @@ architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B
                 }
 
                 RISCV_Extension extension = extensions->data[count_index];
-                count += extension.name.count;
-                // <major>p<minor>
-                count += 3;
+                B32 is_i = String8__match_exact(extension.name, String8__literal("i"));
+                B32 skip = count_previous_is_e && is_i;
+                if (!skip)
+                {
+                        count += extension.name.count;
+                        // <major>p<minor>
+                        count += 3;
+                        emitted_count += 1;
+                }
+                count_previous_is_e = String8__match_exact(extension.name, String8__literal("e"));
 
                 count_index += 1;
-                U8 add_underscore = count_index < extensions->count;
-                if (add_underscore)
-                {
-                        count += add_underscore;
-                }
+        }
+        B32 add_underscores = emitted_count > 0;
+        if (add_underscores)
+        {
+                count += emitted_count - 1;
         }
 
         // Null-terminated buffer
@@ -140,6 +158,8 @@ architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B
         U8 underscore = '_';
 
         U64 write_index = 0;
+        B32 wrote_any = 0;
+        B32 write_previous_is_e = 0;
         for (;;)
         {
                 if (write_index >= extensions->count)
@@ -148,21 +168,27 @@ architecture_string(const RISCV_Extensions *extensions, U8 xlen, Arena *arena, B
                 }
 
                 RISCV_Extension extension = extensions->data[write_index];
-                String8__serial_write(&cursor, extension.name.data, extension.name.count);
+                B32 is_i = String8__match_exact(extension.name, String8__literal("i"));
+                B32 skip = write_previous_is_e && is_i;
+                if (!skip)
+                {
+                        if (wrote_any)
+                        {
+                                String8__serial_write_m(&cursor, &underscore);
+                        }
+                        String8__serial_write(&cursor, extension.name.data, extension.name.count);
 
-                U8 major_character = extension.major + '0';
-                U8 minor_character = extension.minor + '0';
+                        U8 major_character = extension.major + '0';
+                        U8 minor_character = extension.minor + '0';
 
-                String8__serial_write_m(&cursor, &major_character);
-                String8__serial_write_m(&cursor, &p);
-                String8__serial_write_m(&cursor, &minor_character);
+                        String8__serial_write_m(&cursor, &major_character);
+                        String8__serial_write_m(&cursor, &p);
+                        String8__serial_write_m(&cursor, &minor_character);
+                        wrote_any = 1;
+                }
+                write_previous_is_e = String8__match_exact(extension.name, String8__literal("e"));
 
                 write_index += 1;
-                U8 add_underscore = write_index < extensions->count;
-                if (add_underscore)
-                {
-                        String8__serial_write_m(&cursor, &underscore);
-                }
         }
 
         return result;

@@ -1,59 +1,35 @@
 #include "riscv_extensions.h"
 
-// The single-letter standard extensions recognized by ras, in canonical order.
+// The canonical order of single-letter extensions.
 //
-// Canonical order follows bfd/elfxx-riscv.c `riscv_ext_canonical_order`
-// ("eigmafdqlcbkjtpvnh"), restricted to the extensions ras actually supports
-// (those with an opcode class in `riscv_instruction.c`, plus `e`/`c`/`g` which
-// have a direct effect on assembly options). A letter that appears here can be
-// written consecutively in `-march` without a separator, e.g. "rv64imfdc".
-global const String8 RISCV_extensions_standard_order = String8__literal("eigmfdc");
+// Follows GNU as canonical order: single-letter extensions sort first, then prefixed ones, so the emitted architecture
+// regardless of the `-march` input order.  A letter that appears here can be written consecutively in `-march` without
+// a separator, e.g. "rv64imfdc".
+global const String8 RISCV_extensions_single_order = String8__literal("eigmafdqlcbkjtpvnh");
 
-// Known prefixed extensions (z* and s*).
-//
-// A name that appears here can be written in `-march`, separated by '_', e.g.
-// "rv64imfd_zba_zbb_zicond". Only extensions with an opcode class in
-// `riscv_instruction.c` belong here.
-//
 // HOW TO ADD AN EXTENSION
 // -----------------------
 // 1. Add an OPC__* class in riscv_instruction.h and assign it to the matching
 //    instructions in riscv_instruction.c.
 // 2. Single-letter extension: insert the letter into
-//    RISCV_extensions_standard_order, keeping the canonical RISC-V order
-//    (e i g m a f d q l c b k j t p v n h).
-// 3. Prefixed extension: insert the name into RISCV_extensions_prefixed,
-//    keeping the list sorted alphabetically. (Order is otherwise irrelevant,
-//    it is only scanned linearly for recognition.)
+//    RISCV_extensions_single_order, keeping the canonical RISC-V order.
+// 3. Prefixed extension: insert the name (with its default version) into
+//    RISCV_Extension__defaults; that table is what resolves versions and
+//    recognizes the name in `-march`.
 // 4. If the extension implies others, add a rule to RISCV_extensions_implicit.
-//    Implicit names do NOT need to be listed here: they are added internally,
-//    so only extensions that can appear explicitly in `-march` are validated.
-global const String8 RISCV_extensions_prefixed[] =
-{
-        String8__literal("zba"),
-        String8__literal("zbb"),
-        String8__literal("zbc"),
-        String8__literal("zbs"),
-        String8__literal("zca"),
-        String8__literal("zcd"),
-        String8__literal("zicntr"),
-        String8__literal("zicond"),
-        String8__literal("zicsr"),
-        String8__literal("zifencei"),
-        String8__literal("zmmul"),
-        String8__literal("zaamo"),
-        String8__literal("zalrsc"),
-};
+//    Implicit names do NOT need to be listed in the defaults table: they are
+//    resolved from it when added.
 
 global const RISCV_Extension RISCV_Extension__defaults[] =
 {
+        { .name = String8__literal("e"),        1, 9 },
         { .name = String8__literal("i"),        2, 1 },
-        { .name = String8__literal("a"),        2, 1 },
-        { .name = String8__literal("c"),        2, 0 },
         { .name = String8__literal("m"),        2, 0 },
-        { .name = String8__literal("b"),        1, 0 },
+        { .name = String8__literal("a"),        2, 1 },
         { .name = String8__literal("f"),        2, 2 },
         { .name = String8__literal("d"),        2, 2 },
+        { .name = String8__literal("c"),        2, 0 },
+        { .name = String8__literal("b"),        1, 0 },
         { .name = String8__literal("zba"),      1, 0 },
         { .name = String8__literal("zbb"),      1, 0 },
         { .name = String8__literal("zbc"),      1, 0 },
@@ -72,17 +48,21 @@ assert_static_m(array_count_m(RISCV_Extension__defaults) <= RISCV_Extensions__ma
 
 global const RISCV_Implicit_Extension RISCV_extensions_implicit[] =
 {
-        { String8__literal("g"),      String8__literal("i,m,a,f,d,zicsr,zifencei") },
-        { String8__literal("e"),      String8__literal("i")                        },
-        { String8__literal("c"),      String8__literal("zca,zcd")                  },
-        { String8__literal("zicntr"), String8__literal("zicsr")                    },
-        { String8__literal("m"),      String8__literal("zmmul")                    },
-        { String8__literal("a"),      String8__literal("zaamo,zalrsc")             },
-        { String8__literal("d"),      String8__literal("f")                        },
-        { String8__literal("f"),      String8__literal("zicsr")                    },
-        { String8__literal("f"),      String8__literal("zba,zbb,zbs")              },
-        { String8__literal("b"),      String8__literal("zba,zbb,zbc,zbs")          },
+        { .extension = String8__literal("e"),      .implicit = String8__literal("i"),               .requires = {0}                   },
+        { .extension = String8__literal("c"),      .implicit = String8__literal("zca"),             .requires = {0}                   },
+        { .extension = String8__literal("c"),      .implicit = String8__literal("zcd"),             .requires = String8__literal("d") },
+        { .extension = String8__literal("zicntr"), .implicit = String8__literal("zicsr"),           .requires = {0}                   },
+        { .extension = String8__literal("m"),      .implicit = String8__literal("zmmul"),           .requires = {0}                   },
+        { .extension = String8__literal("a"),      .implicit = String8__literal("zaamo,zalrsc"),    .requires = {0}                   },
+        { .extension = String8__literal("d"),      .implicit = String8__literal("f"),               .requires = {0}                   },
+        { .extension = String8__literal("f"),      .implicit = String8__literal("zicsr"),           .requires = {0}                   },
+        { .extension = String8__literal("b"),      .implicit = String8__literal("zba,zbb,zbc,zbs"), .requires = {0}                   },
 };
+
+// `g` is a group alias for the standard extension set.  It is expanded in place at parse time (see
+// RISCV_Extensions__parse) rather than stored in the list, so it never appears in the architecture string (GNU as emits
+// the expansion only).
+global const String8 RISCV_extensions_g_components = String8__literal("i,m,a,f,d,zicsr,zifencei");
 
 internal const RISCV_Extension *
 RISCV_Extensions__find(const RISCV_Extension *extensions, U64 count, String8 name)
@@ -108,6 +88,194 @@ RISCV_Extensions__find(const RISCV_Extension *extensions, U64 count, String8 nam
         return result;
 }
 
+// Canonical order position of a single-letter extension, or 0 if it is not a canonical single-letter extension.
+internal U8
+riscv_extension_single_order(U8 letter)
+{
+        U8 result = 0;
+        U64 index = 0;
+        for (;;)
+        {
+                B32 break_should = index >= RISCV_extensions_single_order.count
+                                || RISCV_extensions_single_order.data[index] == letter;
+                if (break_should)
+                {
+                        break;
+                }
+
+                index += 1;
+        }
+
+        B32 found = index < RISCV_extensions_single_order.count;
+        if (found)
+        {
+                result = (U8)(index + 1);
+        }
+
+        return result;
+}
+
+// Case-insensitive comparison of the tail of two prefixed extension names.
+internal B32
+riscv_extension_name_less(const String8 a, const String8 b)
+{
+        B32 result = 0;
+        U64 index = 1;
+        for (;;)
+        {
+                B32 a_end = index >= a.count;
+                B32 b_end = index >= b.count;
+                B32 different = 0;
+                if (!a_end && !b_end)
+                {
+                        U8 a_char = a.data[index];
+                        U8 b_char = b.data[index];
+                        different = a_char != b_char;
+                        if (different)
+                        {
+                                result = a_char < b_char;
+                        }
+                }
+                else
+                {
+                        // One name is a prefix of the other: the shorter sorts first.
+                        result = a_end && !b_end;
+                }
+
+                B32 break_should = a_end || b_end || different;
+                if (break_should)
+                {
+                        break;
+                }
+
+                index += 1;
+        }
+
+        return result;
+}
+
+// Whether `a` sorts before `b` in the canonical extension order, mirroring GNU as. Single-letter extensions first, in
+// canonical order, then prefixed extensions.
+internal B32
+riscv_extensions_less(const String8 a, const String8 b)
+{
+        B32 result = 0;
+        B32 a_single = a.count == 1;
+        B32 b_single = b.count == 1;
+        if (a_single && b_single)
+        {
+                result = riscv_extension_single_order(a.data[0]) < riscv_extension_single_order(b.data[0]);
+        }
+        else if (a_single != b_single)
+        {
+                result = a_single;
+        }
+        else
+        {
+                U8 a_second = riscv_extension_single_order(a.data[1]);
+                U8 b_second = riscv_extension_single_order(b.data[1]);
+                if (a_second != b_second)
+                {
+                        result = a_second < b_second;
+                }
+                else
+                {
+                        result = riscv_extension_name_less(a, b);
+                }
+        }
+
+        return result;
+}
+
+// Add `name` at its canonical position, unless it is already present.  The list
+// stays canonically sorted at all times, so no separate sort pass is needed.
+internal void
+RISCV_extensions_add(RISCV_Extensions *extensions, String8 name, U8 major, U8 minor)
+{
+        B32 present = RISCV_Extensions__find(extensions->data, extensions->count, name) != 0;
+        B32 full    = extensions->count >= extensions->max;
+        if (present || full)
+        {
+                return;
+        }
+
+        U64 insert_index = 0;
+        for (;;)
+        {
+                B32 break_should = insert_index >= extensions->count
+                                || riscv_extensions_less(name, extensions->data[insert_index].name);
+                if (break_should)
+                {
+                        break;
+                }
+
+                insert_index += 1;
+        }
+
+        // Make room by shifting the tail right. It's okay since the list is short.
+        U64 shift_index = extensions->count;
+        for (;;)
+        {
+                B32 break_should = shift_index <= insert_index;
+                if (break_should)
+                {
+                        break;
+                }
+
+                extensions->data[shift_index] = extensions->data[shift_index - 1];
+                shift_index -= 1;
+        }
+
+        extensions->data[insert_index] = (RISCV_Extension)
+        {
+                .name  = name,
+                .major = major,
+                .minor = minor,
+        };
+        extensions->count += 1;
+        return;
+}
+
+// Add a comma-separated list of extension names, resolving each to its default version. Unknown names are skipped.
+internal void
+RISCV_extensions_add_list(RISCV_Extensions *extensions, String8 list)
+{
+        String8 rest = list;
+        for (;;)
+        {
+                U64 comma_index = 0;
+                for (;;)
+                {
+                        B32 comma_break = comma_index >= rest.count || rest.data[comma_index] == ',';
+                        if (comma_break)
+                        {
+                                break;
+                        }
+
+                        comma_index += 1;
+                }
+
+                String8 name = String8__substring(rest, comma_index);
+                if (name.count > 0)
+                {
+                        const RISCV_Extension *extension = RISCV_Extensions__find(RISCV_Extension__defaults, array_count_m(RISCV_Extension__defaults), name);
+                        if (extension)
+                        {
+                                RISCV_extensions_add(extensions, name, extension->major, extension->minor);
+                        }
+                }
+
+                B32 list_break = comma_index >= rest.count;
+                if (list_break)
+                {
+                        break;
+                }
+                rest = String8__skip(rest, comma_index + 1);
+        }
+
+        return;
+}
+
 internal void
 RISCV_extensions_add_implicit(RISCV_Extensions *extensions)
 {
@@ -121,53 +289,12 @@ RISCV_extensions_add_implicit(RISCV_Extensions *extensions)
                 }
 
                 const RISCV_Implicit_Extension *rule = &RISCV_extensions_implicit[rule_index];
-                const RISCV_Extension *found = RISCV_Extensions__find(extensions->data, extensions->count, rule->extension);
-                if (found)
+                B32 present   = RISCV_Extensions__find(extensions->data, extensions->count, rule->extension) != 0;
+                B32 satisfied = rule->requires.count == 0
+                             || RISCV_Extensions__find(extensions->data, extensions->count, rule->requires) != 0;
+                if (present && satisfied)
                 {
-                        String8 rest = rule->implicit;
-                        for (;;)
-                        {
-                                U64 comma_index = 0;
-                                for (;;)
-                                {
-                                        B32 comma_break = comma_index >= rest.count || rest.data[comma_index] == ',';
-                                        if (comma_break)
-                                        {
-                                                break;
-                                        }
-
-                                        comma_index += 1;
-                                }
-
-                                String8 name = String8__substring(rest, comma_index);
-                                if (name.count > 0 && RISCV_Extensions__find(extensions->data, extensions->count, name) == 0)
-                                {
-                                        if (extensions->count < RISCV_Extensions__max)
-                                        {
-                                                const RISCV_Extension *extension_default_implicit =
-                                                        RISCV_Extensions__find(RISCV_Extension__defaults, array_count_m(RISCV_Extension__defaults), name);
-
-                                                if (extension_default_implicit)
-                                                {
-                                                        extensions->data[extensions->count] = (RISCV_Extension)
-                                                        {
-                                                                .name  = name,
-                                                                .major = extension_default_implicit->major,
-                                                                .minor = extension_default_implicit->minor,
-                                                        };
-                                                }
-
-                                                extensions->count += 1;
-                                        }
-                                }
-
-                                B32 implicit_break = comma_index >= rest.count;
-                                if (implicit_break)
-                                {
-                                        break;
-                                }
-                                rest = String8__skip(rest, comma_index + 1);
-                        }
+                        RISCV_extensions_add_list(extensions, rule->implicit);
                 }
 
                 rule_index += 1;
@@ -206,7 +333,7 @@ RISCV_extensions_supports_class(const RISCV_Extensions *extensions, OPC class)
         case OPC__None:     { result = 1; } break;
         case OPC__I:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("i"))        != 0; } break;
         case OPC__C:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zca"))      != 0
-                           || RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zcd"))      != 0; } break;
+                                    || RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zcd"))      != 0; } break;
         case OPC__M:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("m"))        != 0; } break;
         case OPC__ZMMUL:    { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zmmul"))    != 0; } break;
         case OPC__F:        { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("f"))        != 0; } break;
@@ -219,6 +346,8 @@ RISCV_extensions_supports_class(const RISCV_Extensions *extensions, OPC class)
         case OPC__ZIFENCEI: { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zifencei")) != 0; } break;
         case OPC__ZICNTR:   { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zicntr"))   != 0; } break;
         case OPC__ZICSR:    { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zicsr"))    != 0; } break;
+        case OPC__ZALRSC:   { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zalrsc"))   != 0; } break;
+        case OPC__ZAAMO:    { result = RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zaamo"))    != 0; } break;
         default:            { result = 0; } break;
         }
 
@@ -304,20 +433,8 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                         name.count -= cursor.count;
 
                         // The version is whatever follows the name, up to the next '_'.
-                        const RISCV_Extension *extension_default = RISCV_Extensions__find(RISCV_Extension__defaults, array_count_m(RISCV_Extension__defaults), name);
                         U8 major = 0;
                         U8 minor = 0;
-
-                        if (extension_default)
-                        {
-                                major = extension_default->major;
-                                minor = extension_default->minor;
-                        }
-                        else
-                        {
-                                error = error.count ? error : String8__format(arena, "ISA string `%.*s': unknown ISA extension `%.*s'", String8__varg(string), String8__varg(name));
-                        }
-
                         B32 valid_format = cursor.count >= 3
                                         && U8__ascii_digit_is(cursor.data[0])
                                         && cursor.data[1] == 'p'
@@ -329,40 +446,52 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                                 cursor = String8__skip(cursor, 3);
                         }
 
+                        // `g` is a group alias: it is expanded here into its components, so it never enters the
+                        // extension list (GNU as emits the expansion only).
+                        B32 is_g = String8__match_exact(name, String8__literal("g"));
+                        if (!is_g)
+                        {
+                                const RISCV_Extension *extension_default = RISCV_Extensions__find(RISCV_Extension__defaults, array_count_m(RISCV_Extension__defaults), name);
+                                if (extension_default)
+                                {
+                                        if (!valid_format)
+                                        {
+                                                major = extension_default->major;
+                                                minor = extension_default->minor;
+                                        }
+                                }
+                                else
+                                {
+                                        error = error.count ? error : String8__format(arena, "ISA string `%.*s': unknown ISA extension `%.*s'", String8__varg(string), String8__varg(name));
+                                }
+                        }
+
                         // Prefixed extensions must be separated by '_'.
                         if (prefixed_is && cursor.count && cursor.data[0] != '_')
                         {
                                 error = error.count ? error : String8__format(arena, "ISA string `%.*s': prefixed ISA extension must separate with '_'", String8__varg(string));
                         }
-                        else if (extensions->count >= extensions->max)
+
+                        if (is_g)
                         {
-                                error = error.count ? error : String8__format(arena, "ISA string `%.*s': too many extensions", String8__varg(string));
+                                RISCV_extensions_add_list(extensions, RISCV_extensions_g_components);
                         }
                         else
                         {
-
-                                extensions->data[extensions->count] = (RISCV_Extension)
+                                if (extensions->count >= extensions->max)
                                 {
-                                        .name  = name,
-                                        .major = major,
-                                        .minor = minor,
-                                };
-                                extensions->count += 1;
+                                        error = error.count ? error : String8__format(arena, "ISA string `%.*s': too many extensions", String8__varg(string));
+                                }
+                                else
+                                {
+                                        RISCV_extensions_add(extensions, name, major, minor);
+                                }
                         }
                 }
         }
 
-        // Add the implicit extensions.
-        if (error.count == 0)
-        {
-                RISCV_extensions_add_implicit(extensions);
-        }
-
-        // Check for conflicts.
-        if (error.count == 0)
-        {
-                error = error.count ? error : RISCV_extensions_check_conflicts(arena, extensions, xlen);
-        }
+        RISCV_extensions_add_implicit(extensions);
+        error = error.count ? error : RISCV_extensions_check_conflicts(arena, extensions, xlen);
 
         return error;
 }
