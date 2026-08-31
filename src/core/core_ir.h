@@ -137,6 +137,8 @@ struct Expression
         // Parsing
         Expression_Kind  kind;
         Expression_Kind  evaluation;
+
+        U8 data_directive;
 };
 
 typedef struct Expressions Expressions;

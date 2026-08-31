@@ -5,6 +5,8 @@ typedef enum Expression_Flags
 {
 	Expression_Flags__None           = 0,
         Expression_Flags__Defer_Dot      = 1,
+        // TODO(medium): this is a patch that I don't like much.
+        Expression_Flags__Data_Directive = 2,
 	Expression_Flags__COUNT,
 }
 Expression_Flags;

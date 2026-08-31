@@ -216,7 +216,7 @@ directive_data
         U32 expressions_count = 0;
         for (;;)
         {
-                Expression *expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                Expression *expression = expression_parse_with_flags(arena, cursor, symbols_table, diagnostics, Expression_Flags__Data_Directive);
                 SLL_queue_push_m(expressions->first, expressions->last, expression);
                 expressions_count += 1;
                 S64 result = expression_evaluate(expression);

@@ -847,7 +847,8 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                         {
                                                 // A lot of checks are needed to understand whether an operation between
                                                 // symbols can be performed.
-                                                B32 same_fragment = left->symbol->fragment == right->symbol->fragment;
+                                                B32 same_fragment = left->symbol->fragment == right->symbol->fragment
+                                                                 && left->symbol->fragment != &Fragment__nil;
 
                                                 B32 left_relocation_needed  = left->symbol->section  == &Section__undefined || left->symbol->section  == &Section__common;
                                                 B32 right_relocation_needed = right->symbol->section == &Section__undefined || right->symbol->section == &Section__common;
@@ -857,14 +858,17 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 // instructions (e.g. a `call` might become a 1-instruction jump).
                                                 B32 code_section_present    = left->symbol->section->elf.flags  & ELF_Section_Header_Flags__EXECINSTR
                                                                            || right->symbol->section->elf.flags & ELF_Section_Header_Flags__EXECINSTR;
-                                                B32 same_section_no_relocation_needed  = (left->symbol->section  == right->symbol->section)
-                                                                                          && !relocation_needed;
+                                                B32 same_section                       = (left->symbol->section  == right->symbol->section);
+                                                B32 same_section_no_relocation_needed  = same_section && !relocation_needed;
+
                                                 B32 subtract_is   = node->kind == Expression_Kind__Subtract;
                                                 B32 equality_is   = Expression_Kind__equality_is(node->kind);
                                                 B32 comparison_is = Expression_Kind__comparison_is(node->kind);
 
                                                 B32 valid = (equality_is && !relocation_needed)
-                                                         || ((subtract_is || comparison_is) && same_section_no_relocation_needed);
+                                                         || ((subtract_is || comparison_is) && same_section_no_relocation_needed)
+                                                // TODO(medium): See `Expression_Flags__Data_Directive`
+                                                         || (subtract_is && same_section && node->data_directive);
                                                 // NOTE: constant folding can always happen within the same fragment.
                                                 // However, since finalization is assumed to happen only after
                                                 // relaxation, which fixes the addresses of fragments, it is safe to
@@ -901,16 +905,19 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                 // we can fold it.
                                                 Symbol_Ref *symbol_inner = 0;
                                                 S64 integer_value  = 0;
+                                                B32 valid = 0;
 
                                                 if (left->evaluation == Expression_Kind__Symbol && right->evaluation == Expression_Kind__Constant)
                                                 {
                                                         symbol_inner  = left->symbol;
                                                         integer_value = operation_evaluate(node->kind, left->integer_value, right->integer_value);
+                                                        valid = 1;
                                                 }
                                                 else if (right->evaluation == Expression_Kind__Symbol && left->evaluation == Expression_Kind__Constant)
                                                 {
                                                         symbol_inner  = right->symbol;
                                                         integer_value = operation_evaluate(node->kind, right->integer_value, left->integer_value);
+                                                        valid = 1;
                                                 }
 
                                                 if (symbol_inner)
@@ -921,7 +928,7 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                                                         node->evaluation    = Expression_Kind__Symbol;
                                                 }
 
-                                                if (finalize && (node->kind != Expression_Kind__Subtract && node->kind != Expression_Kind__Add))
+                                                if (finalize && !valid)
                                                 {
                                                         // We have to nitpick with the possible operations.
                                                         Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Binary_Operator_Unsupported_Non_Constant);

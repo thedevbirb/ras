@@ -446,6 +446,11 @@ expression_parse_with_flags
                         frame->node->left = left;
                         frame->node->location   = cursor->current.location;
 
+                        if (flags & Expression_Flags__Data_Directive)
+                        {
+                                frame->node->data_directive = 1;
+                        }
+
                         token_next(cursor, diagnostics);
 
                         // Prepare new frame

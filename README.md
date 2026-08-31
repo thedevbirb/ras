@@ -126,7 +126,3 @@ The following reproduces the parity check from scratch, all from the repository 
    counts of identical and differing sections, the list of differences, and the first differing
    byte of `.text`. It takes any two relocatable ELF32 or ELF64 objects, exits `0` when they are
    equivalent, and non-zero when any difference is found.
-
-## TODOs
-
-As of v0.1.1, subtractions between undefined symbols in data directives are not correctly handled.
