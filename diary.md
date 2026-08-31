@@ -1879,3 +1879,68 @@ designs flaws. One of the recent needs is to try expression parsing when parsing
 if an error is found (like an unexpected relocation prefix, met as an invalid null denotation), then
 try the next variant. A possibility is to backup the current `last` pointer of the queue, swap the
 arena to a scratch one, and push onto it. Then check what happened.
+
+### Mon Aug 31 12:50:55 CEST 2026
+
+New `as` weird behaviour found!
+
+```asm
+.text
+.word label1 - label2
+label1:
+label2:
+```
+
+The subtraction should be resolved right away given both labels are in the same fragment, and it
+should just emit zero, yet:
+
+```text
+Relocation section '.rela.text' at offset 0x148 contains 2 entries:
+    Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
+0000000000000000  0000000500000023 R_RISCV_ADD32          0000000000000004 label1 + 0
+0000000000000000  0000000600000027 R_RISCV_SUB32          0000000000000004 label2 + 0
+
+The decoding of unwind sections for machine type RISC-V is not currently supported.
+
+Symbol table '.symtab' contains 8 entries:
+   Num:    Value          Size Type    Bind   Vis+Other Ndx(SecName) Name [+ Version Info]
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND
+     1: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 (.text)   .text
+     2: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 (.data)   .data
+     3: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 (.bss)    .bss
+     4: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    1 (.text)   $d
+     5: 0000000000000004     0 NOTYPE  LOCAL  DEFAULT    1 (.text)   label1
+     6: 0000000000000004     0 NOTYPE  LOCAL  DEFAULT    1 (.text)   label2
+     7: 0000000000000000     0 SECTION LOCAL  DEFAULT    5 (.riscv.attributes) .riscv.attributes
+```
+
+Now, if we change the source to:
+
+```asm
+.text
+.word label1 - label2 + test # added "test here"
+label1:
+label2:
+```
+
+then we get:
+
+```text
+Relocation section '.rela.text' at offset 0x160 contains 1 entry:
+    Offset             Info             Type               Symbol's Value  Symbol's Name + Addend
+0000000000000000  0000000800000001 R_RISCV_32             0000000000000000 test + 0
+```
+
+Even more "fun", is that if instead of the `.text` section we use `.data` instead, i.e.
+
+```asm
+.data
+.word label1 - label2
+label1:
+label2:
+```
+
+Then we have no relocations.
+
+I just noticed this because also on `ras` implementation the subtraction between undefined symbols
+is not handled correctly in the context of a data directive, and it should be fixed.

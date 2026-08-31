@@ -108,6 +108,7 @@ typedef enum DG
 	DG__Relocation_Addend_32_Bits,
 	DG__Relocation_Non_Constant,
 	DG__Relocation_Operator_Invalid_Instruction,
+	DG__TLS_Relocation_Constant,
 
 	// Symbol
 	DG__Declaration_Previous = 6000,
@@ -284,6 +285,7 @@ global const DG_Info DG_Info__table[] =
 	[DG__Relocation_Addend_32_Bits]               = { Diagnostic_Kind__Error, String8__literal("relocation addend doesn't fit in 32 bits") },
 	[DG__Relocation_Non_Constant]                 = { Diagnostic_Kind__Error, String8__literal("Non-constant expression must have an appropriate relocation operator") },
 	[DG__Relocation_Operator_Invalid_Instruction] = { Diagnostic_Kind__Error, String8__literal("invalid relocation operator for instruction") },
+	[DG__TLS_Relocation_Constant]                 = { Diagnostic_Kind__Error, String8__literal("TLS relocation against a constant") },
 
 	// Symbol
 	[DG__Declaration_Previous]             = { Diagnostic_Kind__Note,   String8__literal("previous declaration is here") },

@@ -1568,6 +1568,23 @@ Fixup__apply_jump(Fixup *fixup, U32(*encoding_callback)(S64), B32(*valid_immedia
 }
 
 internal void
+TLS_expression_mark_symbol_maybe(Diagnostics *diagnostics, Expression *expression, Symbol_Ref *symbol)
+{
+        if (symbol)
+        {
+                symbol->type = ELF_Symbol_Type__TLS;
+        }
+        else if (expression && expression->evaluation == Expression_Kind__Constant)
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__TLS_Relocation_Constant);
+                diagnostic->location   = expression->location_range.v[0];
+                diagnostic->ranges[0]  = expression->location_range;
+        }
+
+        return;
+}
+
+internal void
 Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Diagnostics *diagnostics)
 {
         // Whether a RELAX relocation can be emitted
@@ -1613,9 +1630,58 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
 
         case Relocation_RISC_V__High_20:
         {
-                // Remember that `%lo` is treated as a signed 12-bit field, so the pair must satisfy `x = %hi(x) << 12 +
-                // signext(%lo(x))` with %lo in [-0x800, 0x7ff]. Round the value up to the nearest 0x1000 by re-adding
-                // the 0x800 offset, so the low 12 bits stay signed-representable.
+                // More details on `%hi`-like and `%lo`-like relocations.
+                //
+                // `%hi`-like relocations are accepted on instructions which consider an immediate the upper part of a
+                // 32-bit number, so the CPU performs `immediate << 12` and sign-extends it in the case of RV64.
+                // `%lo`-like relocations are accepted on instructions which consider the immediate provided as a 12 bit
+                // _signed_ integer.
+                //
+                // This creates a problem. Consider the number `imm := 0x00100FFF`: if we would naively add it using:
+                // ```asm
+                // lui  a0,     imm >> 12     # 0x00100
+                // addi a0, a0, imm & 0xFFF   # 0xFFF
+                // ```
+                // Then after the first instruction, inside `a0` we would have `(imm >> 12) << 12` i.e. `0x00100000`,
+                // with the lower 12-bits cleared, and the second instruction would treat consider `imm & 0xFFF ==
+                // 0xFFF` as signed 12-bit number, that is -1 instead of 4095, leading to wrong result.
+                //
+                // So the problem is: if the lower 12-bits constitute a negative number (i.e. `imm & 0xFFF >= 0x800),
+                // then our result would be wrong by a negative offset of 4096.
+                //
+                // More generally, we would like to resolve the following system:
+                //
+                // 1. `%hi(x) + %lo(x) == x`
+                // 2. `%hi(x)` is a multiple of 0x1000, as `lui` or similar shifts left by 12.
+                // 3. `%lo(imm) in [-2048, 2047) == [-0x800, 0x7FF)`, since those lower 12-bits will be treated as signed.
+                //
+                // How can we resolve this? For 2., we have three possible choices for the multiple:
+                //
+                // 1. we always round up;
+                // 2. we always round down;
+                // 3. we find the closest.
+                //
+                // The first two options don't hold. Suppose we have the number 0x00001001. The next multiple of 0x1000
+                // would be 0x00002000, meaning that we add 0xFFF to `x` that must be subtracted from the lower part. We
+                // cannot express `-0xFFF` in `[-0x800, 0x7FF)`, so it's not option. Rounding down doesn't work for the
+                // same reason.
+                //
+                // So we have to find the closest. The longest distance is half the interval, i.e. 0x800.
+                // the lowest 12 bits as unsigned, i.e. `x & 0xFFF`. If `x & 0xFFF < 0x800`, then we just have to clear
+                // the low 12 bits with `& ~0xFFF`. Otherwise, by adding `0x800` we ensure that
+                //
+                // `0x1000 <= (x & 0xFFF) + 0x800 <= 0x2000`.
+                //
+                // So adding `0x800` and clearing again the lower 12-bits with `& ~0xFFF` does the job. We can achieve
+                // both cases by just adding `0x800` and taking the lower 12 bits, that is:
+                //
+                // `%hi(x) := (x + 0x800) & ~0xFFF`.
+                //
+                // Note that `(x + 0x800) & ~0xFFF` is equivalent to `((x + 0x800) >> 12) << 12`, as such
+                // `((x + 0x800) >> 12` is precisely what can we use inside a `lui` operation.
+                //
+                // Since we've found the closest multiple, by construction `|%lo(x)| == |x - %hi(x)| < 0x800`, so it
+                // belongs to the desired range.
                 S64 high_part = (expression->integer_value + 0x800) & ~(S64)0xfff;
                 Fixup__apply_constant(fixup, encode_immediate_u_m(high_part));
                 relaxable = 1;
@@ -1672,25 +1738,40 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
         case Relocation_RISC_V__Call:     { relaxable = 1; } break;
         case Relocation_RISC_V__Call_PLT: { relaxable = 1; } break;
 
-        // TODO(tprel): support
-        case Relocation_RISC_V__Thread_Pointer_Relative_High_20:       { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type: { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type: { relaxable = 1; } break;
-        case Relocation_RISC_V__Thread_Pointer_Relative_Add:           { relaxable = 1; } break;
+        // TLS (thread local storage) relocations.
+        //
+        // - `%tprel_*` (local exec) and `%tlsdesc_hi` are relaxable, and mark the referenced symbol as thread-local
+        //   (`STT_TLS`).
+        // - `%tls_ie_pcrel_hi`, `%tls_gd_pcrel_hi` and the DTP-relative relocations are resolved by the linker and are
+        //   NOT relaxable, but still mark the symbol as thread-local.
+        //
+        // The linker resolves all of these (and possibly relaxes the IE/GD patterns into LE when paired with
+        // R_RISCV_RELAX); the assembler only emits the relocation. Nothing is encoded into the instruction itself.
+        case Relocation_RISC_V__Thread_Pointer_Relative_High_20:       { relaxable = 1; TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol); } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_I_Type: { relaxable = 1; TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol); } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Low_12_S_Type: { relaxable = 1; TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol); } break;
+        case Relocation_RISC_V__Thread_Pointer_Relative_Add:           { relaxable = 1; TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol); } break;
 
-        // TODO(TLS): support
-        case Relocation_RISC_V__TLS_GOT_High_20:                        { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Global_Dynamic_High_20:             { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32: { todo_m(); } break;
-        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64: { todo_m(); } break;
+        case Relocation_RISC_V__TLS_Descriptor_High_20:                { relaxable = 1; TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol); } break;
 
+        case Relocation_RISC_V__TLS_GOT_High_20:
+        case Relocation_RISC_V__TLS_Global_Dynamic_High_20:
+        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_32:
+        case Relocation_RISC_V__TLS_Dynamic_Thread_Private_Relative_64:
+        {
+                TLS_expression_mark_symbol_maybe(diagnostics, expression, symbol);
+        } break;
+
+        case Relocation_RISC_V__TLS_Descriptor_Load_Low_12: { relaxable = 1; } break;
+        case Relocation_RISC_V__TLS_Descriptor_Add_Low_12:  { relaxable = 1; } break;
+        case Relocation_RISC_V__TLS_Descriptor_Call:        { relaxable = 1; } break;
+
+        case Fixup__8_Bit:              {} // fallthrough
+        case Fixup__16_Bit:             {} // fallthrough
         case Relocation_RISC_V__32_Bit:
         {
                 // TODO(.eh_frame, low, check-gas): use pc-relative relocation for FDE initial location.
-                if (0) { break; }
         } // fallthrough
-        case Fixup__8_Bit:              {} // fallthrough
-        case Fixup__16_Bit:             {} // fallthrough
         case Relocation_RISC_V__64_Bit:
         {
                 if (expression->evaluation == Expression_Kind__Subtract)
@@ -1700,6 +1781,15 @@ Fixup__apply(Fixup *fixup, Section *section, Arena *arena, Options *options, Dia
 
                         Fixup *fixup_sub = Arena__push_struct_m(arena, Fixup);
                               *fixup_sub = *fixup;
+
+                        switch (fixup->relocation_type)
+                        {
+                                case Fixup__8_Bit:              { fixup->relocation_type = Relocation_RISC_V__Add_8;  fixup_sub->relocation_type = Relocation_RISC_V__Sub_8;  } break;
+                                case Fixup__16_Bit:             { fixup->relocation_type = Relocation_RISC_V__Add_16; fixup_sub->relocation_type = Relocation_RISC_V__Sub_16; } break;
+                                case Relocation_RISC_V__32_Bit: { fixup->relocation_type = Relocation_RISC_V__Add_32; fixup_sub->relocation_type = Relocation_RISC_V__Sub_32; } break;
+                                case Relocation_RISC_V__64_Bit: { fixup->relocation_type = Relocation_RISC_V__Add_64; fixup_sub->relocation_type = Relocation_RISC_V__Sub_64; } break;
+                                default: { unreachable_m(); } break;
+                        }
 
                         fixup_sub->expression = expression->right;
                         fixup->expression     = expression->left;

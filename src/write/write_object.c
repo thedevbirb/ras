@@ -395,6 +395,16 @@ write_object_file
                         if (keep && binding_correct)
                         {
                                 B32 section_is = symbol->type == STT_SECTION;
+                                // A symbol defined in a thread-local section (`.tdata`/`.tbss`) is necessarily
+                                // `STT_TLS`.
+                                // TODO(medium): I wonder if I should do it here or on symbol definition by checking the
+                                // current section flags.
+                                U8 symbol_type = symbol->type;
+                                if (!section_is && (symbol->section->elf.flags & ELF_Section_Header_Flags__TLS))
+                                {
+                                        symbol_type = ELF_Symbol_Type__TLS;
+                                }
+
                                 if (elf32_is)
                                 {
                                         ELF32_Symbol elf_symbol =
@@ -402,7 +412,7 @@ write_object_file
                                                 .string_table_offset = section_is ? 0 : string_table_offset_tracker,
                                                 .value               = symbol->value,
                                                 .size                = symbol->size_expression ? symbol->size_expression->integer_value : 0,
-                                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
+                                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol_type),
                                                 .visibility          = symbol->visibility,
                                                 .section_index       = symbol->section->index,
                                         };
@@ -413,7 +423,7 @@ write_object_file
                                         ELF64_Symbol elf_symbol =
                                         {
                                                 .string_table_offset = section_is ? 0 : string_table_offset_tracker,
-                                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol->type),
+                                                .type_and_binding    = ELF_Symbol_info_m(symbol->binding, symbol_type),
                                                 .visibility          = symbol->visibility,
                                                 .section_index       = symbol->section->index,
                                                 .value               = symbol->value,

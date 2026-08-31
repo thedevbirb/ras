@@ -88,6 +88,8 @@
 #define HASH_la             0x4831C9DE
 #define HASH_lla            0x31598A0C
 #define HASH_lga            0x316655FF
+#define HASH_la_tls_gd      0xD76F4A26
+#define HASH_la_tls_ie      0xD488DD53
 #define HASH_scall          0x79970E46
 #define HASH_sbreak         0x603964A9
 #define HASH_mret           0x71B990EF
@@ -374,3 +376,7 @@
 #define HASH_c_fsdsp        0x202A1672
 #define HASH_c_fld          0x3F12DCDE
 #define HASH_c_fsd          0x60DDA401
+#define HASH_c_flwsp        0x76226538
+#define HASH_c_fswsp        0x00C06F93
+#define HASH_c_flw          0x4E12F47B
+#define HASH_c_fsw          0x4DDD8618

@@ -151,5 +151,31 @@ RISCV_la_got_expand
         U32                 location
 );
 
+// Expand the TLS macros `la.tls.gd`/`la.tls.ie` into an `auipc + addi/ld/lw` pair:
+//
+//   la.tls.gd rd, sym  ->  auipc rd, %tls_gd_pcrel_hi(sym)
+//                          addi  rd, rd, %pcrel_lo(.L0)
+//   la.tls.ie rd, sym  ->  auipc rd, %tls_ie_pcrel_hi(sym)
+//                          ld/lw rd, %pcrel_lo(.L0)(rd)
+//
+// `%pcrel_lo` references an internal label placed at the `auipc`, as with
+// `%got_pcrel_hi`. The linker resolves the TLS access (optionally relaxing
+// GD -> IE -> LE when the R_RISCV_RELAX hints are present).
+internal void
+RISCV_la_tls_expand
+(
+        Arena              *arena,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Options            *options,
+
+        U8                  rd,
+        Expression         *expression,
+        U32                 location,
+        B32                 load_is,  // 1 = IE (load), 0 = GD (addi)
+        U16                 relocation_high
+);
+
 #endif // WRITE_INSTRUCTION_H
 

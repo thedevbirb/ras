@@ -261,13 +261,13 @@ main(S32 argument_count, char **argument_vector)
 
         Symbol_Ref *symbol_data = Symbols_Table__get_or_default(symbols_table, section_name_data, arena);
         Symbols_Table__create_section(symbols_table, symbol_data, arena, Arena_Parameters__default);
-        symbol_data->section->elf.alignment = 8;
+        symbol_data->section->elf.alignment = 1;
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_data->section);
 
         Symbol_Ref *symbol_bss = Symbols_Table__get_or_default(symbols_table, section_name_bss, arena);
         Symbols_Table__create_section(symbols_table, symbol_bss, arena, Arena_Parameters__default);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_bss->section);
-        symbol_bss->section->elf.alignment = 8;
+        symbol_bss->section->elf.alignment = 1;
 
         Symbol_Ref__update_section(symbol_dot, symbol_text->section);
 

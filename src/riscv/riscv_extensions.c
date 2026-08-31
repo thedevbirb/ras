@@ -36,6 +36,7 @@ global const RISCV_Extension RISCV_Extension__defaults[] =
         { .name = String8__literal("zbs"),      1, 0 },
         { .name = String8__literal("zca"),      1, 0 },
         { .name = String8__literal("zcd"),      1, 0 },
+        { .name = String8__literal("zcf"),      1, 0 },
         { .name = String8__literal("zicntr"),   2, 0 },
         { .name = String8__literal("zicond"),   1, 0 },
         { .name = String8__literal("zicsr"),    2, 0 },
@@ -48,15 +49,16 @@ assert_static_m(array_count_m(RISCV_Extension__defaults) <= RISCV_Extensions__ma
 
 global const RISCV_Implicit_Extension RISCV_extensions_implicit[] =
 {
-        { .extension = String8__literal("e"),      .implicit = String8__literal("i"),               .requires = {0}                   },
-        { .extension = String8__literal("c"),      .implicit = String8__literal("zca"),             .requires = {0}                   },
-        { .extension = String8__literal("c"),      .implicit = String8__literal("zcd"),             .requires = String8__literal("d") },
-        { .extension = String8__literal("zicntr"), .implicit = String8__literal("zicsr"),           .requires = {0}                   },
-        { .extension = String8__literal("m"),      .implicit = String8__literal("zmmul"),           .requires = {0}                   },
-        { .extension = String8__literal("a"),      .implicit = String8__literal("zaamo,zalrsc"),    .requires = {0}                   },
-        { .extension = String8__literal("d"),      .implicit = String8__literal("f"),               .requires = {0}                   },
-        { .extension = String8__literal("f"),      .implicit = String8__literal("zicsr"),           .requires = {0}                   },
-        { .extension = String8__literal("b"),      .implicit = String8__literal("zba,zbb,zbc,zbs"), .requires = {0}                   },
+        { .extension = String8__literal("e"),      .implicit = String8__literal("i"),               .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("c"),      .implicit = String8__literal("zca"),             .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("c"),      .implicit = String8__literal("zcd"),             .requires = String8__literal("d"), .xlen =  0  },
+        { .extension = String8__literal("c"),      .implicit = String8__literal("zcf"),             .requires = String8__literal("f"), .xlen = 32 },
+        { .extension = String8__literal("zicntr"), .implicit = String8__literal("zicsr"),           .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("m"),      .implicit = String8__literal("zmmul"),           .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("a"),      .implicit = String8__literal("zaamo,zalrsc"),    .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("d"),      .implicit = String8__literal("f"),               .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("f"),      .implicit = String8__literal("zicsr"),           .requires = {0},                   .xlen =  0  },
+        { .extension = String8__literal("b"),      .implicit = String8__literal("zba,zbb,zbc,zbs"), .requires = {0},                   .xlen =  0  },
 };
 
 // `g` is a group alias for the standard extension set.  It is expanded in place at parse time (see
@@ -277,7 +279,7 @@ RISCV_extensions_add_list(RISCV_Extensions *extensions, String8 list)
 }
 
 internal void
-RISCV_extensions_add_implicit(RISCV_Extensions *extensions)
+RISCV_extensions_add_implicit(RISCV_Extensions *extensions, U8 xlen)
 {
         U64 rule_index = 0;
         for (;;)
@@ -292,7 +294,8 @@ RISCV_extensions_add_implicit(RISCV_Extensions *extensions)
                 B32 present   = RISCV_Extensions__find(extensions->data, extensions->count, rule->extension) != 0;
                 B32 satisfied = rule->requires.count == 0
                              || RISCV_Extensions__find(extensions->data, extensions->count, rule->requires) != 0;
-                if (present && satisfied)
+                B32 xlen_ok   = rule->xlen == 0 || rule->xlen == xlen;
+                if (present && satisfied && xlen_ok)
                 {
                         RISCV_extensions_add_list(extensions, rule->implicit);
                 }
@@ -319,6 +322,10 @@ RISCV_extensions_check_conflicts(Arena *arena, RISCV_Extensions *extensions, U8 
         else if (xlen == 32 && RISCV_Extensions__find(extensions->data, extensions->count,  String8__literal("q")))
         {
                 error = String8__format(arena, "rv32 does not support the `q' extension");
+        }
+        else if (xlen == 64 && RISCV_Extensions__find(extensions->data, extensions->count, String8__literal("zcf")))
+        {
+                error = String8__format(arena, "rv64 does not support the `zcf' extension");
         }
 
         return error;
@@ -490,7 +497,7 @@ RISCV_Extensions__parse(Arena *arena, RISCV_Extensions *extensions, String8 stri
                 }
         }
 
-        RISCV_extensions_add_implicit(extensions);
+        RISCV_extensions_add_implicit(extensions, xlen);
         error = error.count ? error : RISCV_extensions_check_conflicts(arena, extensions, xlen);
 
         return error;

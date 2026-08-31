@@ -62,6 +62,7 @@ const char *Instruction_Kind_strings[] =
         // Pseudo instructions
         "nop","ret","mv","move","not","neg","negw","sext.w","seqz","snez","sltz","sgtz","beqz","bnez","blez",
         "bgez","bltz","bgtz","bgt","bgtu","sgt","sgtu","ble","bleu","j","call","tail","jr","li","la", "lla", "lga",
+        "la.tls.gd", "la.tls.ie",
 
         // System instructions (privileged)
         "scall","sbreak","mret","sret","uret","hret","dret","wfi","sfence.vma",
@@ -141,7 +142,7 @@ const char *Instruction_Kind_strings[] =
         "c.nop","c.addi","c.addiw","c.li","c.lui","c.mv","c.add","c.sub","c.xor","c.or","c.and",
         "c.subw","c.addw","c.slli","c.srli","c.srai","c.andi","c.j","c.jal","c.jr","c.jalr","c.ret",
         "c.ebreak","c.beqz","c.bnez","c.addi4spn","c.addi16sp","c.lwsp","c.ldsp","c.swsp","c.sdsp",
-        "c.lw","c.ld","c.sw","c.sd","c.fldsp","c.fsdsp","c.fld","c.fsd",
+        "c.lw","c.ld","c.sw","c.sd","c.fldsp","c.fsdsp","c.fld","c.fsd","c.flwsp","c.fswsp","c.flw","c.fsw",
 };
 
 ////////////////////////////////

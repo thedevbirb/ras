@@ -638,6 +638,8 @@ internal B32 riscv_compressed_lui_immediate_is(S64 uimm);
 #define MACRO_LA    3
 #define MACRO_LLA   4
 #define MACRO_LGA   5
+#define MACRO_LA_TLS_GD 6
+#define MACRO_LA_TLS_IE 7
 
 //------------------------------------------------------------------------------
 // MATCH / MASK constants for each instruction

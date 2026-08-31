@@ -3,8 +3,8 @@
 
 typedef enum Expression_Flags
 {
-	Expression_Flags__None      = 0,
-        Expression_Flags__Defer_Dot = 1,
+	Expression_Flags__None           = 0,
+        Expression_Flags__Defer_Dot      = 1,
 	Expression_Flags__COUNT,
 }
 Expression_Flags;

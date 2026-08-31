@@ -9,26 +9,9 @@ Options__default(Arena *arena)
                 .data  = extensions_data,
         };
 
-        U64 index = 0;
-        for (;;)
-        {
-                if (index >= array_count_m(RISCV_Extension__defaults))
-                {
-                        break;
-                }
-
-                const RISCV_Extension *extension = &RISCV_Extension__defaults[index];
-                // `g` is a group alias (expanded when parsed) and `e` is RV32-only;
-                // neither belongs in the default RV64 extension set.
-                B32 skip = String8__match_exact(extension->name, String8__literal("g"))
-                        || String8__match_exact(extension->name, String8__literal("e"));
-                if (!skip)
-                {
-                        RISCV_extensions_add(&extensions, extension->name, extension->major, extension->minor);
-                }
-
-                index += 1;
-        }
+        // Match GNU as's default ISA: the `g` group (i, m, a, f, d, zicsr, zifencei) plus the implicit dependencies
+        // (zmmul from m, zaamo/zalrsc from a).
+        RISCV_Extensions__parse(arena, &extensions, String8__literal("g"), XLEN_64);
 
         Options result =
         {

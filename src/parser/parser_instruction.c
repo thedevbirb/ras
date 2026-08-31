@@ -58,7 +58,13 @@ RISCV_Instruction__parse
 
                 B32 xlen_mismatch   = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
                 B32 class_mismatch  = !RISCV_extensions_supports_class(&options->extensions, opcode->class);
-                B32 try_next        = xlen_mismatch || class_mismatch;
+                // When compressed code is not requested (the default, `options->compressed == 0`),
+                // compressed rows must be skipped *during* the forward iteration too, not only at the
+                // initial lookup. Otherwise a non-compressed row placed before the compressed rows of
+                // the same mnemonic (e.g. the `%tprel_add` `add` form) would pull the compressed rows
+                // into the iteration path and wrongly compress instructions.
+                B32 skip_compressed_row = options->compressed == 0 && opcode->class == OPC__C;
+                B32 try_next        = xlen_mismatch || class_mismatch || skip_compressed_row;
 
                 // Iterate over opcode arguments.
                 for (;;)
@@ -277,6 +283,17 @@ RISCV_Instruction__parse
                                 } break;
                                 default: { unreachable_m(); }
                                 }
+                        } break;
+                        case OPK__Relocation:
+                        {
+                                // TLS relaxation-marker relocation operators, i.e. `%tprel_add` (on `add`) and
+                                // `%tlsdesc_call` (on `jalr`). They do not change the instruction encoding, but
+                                // produce a relocation for the linker, so parse the operator plus its expression.
+                                // The `%` prefix is mandatory; without it this operand pattern does not match.
+                                try_parse_relocation_prefix(cursor, diagnostics, &parsed.relocation, Relocation_Operator_List__relax_only);
+                                try_next |= !parsed.relocation;
+                                expression = expression_parse(arena, cursor, symbols_table, diagnostics);
+                                SLL_queue_push_m(expressions->first, expressions->last, expression);
                         } break;
                         case OPK__Offset:
                         {
@@ -1568,6 +1585,83 @@ RISCV_la_got_expand
 }
 
 internal void
+RISCV_la_tls_expand
+(
+        Arena              *arena,
+        Section            *section,
+        Expressions        *expressions,
+        Symbols_Table      *symbols_table,
+        Options            *options,
+
+        U8                  rd,
+        Expression         *expression,
+        U32                 location,
+        B32                 load_is,
+        U16                 relocation_high
+)
+{
+        // TLS address-generation macros. `la.tls.gd` produces the Global Dynamic
+        // pattern (`auipc %tls_gd_pcrel_hi` + `addi %pcrel_lo`), and `la.tls.ie`
+        // the Initial Exec pattern (`auipc %tls_ie_pcrel_hi` + `ld/lw %pcrel_lo`).
+        // The `%pcrel_lo` references an internal label placed at the `auipc`,
+        // exactly as in `RISCV_la_got_expand`; the linker resolves the TLS access.
+        U64 arguments_auipc = OP_m(OP_GPR(OPF_R__D), OP_Relocation);
+        S32 values_auipc[]  = {rd, relocation_high};
+
+        U64 arguments_addi = OP_m(OP_GPR(OPF_R__D), OP_GPR(OPF_R__S1), OP_Relocation);
+        S32 values_addi[]  = {rd, rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type};
+        U64 arguments_load = OP_m(OP_GPR(OPF_R__D), OP_Relocation, OP_GPR(OPF_R__S1));
+        S32 values_load[]  = {rd, Relocation_RISC_V__PC_Relative_Low_12_I_Type, rd};
+
+        Symbol_Ref *internal_label          = Symbols_Table__create_internal(symbols_table, section, arena);
+                    internal_label->flags  |= Symbol_Flags__Relocation;
+        Expression *expression_lo           = Arena__push_struct_m(arena, Expression);
+                    expression_lo->symbol  = internal_label;
+                    expression_lo->kind    = Expression_Kind__Symbol;
+        SLL_queue_push_m(expressions->first, expressions->last, expression);
+
+        Macro_Info macro_auipc =
+        {
+                .instruction_name = String8__literal("auipc"),
+                .location         = location,
+                .expression       = expression,
+                .arguments        = arguments_auipc,
+                .values           = values_auipc,
+                .values_count     = array_count_m(values_auipc)
+        };
+
+        Macro_Info macro_lo =
+        {
+                .instruction_name = load_is
+                        ? (options->xlen == XLEN_64 ? String8__literal("ld") : String8__literal("lw"))
+                        : String8__literal("addi"),
+                .location         = location,
+                .expression       = expression_lo,
+                .arguments        = load_is ? arguments_load : arguments_addi,
+                .values           = load_is ? values_load    : values_addi,
+                .values_count     = load_is ? array_count_m(values_load) : array_count_m(values_addi)
+        };
+
+        // Ensure the instructions are in the same fragment
+        Fragments__ensure(&section->fragments, 8);
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_auipc
+        );
+        RISCV_macro_build
+        (
+                arena,
+                section,
+                options,
+                &macro_lo
+        );
+        return;
+}
+
+internal void
 RISCV_instruction_pseudo_append
 (
         Arena              *arena,
@@ -1654,6 +1748,38 @@ RISCV_instruction_pseudo_append
                                 instruction->data.location
                         );
                 }
+        } break;
+        case MACRO_LA_TLS_GD:
+        {
+                RISCV_la_tls_expand
+                (
+                        arena,
+                        section,
+                        expressions,
+                        symbols_table,
+                        options,
+                        rd,
+                        instruction->expression,
+                        instruction->data.location,
+                        0, // addi, not load
+                        Relocation_RISC_V__TLS_Global_Dynamic_High_20
+                );
+        } break;
+        case MACRO_LA_TLS_IE:
+        {
+                RISCV_la_tls_expand
+                (
+                        arena,
+                        section,
+                        expressions,
+                        symbols_table,
+                        options,
+                        rd,
+                        instruction->expression,
+                        instruction->data.location,
+                        1, // load
+                        Relocation_RISC_V__TLS_GOT_High_20
+                );
         } break;
         case MACRO_LI:
         {

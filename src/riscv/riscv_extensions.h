@@ -38,6 +38,10 @@ struct RISCV_Implicit_Extension
         String8  implicit;
         // The rule fires only when `requires` is also present; empty means always.
         String8  requires;
+        // Which XLEN the rule applies to: 0 = any, 32 = RV32 only, 64 = RV64 only.
+        // Mirrors the `check_implicit_for_*` callbacks of bfd/elfxx-riscv.c
+        // (e.g. `c` implies `zcf` only on RV32, `zcd` only when `d` is present).
+        U8       xlen;
 };
 
 // Parse an ISA string. On success, fills `extensions` and returns an empty String8. On failure, returns a description
@@ -55,7 +59,7 @@ RISCV_Extensions__find(const RISCV_Extension *extension, U64 count, String8 name
 //
 // Mirrors bfd/elfxx-riscv.c `riscv_parse_add_implicit_subsets`.
 internal void
-RISCV_extensions_add_implicit(RISCV_Extensions *extensions);
+RISCV_extensions_add_implicit(RISCV_Extensions *extensions, U8 xlen);
 
 // Add a single extension at its canonical position, unless it is already
 // present.  Keeps the list canonically sorted at all times.
