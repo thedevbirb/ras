@@ -764,7 +764,8 @@ Symbol_Ref__resolve(Symbol_Ref *symbol, Diagnostics *diagnostics, Resolve_Level 
                 else if (!(frame->state & Frame_State__Evaluated))
                 {
                         if (frame->symbol)
-                        {                                B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
+                        {
+                                B32 loop_detected = frame->symbol->flags & Symbol_Flags__Resolving;
                                 frame->symbol->flags |= Symbol_Flags__Resolving;
                                 frame->state         |= Frame_State__Evaluated;
                                 // We're evaluating a symbol expression in a dedicated frame, which will NOT be marked
