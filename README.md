@@ -6,6 +6,9 @@ be ingested by a linker. The design of the assembler is greatly based on GNU `as
 as `gas`), which has been an indispensable source of inspiration other than a source of truth for
 how a production assembler works.
 
+There is [article](https://thedevbirb.github.io/diary-of-writing-a-riscv-assembler/) about writing
+this assembler and the challenges I had with it!
+
 This is alpha software, not thoroughly tested, made primarily for learning. Use at your own risk.
 
 ## Supported architecture
