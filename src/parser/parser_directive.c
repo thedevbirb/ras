@@ -931,7 +931,7 @@ directive_fill
 
 // Reference: s_riscv_option
 internal void
-directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *options)
+directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, Options *options)
 {
         token_next(cursor, diagnostics);
         String8 option_text = Token_Cursor__text(cursor);
@@ -951,6 +951,29 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Options *option
         else if (String8__match_exact(option_text, String8__literal("norelax")))
         {
                 options->relax = 0;
+        }
+        else if (String8__match_exact(option_text, String8__literal("push")))
+        {
+                Options *snapshot = Arena__push_struct_m(arena, Options);
+                *snapshot = *options;
+                snapshot->extensions.data = Arena__push_array_m(arena, RISCV_Extension, snapshot->extensions.count);
+                memory_copy(snapshot->extensions.data, options->extensions.data, sizeof(RISCV_Extension) * options->extensions.count);
+                SLL_stack_push_m(options->next, snapshot);
+        }
+        else if (String8__match_exact(option_text, String8__literal("pop")))
+        {
+                Options *top = options->next;
+                if (top)
+                {
+                        SLL_stack_pop_m(options->next);
+                        *options = *top;
+                }
+                else
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Option_Pop_Unmatched);
+                        diagnostic->location   = cursor->current.location;
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
+                }
         }
         else
         {

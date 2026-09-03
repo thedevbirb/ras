@@ -108,7 +108,7 @@ statements_read
 
                                 case Directive_Kind__Attribute: { directive_attribute(cursor, diagnostics, arena, options, symbols_table->section_first); } break;
 
-                                case Directive_Kind__Option: { directive_option(cursor, diagnostics, options);                         } break;
+                                case Directive_Kind__Option: { directive_option(cursor, diagnostics, arena, options);                  } break;
                                 case Directive_Kind__File:   { directive_file(cursor, diagnostics, arena, symbols_table);              } break;
                                 case Directive_Kind__Type:   { directive_type(cursor, diagnostics, arena, symbols_table);              } break;
                                 case Directive_Kind__Ident:  { directive_ident(cursor, diagnostics, arena, symbols_table);             } break;

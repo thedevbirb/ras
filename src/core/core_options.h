@@ -27,6 +27,9 @@ struct Options
         RISCV_Attributes attributes;
         // The extensions parsed from `-march` (XLEN + enabled extensions).
         RISCV_Extensions extensions;
+
+        // Intrusive SLL stack of `.option push` / `.option pop` snapshots
+        Options *next;
 };
 
 internal Options
