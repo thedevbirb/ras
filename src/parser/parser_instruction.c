@@ -56,15 +56,18 @@ RISCV_Instruction__parse
                 U64 arguments = opcode->arguments;
                 U32 arguments_index = 0;
 
-                B32 xlen_mismatch   = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
-                B32 class_mismatch  = !RISCV_extensions_supports_class(&options->extensions, opcode->class);
-                // When compressed code is not requested (the default, `options->compressed == 0`),
-                // compressed rows must be skipped *during* the forward iteration too, not only at the
-                // initial lookup. Otherwise a non-compressed row placed before the compressed rows of
-                // the same mnemonic (e.g. the `%tprel_add` `add` form) would pull the compressed rows
-                // into the iteration path and wrongly compress instructions.
+                B32 xlen_mismatch       = opcode->xlen_requirement != 0 && opcode->xlen_requirement != options->xlen;
+                B32 class_mismatch      = !RISCV_extensions_supports_class(&options->extensions, opcode->class);
                 B32 skip_compressed_row = options->compressed == 0 && opcode->class == OPC__C;
-                B32 try_next        = xlen_mismatch || class_mismatch || skip_compressed_row;
+
+                // Compressed rows are gated by the `compressed` flag alone (both here and through
+                // `skip_compressed_row`), never by the extension list: `.option rvc` enables `c*` regardless of whether
+                // `-march` had `c`/`zca`, mirroring GNU as.
+                //
+                // Yeah, annnoying.
+                B32 try_next = xlen_mismatch
+                            || (opcode->class != OPC__C && class_mismatch)
+                            || skip_compressed_row;
 
                 // Iterate over opcode arguments.
                 for (;;)
@@ -1701,10 +1704,9 @@ RISCV_instruction_pseudo_append
         case MACRO_LLA: {} // fallthrough
         case MACRO_LGA:
         {
-                // A constant can be materialized directly, no relocation involved.
-                //
-                // TODO(medium): it can happen that expression is not set, e.g. invalid code like `la foo`.
-                if (instruction->expression->evaluation == Expression_Kind__Constant)
+                // TODO(low): this branch is a patch to avoid a null dereference.
+                if (instruction->expression == 0) {}
+                else if (instruction->expression->evaluation == Expression_Kind__Constant)
                 {
                         RISCV_li_expand
                         (
@@ -1715,40 +1717,42 @@ RISCV_instruction_pseudo_append
                                 rd,
                                 instruction->data.location
                         );
-                        break;
-                }
-
-                // `la` loads a (possibly global) address: under PIC it goes through the GOT.
-                // `lga` always loads through the GOT. `lla` always loads the local address.
-                B32 got_is = (pseudo_type == MACRO_LA && options->position_indipendent_code)
-                          || pseudo_type == MACRO_LGA;
-                if (got_is)
-                {
-                        RISCV_la_got_expand
-                        (
-                                arena,
-                                section,
-                                expressions,
-                                symbols_table,
-                                options,
-                                rd,
-                                instruction->expression,
-                                instruction->data.location
-                        );
                 }
                 else
                 {
-                        RISCV_la_pcrel_expand
-                        (
-                                arena,
-                                section,
-                                expressions,
-                                symbols_table,
-                                options,
-                                rd,
-                                instruction->expression,
-                                instruction->data.location
-                        );
+
+                        // `la` loads a (possibly global) address: under PIC it goes through the GOT.
+                        // `lga` always loads through the GOT. `lla` always loads the local address.
+                        B32 got_is = (pseudo_type == MACRO_LA && options->position_indipendent_code)
+                                  ||  pseudo_type == MACRO_LGA;
+                        if (got_is)
+                        {
+                                RISCV_la_got_expand
+                                (
+                                        arena,
+                                        section,
+                                        expressions,
+                                        symbols_table,
+                                        options,
+                                        rd,
+                                        instruction->expression,
+                                        instruction->data.location
+                                );
+                        }
+                        else
+                        {
+                                RISCV_la_pcrel_expand
+                                (
+                                        arena,
+                                        section,
+                                        expressions,
+                                        symbols_table,
+                                        options,
+                                        rd,
+                                        instruction->expression,
+                                        instruction->data.location
+                                );
+                        }
                 }
         } break;
         case MACRO_LA_TLS_GD:

@@ -952,12 +952,30 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, O
         {
                 options->relax = 0;
         }
+        else if (String8__match_exact(option_text, String8__literal("rvc")))
+        {
+                options->compressed = 1;
+                // The EF_RISCV_RVC flag is sticky: once set it is never cleared.
+                options->elf_header_flags |= EF_RISCV_RVC;
+        }
+        else if (String8__match_exact(option_text, String8__literal("norvc")))
+        {
+                options->compressed = 0;
+        }
         else if (String8__match_exact(option_text, String8__literal("push")))
         {
                 Options *snapshot = Arena__push_struct_m(arena, Options);
                 *snapshot = *options;
-                snapshot->extensions.data = Arena__push_array_m(arena, RISCV_Extension, snapshot->extensions.count);
-                memory_copy(snapshot->extensions.data, options->extensions.data, sizeof(RISCV_Extension) * options->extensions.count);
+                if (snapshot->extensions.count)
+                {
+                        // Allocate the full capacity, not just `count`: the snapshot must be able to grow (e.g.
+                        // `.option rvc`) after a `.option pop` restores it.
+                        //
+                        // TODO(low): it could be memory wasteful if it happens often. I don't know how recurrent that
+                        // is.
+                        snapshot->extensions.data = Arena__push_array_m(arena, RISCV_Extension, snapshot->extensions.max);
+                        memory_copy(snapshot->extensions.data, options->extensions.data, sizeof(RISCV_Extension) * options->extensions.count);
+                }
                 SLL_stack_push_m(options->next, snapshot);
         }
         else if (String8__match_exact(option_text, String8__literal("pop")))
