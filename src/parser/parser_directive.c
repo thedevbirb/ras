@@ -463,6 +463,47 @@ directive_ident
         token_next(cursor, diagnostics);
 }
 
+// `.section`, `.pushsection`, `.popsection`, `.previous` tracking specification
+//
+// We keep track of the following sections:
+//
+// - `current`  - the section code is emitted into.
+// - `previous` - the section `.previous` jumps to.
+// - `stack`    - a LIFO stack of `(current, previous)` snapshots.
+//
+// Initial: `current = .text`, `previous = 0`, stack = []`.
+//
+// Here are the rules of the transitions:
+//
+// `section NAME`:
+//
+// 1. `previous := current`
+// 2. `current := NAME`
+//
+// `pushsection NAME`:
+//
+// 1. `stack.push((current, previous))`
+// 2. `previous := current`
+// 3. `current := NAME`
+//
+// `popsection`:
+//
+// - If `stack` is empty: error, no change.
+// - Else `(current, previous) := stack.pop()` - a restoration, not a transition.
+//
+// `previous`:
+// - If `previous = 0` error, no change.
+// - Else swap: `(current, previous) := (previous, current)`.
+//
+// Properties:
+//
+// 1. Push/pop are exact inverses: `pop(push)` restores `(current, previous)` to their pre-push values, regardless of
+//    intervening `.section`/`.previous`.
+// 2. Two consecutives uses of `previous` result in a no-op.
+// 3. `previous` follows transitions: it targets the section that was current before the most recent
+//    `.section`/`.pushsection`/`.previous`. Since `.popsection` restores `previous` directly, a `.previous` after a pop
+//    goes to the pre-push `previous`, not the popped-from section.
+
 internal void
 directive_section
 (
@@ -470,10 +511,11 @@ directive_section
         Token_Cursor    *cursor,
         Diagnostics     *diagnostics,
         Expressions     *expressions,
-        Symbols_Table   *symbols_table
+        Symbols_Table   *symbols_table,
+        B32              push
 )
 {
-        // Syntax: `.section name [, "flags"[, @type[, argument...]]]`
+        // Syntax: `.[push]section name [, "flags"[, @type[, argument...]]]`
 
         U32 location_start = cursor->current.location;
 
@@ -615,7 +657,65 @@ directive_section
                 }
         }
 
-        symbols_table->section_current = symbol->section;
+        if (push)
+        {
+                Section_Stack *element = Arena__push_struct_m(arena, Section_Stack);
+                               element->previous = symbols_table->section_previous;
+                               element->current  = symbols_table->section_current;
+                SLL_stack_push_m(symbols_table->section_stack, element);
+        }
+
+        symbols_table->section_previous = symbols_table->section_current;
+        symbols_table->section_current  = symbol->section;
+}
+
+internal void
+directive_section_pop
+(
+        Token_Cursor  *cursor,
+        Diagnostics   *diagnostics,
+        Symbols_Table *symbols_table
+)
+{
+        if (symbols_table->section_stack)
+        {
+                symbols_table->section_current  = symbols_table->section_stack->current;
+                symbols_table->section_previous = symbols_table->section_stack->previous;
+                SLL_stack_pop_m(symbols_table->section_stack);
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Pop_Unmatched);
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
+        }
+
+        token_next(cursor, diagnostics);
+}
+
+internal void
+directive_section_previous
+(
+        Token_Cursor  *cursor,
+        Diagnostics   *diagnostics,
+        Symbols_Table *symbols_table
+)
+{
+        if (symbols_table->section_previous)
+        {
+                // Swap them
+                Section *temporary              = symbols_table->section_current;
+                symbols_table->section_current  = symbols_table->section_previous;
+                symbols_table->section_previous = temporary;
+        }
+        else
+        {
+                Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Section_Previous_Undefined);
+                diagnostic->location   = cursor->current.location;
+                diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
+        }
+
+        token_next(cursor, diagnostics);
 }
 
 internal void

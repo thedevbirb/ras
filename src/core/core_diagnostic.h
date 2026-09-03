@@ -148,6 +148,8 @@ typedef enum DG
 	DG__Section_Type_Invalid,
 	DG__Section_Type_Syntax_Invalid,
 	DG__Type_Redefinition_Ignored,
+        DG__Section_Pop_Unmatched,
+        DG__Section_Previous_Undefined,
 
 	// Alignment
 	DG__Alignment_Boundary_Not_Constant = 9000,
@@ -325,6 +327,8 @@ global const DG_Info DG_Info__table[] =
 	[DG__Section_Type_Invalid]             = { Diagnostic_Kind__Error,   String8__literal("invalid section type") },
 	[DG__Section_Type_Syntax_Invalid]      = { Diagnostic_Kind__Error,   String8__literal("invalid section type syntax, expected @type") },
 	[DG__Type_Redefinition_Ignored]        = { Diagnostic_Kind__Warning, String8__literal("ignoring redefinition of type for special section") },
+        [DG__Section_Pop_Unmatched]            = { Diagnostic_Kind__Error,   String8__literal(".popsection without corresponding .pushsection") },
+        [DG__Section_Previous_Undefined]       = { Diagnostic_Kind__Error,   String8__literal(".previous without corresponding .section") },
 
 	// Alignment
 	[DG__Alignment_Boundary_Not_Constant]     = { Diagnostic_Kind__Error,   String8__literal("alignment_boundary expression expected to have constant evaluation") },

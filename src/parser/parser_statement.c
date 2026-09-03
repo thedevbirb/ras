@@ -128,7 +128,10 @@ statements_read
                                 case Directive_Kind__Data: { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
                                 case Directive_Kind__BSS:  { directive_section_current(cursor, diagnostics, symbols_table, directive_kind); } break;
 
-                                case Directive_Kind__Section: { directive_section(arena, cursor, diagnostics, expressions, symbols_table); } break;
+                                case Directive_Kind__Section:          { directive_section(arena, cursor, diagnostics, expressions, symbols_table, 0); } break;
+                                case Directive_Kind__Section_Push:     { directive_section(arena, cursor, diagnostics, expressions, symbols_table, 1); } break;
+                                case Directive_Kind__Section_Pop:      { directive_section_pop(cursor, diagnostics, symbols_table);                    } break;
+                                case Directive_Kind__Section_Previous: { directive_section_previous(cursor, diagnostics, symbols_table);               } break;
 
                                 case Directive_Kind__Local:   { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Local);  } break;
                                 case Directive_Kind__Weak:    { directive_binding(cursor, diagnostics, arena, symbols_table, ELF_Symbol_Binding__Weak);   } break;

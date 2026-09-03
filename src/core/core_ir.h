@@ -10,6 +10,7 @@ typedef struct Symbol_Ref     Symbol_Ref;
 typedef struct Fragment       Fragment;
 typedef struct Fixup          Fixup;
 typedef struct Section        Section;
+typedef struct Section_Stack  Section_Stack;
 typedef struct Token_Cursor   Token_Cursor;
 
 //-----------------------------------------------------------------------------
@@ -281,6 +282,7 @@ struct Symbols_Table
 
         Symbol_Ref               *first;
         Symbol_Ref               *last;
+        U32                       count;
 
         Label_Numeric            *label_numeric_first;
         Label_Numeric            *label_numeric_last;
@@ -291,9 +293,10 @@ struct Symbols_Table
         Section                  *section_first;
         Section                  *section_last;
 
+        Section                  *section_previous;
         Section                  *section_current;
+        Section_Stack            *section_stack;
 
-        U32                       count;
         U32                       sections_count;
 
 };
@@ -676,8 +679,10 @@ struct Section
 {
         Section             *previous;
         Section             *next;
+
         Symbol_Ref          *symbol;
         Symbol_Ref          *symbol_architecture;
+
         Fixups               fixups;
         Fragments            fragments;
 
@@ -691,6 +696,16 @@ struct Section
         U32                  index;
         // Will get converted to a 32-bit version if necessary
         ELF64_Section_Header elf;
+};
+
+// Explicit stack traversing for the `.pushsection`/`.popsection` directives. It contains a snapshot of the current
+// section and previous section.
+typedef struct Section_Stack Section_Stack;
+struct Section_Stack
+{
+        Section_Stack *next;
+        Section       *current;
+        Section       *previous;
 };
 
 internal void
