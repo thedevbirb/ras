@@ -200,6 +200,7 @@ Options__parse(S32 *argument_count, char **argument_vector, Arena *arena)
         }
 
         options.elf_header_flags = ELF_Header_Flags__from_Options(&options);
+        options.architecture     = architecture_string(&options.extensions, options.xlen, arena, 0);
 
         Arena__scratch_end_m(scratch);
         return options;

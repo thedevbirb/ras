@@ -17,7 +17,7 @@ write_object_file
         U8  identifier_class       = elf32_is ? ELF_ID_Class__32                : ELF_ID_Class__64;
         U64 file_alignment         = elf32_is ? 4 : 8;
 
-        String8 architecture = architecture_string(&options->extensions, options->xlen, arena, 0);
+        String8 architecture = options->architecture;
         options->attributes.architecture = architecture;
         Symbol_Ref *symbol_riscv_attributes = Symbols_Table__create_section_riscv_attributes(symbols_table, &options->attributes, arena);
         DLL_push_back_m(symbols_table->section_first, symbols_table->section_last, symbol_riscv_attributes->section);

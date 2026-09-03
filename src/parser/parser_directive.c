@@ -962,6 +962,45 @@ directive_option(Token_Cursor *cursor, Diagnostics *diagnostics, Arena *arena, O
         {
                 options->compressed = 0;
         }
+        else if (String8__match_exact(option_text, String8__literal("arch")))
+        {
+                token_next(cursor, diagnostics);
+
+                if (cursor->current.kind != Token_Kind__Comma)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Comma_Expected);
+                        diagnostic->location   = cursor->current.location;
+                }
+
+                // Read raw from cursor a string like `+c,+zbb`.
+                U8      ending_bytes_set_data[] = {'\n', ';', '#'};
+                String8 ending_bytes_set        = String8__new(ending_bytes_set_data, array_count_m(ending_bytes_set_data));
+                B32     skip_initial_whitespace = 1;
+
+                Token_Cursor__read_raw_identifier_until(cursor, ending_bytes_set, skip_initial_whitespace);
+                String8 rest = Token_Cursor__text(cursor);
+
+                String8 error = RISCV_Extensions__update(arena, &options->extensions, rest, options->xlen);
+                if (error.count)
+                {
+                        Diagnostic *diagnostic = Diagnostics__push(diagnostics, DG__Option_Architecture_Invalid);
+                        diagnostic->location   = cursor->current.location;
+                        diagnostic->ranges[0]  = Range1_U32_m(cursor->current.location, cursor->current.size);
+                        diagnostic->message    = error;
+                }
+                else
+                {
+                        // Mirror GNU as: after a successful update, compressed follows the `zca`/`c` extension (the
+                        // EF_RISCV_RVC flag is sticky) and embedded follows `e`.
+                        options->compressed = RISCV_Extensions__find(options->extensions.data, options->extensions.count, String8__literal("zca")) != 0
+                                           || RISCV_Extensions__find(options->extensions.data, options->extensions.count, String8__literal("c")) != 0;
+                        if (options->compressed)
+                        {
+                                options->elf_header_flags |= EF_RISCV_RVC;
+                        }
+                        options->embedded = RISCV_Extensions__find(options->extensions.data, options->extensions.count, String8__literal("e")) != 0;
+                }
+        }
         else if (String8__match_exact(option_text, String8__literal("push")))
         {
                 Options *snapshot = Arena__push_struct_m(arena, Options);

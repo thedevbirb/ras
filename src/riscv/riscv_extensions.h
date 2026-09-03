@@ -73,6 +73,20 @@ RISCV_extensions_add(RISCV_Extensions *extensions, String8 name, U8 major, U8 mi
 internal String8
 RISCV_extensions_check_conflicts(Arena *arena, RISCV_Extensions *extensions, U8 xlen);
 
+// Apply a GNU-as-style `.option arch` change string to `extensions`.
+//
+//   "+c,+zbb1p0"   incrementally add extensions (optional NpM versions)
+//   "rv64imafd"    absolute re-parse of a full ISA string
+//
+// The XLEN is never changed: `.option` operates on the live extension list
+// only (the ELF class and ABI stay fixed at the declared target), so an
+// absolute ISA string must match `xlen`.  Removal (`-ext`) is not supported:
+// GNU as has deprecated it.
+//
+// Mirrors bfd/elfxx-riscv.c `riscv_update_subset`.
+internal String8
+RISCV_Extensions__update(Arena *arena, RISCV_Extensions *extensions, String8 string, U8 xlen);
+
 // Whether the opcode class `class` is enabled by the parsed extensions.
 //
 // Mirrors bfd/elfxx-riscv.c `riscv_multi_subset_supports`.

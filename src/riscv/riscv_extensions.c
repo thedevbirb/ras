@@ -307,6 +307,157 @@ RISCV_extensions_add_implicit(RISCV_Extensions *extensions, U8 xlen)
 }
 
 internal String8
+RISCV_Extensions__update(Arena *arena, RISCV_Extensions *extensions, String8 string, U8 xlen)
+{
+        // `.option arch` expressions are assumed to be tightly formatted
+        // (`+c,+zbb1p0`, `rv64imafd`): no whitespace of any kind is expected
+        // or tolerated, so the string is used as-is.
+        String8 error = {0};
+
+        if (string.count == 0)
+        {
+                error = String8__format(arena, "ISA string cannot be empty");
+        }
+        else if (string.data[0] == '+')
+        {
+                // Incremental additions: `+ext[,...]`.
+                String8 rest = string;
+                for (;;)
+                {
+                        // Split off the next comma-separated entry.
+                        U64 comma = 0;
+                        for (;;)
+                        {
+                                B32 comma_break = comma >= rest.count || rest.data[comma] == ',';
+                                if (comma_break)
+                                {
+                                        break;
+                                }
+                                comma += 1;
+                        }
+                        String8 entry = String8__substring(rest, comma);
+                        B32 add_is = entry.count && entry.data[0] == '+';
+
+                        String8 name    = {0};
+                        String8 version = {0};
+                        B32 base_is     = 0;
+                        B32 version_is  = 0;
+
+                        const RISCV_Extension *extension_default = 0;
+
+                        if (add_is)
+                        {
+                                // `+name[<major>p<minor>]`: name is the run of letters
+                                // up to the first digit or whitespace.
+                                String8 name_and_version = String8__skip(entry, 1);
+                                U64 name_count = 0;
+                                for (;;)
+                                {
+                                        B32 name_break = name_count >= name_and_version.count
+                                                      || U8__ascii_digit_is(name_and_version.data[name_count])
+                                                      || name_and_version.data[name_count] == ' '
+                                                      || name_and_version.data[name_count] == '\t';
+                                        if (name_break)
+                                        {
+                                                break;
+                                        }
+                                        name_count += 1;
+                                }
+                                name    = String8__substring(name_and_version, name_count);
+                                version = String8__skip(name_and_version, name_count);
+
+                                // GNU as refuses to add the base extensions through `.option arch`.
+                                base_is = name.count == 0
+                                       || String8__match_exact(name, String8__literal("i"))
+                                       || String8__match_exact(name, String8__literal("e"))
+                                       || String8__match_exact(name, String8__literal("g"));
+                                extension_default = RISCV_Extensions__find(RISCV_Extension__defaults, array_count_m(RISCV_Extension__defaults), name);
+                                // Optional `<major>p<minor>` version suffix; leftover text is an invalid form.
+                                version_is = version.count >= 3
+                                           && U8__ascii_digit_is(version.data[0])
+                                           && version.data[1] == 'p'
+                                           && U8__ascii_digit_is(version.data[2]);
+                        }
+
+                        // Fail-fast chain: stop at the first invalid form, mirroring GNU as.
+                        if (!add_is)
+                        {
+                                // Only additions are supported (GNU as has deprecated `-`).
+                                error = error.count ? error : String8__format(arena, "unknown ISA extension in .option arch `%.*s'", String8__varg(string));
+                        }
+                        else if (base_is)
+                        {
+                                error = error.count ? error : String8__format(arena, "cannot + base extension `%.*s' in .option arch `%.*s'", String8__varg(name), String8__varg(string));
+                        }
+                        else if (extension_default == 0)
+                        {
+                                error = error.count ? error : String8__format(arena, "unknown ISA extension `%.*s' in .option arch `%.*s'", String8__varg(name), String8__varg(string));
+                        }
+                        else if (version.count && !version_is)
+                        {
+                                error = error.count ? error : String8__format(arena, "unknown ISA extension in .option arch `%.*s'", String8__varg(string));
+                        }
+                        else
+                        {
+                                U8 major = extension_default->major;
+                                U8 minor = extension_default->minor;
+                                if (version_is)
+                                {
+                                        major = version.data[0] - '0';
+                                        minor = version.data[2] - '0';
+                                }
+                                RISCV_extensions_add(extensions, name, major, minor);
+                        }
+
+                        B32 more_is = comma < rest.count && error.count == 0;
+                        if (more_is)
+                        {
+                                rest = String8__skip(rest, comma + 1);
+                        }
+                        B32 break_should = !more_is;
+                        if (break_should)
+                        {
+                                break;
+                        }
+                }
+        }
+        else if (string.count)
+        {
+                // Re-parse of a full ISA string (rv32/rv64 prefix required).
+                // `.option` may not change the XLEN, so the prefix must match the current one.
+
+                B32 rv32_is = String8__match_prefix(string, String8__literal("rv32"));
+                B32 rv64_is = String8__match_prefix(string, String8__literal("rv64"));
+                if (rv32_is || rv64_is)
+                {
+                        B32 xlen_matches = (rv32_is && xlen == XLEN_32)
+                                        || (rv64_is && xlen == XLEN_64);
+                        if (xlen_matches)
+                        {
+                                String8 extensions_string = String8__skip(string, 4);
+                                error = RISCV_Extensions__parse(arena, extensions, extensions_string, xlen);
+                        }
+                        else
+                        {
+                                error = String8__format(arena, ".option arch cannot change the XLEN (`rv%u' given, %u-bit ISA)", rv32_is ? 32 : 64, xlen);
+                        }
+                }
+                else
+                {
+                        error = String8__format(arena, "ISA string `%.*s' must begin with rv32 or rv64", String8__varg(string));
+                }
+        }
+
+        if (error.count == 0 && string.data[0] == '+')
+        {
+                RISCV_extensions_add_implicit(extensions, xlen);
+                error = RISCV_extensions_check_conflicts(arena, extensions, xlen);
+        }
+
+        return error;
+}
+
+internal String8
 RISCV_extensions_check_conflicts(Arena *arena, RISCV_Extensions *extensions, U8 xlen)
 {
         String8 error = {0};

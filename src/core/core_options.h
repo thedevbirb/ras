@@ -28,6 +28,12 @@ struct Options
         // The extensions parsed from `-march` (XLEN + enabled extensions).
         RISCV_Extensions extensions;
 
+        // The architecture string derived from `-march` at parse time.
+        //
+        // It is cached because `.option arch` (and, indirectly, `.option rvc`) mutate `extensions` afterwards, and the
+        // emitted `.riscv.attributes` architecture tag must keep the parse-time value.
+        String8 architecture;
+
         // Intrusive SLL stack of `.option push` / `.option pop` snapshots
         Options *next;
 };
