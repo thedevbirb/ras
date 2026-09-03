@@ -1702,6 +1702,8 @@ RISCV_instruction_pseudo_append
         case MACRO_LGA:
         {
                 // A constant can be materialized directly, no relocation involved.
+                //
+                // TODO(medium): it can happen that expression is not set, e.g. invalid code like `la foo`.
                 if (instruction->expression->evaluation == Expression_Kind__Constant)
                 {
                         RISCV_li_expand
