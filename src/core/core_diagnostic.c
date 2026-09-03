@@ -135,7 +135,8 @@ Diagnostic__print(Diagnostic *diagnostic, Source *source, Arena *arena)
         U32 index = 0;
         for (;;)
         {
-                U8 character = line[index];
+                B32 end_of_line = index >= (source->count - line_start_index);
+                U8 character = end_of_line ? '\n' : line[index];
                 character = character == '\t' ? ' ' : character;
                 fputc(character, stderr);
                 if (character == '\n')
